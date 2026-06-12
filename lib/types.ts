@@ -1,0 +1,214 @@
+export type Bazaar = {
+  id: string;
+  slug: string;
+  addressPrefix: string;
+  name: string;
+  subtitle: string;
+  accent: string;
+  soft: string;
+  claimed: number;
+  position: { x: number; y: number };
+  /** Axial hex coordinate (q, r) on the district world map. */
+  hex: { q: number; r: number };
+};
+
+export type ShopLink = {
+  id: string;
+  label: string;
+  url: string;
+  kind: "external" | "social";
+  tags?: string[];
+};
+
+export type Decoration = {
+  id: string;
+  type: "text" | "image" | "ai-image" | "link" | "furniture";
+  title: string;
+  content: string;
+  palette?: string;
+  zone?: RoomZone;
+  tags?: string[];
+};
+
+export type RoomZone = "left-wall" | "back-wall" | "floor" | "right-wall";
+
+export type HouseExterior = {
+  color: string;
+  roofStyle: "gable" | "stepped" | "mansard" | "round";
+  gardenStyle: "wildflowers" | "herbs" | "small-tree" | "minimal";
+  signText: string;
+  decoration?: string;
+};
+
+export type Shop = {
+  id: string;
+  address: string;
+  bazaarId: string;
+  slotNumber: number;
+  name: string;
+  owner: string;
+  ownerHandle: string;
+  tagline: string;
+  bio: string;
+  avatar: string;
+  palette: string;
+  cover: string;
+  likes: number;
+  followers: number;
+  visitors: number;
+  createdAt: string;
+  links: ShopLink[];
+  decorations: Decoration[];
+  exterior?: HouseExterior;
+  hidden?: boolean;
+  tags?: string[];
+};
+
+export type GenerationJob = {
+  id: string;
+  prompt: string;
+  status: "queued" | "building" | "complete" | "failed";
+  createdAt: string;
+};
+
+// ── Analytics events ────────────────────────────────────────
+export type EventType =
+  | "house_view"
+  | "room_view"
+  | "decoration_click"
+  | "link_click"
+  | "share_click"
+  | "follow"
+  | "like";
+
+export type BazaarEvent = {
+  id: string;
+  type: EventType;
+  /** The shop the event relates to, when applicable. */
+  shopId?: string;
+  /** A decoration or link id, when applicable. */
+  targetId?: string;
+  createdAt: string;
+};
+
+// ── Reporting / moderation ──────────────────────────────────
+export type ReportTargetType = "house" | "decoration" | "user" | "guestbook";
+
+export type ReportStatus = "pending" | "reviewed" | "hidden" | "dismissed";
+
+export type Report = {
+  id: string;
+  targetType: ReportTargetType;
+  /** Shop address for house/decoration/guestbook reports, owner handle for user reports. */
+  targetRef: string;
+  /** Decoration id, or guestbook entry id, depending on targetType. */
+  targetId?: string;
+  targetLabel: string;
+  reason: string;
+  status: ReportStatus;
+  createdAt: string;
+};
+
+// ── Notifications ───────────────────────────────────────────
+export type NotificationType =
+  | "house_view"
+  | "like"
+  | "follow"
+  | "guestbook_entry"
+  | "item_click"
+  | "report_status";
+
+export type Notification = {
+  id: string;
+  type: NotificationType;
+  /** Short headline, e.g. "New follower". */
+  title: string;
+  /** Supporting line, e.g. "Mina signed your guestbook". */
+  body: string;
+  /** Optional in-app destination for the notification. */
+  href?: string;
+  read: boolean;
+  createdAt: string;
+};
+
+// ── Guestbook ───────────────────────────────────────────────
+export type GuestbookEntry = {
+  id: string;
+  /** Address of the house the note was left at. */
+  shopAddress: string;
+  /** Visitor's display name. */
+  name: string;
+  message: string;
+  /** Owner can soft-hide an entry without deleting its record. */
+  hidden: boolean;
+  createdAt: string;
+};
+
+// ── Collections ─────────────────────────────────────────────
+export type SavedKind = "house" | "item";
+
+export type Collection = {
+  id: string;
+  name: string;
+  /** True for the three starter collections. */
+  isDefault: boolean;
+  createdAt: string;
+};
+
+export type CollectionItem = {
+  id: string;
+  collectionId: string;
+  kind: SavedKind;
+  /** Address of the saved house, or the house an item lives in. */
+  shopAddress: string;
+  /** Decoration id when kind is "item". */
+  itemId?: string;
+  label: string;
+  createdAt: string;
+};
+
+// ── Activity feed ───────────────────────────────────────────
+export type ActivityType =
+  | "claimed_house"
+  | "updated_house"
+  | "added_decoration"
+  | "liked_house"
+  | "followed_creator"
+  | "guestbook_entry"
+  | "saved_to_collection";
+
+export type ActivityEntry = {
+  id: string;
+  type: ActivityType;
+  actorName: string;
+  /** Bare handle (no @) for profile-specific filtering. */
+  actorHandle: string;
+  /** Human summary, e.g. "liked The Quiet Kettle". */
+  summary: string;
+  href?: string;
+  createdAt: string;
+};
+
+// ── Asset catalog ───────────────────────────────────────────
+export type AssetCategory = "furniture" | "wall" | "floor" | "plant" | "lighting" | "decor" | "structure";
+export type AssetPlacement = "floor" | "wall" | "ceiling" | "exterior" | "any";
+export type AssetRarity = "common" | "uncommon" | "rare" | "legendary";
+export type AssetStatus = "draft" | "published" | "retired";
+export type AssetOwnerType = "system" | "creator";
+
+export type CatalogAsset = {
+  id: string;
+  name: string;
+  category: AssetCategory;
+  /** Village id this asset themes to, or "any". */
+  villageTheme: string;
+  placement: AssetPlacement;
+  ownerType: AssetOwnerType;
+  /** Owner handle when creator-owned. */
+  ownerHandle?: string;
+  rarity: AssetRarity;
+  tags: string[];
+  /** Placeholder image URL — no real uploads in this foundation. */
+  imageUrl: string;
+  status: AssetStatus;
+};

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ai-bazaar-dev",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "PATH=/Users/hannan/.nvm/versions/node/v20.20.2/bin:$PATH npm run dev"],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(node -v; which node; ls /Users/hannan/.nvm/versions/node 2>/dev/null)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(grep -oE '^\\\\[[A-Z]+\\\\] [^ ]+ ?[^:]{0,80}' /Users/hannan/.claude/projects/-Users-hannan-Bazaar/8c8a311b-8b5f-4f7b-8f17-e175a981c0be/tool-results/mcp-Claude_Preview-preview_console_logs-1781067503789.txt)",
+      "mcp__visualize__read_me",
+      "mcp__visualize__show_widget",
+      "Bash(python3 -)"
+    ]
+  }
+}
