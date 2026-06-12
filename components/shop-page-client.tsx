@@ -8,6 +8,7 @@ import { TagChips } from "@/components/tags-ui";
 import { ReportButton } from "@/components/report-dialog";
 import { GuestbookPanel } from "@/components/guestbook-panel";
 import { SaveButton } from "@/components/save-button";
+import { RoomExperience } from "@/components/room/room-experience";
 import type { Shop } from "@/lib/types";
 import { cn, formatCount } from "@/lib/utils";
 import { useDemo } from "@/components/providers/demo-provider";
@@ -19,9 +20,16 @@ import { flags } from "@/lib/flags";
 import { bazaars } from "@/lib/data";
 
 export function ShopPageClient({ shop }: { shop: Shop }) {
+  const { ownedShop } = useDemo();
+  const hidden = useHiddenRefs().has(shop.address) && ownedShop?.id !== shop.id;
+  // Room Engine V1 is the default public surface; the legacy room is the fallback.
+  if (flags.roomEngine && !hidden) return <RoomExperience shop={shop} />;
+  return <LegacyHouseView shop={shop} hidden={hidden} />;
+}
+
+function LegacyHouseView({ shop, hidden }: { shop: Shop; hidden: boolean }) {
   const { user, likedShops, followedOwners, ownedShop, toggleLike, toggleFollow } = useDemo();
   const actor = { name: ownedShop?.owner ?? user?.name ?? "A visitor", handle: ownedShop?.ownerHandle ?? "guest" };
-  const hidden = useHiddenRefs().has(shop.address) && ownedShop?.id !== shop.id;
   const profileHref = `/u/${normalizeHandle(shop.ownerHandle)}`;
   const [copied, setCopied] = useState(false);
   const liked = likedShops.has(shop.id);

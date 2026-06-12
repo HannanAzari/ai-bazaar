@@ -1,0 +1,121 @@
+# AI Bazaar Roadmap
+
+Single source of truth for product direction. Keep concise; update every sprint.
+For technical detail see [architecture.md](../architecture.md); for testing see
+[QA.md](QA.md).
+
+---
+
+## Vision
+
+A **creator-owned virtual village**. Every creator owns one customizable **room**,
+and visitors discover creators by **exploring spaces** — wandering a village,
+stepping through doors, entering rooms — instead of scrolling a feed. The room is
+the product; the village is the navigation; AI helps creators arrange their space
+by **selecting from a curated asset library**, never by generating visuals.
+
+---
+
+## Core Product Pillars
+
+1. **Village discovery** — hex world map → village streets → houses. Explore, don't scroll.
+2. **Room engine** — the room is the primary surface: zones, objects, actions.
+3. **Creator identity** — profiles, follows, tags; a creator is known by their space.
+4. **Asset ecosystem** — a curated catalog is the source of truth for everything placeable.
+5. **AI room designer** — suggests/auto-arranges assets for a creator (selection, not generation).
+6. **AI room editor** — conversational edits ("add a bookshelf by the window") that map to asset/zone operations.
+7. **Social interactions** — guestbooks, likes, collections, activity, notifications.
+
+---
+
+## Completed
+
+| Sprint | Date | Outcome |
+|---|---|---|
+| Visual feeling & UX polish | 2026-06-10 | Magical-village street/interior pass; removed dashboard feel |
+| Visual redesign "Lantern Hollow" (Phase 0–1) | 2026-06-10 | Design tokens, Fraunces/Nunito fonts, seed-deterministic SVG house kit |
+| Platform foundations | 2026-06-11 | Hexagon district map, tags, discovery modes, analytics events, reporting + moderation (`20260611_*`) |
+| Sprint 1 — Creator identity | 2026-06-12 | Creator profiles `/u/[handle]`, notifications + bell, guestbooks (`20260612_*`) |
+| Sprint 2 — Saving, activity, assets | 2026-06-13 | Collections, activity feed, internal asset catalog (`20260613_*`) |
+| QA & stability | 2026-06-13 | Audit + small fixes, Vitest suite, QA checklist, DX docs |
+| Room Engine V1 | 2026-06-14 | Full-screen public room, 9-zone schema, room objects + actions, studio room editor, room-ready assets (`20260614_*`) |
+
+All sprints ship green: `typecheck · lint · test · build`.
+
+---
+
+## In Progress
+
+**Documentation & source-of-truth pass.** No feature sprint active.
+- `architecture.md` — done.
+- `docs/roadmap.md` — this file.
+
+---
+
+## Next Sprint
+
+### Room Engine V2 — interactions & placement polish
+
+Strengthen the core surface; turn V1 placeholders into real interactions.
+
+**Goals**
+- Real action panels for `gallery` (image grid), `video` (embed/placeholder player), and `product` (item card) — replacing the generic modal.
+- Better placement UX in the editor: finer anchor offsets (nudge X/Y) and rotation control; clearer zone-full feedback.
+- Richer object visuals per asset (beyond the icon tile) while reusing the existing room shell.
+- Wire room edits into the activity feed (`updated_house`) and confirm `object_click` analytics surface in moderation counts.
+
+**Files likely affected**
+- `components/room/object-action-modal.tsx` (split into per-action panels)
+- `components/room/room-object.tsx`, `room-canvas.tsx`, `room-editor.tsx`
+- `lib/room-schema.ts` (nudge/rotation helpers), `lib/types.ts` (richer `RoomActionData`)
+- `app/studio/page.tsx`, `components/room/room-experience.tsx`
+- `test/room.test.ts`; `supabase/*` only if `action_data` shape grows
+
+**Success criteria**
+- A visitor can open a gallery/video/product object and see a real (non-placeholder) panel.
+- An owner can nudge and rotate objects, not just pick an anchor.
+- All gates green; new helpers covered by tests; no visual regression to village/street/exteriors.
+
+---
+
+## Future (prioritized backlog)
+
+**P1**
+- **AI Room Designer (mock)** — heuristic "auto-arrange" / "suggest assets" that selects from the catalog by house tags/theme. No visual generation; mirrors the existing mock-generation pattern; clearly labelled until a provider is wired.
+- **Asset ecosystem expansion** — more room-ready assets, per-village themed sets, real placeholder art, asset detail surfaced in the editor.
+
+**P2**
+- **AI Room Editor (mock)** — natural-language commands mapped to deterministic asset/zone operations ("add a plant on the shelf").
+- **Multi-room houses** — `rooms` already supports it; add room switching + the studio "Add room" flow (currently a placeholder).
+- **Room theming** — wall/floor/lighting variants driven by `Room.theme`/`background`.
+
+**P3**
+- **Richer discovery** — explore-by-room-type, "rooms like this", featured villages.
+- **Production backend cutover** — wire Supabase reads/writes behind the demo libs; verify RLS live.
+- **Lightweight component/E2E tests** for core room flows.
+
+---
+
+## Explicitly Not Planned
+
+- **AI that generates visuals/images.** AI only *selects* from the asset library.
+- **Infinite scrolling feeds.** Discovery is spatial and curated.
+- **Traditional profile-first layouts.** The room is the surface; profile data is secondary (drawers/panels).
+- **Payments, marketplace, ads.** No monetization surfaces.
+- **Real-time chat / direct messaging.** Asynchronous social only (guestbooks, activity).
+- **Native mobile app.** Mobile-first web only.
+- **Real auth/AI provider integration** in demo mode (kept mockable behind interfaces).
+
+---
+
+## Product Principles
+
+1. **The room is always the primary surface.** Everything else is navigation or secondary chrome.
+2. **No infinite feed.** Discovery means exploring spaces.
+3. **No traditional profile-first layout.** Owner info lives in drawers/panels around the room.
+4. **AI selects assets, never generates visuals.**
+5. **The asset library is the source of truth** for anything placeable.
+6. **Mobile-first and immersive.** The room should feel entered, not browsed.
+7. **Two layers, always in sync.** Every feature ships a demo (localStorage) layer and matching Supabase schema parity.
+8. **Flag-gated and reversible.** New surfaces sit behind `ENABLE_*` flags with safe fallbacks.
+9. **Don't redesign the village/street/house art** without an explicit visual sprint.

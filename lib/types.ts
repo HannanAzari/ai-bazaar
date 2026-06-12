@@ -76,6 +76,7 @@ export type EventType =
   | "house_view"
   | "room_view"
   | "decoration_click"
+  | "object_click"
   | "link_click"
   | "share_click"
   | "follow"
@@ -211,4 +212,85 @@ export type CatalogAsset = {
   /** Placeholder image URL — no real uploads in this foundation. */
   imageUrl: string;
   status: AssetStatus;
+  // ── Room-engine metadata (present on room-ready assets) ──
+  /** Zone types this asset may be placed in. */
+  compatibleZones?: RoomZoneType[];
+  /** Starting scale when first placed. */
+  defaultScale?: number;
+  /** Suggested action for a freshly placed object. */
+  defaultActionType?: RoomActionType;
+};
+
+// ── Room engine (V1) ────────────────────────────────────────
+// NOTE: distinct from the legacy `RoomZone` string-union used by decorations.
+export type RoomZoneType =
+  | "back_wall"
+  | "left_wall"
+  | "right_wall"
+  | "floor_left"
+  | "floor_center"
+  | "floor_right"
+  | "shelf"
+  | "window"
+  | "door";
+
+export type RoomActionType =
+  | "link"
+  | "video"
+  | "product"
+  | "booking"
+  | "contact"
+  | "gallery"
+  | "guestbook"
+  | "collection"
+  | "none";
+
+export type RoomKind = "studio" | "shop" | "gallery" | "lounge" | "standard";
+
+/** A placement point inside the room, normalised 0..1 across the whole canvas. */
+export type AnchorPoint = { id: string; x: number; y: number };
+
+export type RoomZoneDef = {
+  id: string;
+  type: RoomZoneType;
+  allowedCategories: AssetCategory[];
+  anchors: AnchorPoint[];
+  maxObjects?: number;
+};
+
+export type RoomActionData = {
+  url?: string;
+  text?: string;
+};
+
+export type RoomObject = {
+  id: string;
+  assetId: string;
+  /** Zone the object belongs to (zone id === zone type in the V1 template). */
+  zoneId: string;
+  anchorId: string;
+  /** Fine offset from the anchor, normalised (roughly -0.1..0.1 of the canvas). */
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  zIndex: number;
+  label: string;
+  actionType: RoomActionType;
+  actionData?: RoomActionData;
+  tags: string[];
+  hidden: boolean;
+};
+
+export type Room = {
+  id: string;
+  /** The house this room belongs to. */
+  shopAddress: string;
+  name: string;
+  type: RoomKind;
+  theme: string;
+  /** Wall/floor style key (reuses the existing room shell for V1). */
+  background: string;
+  zones: RoomZoneDef[];
+  objects: RoomObject[];
 };

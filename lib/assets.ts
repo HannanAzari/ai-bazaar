@@ -57,4 +57,27 @@ export const catalogAssets: CatalogAsset[] = [
   { id: "ast-010", name: "Midnight Projector", category: "lighting", villageTheme: "cobalt-lane", placement: "wall", ownerType: "system", rarity: "rare", tags: ["film", "night"], imageUrl: ph("midnight-projector"), status: "published" },
   { id: "ast-011", name: "Orchard Floorboards", category: "floor", villageTheme: "blue-orchard", placement: "floor", ownerType: "system", rarity: "common", tags: ["wood", "warm"], imageUrl: ph("orchard-floorboards"), status: "published" },
   { id: "ast-012", name: "Founders' Hearth", category: "structure", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "legendary", tags: ["fire", "heritage"], imageUrl: ph("founders-hearth"), status: "retired" },
+
+  // ── Room-ready assets (placeable in the room engine) ──
+  { id: "ast-bookshelf", name: "Bookshelf", category: "furniture", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "common", tags: ["books", "links"], imageUrl: ph("bookshelf"), status: "published", compatibleZones: ["floor_left", "floor_right", "floor_center"], defaultScale: 1.1, defaultActionType: "link" },
+  { id: "ast-painting", name: "Painting Frame", category: "decor", villageTheme: "any", placement: "wall", ownerType: "system", rarity: "common", tags: ["art", "gallery"], imageUrl: ph("painting"), status: "published", compatibleZones: ["back_wall", "left_wall", "right_wall"], defaultScale: 1, defaultActionType: "gallery" },
+  { id: "ast-screen", name: "TV / Screen", category: "decor", villageTheme: "any", placement: "wall", ownerType: "system", rarity: "uncommon", tags: ["video", "screen"], imageUrl: ph("screen"), status: "published", compatibleZones: ["back_wall", "left_wall", "right_wall"], defaultScale: 1.1, defaultActionType: "video" },
+  { id: "ast-desk", name: "Writing Desk", category: "furniture", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "common", tags: ["work", "notes"], imageUrl: ph("desk"), status: "published", compatibleZones: ["floor_left", "floor_center", "floor_right"], defaultScale: 1, defaultActionType: "contact" },
+  { id: "ast-sofa", name: "Cosy Sofa", category: "furniture", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "common", tags: ["lounge", "cosy"], imageUrl: ph("sofa"), status: "published", compatibleZones: ["floor_center", "floor_left", "floor_right"], defaultScale: 1.2, defaultActionType: "none" },
+  { id: "ast-rug", name: "Round Rug", category: "floor", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "common", tags: ["textile", "warm"], imageUrl: ph("rug"), status: "published", compatibleZones: ["floor_center"], defaultScale: 1.3, defaultActionType: "none" },
+  { id: "ast-plant", name: "Potted Plant", category: "plant", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "common", tags: ["nature", "green"], imageUrl: ph("plant"), status: "published", compatibleZones: ["floor_left", "floor_right", "shelf"], defaultScale: 0.9, defaultActionType: "none" },
+  { id: "ast-product-shelf", name: "Product Shelf", category: "furniture", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "uncommon", tags: ["shop", "products"], imageUrl: ph("product-shelf"), status: "published", compatibleZones: ["floor_left", "floor_right", "shelf"], defaultScale: 1.1, defaultActionType: "product" },
+  { id: "ast-guestbook-table", name: "Guestbook Table", category: "furniture", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "uncommon", tags: ["guestbook", "welcome"], imageUrl: ph("guestbook-table"), status: "published", compatibleZones: ["floor_left", "floor_right"], defaultScale: 1, defaultActionType: "guestbook" },
+  { id: "ast-photo-wall", name: "Photo Wall", category: "decor", villageTheme: "any", placement: "wall", ownerType: "system", rarity: "common", tags: ["photos", "memories"], imageUrl: ph("photo-wall"), status: "published", compatibleZones: ["back_wall", "left_wall", "right_wall"], defaultScale: 1.1, defaultActionType: "gallery" },
+  { id: "ast-door", name: "Side Door", category: "structure", villageTheme: "any", placement: "exterior", ownerType: "system", rarity: "common", tags: ["door", "exit"], imageUrl: ph("door"), status: "published", compatibleZones: ["door"], defaultScale: 1, defaultActionType: "link" },
+  { id: "ast-stairs", name: "Stairs (placeholder)", category: "structure", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "rare", tags: ["stairs", "soon"], imageUrl: ph("stairs"), status: "draft", compatibleZones: ["floor_left", "floor_right", "door"], defaultScale: 1.1, defaultActionType: "none" },
 ];
+
+/** Assets that can be placed in a room (carry room-engine metadata). */
+export function roomReadyAssets(): CatalogAsset[] {
+  return catalogAssets.filter((asset) => asset.compatibleZones && asset.compatibleZones.length > 0);
+}
+
+export function getAsset(id: string): CatalogAsset | undefined {
+  return catalogAssets.find((asset) => asset.id === id);
+}

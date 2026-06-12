@@ -12,7 +12,8 @@ export type FeatureFlag =
   | "ENABLE_GUESTBOOKS"
   | "ENABLE_COLLECTIONS"
   | "ENABLE_ACTIVITY_FEED"
-  | "ENABLE_ASSET_CATALOG";
+  | "ENABLE_ASSET_CATALOG"
+  | "ENABLE_ROOM_ENGINE";
 
 const defaults: Record<FeatureFlag, boolean> = {
   // Sprint 1 — implemented, on by default
@@ -23,6 +24,8 @@ const defaults: Record<FeatureFlag, boolean> = {
   ENABLE_COLLECTIONS: true,
   ENABLE_ACTIVITY_FEED: true,
   ENABLE_ASSET_CATALOG: true,
+  // Room Engine V1 — on by default; off falls back to the legacy room
+  ENABLE_ROOM_ENGINE: true,
 };
 
 // next/font + Next inlines NEXT_PUBLIC_* at build time, so this lookup must use
@@ -34,6 +37,7 @@ const overrides: Record<FeatureFlag, string | undefined> = {
   ENABLE_COLLECTIONS: process.env.NEXT_PUBLIC_ENABLE_COLLECTIONS,
   ENABLE_ACTIVITY_FEED: process.env.NEXT_PUBLIC_ENABLE_ACTIVITY_FEED,
   ENABLE_ASSET_CATALOG: process.env.NEXT_PUBLIC_ENABLE_ASSET_CATALOG,
+  ENABLE_ROOM_ENGINE: process.env.NEXT_PUBLIC_ENABLE_ROOM_ENGINE,
 };
 
 export function isEnabled(flag: FeatureFlag): boolean {
@@ -49,4 +53,5 @@ export const flags = {
   collections: isEnabled("ENABLE_COLLECTIONS"),
   activityFeed: isEnabled("ENABLE_ACTIVITY_FEED"),
   assetCatalog: isEnabled("ENABLE_ASSET_CATALOG"),
+  roomEngine: isEnabled("ENABLE_ROOM_ENGINE"),
 };

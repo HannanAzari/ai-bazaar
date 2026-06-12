@@ -1,0 +1,288 @@
+# AI Bazaar — Architecture
+
+This document is the single source of truth for continuing development. It is
+written so a fresh session can be productive without reading prior conversations.
+Pair it with [README.md](README.md) (run/setup) and [docs/QA.md](docs/QA.md)
+(manual test checklist).
+
+---
+
+## 1. Project vision
+
+AI Bazaar is a **cozy creative village**. Each member claims one little house in
+one of ten villages, decorates a personal **room**, attaches links/actions, and
+welcomes visitors through a memorable three-word address (e.g. `moon.blue.hour`).
+
+The product is mobile-first and storybook-flavoured (hand-drawn SVG houses, warm
+parchment palette). The **room is the main surface** — a visitor should feel "I
+entered this person's room," not "I'm reading their profile." Engagement
+foundations (profiles, notifications, guestbooks, collections, activity, an asset
+catalog) wrap around that core.
+
+**Explicit non-goals (do not add without being asked):** real AI/LLM calls,
+payments, a marketplace, ads, chatbots, direct messaging, a native mobile app.
+Mock/placeholder flows stand in for AI generation and asset images.
+
+### Tech stack
+- **Next.js 15** (App Router) · **React 19** · **TypeScript** (strict, `target: es5`)
+- **Tailwind CSS 3** · **lucide-react** icons · fonts via `next/font` (Fraunces + Nunito Sans)
+- **Supabase** (`@supabase/ssr`) for production; **Vitest** for unit tests
+- **Node 20+ required** for tooling. The machine's default `node` is v16 — always
+  prefix commands with `export PATH="/Users/hannan/.nvm/versions/node/v20.20.2/bin:$PATH"`.
+- Scripts: `npm run dev | build | start | lint | typecheck | test`
+
+### The most important architectural fact
+
+**The running app is a client-side demo.** With blank Supabase env vars,
+`lib/supabase/*` returns `null` and nothing queries a backend. Instead:
+- Static seed content lives in `lib/data.ts` (10 villages, 10 sample houses).
+- Mutable state lives in **`localStorage`** via small demo libs + a React context.
+- The **SQL schema is a production-parity mirror** kept in sync but **not exercised
+  at runtime** here. Every feature therefore has **two layers**: the demo lib
+  (what renders/what you can verify) and the SQL (what production would use).
+
+When adding a feature, build **both layers** and keep their shapes aligned.
+
+---
+
+## 2. Room Engine architecture (the core surface)
+
+Flag: `ENABLE_ROOM_ENGINE` (default **on**). Off → falls back to the legacy
+profile-style room (`components/shop-room.tsx`), it does **not** 404.
+
+### Data model (`lib/types.ts`)
+- **`Room`**: `{ id, shopAddress, name, type (RoomKind), theme, background, zones[], objects[] }`
+- **`RoomZoneDef`**: `{ id, type (RoomZoneType), allowedCategories[], anchors[], maxObjects? }`
+- **`RoomObject`**: `{ id, assetId, zoneId, anchorId, x, y, scale, rotation, zIndex, label, actionType, actionData?, tags[], hidden }`
+- **`RoomZoneType`** (9): `back_wall, left_wall, right_wall, floor_left, floor_center, floor_right, shelf, window, door`
+- **`RoomActionType`** (9): `link, video, product, booking, contact, gallery, guestbook, collection, none`
+- **`AnchorPoint`**: `{ id, x, y }` — normalised **0..1 across the whole canvas**
+  (not per-zone), so a stored object renders without per-zone geometry.
+
+> Naming caution: there is a legacy `RoomZone` string-union (`"left-wall" | "back-wall" | "floor" | "right-wall"`) used by the old `Decoration` model. The room engine uses the distinct names above. Do not conflate them.
+
+### Schema & helpers (`lib/room-schema.ts`)
+- `ZONE_TEMPLATE` — the canonical nine zones (allowed categories, anchors, max counts). Every room clones this; zones are **app-defined**, not stored per-room.
+- `createRoom(address)` · `deriveDefaultRoom(shop)` — builds a furnished room from a house's decorations + links so **every house shows a populated room** before its owner edits one.
+- Validation: `validatePlacement(room, category, zoneId)`, `firstCompatibleSlot`, `isRoomActionType`.
+- **Pure layout helpers** (return a new `Room`, easy to test): `addObjectFromAsset`, `updateObject`, `moveObject`, `duplicateObject`, `deleteObject`, `bringToFront`, `sendToBack`.
+- Labels: `zoneLabels`, `actionLabels`, `ROOM_ACTION_TYPES`.
+
+### Store (`lib/room.ts`)
+- `getRoom(shop)` → saved layout for `shop.address`, else `deriveDefaultRoom(shop)`.
+- `getStoredRoom(address)`, `saveRoom(room)`, `resetRoom(address)`.
+- localStorage key `ai-bazaar-rooms` (`Record<address, Room>`); dispatches `ai-bazaar-rooms-changed`.
+
+### Components (`components/room/`)
+- `room-canvas.tsx` — renders the shared room shell (reuses the wallpaper/floor/window/lamp CSS from `globals.css`) and positions objects by anchor. Modes: `"public"` (clickable, hides hidden objects) and `"editor"` (selectable, shows hidden dimmed).
+- `room-object.tsx` — one object: lucide icon per asset (`objectIcon(assetId)`), label plaque, keyboard-accessible `<button>`. Exports `objectIcon`.
+- `object-action-modal.tsx` — placeholder panels for `video/product/booking/contact/gallery`.
+- `room-experience.tsx` — **the full-screen public surface**. Loads `getRoom`, renders the canvas at viewport scale, plus: top-left "where am I" chip, top-right action cluster (like/follow/save/share), bottom-left owner chip + guestbook button, slide-over **drawers** (owner info/stats/links, guestbook), and the action modal. Handles object activation: `link`→new tab, `guestbook`→drawer, `none`→noop, else→modal. Tracks `object_click` + `decoration_click`.
+- `room-editor.tsx` — **the studio editor**. Asset palette (`roomReadyAssets()`), selectable canvas, inspector (label, action + URL, zone, anchor, scale, layer front/back, hide, duplicate, delete), **Save layout** (`saveRoom`) / **Reset layout** (`resetRoom`).
+
+### Assets (`lib/assets.ts`)
+Placeable assets come from the catalog. Room-ready assets carry optional
+`compatibleZones`, `defaultScale`, `defaultActionType`. Helpers: `roomReadyAssets()`,
+`getAsset(id)`. The 12 room-ready ids: `ast-bookshelf, ast-painting, ast-screen,
+ast-desk, ast-sofa, ast-rug, ast-plant, ast-product-shelf, ast-guestbook-table,
+ast-photo-wall, ast-door, ast-stairs`.
+
+### Wiring
+- Public: `components/shop-page-client.tsx` is a thin switch — if `flags.roomEngine && !hidden` → `<RoomExperience>`, else `<LegacyHouseView>` (the old profile-style layout, which also handles the moderator "resting" state).
+- Studio: `app/studio/page.tsx` has a `"room" | "exterior" | "interior"` mode; `"room"` (default when flag on) renders `<RoomEditor shop={ownedShop} />`.
+
+---
+
+## 3. Village architecture (map → street → house)
+
+**Do not redesign the village map, street view, or house exteriors / visual art**
+unless explicitly asked. These were built in earlier visual sprints.
+
+- **World/district map** — `components/village-world.tsx` (rendered at `/` and `/bazaar`). A hex-grid honeycomb of **10 villages** with a frontier of empty plots. Each hex links to `/bazaar/[slug]`. Village data + axial `hex` coords in `lib/data.ts`.
+- **Street view** — `components/street-walk.tsx` (at `/bazaar/[slug]`). Horizontal scroll of **24 detached houses** per village; open houses can be claimed (address picker → `/studio`).
+- **House kit** — `components/scene/house/` (`house.tsx`, `spec.ts`, `index.ts`). One **seed-deterministic** SVG house used by the map, street, discover cards, and exterior preview. `deriveHouseSpec(seed)` derives roof/wall/door variation from a stable hash (SSR-safe — never `Math.random`).
+- **House interior** — the Room Engine (section 2). The legacy interior `components/shop-room.tsx` renders the `Decoration[]` model and is the flag-off fallback.
+
+Counts: `HOUSES_PER_VILLAGE = 24`, 10 villages → 240 houses. Address format
+`village.word.word`; the village prefix is fixed, the resident picks two words
+(`lib/addresses.ts`).
+
+---
+
+## 4. Database schema (production parity — `supabase/schema.sql`)
+
+Postgres with Row-Level Security. Internal table names keep `shop*` for historical
+reasons; the **product language is house/place/room**. `is_admin()` and
+`owns_shop(shop_id)` are SECURITY DEFINER helpers used throughout RLS.
+
+### Tables (25)
+| Group | Tables |
+|---|---|
+| Identity | `profiles` |
+| Village | `bazaars`, `shop_slots`, `shops`, `shop_rooms` (legacy), `shop_decorations`, `shop_links` |
+| Social | `likes`, `follows`, `guestbook_entries`, `notifications` |
+| Discovery | `tags`, `shop_tags`, `decoration_tags`, `link_tags` |
+| Saving / feed | `collections`, `collection_items`, `activity_events` |
+| Analytics | `events` (+ `record_event()` fn, `event_counts` view) |
+| Moderation | `reports` |
+| Generation | `generation_jobs` |
+| Catalog | `assets` |
+| **Room engine** | `rooms`, `room_objects`, `room_object_tags` |
+
+### Enums (16)
+`decoration_type, generation_status, report_target_type` (`shop|decoration|user|guestbook`),
+`report_status` (`pending|reviewed|hidden|dismissed`), `event_type`, `notification_type`,
+`room_zone_type`, `room_action_type`, `room_kind`, `saved_kind`, `activity_type`,
+`asset_category`, `asset_placement`, `asset_rarity`, `asset_status`, `asset_owner_type`.
+
+### Migration order (apply in filename order)
+1. `20260610_village_model.sql`
+2. `20260610_house_exteriors_and_room_zones.sql`
+3. `20260611_01_extend_enums.sql` → `20260611_02_tags_events_reports.sql`
+4. `20260612_01_extend_enums.sql` → `20260612_02_creator_engagement.sql`
+5. `20260613_collections_activity_assets.sql`
+6. `20260614_room_engine.sql`
+
+`schema.sql` is the fresh-install superset. **Critical Postgres rule:** a new
+enum **value** added to an existing enum must be committed before it is used, so
+those changes are split into `_01_extend_enums` (add values) + `_02_*` (use them).
+Brand-new `CREATE TYPE` enums can be created and used in the same migration.
+
+> The SQL has never been run against a live Postgres in this environment — **dry-run new migrations on staging** before production.
+
+---
+
+## 5. Feature flags (`lib/flags.ts`)
+
+Read from `NEXT_PUBLIC_ENABLE_*` (inlined at build time; resolve identically on
+server + client). Blank → built-in default. Access via the `flags` object
+(`flags.roomEngine`, etc.).
+
+| Flag | `flags` key | Default | Controls | Off behaviour |
+|---|---|---|---|---|
+| `ENABLE_CREATOR_PROFILES` | `creatorProfiles` | on | `/u/[handle]`, owner links | route 404, links become plain text |
+| `ENABLE_NOTIFICATIONS` | `notifications` | on | header bell, `/notifications` | route 404, bell hidden |
+| `ENABLE_GUESTBOOKS` | `guestbooks` | on | guestbook panel/drawer | hidden |
+| `ENABLE_COLLECTIONS` | `collections` | on | save buttons, `/collections` | route 404, buttons hidden |
+| `ENABLE_ACTIVITY_FEED` | `activityFeed` | on | `/activity`, profile feed, activity recording | route 404, recording skipped |
+| `ENABLE_ASSET_CATALOG` | `assetCatalog` | on | `/assets` (internal) | route 404 |
+| `ENABLE_ROOM_ENGINE` | `roomEngine` | on | full-screen room + room editor | **falls back to legacy room** (no 404) |
+
+Pattern: gate the route (`if (!flags.x) notFound()`), the nav/UI entry points,
+and any data recording. All six listed routes are 404-gated; only the room engine
+has a graceful fallback.
+
+---
+
+## 6. Route map
+
+| Route | Type | Notes |
+|---|---|---|
+| `/` | static | Hex district map (`VillageWorld`) + onboarding overlay |
+| `/bazaar` | static | Alias of the map |
+| `/bazaar/[slug]` | SSG (10) | Village street (`StreetWalk`); claim flow |
+| `/shop/[address]` | SSG (10) + dynamic | Public room (`ShopPageClient` → `RoomExperience` or legacy). Resolves owner-claimed addresses client-side via `useAllShops` |
+| `/studio` | client | Owner editor (room / exterior / classic interior + details + tags). Requires demo user + claimed house |
+| `/discover` | static | Trending/newest, tags, swipe/grid/list |
+| `/tags`, `/tags/[tag]` | static + SSG | Tag index + detail |
+| `/u/[handle]` | SSG | Creator profile (flag) |
+| `/notifications` | static | Inbox (flag) |
+| `/collections` | static | Saved houses/items (flag) |
+| `/activity` | static | Global activity feed (flag) |
+| `/assets` | static | Internal catalog, noindex (flag) |
+| `/moderation` | static | Admin reports + event counts |
+| `/auth/login`, `/auth/sign-up` | static | Demo auth entry |
+| `/design` | static | Internal house-kit showcase (unlinked) |
+| `/api/generations` | route | Mock generation endpoint (no real AI) |
+
+---
+
+## 7. Storage model
+
+### Demo layer (runtime)
+React context **`DemoProvider`** (`components/providers/demo-provider.tsx`) holds
+session state and exposes `useDemo()` and `useAllShops()`:
+`user, ownedShop, likedShops:Set, followedOwners:Set, jobs`, plus actions
+`login, logout, claimShop, toggleLike, toggleFollow, addDecoration, updateShop,
+addShopLink, setShopTags, setDecorationTags, setLinkTags, createGeneration`.
+
+Feature data lives in **small localStorage libs**, each following the same shape:
+`read()`/`write()` guarded by `typeof window`, wrapped in `try/catch`, and a
+`window.dispatchEvent(new Event("ai-bazaar-<x>-changed"))` that components
+subscribe to for reactivity. Some seed demo data once (`*-seeded` guard key).
+
+| Lib | localStorage key | Purpose |
+|---|---|---|
+| `lib/events.ts` | `ai-bazaar-events` | analytics `trackEvent()` + counts |
+| `lib/reports.ts` | `ai-bazaar-reports` | moderation reports + status, `hiddenRefs()` |
+| `lib/notifications.ts` | `ai-bazaar-notifications` (+`-seeded`) | inbox + bell |
+| `lib/guestbook.ts` | `ai-bazaar-guestbook` | per-house notes |
+| `lib/collections.ts` | `ai-bazaar-collections` | collections + saved items |
+| `lib/activity.ts` | `ai-bazaar-activity` (+`-seeded`) | activity feed |
+| `lib/room.ts` | `ai-bazaar-rooms` | saved room layouts |
+| DemoProvider | `ai-bazaar-user`, `ai-bazaar-shop` | demo user + claimed house |
+| Onboarding | `ai-bazaar-world-seen` | overlay dismissed |
+
+Other client helpers: `lib/use-hidden.ts` (`useHiddenRefs()` reactive set of
+moderator-hidden addresses), `lib/creators.ts` (`getCreator`, `normalizeHandle`),
+`lib/tags.ts` (`normalizeTag`, `parseTags`, aggregation).
+
+**Reset demo state** (console):
+```js
+Object.keys(localStorage).filter(k => k.startsWith("ai-bazaar-")).forEach(k => localStorage.removeItem(k));
+location.reload();
+```
+
+### Image storage abstraction (`lib/storage/`)
+`getImageStorage()` returns an `ImageStorage` (`upload`/`remove`). `LocalMockStorage`
+is active; an R2 implementation can replace it without touching the editor. No
+real uploads yet.
+
+### Hydration discipline
+Demo state loads in `useEffect`, never during render; components initialise to
+empty/zero so the server and first client render match. Any deterministic
+variation (house specs, hex positions) derives from stable seeds — **never
+`Math.random()` / `Date.now()` in render**.
+
+---
+
+## 8. Current completed features
+
+- **Village**: hex district map (10 villages), horizontal street (24 houses each), seed-deterministic SVG house kit, claim-a-house flow.
+- **Room Engine V1**: full-screen public room, nine-zone schema, room objects with 9 action types, studio room editor (palette/select/inspector/save/reset), 12 room-ready assets, default room derived per house.
+- **Creator profiles** (`/u/[handle]`): avatar/bio/links/houses/follower counts, follow, profile activity feed.
+- **Notifications**: header bell + `/notifications`, 6 types, read/unread, demo seed.
+- **Guestbooks**: per-house notes, owner hide/delete, report a note, owner notification on new note.
+- **Collections**: 3 default collections, quick-save on cards + menu on house page, `/collections`.
+- **Activity feed**: global `/activity` + profile feed, 7 event types recorded on real actions.
+- **Tags**: normalized tags on houses/decorations/links, `/tags` + `/tags/[tag]`, studio editing.
+- **Discovery**: trending/newest, explore-by-tag, mobile swipe + desktop grid/list.
+- **Analytics**: `trackEvent` (8 types incl. `object_click`), counts on moderation page.
+- **Reporting/moderation**: report house/item/user/guestbook, `/moderation` queue with `pending→reviewed→hidden→dismissed`; `hidden` soft-hides from discovery/tags.
+- **Asset catalog**: internal `/assets` grid with filters.
+- **Quality**: Vitest suite (25 tests) for the demo libs; QA checklist; flags + demo behaviour documented.
+
+Verification gates (all green): `npm run typecheck && npm run lint && npm run test && npm run build` (build emits ~81 pages).
+
+---
+
+## 9. Known limitations
+
+- **Demo, single-user.** No real auth; one claimed house per browser. Notifications/activity are seeded + self-generated (no other users). "Following" counts on profiles are demo-derived per handle.
+- **Room actions are placeholders** for `video/product/booking/contact/gallery` (simple panels, not real experiences). One room per house; multi-room/stairs are placeholders. Placement is **zone + anchor-point selection, not free drag**. Objects can crowd on very small viewports.
+- **AI/storage are mocked**: `/api/generations` and `createGeneration` are fake; image URLs are placeholders that don't load.
+- **SQL is unverified at runtime** — schema/migrations mirror the demo but have never been executed against Postgres here. Dry-run before production; RLS in particular needs live testing.
+- **Tests cover libs, not UI** — no component/E2E tests.
+- **Node 16 is the machine default** but the toolchain needs Node 20 (eslint `structuredClone`, `next dev`). Always set the PATH as noted in section 1.
+
+---
+
+## 10. How to extend (conventions)
+
+1. **Two layers per feature**: a localStorage demo lib (mirroring `lib/events.ts`'s shape: SSR guard, try/catch, change event) **and** matching SQL (schema.sql + a dated migration; split enum-value additions).
+2. **Flag new surfaces** with a `NEXT_PUBLIC_ENABLE_*` entry in `lib/flags.ts` and `.env.example`; gate route + UI + recording.
+3. **Keep it modular**: new feature → its own `lib/<feature>.ts`, `components/<feature>*` (or a folder), and a route under `app/`.
+4. **Strict TS, zero lint warnings.** Avoid `Math.random`/`Date.now` in render (hydration). Reuse existing components/CSS rather than redesigning visuals.
+5. **Add a Vitest** for pure/storage helpers (`test/<feature>.test.ts`; the harness mocks `localStorage` via `test/setup.ts`).
+6. **Verify**: run the four gates, then screenshot key pages via the preview tools (clear `ai-bazaar-*` keys between runs).
+7. **Update docs**: this file, `README.md`, and `docs/QA.md`.

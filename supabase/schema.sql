@@ -6,6 +6,9 @@ create type public.report_target_type as enum ('shop', 'decoration', 'user', 'gu
 create type public.report_status as enum ('pending', 'reviewed', 'hidden', 'dismissed');
 create type public.event_type as enum ('house_view', 'room_view', 'decoration_click', 'link_click', 'share_click', 'follow', 'like');
 create type public.notification_type as enum ('house_view', 'like', 'follow', 'guestbook_entry', 'item_click', 'report_status');
+create type public.room_zone_type as enum ('back_wall', 'left_wall', 'right_wall', 'floor_left', 'floor_center', 'floor_right', 'shelf', 'window', 'door');
+create type public.room_action_type as enum ('link', 'video', 'product', 'booking', 'contact', 'gallery', 'guestbook', 'collection', 'none');
+create type public.room_kind as enum ('studio', 'shop', 'gallery', 'lounge', 'standard');
 create type public.saved_kind as enum ('house', 'item');
 create type public.activity_type as enum ('claimed_house', 'updated_house', 'added_decoration', 'liked_house', 'followed_creator', 'guestbook_entry', 'saved_to_collection');
 create type public.asset_category as enum ('furniture', 'wall', 'floor', 'plant', 'lighting', 'decor', 'structure');
@@ -257,6 +260,44 @@ create table public.events (
   created_at timestamptz not null default now()
 );
 
+-- ── Room engine ──────────────────────────────────────────────────────────────
+-- Zones are a fixed app-defined template (lib/room-schema.ts); the zone lives as
+-- an enum column on each object rather than its own table.
+create table public.rooms (
+  id uuid primary key default gen_random_uuid(),
+  shop_id uuid not null references public.shops(id) on delete cascade,
+  name text not null default 'Main room' check (char_length(name) between 1 and 80),
+  type public.room_kind not null default 'standard',
+  theme text not null default 'warm',
+  background text not null default 'standard',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.room_objects (
+  id uuid primary key default gen_random_uuid(),
+  room_id uuid not null references public.rooms(id) on delete cascade,
+  asset_id uuid references public.assets(id) on delete set null,
+  zone public.room_zone_type not null,
+  anchor_id text not null,
+  x real not null default 0,
+  y real not null default 0,
+  scale real not null default 1 check (scale > 0 and scale <= 4),
+  rotation real not null default 0,
+  z_index integer not null default 0,
+  label text not null default '' check (char_length(label) <= 80),
+  action_type public.room_action_type not null default 'none',
+  action_data jsonb not null default '{}'::jsonb,
+  hidden boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table public.room_object_tags (
+  object_id uuid not null references public.room_objects(id) on delete cascade,
+  tag_id uuid not null references public.tags(id) on delete cascade,
+  primary key (object_id, tag_id)
+);
+
 create index shops_address_idx on public.shops using btree (address);
 create index shops_created_at_idx on public.shops using btree (created_at desc) where hidden = false;
 create index decorations_shop_idx on public.shop_decorations (shop_id, sort_order) where hidden = false;
@@ -276,6 +317,8 @@ create index activity_created_idx on public.activity_events (created_at desc);
 create index activity_actor_idx on public.activity_events (actor_handle, created_at desc);
 create index assets_category_idx on public.assets (category) where status = 'published';
 create index assets_status_idx on public.assets (status);
+create index rooms_shop_idx on public.rooms (shop_id);
+create index room_objects_room_idx on public.room_objects (room_id, z_index);
 
 create or replace function public.is_admin()
 returns boolean
@@ -452,6 +495,9 @@ alter table public.collections enable row level security;
 alter table public.collection_items enable row level security;
 alter table public.activity_events enable row level security;
 alter table public.assets enable row level security;
+alter table public.rooms enable row level security;
+alter table public.room_objects enable row level security;
+alter table public.room_object_tags enable row level security;
 alter table public.tags enable row level security;
 alter table public.shop_tags enable row level security;
 alter table public.decoration_tags enable row level security;
@@ -535,6 +581,23 @@ create policy "published assets are public" on public.assets for select
   using (status = 'published' or public.is_admin());
 create policy "admins manage assets" on public.assets for all
   using (public.is_admin()) with check (public.is_admin());
+
+create policy "rooms are public" on public.rooms for select
+  using (exists (select 1 from public.shops s where s.id = shop_id and (not s.hidden or public.owns_shop(s.id) or public.is_admin())));
+create policy "owners manage their room" on public.rooms for all
+  using (public.owns_shop(shop_id) or public.is_admin())
+  with check (public.owns_shop(shop_id) or public.is_admin());
+
+create policy "room objects are public" on public.room_objects for select
+  using (exists (select 1 from public.rooms r join public.shops s on s.id = r.shop_id where r.id = room_id and (not s.hidden or public.owns_shop(s.id) or public.is_admin())));
+create policy "owners manage room objects" on public.room_objects for all
+  using (exists (select 1 from public.rooms r where r.id = room_id and (public.owns_shop(r.shop_id) or public.is_admin())))
+  with check (exists (select 1 from public.rooms r where r.id = room_id and (public.owns_shop(r.shop_id) or public.is_admin())));
+
+create policy "room object tags are public" on public.room_object_tags for select using (true);
+create policy "owners manage room object tags" on public.room_object_tags for all
+  using (exists (select 1 from public.room_objects o join public.rooms r on r.id = o.room_id where o.id = object_id and (public.owns_shop(r.shop_id) or public.is_admin())))
+  with check (exists (select 1 from public.room_objects o join public.rooms r on r.id = o.room_id where o.id = object_id and (public.owns_shop(r.shop_id) or public.is_admin())));
 
 create policy "tags are public" on public.tags for select using (true);
 create policy "authenticated create tags" on public.tags for insert to authenticated with check (true);

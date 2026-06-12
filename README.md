@@ -74,6 +74,9 @@ npm run test        # vitest unit tests for the demo libs
 npm run build       # production build
 ```
 
+> Closing a sprint? Follow [docs/sprint-checklist.md](docs/sprint-checklist.md)
+> (definition of done): update the source-of-truth docs, then pass all four gates.
+
 ## Demo mode & localStorage
 
 With blank Supabase variables the app runs in **demo mode**: no real backend, no
@@ -90,6 +93,7 @@ initialise to empty/zero on the server to avoid hydration mismatches.
 | `ai-bazaar-guestbook` | guestbook notes per house |
 | `ai-bazaar-collections` | collections and saved items |
 | `ai-bazaar-activity`, `…-seeded` | activity feed (seeded once) |
+| `ai-bazaar-rooms` | saved room-engine layouts per house |
 | `ai-bazaar-world-seen` | onboarding dismissed flag |
 
 **Reset demo state** from the browser console:
@@ -114,8 +118,38 @@ Flags resolve identically on server and client; blank uses the built-in default.
 | `ENABLE_COLLECTIONS` | on | save buttons, `/collections` |
 | `ENABLE_ACTIVITY_FEED` | on | `/activity`, profile feed, activity recording |
 | `ENABLE_ASSET_CATALOG` | on | `/assets` (internal) |
+| `ENABLE_ROOM_ENGINE` | on | full-screen public room + studio room editor (off = legacy room) |
 
 When a flag is off, its route returns 404 and its UI entry points are hidden.
+The exception is `ENABLE_ROOM_ENGINE`: off it falls back to the legacy
+profile-style room rendering instead of hiding anything.
+
+## Room Engine V1
+
+The public house page is a full-screen personal room rather than a profile.
+
+- **Public room** — the room canvas fills the viewport; owner bio, stats, links,
+  and the guestbook live in slide-over drawers, and like/follow/save/share/report
+  sit in a compact corner cluster. Objects in the room are clickable: `link`
+  opens a URL, `guestbook` opens the guestbook drawer, and `video`/`product`/
+  `booking`/`contact`/`gallery` open a placeholder panel. Clicks record
+  `object_click` (and `decoration_click`) analytics.
+- **Room model** (`lib/room-schema.ts`, `lib/types.ts`) — a `Room` has nine
+  zones (`back_wall`, `left_wall`, `right_wall`, `floor_left`, `floor_center`,
+  `floor_right`, `shelf`, `window`, `door`), each with allowed asset categories,
+  anchor points, and a max-object count. A `RoomObject` carries asset id, zone,
+  anchor, x/y, scale, rotation, z-index, label, action type + data, tags, and a
+  hidden flag. Houses without a saved layout render a populated default derived
+  from their decorations and links.
+- **Room editor** — the studio's "Room" mode: pick assets from a palette, select
+  an object, and edit its label, action, zone, anchor, scale, and layer; hide,
+  duplicate, or delete it; then **Save layout** (publishes to the public page) or
+  **Reset layout** (reverts to the derived default).
+- **Assets** — placeable assets come from the catalog (`lib/assets.ts`); the
+  room-ready ones carry `compatibleZones`, `defaultScale`, and `defaultActionType`.
+
+Demo layouts persist in `localStorage` under `ai-bazaar-rooms`; production writes
+the same shape to the `rooms` / `room_objects` tables.
 
 ## Supabase
 
@@ -135,7 +169,8 @@ For an existing project, run migrations in filename order:
 6. `supabase/migrations/20260612_01_extend_enums.sql` — adds the `guestbook` report target. Must commit before step 7.
 7. `supabase/migrations/20260612_02_creator_engagement.sql` — `guestbook_entries`, `notifications` (+ `push_notification()` helper and the guestbook-entry trigger), and the guestbook branch of the `reports` check.
 8. `supabase/migrations/20260613_collections_activity_assets.sql` — `collections`, `collection_items`, `activity_events`, and `assets` (all new types and tables; no enum-split needed).
-9. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
+9. `supabase/migrations/20260614_room_engine.sql` — `rooms`, `room_objects`, `room_object_tags` and the room enums (all new types; no enum-split needed).
+10. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
 
 The two-step enum split (in both `20260611_*` and `20260612_*`) is required: PostgreSQL will not let a single transaction add an enum value and then use it, so new enum values are committed in `_01` before `_02` references them.
 
@@ -152,6 +187,7 @@ Internal table names such as `shops`, `shop_slots`, and `shop_decorations` remai
 - `collections`, `collection_items` — private per-owner saves (RLS scopes them to the owner).
 - `activity_events` — public, append-only activity stream powering the global and profile feeds.
 - `assets` — the asset-metadata catalog; published rows are public, admins manage the rest.
+- `rooms`, `room_objects`, `room_object_tags` — the Room Engine layout; rooms of visible houses are public, owners manage their own. Zones are an app-defined template (an enum column on each object), not a table.
 
 ## Mock Generation
 
@@ -174,8 +210,8 @@ app/
   bazaar/[slug]/         Horizontal village street
   discover/              Discovery: trending, newest, tags, swipe/grid/list
   tags/                  Tag index (/tags) and tag detail (/tags/[tag])
-  shop/[address]/        Public house interior (room + guestbook)
-  studio/                Resident room editor (interior, exterior, tags)
+  shop/[address]/        Public full-screen room (Room Engine) + guestbook
+  studio/                Resident editor (room engine, exterior, tags)
   u/[handle]/            Public creator profile + activity feed
   notifications/         Notification inbox
   collections/           Saved houses and items
@@ -198,6 +234,7 @@ components/
   collections-client.tsx Collections page
   activity-feed.tsx      Global + profile activity feed
   assets-client.tsx      Internal asset catalog grid
+  room/                  Room Engine: canvas, object, action modal, experience, editor
 lib/
   data.ts                Villages (with hex coords), sample residents, tags
   flags.ts               Feature flags (NEXT_PUBLIC_ENABLE_*)
@@ -210,7 +247,9 @@ lib/
   guestbook.ts           Per-house guestbook store
   collections.ts         Collections store + default seed
   activity.ts            Activity store, record() + demo seed
-  assets.ts              Sample asset catalog data
+  assets.ts              Sample asset catalog (+ room-ready assets)
+  room-schema.ts         Zone template, derive/validate, pure layout helpers
+  room.ts                Room layout store (get/save/reset)
 supabase/
   schema.sql             Tables, policies, triggers, and constraints
   seed.sql               Ten villages, 240 houses, starter tags

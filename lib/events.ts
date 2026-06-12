@@ -11,6 +11,7 @@ export const eventLabels: Record<EventType, string> = {
   house_view: "House views",
   room_view: "Room views",
   decoration_click: "Decoration clicks",
+  object_click: "Object clicks",
   link_click: "Link clicks",
   share_click: "Shares",
   follow: "Follows",
