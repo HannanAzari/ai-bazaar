@@ -80,7 +80,13 @@ export type EventType =
   | "link_click"
   | "share_click"
   | "follow"
-  | "like";
+  | "like"
+  // Room studio (V2) editing lifecycle.
+  | "room_object_added"
+  | "room_object_deleted"
+  | "room_object_moved"
+  | "room_object_resized"
+  | "room_template_applied";
 
 export type BazaarEvent = {
   id: string;
@@ -269,10 +275,17 @@ export type RoomObject = {
   /** Zone the object belongs to (zone id === zone type in the V1 template). */
   zoneId: string;
   anchorId: string;
-  /** Fine offset from the anchor, normalised (roughly -0.1..0.1 of the canvas). */
+  /** Fine offset from the anchor, normalised across the whole canvas. Free
+   * dragging adjusts this; the rendered centre is anchor + offset, clamped to
+   * the room bounds. */
   x: number;
   y: number;
   scale: number;
+  /** Object box size in canvas pixels (corner-resize handles). Optional for
+   * back-compat: rooms saved before V2 carry only `scale` and fall back to the
+   * base tile size. `scale` multiplies width/height when both are present. */
+  width?: number;
+  height?: number;
   rotation: number;
   zIndex: number;
   label: string;

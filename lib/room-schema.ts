@@ -174,6 +174,72 @@ export function moveObject(room: Room, objectId: string, zoneId: string, anchorI
   return updateObject(room, objectId, { zoneId, anchorId });
 }
 
+// ── Free drag + resize (V2) ──────────────────────────────────
+
+/** Inset (normalised) kept between an object's centre and the room edge so a
+ * dragged object always stays inside the room. */
+export const ROOM_BOUND_MARGIN = 0.04;
+/** Smallest object box side, in canvas pixels — resize never goes to zero. */
+export const MIN_OBJECT_SIZE = 16;
+
+export function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * Free-drag an object to a normalised centre (anchor + offset), clamping the
+ * centre inside the room bounds so it can never leave the canvas. Keeps the
+ * object's zone (and therefore its category validity) intact — drag only
+ * adjusts the fine offset from the anchor.
+ */
+export function moveObjectTo(room: Room, objectId: string, centerX: number, centerY: number): Room {
+  const object = room.objects.find((o) => o.id === objectId);
+  if (!object) return room;
+  const zone = findZone(room, object.zoneId);
+  const anchor = zone?.anchors.find((a) => a.id === object.anchorId) ?? zone?.anchors[0];
+  const ax = anchor?.x ?? 0.5;
+  const ay = anchor?.y ?? 0.5;
+  const cx = clamp(centerX, ROOM_BOUND_MARGIN, 1 - ROOM_BOUND_MARGIN);
+  const cy = clamp(centerY, ROOM_BOUND_MARGIN, 1 - ROOM_BOUND_MARGIN);
+  return updateObject(room, objectId, { x: cx - ax, y: cy - ay });
+}
+
+/** The current normalised centre (anchor + offset) of an object. */
+export function objectCenter(room: Room, object: RoomObject): { x: number; y: number } {
+  const zone = findZone(room, object.zoneId);
+  const anchor = zone?.anchors.find((a) => a.id === object.anchorId) ?? zone?.anchors[0];
+  return { x: (anchor?.x ?? 0.5) + object.x, y: (anchor?.y ?? 0.5) + object.y };
+}
+
+/**
+ * Resize an object. Any dimension that is zero or negative is rejected and the
+ * whole operation is a no-op (the room is returned unchanged), so the engine
+ * never persists an invalid size. `scale` is the uniform multiplier (slider);
+ * `width`/`height` are the box dimensions (corner handles).
+ */
+export function resizeObject(
+  room: Room,
+  objectId: string,
+  dims: { width?: number; height?: number; scale?: number },
+): Room {
+  const object = room.objects.find((o) => o.id === objectId);
+  if (!object) return room;
+  const patch: Partial<RoomObject> = {};
+  if (dims.scale !== undefined) {
+    if (!(dims.scale > 0)) return room;
+    patch.scale = dims.scale;
+  }
+  if (dims.width !== undefined) {
+    if (!(dims.width > 0)) return room;
+    patch.width = dims.width;
+  }
+  if (dims.height !== undefined) {
+    if (!(dims.height > 0)) return room;
+    patch.height = dims.height;
+  }
+  return updateObject(room, objectId, patch);
+}
+
 export function duplicateObject(room: Room, sourceId: string): Room {
   const object = room.objects.find((o) => o.id === sourceId);
   if (!object) return room;
@@ -192,6 +258,36 @@ export function bringToFront(room: Room, objectId: string): Room {
 export function sendToBack(room: Room, objectId: string): Room {
   const minZ = room.objects.reduce((min, o) => Math.min(min, o.zIndex), 0);
   return updateObject(room, objectId, { zIndex: minZ - 1 });
+}
+
+/** Swap z-index with the neighbour one step above (Bring Forward). */
+export function bringForward(room: Room, objectId: string): Room {
+  const sorted = [...room.objects].sort((a, b) => a.zIndex - b.zIndex);
+  const idx = sorted.findIndex((o) => o.id === objectId);
+  if (idx < 0 || idx === sorted.length - 1) return room;
+  const cur = sorted[idx];
+  const above = sorted[idx + 1];
+  return {
+    ...room,
+    objects: room.objects.map((o) =>
+      o.id === cur.id ? { ...o, zIndex: above.zIndex } : o.id === above.id ? { ...o, zIndex: cur.zIndex } : o,
+    ),
+  };
+}
+
+/** Swap z-index with the neighbour one step below (Send Backward). */
+export function sendBackward(room: Room, objectId: string): Room {
+  const sorted = [...room.objects].sort((a, b) => a.zIndex - b.zIndex);
+  const idx = sorted.findIndex((o) => o.id === objectId);
+  if (idx <= 0) return room;
+  const cur = sorted[idx];
+  const below = sorted[idx - 1];
+  return {
+    ...room,
+    objects: room.objects.map((o) =>
+      o.id === cur.id ? { ...o, zIndex: below.zIndex } : o.id === below.id ? { ...o, zIndex: cur.zIndex } : o,
+    ),
+  };
 }
 
 /**

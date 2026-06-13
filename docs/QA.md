@@ -50,21 +50,37 @@ save buttons, guestbook panel, footer links, owner-profile links) disappear.
 | Moderate a report | `/moderation` | Status cycles pending → reviewed → hidden → dismissed; `hidden` soft-hides the house |
 | Read a notification | `/notifications` | Toggle read/unread; mark-all clears the bell badge |
 | Open a room object | `/shop/[address]` | Object with an action fires it: link → new tab, guestbook → drawer, others → placeholder panel; records `object_click` |
+| Apply a room template | `/studio` → Room → a template | Room fills with that template's objects; records `room_template_applied`; undoable |
 | Edit the room | `/studio` → Room | Add from palette; select an object; change label/action/zone/anchor/scale/layer; hide/duplicate/delete |
+| Drag an object | `/studio` → Room (Edit) | Object follows the pointer (mouse or touch), stays inside the room; records `room_object_moved` |
+| Resize an object | `/studio` → Room (Edit) | Scale slider or corner handles change its size; records `room_object_resized` |
+| Multi-select | `/studio` → Room (Edit) | Shift-click or drag a box over objects; batch move/delete/layer in the panel |
+| Delete an object | `/studio` → Room (Edit) | Confirmation dialog appears; confirming removes it; records `room_object_deleted` |
+| Undo / redo | `/studio` → Room (Edit) | `⌘Z` / `⌘⇧Z` or the toolbar buttons step through edits |
+| Preview the room | `/studio` → Room → Preview | Shows the room as visitors see it; editing controls are disabled |
+| Autosave | `/studio` → Room | Status shows Saved → Unsaved → Saving → Saved ~5s after edits, without pressing Save |
 | Save the room layout | `/studio` → Room → Save | Persists to `ai-bazaar-rooms`; the public room reflects it |
 | Reset the room layout | `/studio` → Room → Reset | Reverts to the derived default room |
 
-## Room editor flow
+## Room editor flow (Creator Studio)
 
 1. Claim a house, open `/studio`, and the **Room** tab is selected by default.
 2. The canvas shows the house's current layout (a default derived from its
    decorations/links until you save your own).
-3. Click a palette asset to drop it into the first compatible zone.
-4. Click an object in the canvas to select it; the inspector appears on the left.
-5. Adjust label, action + URL, zone, anchor spot, scale, and layer; hide,
-   duplicate, or delete.
-6. **Save layout** to publish; **Reset layout** to revert to the default.
-7. Open the house's public page to confirm the room and clickable objects.
+3. Optionally **apply a template** (Creator / Photographer / Artist / Developer /
+   Shop / Podcast) to furnish the room from existing assets.
+4. Click a palette asset to drop it into the first compatible zone.
+5. **Drag** an object to reposition it (it stays inside the room); **resize** it
+   with the scale slider or the corner handles when selected.
+6. Click an object to select it (inspector on the left); **shift-click** or drag a
+   **selection box** to select several and batch move / delete / change layers.
+7. Adjust label, action + URL, zone, anchor spot, scale, and layer (Forward /
+   Backward); hide, duplicate, or delete (delete is confirmed).
+8. **Undo / redo** with `⌘Z` / `⌘⇧Z` or the toolbar buttons.
+9. **Autosave** persists ~5s after changes (watch the status); or press
+   **Save layout** to publish immediately; **Reset layout** reverts to the default.
+10. Toggle **Preview** to see the room as visitors do, then open the house's
+    public page to confirm the room and clickable objects.
 
 ## Expected behaviours that look like bugs but aren't
 
@@ -112,8 +128,9 @@ Keys: `ai-bazaar-user`, `ai-bazaar-shop`, `ai-bazaar-world-seen`,
 
 ## Automated coverage
 
-`npm run test` (Vitest) covers the pure/storage helpers: tag normalization,
-collection save/remove, notification read/unread, report status transitions,
-hidden-house filtering, relative-time formatting, and the room engine (schema
-creation, zone + placement validation, action-type validation, save/reset
-layout). UI flows are still manual.
+`npm run test` (Vitest, 33 tests) covers the pure/storage helpers: tag
+normalization, collection save/remove, notification read/unread, report status
+transitions, hidden-house filtering, relative-time formatting, and the room
+engine (schema creation, zone + placement validation, action-type validation,
+save/reset layout, **free-drag bounds, resize validation, undo/redo history, and
+template generation**). UI flows are still manual.

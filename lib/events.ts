@@ -16,6 +16,11 @@ export const eventLabels: Record<EventType, string> = {
   share_click: "Shares",
   follow: "Follows",
   like: "Likes",
+  room_object_added: "Objects added",
+  room_object_deleted: "Objects deleted",
+  room_object_moved: "Objects moved",
+  room_object_resized: "Objects resized",
+  room_template_applied: "Templates applied",
 };
 
 function read(): BazaarEvent[] {

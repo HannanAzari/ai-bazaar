@@ -124,7 +124,7 @@ When a flag is off, its route returns 404 and its UI entry points are hidden.
 The exception is `ENABLE_ROOM_ENGINE`: off it falls back to the legacy
 profile-style room rendering instead of hiding anything.
 
-## Room Engine V1
+## Room Engine
 
 The public house page is a full-screen personal room rather than a profile.
 
@@ -138,13 +138,28 @@ The public house page is a full-screen personal room rather than a profile.
   zones (`back_wall`, `left_wall`, `right_wall`, `floor_left`, `floor_center`,
   `floor_right`, `shelf`, `window`, `door`), each with allowed asset categories,
   anchor points, and a max-object count. A `RoomObject` carries asset id, zone,
-  anchor, x/y, scale, rotation, z-index, label, action type + data, tags, and a
-  hidden flag. Houses without a saved layout render a populated default derived
-  from their decorations and links.
-- **Room editor** — the studio's "Room" mode: pick assets from a palette, select
-  an object, and edit its label, action, zone, anchor, scale, and layer; hide,
-  duplicate, or delete it; then **Save layout** (publishes to the public page) or
-  **Reset layout** (reverts to the derived default).
+  anchor, x/y, scale, optional width/height, rotation, z-index, label, action
+  type + data, tags, and a hidden flag. Houses without a saved layout render a
+  populated default derived from their decorations and links.
+- **Creator Studio editor (V2)** — the studio's "Room" mode is a real editing
+  tool:
+  - **Templates** — one-click starter layouts (Creator, Photographer, Artist,
+    Developer, Shop, Podcast), composed from existing assets.
+  - **Drag & drop** — move objects freely with mouse or touch; they stay inside
+    the room bounds.
+  - **Resize** — a scale slider plus corner handles (stores scale + width/height;
+    zero/negative sizes are rejected).
+  - **Layers** — Bring Forward / Send Backward; z-index persists.
+  - **Duplicate** and **delete** (delete asks for confirmation).
+  - **Multi-select** — shift-click or drag a selection box, then batch move,
+    delete, or change layers.
+  - **Edit / Preview** — Preview shows the room exactly as visitors see it.
+  - **Undo / redo** — `⌘Z` / `⌘⇧Z` (or buttons) across add/delete/move/resize/
+    duplicate/layer/template.
+  - **Autosave** — persists ~5s after changes, with a saved / saving / unsaved
+    status; the manual **Save layout** and **Reset layout** remain.
+  - Edits record `room_object_added/deleted/moved/resized` and
+    `room_template_applied` analytics.
 - **Assets** — placeable assets come from the catalog (`lib/assets.ts`); the
   room-ready ones carry `compatibleZones`, `defaultScale`, and `defaultActionType`.
 
@@ -170,9 +185,11 @@ For an existing project, run migrations in filename order:
 7. `supabase/migrations/20260612_02_creator_engagement.sql` — `guestbook_entries`, `notifications` (+ `push_notification()` helper and the guestbook-entry trigger), and the guestbook branch of the `reports` check.
 8. `supabase/migrations/20260613_collections_activity_assets.sql` — `collections`, `collection_items`, `activity_events`, and `assets` (all new types and tables; no enum-split needed).
 9. `supabase/migrations/20260614_room_engine.sql` — `rooms`, `room_objects`, `room_object_tags` and the room enums (all new types; no enum-split needed).
-10. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
+10. `supabase/migrations/20260615_01_extend_enums.sql` — adds the room-studio `event_type` values (`object_click`, `room_object_added/deleted/moved/resized`, `room_template_applied`). Must commit before step 11.
+11. `supabase/migrations/20260615_02_room_studio.sql` — `room_objects.width` / `.height` (nullable, `> 0`) for resize.
+12. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
 
-The two-step enum split (in both `20260611_*` and `20260612_*`) is required: PostgreSQL will not let a single transaction add an enum value and then use it, so new enum values are committed in `_01` before `_02` references them.
+The two-step enum split (in `20260611_*`, `20260612_*`, and `20260615_*`) is required: PostgreSQL will not let a single transaction add an enum value and then use it, so new enum values are committed in `_01` before `_02` references them.
 
 Internal table names such as `shops`, `shop_slots`, and `shop_decorations` remain unchanged to avoid an unnecessary data migration. The visible product consistently uses village, house, place, room, item, and decoration language.
 

@@ -4,7 +4,7 @@ create type public.decoration_type as enum ('text', 'image', 'ai_image', 'link',
 create type public.generation_status as enum ('queued', 'building', 'complete', 'failed');
 create type public.report_target_type as enum ('shop', 'decoration', 'user', 'guestbook');
 create type public.report_status as enum ('pending', 'reviewed', 'hidden', 'dismissed');
-create type public.event_type as enum ('house_view', 'room_view', 'decoration_click', 'link_click', 'share_click', 'follow', 'like');
+create type public.event_type as enum ('house_view', 'room_view', 'decoration_click', 'object_click', 'link_click', 'share_click', 'follow', 'like', 'room_object_added', 'room_object_deleted', 'room_object_moved', 'room_object_resized', 'room_template_applied');
 create type public.notification_type as enum ('house_view', 'like', 'follow', 'guestbook_entry', 'item_click', 'report_status');
 create type public.room_zone_type as enum ('back_wall', 'left_wall', 'right_wall', 'floor_left', 'floor_center', 'floor_right', 'shelf', 'window', 'door');
 create type public.room_action_type as enum ('link', 'video', 'product', 'booking', 'contact', 'gallery', 'guestbook', 'collection', 'none');
@@ -283,6 +283,8 @@ create table public.room_objects (
   x real not null default 0,
   y real not null default 0,
   scale real not null default 1 check (scale > 0 and scale <= 4),
+  width real check (width is null or width > 0),
+  height real check (height is null or height > 0),
   rotation real not null default 0,
   z_index integer not null default 0,
   label text not null default '' check (char_length(label) <= 80),

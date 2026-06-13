@@ -4,9 +4,11 @@ The source of truth for all room-engine behavior. This document describes
 **product and system behavior only** — not implementation. When code and this
 spec disagree, this spec wins (or it must be updated in the same change).
 
-Scope note: "V1" marks behavior that exists today; "Future" marks intended
+Scope note: "V1"/"V2" mark behavior that exists today; "Future" marks intended
 behavior that is reserved but not yet built. Validation and the data model below
-apply to both unless stated otherwise.
+apply to all unless stated otherwise. V2 (the Creator Studio) added free
+drag/resize, multi-select, undo/redo, autosave, and starter templates **without
+changing the visual language, the zone model, or the validation rules**.
 
 ---
 
@@ -61,8 +63,11 @@ Each object placed in the room has:
 - **identity** — a stable id unique within the room.
 - **asset** — a reference to a catalog asset (the source of its appearance/category).
 - **placement** — the zone it belongs to, an anchor point within that zone, and a
-  fine offset (x, y) from the anchor.
-- **transform** — scale, rotation, and layer order (z-index).
+  fine offset (x, y) from the anchor. Free dragging adjusts the offset; the
+  rendered centre (anchor + offset) is clamped inside the room bounds.
+- **transform** — a uniform scale, an optional explicit box size (width, height),
+  rotation, and layer order (z-index). When a box size is absent the object uses
+  a base size; when present, scale multiplies it.
 - **label** — short human title shown to visitors.
 - **action** — an action type and its associated data (see §5).
 - **tags** — optional discovery tags.
@@ -145,6 +150,14 @@ Rules:
 6. **Default rooms:** a house with no saved layout shows a furnished room derived
    from the house's existing decorations and links, following the same placement
    rules. Saving a layout replaces the default.
+7. **Free positioning (V2):** within its zone an object may be dragged to any fine
+   offset from its anchor. The object's centre is always **kept inside the room
+   bounds** (it can never be dragged off the canvas). Dragging changes position
+   only — it does not change an object's zone, so category/capacity validity is
+   preserved.
+8. **Templates (V2):** an owner may apply a starter template, which composes a
+   furnished room from existing catalog assets under these same rules. Applying a
+   template is a normal, undoable edit.
 
 ---
 
@@ -175,18 +188,31 @@ The editor is the owner's tool to compose their room. It is **owner-only** (a
 visitor never edits).
 
 1. The owner can **add** an object by choosing an asset from the asset palette; it
-   is placed per the placement rules (§6).
-2. The owner can **select** an object in the canvas to edit it.
+   is placed per the placement rules (§6). They may also **apply a starter
+   template** (Creator, Photographer, Artist, Developer, Shop, Podcast) that
+   furnishes the room from existing catalog assets.
+2. The owner can **select** an object in the canvas to edit it, **shift-click** to
+   add to a selection, or drag a **selection marquee** over several objects.
 3. For a selected object the owner can edit: **label**, **action type and its data**,
-   **zone**, **anchor point**, **scale**, and **layer order** (bring to front / send
-   to back); and can **hide**, **duplicate**, or **delete** it.
-4. Placement in V1 is **zone + anchor-point selection** (a small fixed set of spots
-   per zone) — not free-form drag. Finer nudge/rotation is a Future enhancement.
-5. **Save layout** publishes the current composition to the public room.
-6. **Reset layout** discards the saved layout and returns the room to its derived
+   **zone**, **anchor point**, **scale**, **size**, and **layer order**; and can
+   **hide**, **duplicate**, or **delete** it. A multi-selection supports batch
+   **move**, **delete**, and **layer change**.
+4. **Placement is direct manipulation (V2):** objects are **dragged freely** with
+   mouse or touch and **resized** with a scale slider or corner handles; the
+   zone/anchor selectors remain available as an alternative. Positions are kept
+   inside the room bounds (§6.7).
+5. **Delete is confirmed** (single or batch) before it removes anything.
+6. **Undo / redo** covers add, delete, move, resize, duplicate, layer change, and
+   template application, via keyboard (`⌘Z` / `⌘⇧Z`) and on-screen controls.
+7. **Save layout** publishes the current composition; an **autosave** also persists
+   shortly after edits, with a clear saved / saving / unsaved status.
+8. **Reset layout** discards the saved layout and returns the room to its derived
    default.
-7. The editor reflects validation immediately: disallowed placements are not
-   offered, and capacity limits are surfaced rather than silently failing.
+9. A **Preview mode** shows the room exactly as a visitor would see it, with no
+   editing controls.
+10. The editor reflects validation immediately: disallowed placements are not
+    offered, capacity limits are surfaced rather than silently failing, and an
+    out-of-bounds drag or a zero/negative resize is prevented rather than saved.
 
 ---
 
@@ -203,11 +229,14 @@ These hold in both the editor and the system, for both V1 and Future work.
    types; unknown actions are invalid.
 5. **Action data:** url-style actions should carry a destination; absent data makes
    the action inert (never an error).
-6. **Bounds:** label length, scale, and rotation stay within sane limits; an object
-   always references a real anchor in its zone.
-7. **Graceful failure:** any invalid operation is a no-op that leaves the room in a
+6. **Bounds:** label length, scale, rotation, and box size stay within sane limits;
+   an object always references a real anchor in its zone, and its position is kept
+   inside the room (a drag can never move it off the canvas).
+7. **Size:** an object's width, height, and scale are always positive — a resize to
+   zero or a negative value is rejected (no-op), never persisted.
+8. **Graceful failure:** any invalid operation is a no-op that leaves the room in a
    valid state — the engine never persists or renders an invalid Room.
-8. **Determinism & stability:** validation is pure and side-effect free; identical
+9. **Determinism & stability:** validation is pure and side-effect free; identical
    input always yields the identical verdict.
 
 ---

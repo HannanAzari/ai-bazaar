@@ -231,6 +231,53 @@ Split such changes into two ordered files: `_01_extend_enums.sql` (only the
 
 ---
 
+## ADR-010 — Free drag/resize over anchor-only placement (Room Engine V2)
+
+**Status:** Accepted · 2026-06-15
+
+### Context
+V1 placement was zone + anchor-point selection via dropdowns — predictable and
+SSR-safe, but it did not feel like a creator tool. The V2 "Creator Studio"
+sprint had to add free drag, resize, multi-select, undo/redo, autosave, and
+templates **without redesigning the visual language** or breaking the existing
+saved-room shape.
+
+### Decision
+- **Drag adjusts the existing normalised offset from an anchor**, clamped inside
+  the room bounds (`moveObjectTo`), rather than replacing the zone/anchor model.
+  Zones still own category validation and capacity; the anchor remains the
+  object's logical base. This keeps every prior room valid and the validation
+  rules untouched.
+- **Resize stores `scale` + `width`/`height`** side by side: the slider drives the
+  uniform `scale`; corner handles set the box `width`/`height` (px). `width`/`height`
+  are **optional** so pre-V2 rooms (scale-only) render unchanged via a base size.
+- **Pointer interaction lives in `RoomCanvas` (editor mode)**; the editor passes a
+  small callback bundle (`onInteractionStart`/`onLiveChange`/`onCommit`/selection).
+  Live drags update state without a history entry; a single entry is pushed on
+  release. Undo/redo is a **pure, tested history stack** (`lib/room-history.ts`).
+- **Templates select existing catalog assets only** (ADR-006) and run through the
+  same placement rules — no generated graphics, no rule bypass.
+
+### Alternatives Considered
+- **Absolute coordinates, retire anchors** — cleaner "free editor" feel, but a
+  larger model change, a migration risk, and it weakens zone-based validation.
+- **Replace `scale` with `width`/`height` only** — breaks pre-V2 rooms and the
+  slider UX; rejected in favour of keeping both.
+- **Per-keystroke / per-frame history** — floods undo; chose discrete commits and
+  one entry per drag/resize gesture.
+
+### Consequences
+- (+) Real creator-tool editing (drag, resize, multi-select, undo, autosave,
+  templates) with **zero change to the visual language** and full back-compat.
+- (+) Validation and the public renderer are unchanged; the canvas is the only
+  component that grew interaction logic.
+- (−) `RoomCanvas` editor mode is now stateful (pointer tracking) — more complex
+  than the V1 render-only canvas.
+- (−) Two size controls (slider + handles) must stay coherent (effective size =
+  `width × scale`).
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

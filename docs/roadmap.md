@@ -39,6 +39,7 @@ by **selecting from a curated asset library**, never by generating visuals.
 | Sprint 2 — Saving, activity, assets | 2026-06-13 | Collections, activity feed, internal asset catalog (`20260613_*`) |
 | QA & stability | 2026-06-13 | Audit + small fixes, Vitest suite, QA checklist, DX docs |
 | Room Engine V1 | 2026-06-14 | Full-screen public room, 9-zone schema, room objects + actions, studio room editor, room-ready assets (`20260614_*`) |
+| Room Engine V2 — Creator Studio | 2026-06-15 | Free drag/resize, layers, duplicate, delete-confirm, multi-select, Edit/Preview, undo/redo, autosave, six templates, editing analytics (`20260615_*`) |
 
 All sprints ship green: `typecheck · lint · test · build`.
 
@@ -46,34 +47,32 @@ All sprints ship green: `typecheck · lint · test · build`.
 
 ## In Progress
 
-**Documentation & source-of-truth pass.** No feature sprint active.
-- `architecture.md` — done.
-- `docs/roadmap.md` — this file.
+No feature sprint active. Room Engine V2 (Creator Studio) shipped 2026-06-15.
 
 ---
 
 ## Next Sprint
 
-### Room Engine V2 — interactions & placement polish
+### Room Engine V3 — real object actions & richer visuals
 
-Strengthen the core surface; turn V1 placeholders into real interactions.
+The Creator Studio (V2) made editing real; V3 turns the remaining V1 placeholders
+into real visitor experiences.
 
 **Goals**
 - Real action panels for `gallery` (image grid), `video` (embed/placeholder player), and `product` (item card) — replacing the generic modal.
-- Better placement UX in the editor: finer anchor offsets (nudge X/Y) and rotation control; clearer zone-full feedback.
-- Richer object visuals per asset (beyond the icon tile) while reusing the existing room shell.
-- Wire room edits into the activity feed (`updated_house`) and confirm `object_click` analytics surface in moderation counts.
+- Richer object visuals per asset (beyond the icon tile) while reusing the existing room shell; optional rotation control (model already supports it; no UI yet).
+- Wire room edits into the activity feed (`updated_house`) and confirm the new room editing events surface in moderation counts.
 
 **Files likely affected**
 - `components/room/object-action-modal.tsx` (split into per-action panels)
 - `components/room/room-object.tsx`, `room-canvas.tsx`, `room-editor.tsx`
-- `lib/room-schema.ts` (nudge/rotation helpers), `lib/types.ts` (richer `RoomActionData`)
+- `lib/types.ts` (richer `RoomActionData`)
 - `app/studio/page.tsx`, `components/room/room-experience.tsx`
 - `test/room.test.ts`; `supabase/*` only if `action_data` shape grows
 
 **Success criteria**
 - A visitor can open a gallery/video/product object and see a real (non-placeholder) panel.
-- An owner can nudge and rotate objects, not just pick an anchor.
+- Objects read richer than a single icon tile; an owner can rotate objects.
 - All gates green; new helpers covered by tests; no visual regression to village/street/exteriors.
 
 ---

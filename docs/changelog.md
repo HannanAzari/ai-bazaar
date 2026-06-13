@@ -8,6 +8,44 @@ for technical detail.
 
 ---
 
+## 2026-06-15 — Room Engine V2: Creator Studio
+
+Turns the V1 zone/anchor editor into a real creator tool. **No visual redesign** —
+the village, houses, colours, typography, and room shell are unchanged; only
+editing capability grew.
+
+### Added
+- **Free drag-and-drop placement** (`components/room/room-canvas.tsx`): objects move with the pointer (mouse + touch), clamped inside the room bounds. Anchor/zone dropdowns remain for category validation; drag adjusts the fine offset (`moveObjectTo`, `ROOM_BOUND_MARGIN`).
+- **Resize** — a scale slider plus corner resize handles on the selected object; stores `scale`, `width`, `height` (`resizeObject`, rejects zero/negative; `MIN_OBJECT_SIZE`).
+- **Layer management** — Bring Forward / Send Backward (`bringForward`/`sendBackward`, neighbour z-swap) alongside the existing front/back; z-index persists.
+- **Duplicate** (asset, scale, action, tags, new id) and **Delete with a confirmation dialog** (single or batch).
+- **Multi-select** — shift-click and a drag-selection marquee; batch move (drag), delete, and layer change.
+- **Edit / Preview toggle** — Preview renders the room exactly as the public surface, with editing controls dimmed.
+- **Undo / Redo** — pure history stack (`lib/room-history.ts`) over add/delete/move/resize/duplicate/layer/template; keyboard `⌘Z` / `⌘⇧Z` (`⌃` on non-mac; suppressed while typing in a field).
+- **Autosave** — persists 5s after the last change, with a Saved / Saving… / Unsaved-changes status; the manual Save button remains.
+- **Room templates** (`lib/room-templates.ts`): six starter layouts — Creator, Photographer, Artist, Developer, Shop, Podcast — composed only from existing room-ready assets (no generated graphics).
+- **Analytics**: `room_object_added`, `room_object_deleted`, `room_object_moved`, `room_object_resized`, `room_template_applied` (`lib/events.ts`), surfaced on the moderation counts grid.
+- Tests (`test/room.test.ts`, now 33): move/drag bounds, resize validation, undo/redo history, and template generation validity.
+
+### Changed
+- `RoomObject` gains optional `width`/`height` (px box; `scale` multiplies). Objects render at width × height instead of a fixed tile size; rooms saved before V2 fall back to the base size.
+- `RoomCanvas` editor mode now owns pointer interaction (drag/resize/marquee) via an `editor` prop bundle; the public-mode signature is unchanged.
+
+### Fixed
+- Corrected SQL parity: `object_click` (shipped in the V1 TypeScript `EventType`) was never mirrored into the `event_type` enum — added in this sprint's enum migration.
+
+### Database
+- Migration `20260615_01_extend_enums.sql`: `event_type` += `object_click`, `room_object_added`, `room_object_deleted`, `room_object_moved`, `room_object_resized`, `room_template_applied` (values only, per the enum-split rule).
+- Migration `20260615_02_room_studio.sql`: `room_objects.width` / `.height` (nullable, `> 0` checks). Both mirrored in `schema.sql`.
+
+### Flags
+- None (all behaviour sits under the existing `ENABLE_ROOM_ENGINE`).
+
+### Documentation
+- `architecture.md`, `docs/roadmap.md`, `docs/handoff.md`, `docs/room-engine-spec.md`, `docs/QA.md`, README updated; new ADR-010 in `docs/decision-log.md`.
+
+---
+
 ## 2026-06-14 — Documentation & source-of-truth pass
 
 ### Documentation
