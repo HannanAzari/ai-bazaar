@@ -15,12 +15,30 @@ export function ActionDataEditor({
   actionType,
   data,
   onChange,
+  rooms,
 }: {
   actionType: RoomActionType;
   data: RoomActionData;
   onChange: (next: RoomActionData) => void;
+  /** For `room_link`: the rooms a door/stairs object may target (excludes self). */
+  rooms?: { id: string; name: string }[];
 }) {
   const set = (patch: Partial<RoomActionData>) => onChange({ ...data, ...patch });
+
+  if (actionType === "room_link") {
+    const targets = rooms ?? [];
+    return (
+      <label className={labelCls}>Go to room
+        <select value={data.targetRoomId ?? ""} onChange={(e) => set({ targetRoomId: e.target.value || undefined })} className="mt-1.5 min-h-10 w-full rounded-xl border border-ink/10 bg-white px-3 text-sm normal-case tracking-normal text-ink">
+          <option value="">— pick a room —</option>
+          {targets.map((room) => (
+            <option key={room.id} value={room.id}>{room.name}</option>
+          ))}
+        </select>
+        {targets.length === 0 && <span className="mt-1 block text-[11px] font-normal normal-case tracking-normal text-ink/45">Add another room first, then point this door at it.</span>}
+      </label>
+    );
+  }
 
   if (actionType === "link") {
     return (

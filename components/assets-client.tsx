@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Armchair, Flower2, Home, Image as ImageIcon, Lamp, LayoutGrid, Search, Shapes, Sparkles, Square } from "lucide-react";
+import { Armchair, DoorOpen, Flower2, Home, Image as ImageIcon, Lamp, LayoutGrid, MoveVertical, Search, Shapes, Sparkles, Square } from "lucide-react";
 import { bazaars } from "@/lib/data";
 import { catalogAssets, categoryLabels, placementLabels, rarityLabels, rarityStyles, statusStyles } from "@/lib/assets";
 import type { AssetCategory, AssetStatus } from "@/lib/types";
@@ -15,6 +15,8 @@ const categoryIcons: Record<AssetCategory, typeof Home> = {
   lighting: Lamp,
   decor: Sparkles,
   structure: Home,
+  door: DoorOpen,
+  stairs: MoveVertical,
 };
 
 const villageName = (id: string) => (id === "any" ? "Any village" : bazaars.find((b) => b.id === id)?.name ?? id);

@@ -8,6 +8,40 @@ for technical detail.
 
 ---
 
+## 2026-06-17 — Room Engine V4: Multi-Room Houses
+
+Turns a house from a single room into connected spaces a visitor explores via
+doors and stairs. **No visual redesign**; no AI/marketplace/payments/chat; all
+prior functionality preserved.
+
+### Added
+- **Multi-room data model** (`lib/types.ts`): `HouseRooms { shopAddress, entryRoomId, rooms[] }`; `Room` gains `description`. One room is the entry room (single `entryRoomId` pointer). Room types extended (`living_room, office, bedroom, garden, custom` added to the existing kinds).
+- **Door & stairs** as first-class asset categories (`door`, `stairs`) and a new **`room_link`** action type whose `actionData.targetRoomId` navigates to another room — instant, client-side, no page reload. `ast-door`/`ast-stairs` updated accordingly.
+- **House helpers** (`lib/house.ts`): `deriveDefaultHouse`, `addRoom`, `renameRoom`, `updateRoomMeta`, `setEntryRoom`, `deleteRoom`/`canDeleteRoom`, `withRoom`, `isValidRoomLink`, `roomLinkTargets`, plus `normalizeHouse`/`houseFromRoom` for migrate-on-read.
+- **Public navigation** (`room-experience.tsx`): renders the current room, a subtle breadcrumb (`House › Room › Room`) with crumb jumps and a back button; client-side room state (no URL change).
+- **Room manager** (`room-editor.tsx`): create (blank or preset), rename, set type/description, set entry, delete (guarded), switch active room; whole-**house** undo/redo + autosave; door target picker in the inspector (`action-data-editor.tsx`).
+- **Room presets** (`lib/room-templates.ts`): `ROOM_PRESETS` + `buildPresetRoom` — Gallery, Studio, Podcast Room, Shop, Office — build a furnished new room from existing assets.
+- **Analytics**: `room_entered`, `room_created`, `room_deleted`, `room_link_clicked` (`lib/events.ts`), on the moderation counts grid.
+- Tests (`test/house.test.ts`, suite now **60**): room creation, deletion + entry/objects guards, entry validation, door-target validation, persistence (incl. legacy single-room migration), duplicate-id guard, and analytics.
+
+### Changed
+- The room store (`lib/room.ts`) persists a `HouseRooms` per address on the **same `ai-bazaar-rooms` key**; layouts saved before V4 (a single `Room`) are **migrated on read** into a one-room house (that room becomes the entry room) — no saved layout is lost. Back-compat single-room helpers (`getRoom`/`saveRoom`/`resetRoom`) now operate on the entry room.
+
+### Validation (no-ops that keep the house valid)
+- Door/stairs with a missing or unknown `targetRoomId` are inert. Can't delete the last room, the (non-empty) room with objects, and deleting the entry room reassigns entry + clears doors that pointed at the removed room. Room ids are unique (collisions regenerated).
+
+### Database
+- Migration `20260617_01_extend_enums.sql`: `asset_category` += `door`, `stairs`; `room_kind` += `living_room`, `office`, `bedroom`, `garden`, `custom`; `room_action_type` += `room_link`; `event_type` += the four `room_*` events.
+- Migration `20260617_02_multi_room.sql`: `rooms.description`, `rooms.is_entry` + a partial unique index (one entry room per shop). `room_objects.room_id` (existing) scopes objects to a room; door targets live in `action_data` jsonb. Mirrored in `schema.sql`.
+
+### Flags
+- None (under the existing `ENABLE_ROOM_ENGINE`).
+
+### Documentation
+- README, architecture.md, roadmap.md, handoff.md, room-engine-spec.md, QA.md updated; new ADR-012 in decision-log.md.
+
+---
+
 ## 2026-06-16 — Room Engine V3: Real Interactive Objects
 
 Turns room objects from decorative placeholders into real, useful destinations a

@@ -27,6 +27,10 @@ export const eventLabels: Record<EventType, string> = {
   booking_opened: "Bookings opened",
   contact_opened: "Contacts opened",
   profile_opened: "Profiles opened",
+  room_entered: "Rooms entered",
+  room_created: "Rooms created",
+  room_deleted: "Rooms deleted",
+  room_link_clicked: "Door/stair clicks",
 };
 
 function read(): BazaarEvent[] {

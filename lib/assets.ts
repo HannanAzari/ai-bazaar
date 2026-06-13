@@ -32,6 +32,8 @@ export const categoryLabels: Record<AssetCategory, string> = {
   lighting: "Lighting",
   decor: "Decor",
   structure: "Structure",
+  door: "Door",
+  stairs: "Stairs",
 };
 
 export const placementLabels: Record<AssetPlacement, string> = {
@@ -69,8 +71,8 @@ export const catalogAssets: CatalogAsset[] = [
   { id: "ast-product-shelf", name: "Product Shelf", category: "furniture", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "uncommon", tags: ["shop", "products"], imageUrl: ph("product-shelf"), status: "published", compatibleZones: ["floor_left", "floor_right", "shelf"], defaultScale: 1.1, defaultActionType: "product" },
   { id: "ast-guestbook-table", name: "Guestbook Table", category: "furniture", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "uncommon", tags: ["guestbook", "welcome"], imageUrl: ph("guestbook-table"), status: "published", compatibleZones: ["floor_left", "floor_right"], defaultScale: 1, defaultActionType: "guestbook" },
   { id: "ast-photo-wall", name: "Photo Wall", category: "decor", villageTheme: "any", placement: "wall", ownerType: "system", rarity: "common", tags: ["photos", "memories"], imageUrl: ph("photo-wall"), status: "published", compatibleZones: ["back_wall", "left_wall", "right_wall"], defaultScale: 1.1, defaultActionType: "gallery" },
-  { id: "ast-door", name: "Side Door", category: "structure", villageTheme: "any", placement: "exterior", ownerType: "system", rarity: "common", tags: ["door", "exit"], imageUrl: ph("door"), status: "published", compatibleZones: ["door"], defaultScale: 1, defaultActionType: "link" },
-  { id: "ast-stairs", name: "Stairs (placeholder)", category: "structure", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "rare", tags: ["stairs", "soon"], imageUrl: ph("stairs"), status: "draft", compatibleZones: ["floor_left", "floor_right", "door"], defaultScale: 1.1, defaultActionType: "none" },
+  { id: "ast-door", name: "Door", category: "door", villageTheme: "any", placement: "exterior", ownerType: "system", rarity: "common", tags: ["door", "navigation"], imageUrl: ph("door"), status: "published", compatibleZones: ["door", "floor_left", "floor_right"], defaultScale: 1, defaultActionType: "room_link" },
+  { id: "ast-stairs", name: "Stairs", category: "stairs", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "uncommon", tags: ["stairs", "navigation"], imageUrl: ph("stairs"), status: "published", compatibleZones: ["floor_left", "floor_right", "floor_center", "door"], defaultScale: 1.1, defaultActionType: "room_link" },
 
   // ── Room V3 interactive objects ──
   { id: "ast-avatar-portrait", name: "Avatar Portrait", category: "decor", villageTheme: "any", placement: "wall", ownerType: "system", rarity: "uncommon", tags: ["profile", "creator"], imageUrl: ph("avatar-portrait"), status: "published", compatibleZones: ["back_wall", "left_wall", "right_wall"], defaultScale: 1, defaultActionType: "profile" },

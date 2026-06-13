@@ -93,7 +93,12 @@ export type EventType =
   | "product_opened"
   | "booking_opened"
   | "contact_opened"
-  | "profile_opened";
+  | "profile_opened"
+  // Room V4 multi-room navigation.
+  | "room_entered"
+  | "room_created"
+  | "room_deleted"
+  | "room_link_clicked";
 
 export type BazaarEvent = {
   id: string;
@@ -204,7 +209,7 @@ export type ActivityEntry = {
 };
 
 // ── Asset catalog ───────────────────────────────────────────
-export type AssetCategory = "furniture" | "wall" | "floor" | "plant" | "lighting" | "decor" | "structure";
+export type AssetCategory = "furniture" | "wall" | "floor" | "plant" | "lighting" | "decor" | "structure" | "door" | "stairs";
 export type AssetPlacement = "floor" | "wall" | "ceiling" | "exterior" | "any";
 export type AssetRarity = "common" | "uncommon" | "rare" | "legendary";
 export type AssetStatus = "draft" | "published" | "retired";
@@ -255,11 +260,24 @@ export type RoomActionType =
   | "contact"
   | "gallery"
   | "profile"
+  | "room_link"
   | "guestbook"
   | "collection"
   | "none";
 
-export type RoomKind = "studio" | "shop" | "gallery" | "lounge" | "standard";
+// V4: the extended set. The first five existed pre-V4 (kept for back-compat with
+// saved rooms); the rest are the multi-room "room type" choices.
+export type RoomKind =
+  | "studio"
+  | "shop"
+  | "gallery"
+  | "lounge"
+  | "standard"
+  | "living_room"
+  | "office"
+  | "bedroom"
+  | "garden"
+  | "custom";
 
 /** A placement point inside the room, normalised 0..1 across the whole canvas. */
 export type AnchorPoint = { id: string; x: number; y: number };
@@ -289,6 +307,7 @@ export type GalleryImage = { src: string; caption?: string };
  * - booking → url (Calendly/external), text
  * - contact → email, website, phone, socials[]
  * - profile → (none; reuses the house owner's creator profile)
+ * - room_link → targetRoomId (door/stairs navigate to another room in the house)
  */
 export type RoomActionData = {
   url?: string;
@@ -305,6 +324,8 @@ export type RoomActionData = {
   website?: string;
   phone?: string;
   socials?: ContactSocial[];
+  // room_link (V4): the room a door/stairs object navigates to
+  targetRoomId?: string;
 };
 
 export type RoomObject = {
@@ -339,9 +360,24 @@ export type Room = {
   shopAddress: string;
   name: string;
   type: RoomKind;
+  /** Optional owner note about the room (V4). */
+  description?: string;
   theme: string;
   /** Wall/floor style key (reuses the existing room shell for V1). */
   background: string;
   zones: RoomZoneDef[];
   objects: RoomObject[];
+};
+
+/**
+ * A house's set of connected rooms (V4). One room is the entry room a visitor
+ * lands in; doors/stairs (objects with the `room_link` action) move between
+ * rooms. Persisted per house address in localStorage; the Supabase mirror keeps
+ * one `rooms` row per room with an `is_entry` flag.
+ */
+export type HouseRooms = {
+  shopAddress: string;
+  /** Id of the room visitors enter first. Always references a room in `rooms`. */
+  entryRoomId: string;
+  rooms: Room[];
 };

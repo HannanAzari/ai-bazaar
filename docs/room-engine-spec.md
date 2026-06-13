@@ -97,15 +97,16 @@ categories, its anchor points, and a maximum object count.
 | `right_wall` | Right wall | decor, wall | 2 |
 | `shelf` | Mid-wall shelf line | decor, plant | 3 |
 | `window` | Around the window | decor | 1 |
-| `floor_left` | Left floor | furniture, plant, structure, floor | 2 |
-| `floor_center` | Centre floor (rug area) | furniture, plant, structure, floor | 2 |
-| `floor_right` | Right floor | furniture, plant, structure, floor | 2 |
-| `door` | Doorway | structure | 1 |
+| `floor_left` | Left floor | furniture, plant, structure, floor, stairs, door | 2 |
+| `floor_center` | Centre floor (rug area) | furniture, plant, structure, floor, stairs, door | 2 |
+| `floor_right` | Right floor | furniture, plant, structure, floor, stairs, door | 2 |
+| `door` | Doorway / connectors | structure, door, stairs | 2 |
 
 Rules:
 - The nine zones and their constraints are **canonical and shared by every room**.
   Owners place objects into zones; they do not create, delete, or redefine zones.
-- Asset categories are: `furniture, wall, floor, plant, lighting, decor, structure`.
+- Asset categories are: `furniture, wall, floor, plant, lighting, decor, structure,
+  door, stairs` (the last two are V4 navigation objects).
 - A zone's max-object count is a soft capacity guard, not a layout guarantee.
 
 ---
@@ -113,7 +114,7 @@ Rules:
 ## 5. Action types
 
 An object's **action** defines what happens when a visitor activates it. There are
-**ten** action types. `none` means the object is decorative.
+**eleven** action types. `none` means the object is decorative.
 
 | Action | Visitor outcome | Status |
 |---|---|---|
@@ -124,6 +125,7 @@ An object's **action** defines what happens when a visitor activates it. There a
 | `booking` | Opens a booking card (Calendly embed or external scheduling link) | V3 |
 | `contact` | Opens a unified contact modal (email, website, phone, socials) | V3 |
 | `profile` | Opens the house owner's creator profile card (followers, activity, link to full profile) | V3 |
+| `room_link` | Moves the visitor to another room in the house (door/stairs); `targetRoomId` names the destination | V4 |
 | `guestbook` | Opens the house's guestbook | V1 |
 | `collection` | Saves the house/object to the visitor's collection | V1 intent (placeholder panel today) |
 | `none` | No action — purely decorative | V1 |
@@ -132,7 +134,8 @@ Rules:
 - Every interactive activation is **analytics-tracked**: a generic `object_click`
   plus a per-type event (`gallery_opened`, `video_opened`, `product_opened`,
   `booking_opened`, `contact_opened`, `profile_opened`; `link` also records
-  `link_click`).
+  `link_click`; `room_link` records `room_link_clicked` and a `room_entered` for
+  the destination).
 - Actions requiring data (link/video/booking need a URL; gallery needs images;
   product/contact need fields) treat **missing data as inert** — no error, no
   broken click. `guestbook`/`collection`/`profile` need no stored data.
@@ -248,17 +251,30 @@ These hold in both the editor and the system, for both V1 and Future work.
 
 ---
 
-## 10. Future — multi-room support
+## 10. Multi-room houses (V4)
 
-The model permits a house to have **more than one room**. Reserved behavior:
-- A house may own several named rooms (e.g. a gallery and a lounge), each with its
-  own kind/theme and object set.
-- Visitors **move between rooms** via in-room connectors (doors, stairs) and/or a
-  room switcher.
-- The default-room behavior, zones, placement, and validation rules apply per room.
-- One room is the house's **entry room** (where a visitor lands by default).
-
-No change to the per-room object model is required to support this.
+A house is a set of **connected rooms**. Behavior:
+- A house owns one or more named rooms, each with its own type, description, and
+  object set. The per-room object model, zones, placement, and validation rules
+  (§3–§9) apply unchanged to every room.
+- Exactly **one room is the entry room** — where a visitor lands. (Modelled as a
+  single `entryRoomId` on the house; the entry room can be reassigned but never
+  absent.)
+- Visitors **move between rooms** by activating connector objects — **doors**
+  (`door` category) and **stairs** (`stairs` category) — whose `room_link` action
+  carries the `targetRoomId`. Navigation is **immediate and client-side** (no page
+  reload, no URL change); the visitor always starts in the entry room.
+- A **breadcrumb** shows the path taken (`House › Room › Room`) with a back step;
+  it stays subtle so the room remains the focus.
+- **Owner room management:** an owner can create (blank or from a room preset),
+  rename, retype, set the entry room, and delete rooms. Guards: a house keeps at
+  least one room; a room must be emptied of objects before deletion; deleting the
+  entry room reassigns entry to another room; deleting a room clears any door
+  links that pointed at it; room ids are unique.
+- **Validation:** a `room_link` with a missing or unknown `targetRoomId` is inert
+  (no navigation, no error).
+- **Back-compat:** a house saved before V4 (a single room) is read as a one-room
+  house whose only room is the entry room.
 
 ---
 

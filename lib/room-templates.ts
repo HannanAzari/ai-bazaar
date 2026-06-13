@@ -1,6 +1,6 @@
 import type { CatalogAsset, Room, RoomActionData, RoomActionType, RoomKind } from "@/lib/types";
 import { getAsset } from "@/lib/assets";
-import { addObjectFromAsset, createRoom } from "@/lib/room-schema";
+import { addObjectFromAsset, createRoom, nextRoomId } from "@/lib/room-schema";
 
 // Starter room layouts a creator can apply in one click. Templates compose only
 // EXISTING room-ready catalog assets (no generated graphics) and obey the same
@@ -167,4 +167,29 @@ export function applyTemplate(templateId: RoomTemplateId, address: string): Room
     room = addObjectFromAsset(room, asset, placement.label, { type: placement.action, data: placement.data });
   }
   return room;
+}
+
+// ── V4 room presets: build a NEW room (with a unique id and a room type) to add
+// to a multi-room house, reusing the working object templates above. ──
+
+export type RoomPresetId = "gallery_room" | "creator_studio" | "podcast_room" | "store_room" | "office";
+
+export type RoomPreset = { id: RoomPresetId; name: string; type: RoomKind };
+
+const ROOM_PRESET_DEFS: (RoomPreset & { template: RoomTemplateId })[] = [
+  { id: "gallery_room", name: "Gallery", type: "gallery", template: "photographer" },
+  { id: "creator_studio", name: "Studio", type: "studio", template: "developer" },
+  { id: "podcast_room", name: "Podcast Room", type: "studio", template: "podcast" },
+  { id: "store_room", name: "Shop", type: "shop", template: "shop" },
+  { id: "office", name: "Office", type: "office", template: "developer" },
+];
+
+export const ROOM_PRESETS: RoomPreset[] = ROOM_PRESET_DEFS.map(({ id, name, type }) => ({ id, name, type }));
+
+/** Build a fresh, furnished room (unique id + room type) from a V4 preset. */
+export function buildPresetRoom(presetId: RoomPresetId, address: string): Room {
+  const preset = ROOM_PRESET_DEFS.find((p) => p.id === presetId);
+  if (!preset) return { ...createRoom(address, "New room", "custom", nextRoomId(address)) };
+  const base = applyTemplate(preset.template, address);
+  return { ...base, id: nextRoomId(address), name: preset.name, type: preset.type, description: "" };
 }

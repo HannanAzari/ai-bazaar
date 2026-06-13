@@ -4,14 +4,14 @@ create type public.decoration_type as enum ('text', 'image', 'ai_image', 'link',
 create type public.generation_status as enum ('queued', 'building', 'complete', 'failed');
 create type public.report_target_type as enum ('shop', 'decoration', 'user', 'guestbook');
 create type public.report_status as enum ('pending', 'reviewed', 'hidden', 'dismissed');
-create type public.event_type as enum ('house_view', 'room_view', 'decoration_click', 'object_click', 'link_click', 'share_click', 'follow', 'like', 'room_object_added', 'room_object_deleted', 'room_object_moved', 'room_object_resized', 'room_template_applied', 'gallery_opened', 'video_opened', 'product_opened', 'booking_opened', 'contact_opened', 'profile_opened');
+create type public.event_type as enum ('house_view', 'room_view', 'decoration_click', 'object_click', 'link_click', 'share_click', 'follow', 'like', 'room_object_added', 'room_object_deleted', 'room_object_moved', 'room_object_resized', 'room_template_applied', 'gallery_opened', 'video_opened', 'product_opened', 'booking_opened', 'contact_opened', 'profile_opened', 'room_entered', 'room_created', 'room_deleted', 'room_link_clicked');
 create type public.notification_type as enum ('house_view', 'like', 'follow', 'guestbook_entry', 'item_click', 'report_status');
 create type public.room_zone_type as enum ('back_wall', 'left_wall', 'right_wall', 'floor_left', 'floor_center', 'floor_right', 'shelf', 'window', 'door');
-create type public.room_action_type as enum ('link', 'video', 'product', 'booking', 'contact', 'gallery', 'profile', 'guestbook', 'collection', 'none');
-create type public.room_kind as enum ('studio', 'shop', 'gallery', 'lounge', 'standard');
+create type public.room_action_type as enum ('link', 'video', 'product', 'booking', 'contact', 'gallery', 'profile', 'room_link', 'guestbook', 'collection', 'none');
+create type public.room_kind as enum ('studio', 'shop', 'gallery', 'lounge', 'standard', 'living_room', 'office', 'bedroom', 'garden', 'custom');
 create type public.saved_kind as enum ('house', 'item');
 create type public.activity_type as enum ('claimed_house', 'updated_house', 'added_decoration', 'liked_house', 'followed_creator', 'guestbook_entry', 'saved_to_collection');
-create type public.asset_category as enum ('furniture', 'wall', 'floor', 'plant', 'lighting', 'decor', 'structure');
+create type public.asset_category as enum ('furniture', 'wall', 'floor', 'plant', 'lighting', 'decor', 'structure', 'door', 'stairs');
 create type public.asset_placement as enum ('floor', 'wall', 'ceiling', 'exterior', 'any');
 create type public.asset_rarity as enum ('common', 'uncommon', 'rare', 'legendary');
 create type public.asset_status as enum ('draft', 'published', 'retired');
@@ -268,11 +268,17 @@ create table public.rooms (
   shop_id uuid not null references public.shops(id) on delete cascade,
   name text not null default 'Main room' check (char_length(name) between 1 and 80),
   type public.room_kind not null default 'standard',
+  description text not null default '',
+  -- V4: exactly one entry room per house (visitors land here first).
+  is_entry boolean not null default false,
   theme text not null default 'warm',
   background text not null default 'standard',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- At most one entry room per shop.
+create unique index if not exists rooms_one_entry_per_shop on public.rooms (shop_id) where is_entry;
 
 create table public.room_objects (
   id uuid primary key default gen_random_uuid(),

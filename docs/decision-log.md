@@ -327,6 +327,57 @@ profile objects — without redesigning visuals or adding AI/marketplace/payment
 
 ---
 
+## ADR-012 — Multi-room houses: a HouseRooms wrapper with a single entry pointer
+
+**Status:** Accepted · 2026-06-17
+
+### Context
+Through V3 a house was exactly one `Room`, stored per address. V4 makes a house a
+set of connected rooms a visitor explores via doors/stairs — without a visual
+redesign, without losing any layout saved in V1–V3, and keeping the room object
+model unchanged (spec §10 reserved this).
+
+### Decision
+- **Wrap rooms in a `HouseRooms { shopAddress, entryRoomId, rooms[] }`.** The
+  per-room model is unchanged (each `Room` keeps its own zones/objects); the house
+  just owns the set + which room is the entry.
+- **Entry is a single `entryRoomId` pointer**, not a per-room `isEntryRoom` flag —
+  one source of truth, so a house can never have zero or two entry rooms. (The SQL
+  mirror uses a `rooms.is_entry` flag with a partial unique index per shop.)
+- **Migrate legacy saves on read, same `ai-bazaar-rooms` key.** A stored value
+  that is a single `Room` is wrapped into a one-room house (that room becomes the
+  entry) by `getStoredHouse`. No key rename (which would silently wipe state), no
+  data loss. Back-compat single-room store helpers operate on the entry room.
+- **Doors/stairs are real asset categories** (`door`, `stairs`) with a new
+  `room_link` action whose `actionData.targetRoomId` names the destination.
+  Navigation is **client-side, instant, no URL change** — room state lives in the
+  public component (a breadcrumb trail), so deep-linking/SSR is unaffected.
+- **House-level validation as no-ops** (`lib/house.ts`): keep ≥1 room, empty a
+  room before deleting, reassign entry + clear dangling door links on delete,
+  regenerate colliding ids, treat unknown link targets as inert.
+
+### Alternatives Considered
+- **Per-room `isEntryRoom` boolean** (as first drafted) — needs invariant policing
+  to keep exactly one true; rejected for the single pointer.
+- **A new `ai-bazaar-houses` storage key** — clean, but silently discards V1–V3
+  layouts; rejected in favour of migrate-on-read.
+- **Reuse `structure` for doors/stairs** (action only) — smaller change, but
+  doesn't model navigation objects as their own categories; rejected per the
+  sprint's intent.
+
+### Consequences
+- (+) Real "explore a house" UX; the room object model and renderer are untouched.
+- (+) Zero data loss; the SQL `rooms`/`room_objects` tables already supported many
+  rooms, so the mirror needed only `description` + `is_entry`.
+- (+) Whole-house undo/redo and autosave fall out of moving editor history to
+  `HouseRooms`.
+- (−) The editor is now house-aware (active-room concept, room manager) — more
+  state than the single-room editor.
+- (−) Room navigation state is client-only; a deep link can't target a specific
+  inner room yet (visitors always start at the entry room).
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

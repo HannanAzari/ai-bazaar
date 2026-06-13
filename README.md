@@ -141,15 +141,26 @@ The public house page is a full-screen personal room rather than a profile.
   - **Booking** — a Calendly embed or an external scheduling link.
   - **Contact** — a unified modal of email, website, phone, and socials.
   - **Profile** — the owner's creator card (followers, recent activity, link to the full profile).
+  - **Door / Stairs (V4)** — `room_link` objects that move the visitor to another room in the house.
   - `guestbook` opens the guestbook drawer; `none` is decorative.
+- **Multi-room houses (V4)** — a house is a set of connected rooms with one **entry
+  room** where visitors land. Doors and stairs (`room_link` objects, with a
+  `targetRoomId`) navigate between rooms **instantly, client-side, with no page
+  reload or URL change**; a subtle breadcrumb (`House › Room › Room`) with a back
+  button shows the path. In the studio, a **room manager** lets owners create
+  (blank or from a preset: Gallery, Studio, Podcast Room, Shop, Office), rename,
+  retype, set the entry room, and delete rooms (a house keeps ≥1 room; a room must
+  be emptied before deletion; deleting the entry room reassigns it). Records
+  `room_entered` / `room_created` / `room_deleted` / `room_link_clicked`.
 - **Room model** (`lib/room-schema.ts`, `lib/types.ts`) — a `Room` has nine
   zones (`back_wall`, `left_wall`, `right_wall`, `floor_left`, `floor_center`,
   `floor_right`, `shelf`, `window`, `door`), each with allowed asset categories,
   anchor points, and a max-object count. A `RoomObject` carries asset id, zone,
   anchor, x/y, scale, optional width/height, rotation, z-index, label, action
   type, action data (jsonb: url/title/description/images/price/image/email/
-  website/phone/socials), tags, and a hidden flag. Houses without a saved layout
-  render a populated default derived from their decorations and links.
+  website/phone/socials/targetRoomId), tags, and a hidden flag. A **house**
+  (`HouseRooms`) groups one or more rooms with an `entryRoomId`. Houses without a
+  saved layout render a populated default derived from their decorations and links.
 - **Creator Studio editor (V2)** — the studio's "Room" mode is a real editing
   tool:
   - **Templates** — one-click starter layouts (Creator, Photographer, Artist,
@@ -177,10 +188,13 @@ The public house page is a full-screen personal room rather than a profile.
 - **Assets** — placeable assets come from the catalog (`lib/assets.ts`); the
   room-ready ones carry `compatibleZones`, `defaultScale`, and `defaultActionType`.
   V3 adds profile objects (avatar portrait, certificate, achievement board) and a
-  few thematic objects (projector, sign, display table, business card).
+  few thematic objects (projector, sign, display table, business card); V4 adds
+  the `door` and `stairs` categories (navigation objects).
 
-Demo layouts persist in `localStorage` under `ai-bazaar-rooms`; production writes
-the same shape to the `rooms` / `room_objects` tables.
+Demo houses persist in `localStorage` under `ai-bazaar-rooms` (a `HouseRooms` per
+address; layouts saved before V4 are migrated on read into a one-room house);
+production writes the same shape to the `rooms` / `room_objects` tables (one
+`rooms` row per room, with an `is_entry` flag).
 
 ## Supabase
 
@@ -204,9 +218,11 @@ For an existing project, run migrations in filename order:
 10. `supabase/migrations/20260615_01_extend_enums.sql` — adds the room-studio `event_type` values (`object_click`, `room_object_added/deleted/moved/resized`, `room_template_applied`). Must commit before step 11.
 11. `supabase/migrations/20260615_02_room_studio.sql` — `room_objects.width` / `.height` (nullable, `> 0`) for resize.
 12. `supabase/migrations/20260616_extend_enums.sql` — `room_action_type` += `profile`; `event_type` += the six `*_opened` events. (Enum-value additions only; `action_data` is already jsonb, so no table change.)
-13. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
+13. `supabase/migrations/20260617_01_extend_enums.sql` — `asset_category` += `door`, `stairs`; `room_kind` += `living_room`, `office`, `bedroom`, `garden`, `custom`; `room_action_type` += `room_link`; `event_type` += the four `room_*` events. Must commit before step 14.
+14. `supabase/migrations/20260617_02_multi_room.sql` — `rooms.description`, `rooms.is_entry` + a partial unique index (one entry room per shop). Multi-room reuses the existing `rooms` / `room_objects.room_id`; door targets live in `action_data`.
+15. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
 
-The two-step enum split (in `20260611_*`, `20260612_*`, and `20260615_*`) is required: PostgreSQL will not let a single transaction add an enum value and then use it, so new enum values are committed in `_01` before `_02` references them. Migrations that only add enum values (e.g. `20260616_extend_enums.sql`) stand alone.
+The two-step enum split (in `20260611_*`, `20260612_*`, `20260615_*`, and `20260617_*`) is required: PostgreSQL will not let a single transaction add an enum value and then use it, so new enum values are committed in `_01` before `_02` references them. Migrations that only add enum values (e.g. `20260616_extend_enums.sql`) stand alone.
 
 Internal table names such as `shops`, `shop_slots`, and `shop_decorations` remain unchanged to avoid an unnecessary data migration. The visible product consistently uses village, house, place, room, item, and decoration language.
 

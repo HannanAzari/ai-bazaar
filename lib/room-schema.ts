@@ -2,6 +2,7 @@ import type {
   AssetCategory,
   CatalogAsset,
   Room,
+  RoomActionData,
   RoomActionType,
   RoomKind,
   RoomObject,
@@ -17,7 +18,7 @@ import { getAsset, roomReadyAssets } from "@/lib/assets";
 // where, and how many objects fit.
 
 export const ROOM_ACTION_TYPES: RoomActionType[] = [
-  "link", "video", "product", "booking", "contact", "gallery", "profile", "guestbook", "collection", "none",
+  "link", "video", "product", "booking", "contact", "gallery", "profile", "room_link", "guestbook", "collection", "none",
 ];
 
 export const zoneLabels: Record<RoomZoneType, string> = {
@@ -40,13 +41,15 @@ export const actionLabels: Record<RoomActionType, string> = {
   contact: "Contact",
   gallery: "Open gallery",
   profile: "View profile",
+  room_link: "Go to room",
   guestbook: "Sign guestbook",
   collection: "Save to collection",
   none: "No action",
 };
 
 const WALL: AssetCategory[] = ["decor", "wall"];
-const FLOOR: AssetCategory[] = ["furniture", "plant", "structure", "floor"];
+// Floor zones also host floor-standing connectors (stairs, freestanding doors).
+const FLOOR: AssetCategory[] = ["furniture", "plant", "structure", "floor", "stairs", "door"];
 
 /** The canonical zone template. Cloned into every room. */
 export const ZONE_TEMPLATE: RoomZoneDef[] = [
@@ -74,8 +77,8 @@ export const ZONE_TEMPLATE: RoomZoneDef[] = [
   { id: "floor_right", type: "floor_right", allowedCategories: FLOOR, maxObjects: 2, anchors: [
     { id: "fr-1", x: 0.84, y: 0.74 }, { id: "fr-2", x: 0.73, y: 0.82 },
   ] },
-  { id: "door", type: "door", allowedCategories: ["structure"], maxObjects: 1, anchors: [
-    { id: "dr-1", x: 0.86, y: 0.60 },
+  { id: "door", type: "door", allowedCategories: ["structure", "door", "stairs"], maxObjects: 2, anchors: [
+    { id: "dr-1", x: 0.86, y: 0.60 }, { id: "dr-2", x: 0.14, y: 0.62 },
   ] },
 ];
 
@@ -121,15 +124,24 @@ function nextObjectId(): string {
   return `obj-${Date.now().toString(36)}-${counter}`;
 }
 
+let roomCounter = 0;
+/** A unique room id within a house (V4 multi-room). The first/default room keeps
+ * the stable `room-<address>` id; extra rooms get a unique suffix. */
+export function nextRoomId(shopAddress: string): string {
+  roomCounter += 1;
+  return `room-${shopAddress}-${Date.now().toString(36)}-${roomCounter}`;
+}
+
 const topZ = (room: Room) => room.objects.reduce((max, o) => Math.max(max, o.zIndex), 0);
 
 /** Build an empty room from the zone template. */
-export function createRoom(shopAddress: string, name = "Main room", type: RoomKind = "standard"): Room {
+export function createRoom(shopAddress: string, name = "Main room", type: RoomKind = "standard", id = `room-${shopAddress}`): Room {
   return {
-    id: `room-${shopAddress}`,
+    id,
     shopAddress,
     name,
     type,
+    description: "",
     theme: "warm",
     background: "standard",
     zones: cloneZones(),
@@ -139,7 +151,7 @@ export function createRoom(shopAddress: string, name = "Main room", type: RoomKi
 
 // ── Pure layout helpers (return a new Room) ──────────────────
 
-export function addObjectFromAsset(room: Room, asset: CatalogAsset, label?: string, action?: { type: RoomActionType; data?: { url?: string; text?: string } }): Room {
+export function addObjectFromAsset(room: Room, asset: CatalogAsset, label?: string, action?: { type: RoomActionType; data?: RoomActionData }): Room {
   const slot = firstCompatibleSlot(room, asset);
   if (!slot) return room;
   const object: RoomObject = {

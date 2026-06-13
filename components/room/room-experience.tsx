@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, BookOpen, Check, ExternalLink, Heart, MapPin, Share2, UserPlus, Users, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Check, ChevronRight, CornerUpLeft, ExternalLink, Heart, MapPin, Share2, UserPlus, Users, X } from "lucide-react";
 import { RoomCanvas } from "@/components/room/room-canvas";
 import { ObjectActionModal } from "@/components/room/object-action-modal";
 import { GuestbookPanel } from "@/components/guestbook-panel";
@@ -10,13 +10,14 @@ import { ReportButton } from "@/components/report-dialog";
 import { SaveButton } from "@/components/save-button";
 import { TagChips } from "@/components/tags-ui";
 import { useDemo } from "@/components/providers/demo-provider";
-import { getRoom } from "@/lib/room";
+import { getHouse } from "@/lib/room";
+import { getRoomById } from "@/lib/house";
 import { trackEvent } from "@/lib/events";
 import { recordActivity } from "@/lib/activity";
 import { normalizeHandle } from "@/lib/creators";
 import { flags } from "@/lib/flags";
 import { bazaars } from "@/lib/data";
-import type { EventType, Room, RoomObject, Shop } from "@/lib/types";
+import type { EventType, HouseRooms, RoomObject, Shop } from "@/lib/types";
 import { cn, formatCount } from "@/lib/utils";
 
 type Drawer = "none" | "owner" | "guestbook";
@@ -30,15 +31,24 @@ export function RoomExperience({ shop }: { shop: Shop }) {
   const liked = likedShops.has(shop.id);
   const followed = followedOwners.has(shop.ownerHandle);
 
-  const [room, setRoom] = useState<Room | null>(null);
+  const [house, setHouse] = useState<HouseRooms | null>(null);
+  const [trail, setTrail] = useState<string[]>([]); // breadcrumb path of room ids
   const [drawer, setDrawer] = useState<Drawer>("none");
   const [actionObject, setActionObject] = useState<RoomObject | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Load the room (saved layout or derived default) on the client, and refresh
-  // if the owner saves a new layout in another tab.
+  // Load the house (saved layout or derived default) on the client, and refresh
+  // if the owner saves a new layout in another tab. The breadcrumb trail is
+  // pruned to rooms that still exist (falling back to the entry room).
   useEffect(() => {
-    const sync = () => setRoom(getRoom(shop));
+    const sync = () => {
+      const next = getHouse(shop);
+      setHouse(next);
+      setTrail((prev) => {
+        const valid = prev.filter((id) => next.rooms.some((room) => room.id === id));
+        return valid.length ? valid : [next.entryRoomId];
+      });
+    };
     sync();
     window.addEventListener("ai-bazaar-rooms-changed", sync);
     return () => window.removeEventListener("ai-bazaar-rooms-changed", sync);
@@ -47,7 +57,31 @@ export function RoomExperience({ shop }: { shop: Shop }) {
   useEffect(() => {
     trackEvent("house_view", { shopId: shop.id });
     trackEvent("room_view", { shopId: shop.id });
+    trackEvent("room_entered", { shopId: shop.id });
   }, [shop.id]);
+
+  const currentRoomId = trail[trail.length - 1] ?? house?.entryRoomId;
+  const currentRoom = house ? (house.rooms.find((room) => room.id === currentRoomId) ?? house.rooms[0]) : null;
+
+  // ── Room navigation (client-side, no URL change) ──
+  const enterRoom = (roomId: string) => {
+    if (!house || !house.rooms.some((room) => room.id === roomId)) return;
+    if (trail[trail.length - 1] === roomId) return;
+    setTrail((prev) => [...prev, roomId]);
+    trackEvent("room_entered", { shopId: shop.id, targetId: roomId });
+  };
+  const goBack = () => {
+    if (trail.length <= 1) return;
+    const next = trail.slice(0, -1);
+    setTrail(next);
+    trackEvent("room_entered", { shopId: shop.id, targetId: next[next.length - 1] });
+  };
+  const jumpTo = (index: number) => {
+    if (index >= trail.length - 1) return;
+    const next = trail.slice(0, index + 1);
+    setTrail(next);
+    trackEvent("room_entered", { shopId: shop.id, targetId: next[next.length - 1] });
+  };
 
   const share = async () => {
     await navigator.clipboard?.writeText(window.location.href);
@@ -87,6 +121,15 @@ export function RoomExperience({ shop }: { shop: Shop }) {
     if (event) trackEvent(event, { shopId: shop.id, targetId: object.id });
 
     switch (object.actionType) {
+      case "room_link": {
+        // Doors/stairs move to another room in the house — instant, no refresh.
+        const target = object.actionData?.targetRoomId;
+        if (target && house?.rooms.some((room) => room.id === target)) {
+          trackEvent("room_link_clicked", { shopId: shop.id, targetId: object.id });
+          enterRoom(target);
+        }
+        return;
+      }
       case "guestbook":
         if (flags.guestbooks) setDrawer("guestbook");
         return;
@@ -99,11 +142,11 @@ export function RoomExperience({ shop }: { shop: Shop }) {
     }
   };
 
-  const objectCount = useMemo(() => room?.objects.filter((o) => !o.hidden).length ?? 0, [room]);
+  const objectCount = useMemo(() => currentRoom?.objects.filter((o) => !o.hidden).length ?? 0, [currentRoom]);
 
   return (
     <div className="relative h-[calc(100dvh-3.5rem)] w-full overflow-hidden bg-[#ead7bd]">
-      {room && <RoomCanvas room={room} mode="public" ownerName={shop.owner} onActivate={onActivate} />}
+      {currentRoom && <RoomCanvas room={currentRoom} mode="public" ownerName={shop.owner} onActivate={onActivate} />}
 
       {/* Top-left: where am I */}
       <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-col gap-2 sm:left-5 sm:top-5">
@@ -113,6 +156,24 @@ export function RoomExperience({ shop }: { shop: Shop }) {
         <div className="pointer-events-auto max-w-[78vw] rounded-2xl border border-white/60 bg-[#fff8e9]/85 px-3.5 py-2 shadow-soft backdrop-blur sm:max-w-xs">
           <p className="flex items-center gap-1.5 text-[10px] font-bold text-ink/40"><MapPin size={11} /> {shop.address}</p>
           <h1 className="display text-xl leading-tight sm:text-2xl">{shop.name}</h1>
+          {/* Room breadcrumb — subtle; the room stays the focus. */}
+          {house && (house.rooms.length > 1 || trail.length > 1) && (
+            <nav aria-label="Rooms" className="mt-1.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] font-bold text-ink/45">
+              {trail.length > 1 && (
+                <button onClick={goBack} aria-label="Back to previous room" className="mr-0.5 inline-flex items-center gap-0.5 text-ink/55 hover:text-terracotta"><CornerUpLeft size={12} /></button>
+              )}
+              {trail.map((id, index) => {
+                const room = getRoomById(house, id);
+                const isLast = index === trail.length - 1;
+                return (
+                  <span key={`${id}-${index}`} className="inline-flex items-center gap-1">
+                    {index > 0 && <ChevronRight size={11} className="text-ink/25" />}
+                    <button onClick={() => jumpTo(index)} disabled={isLast} className={cn(isLast ? "text-terracotta" : "hover:text-terracotta")}>{room?.name ?? "Room"}</button>
+                  </span>
+                );
+              })}
+            </nav>
+          )}
           {shop.tags?.length ? <TagChips tags={shop.tags.slice(0, 3)} className="mt-1.5" /> : null}
         </div>
       </div>

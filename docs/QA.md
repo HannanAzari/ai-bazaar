@@ -61,8 +61,13 @@ save buttons, guestbook panel, footer links, owner-profile links) disappear.
 | Undo / redo | `/studio` → Room (Edit) | `⌘Z` / `⌘⇧Z` or the toolbar buttons step through edits |
 | Preview the room | `/studio` → Room → Preview | Shows the room as visitors see it; editing controls are disabled |
 | Autosave | `/studio` → Room | Status shows Saved → Unsaved → Saving → Saved ~5s after edits, without pressing Save |
-| Save the room layout | `/studio` → Room → Save | Persists to `ai-bazaar-rooms`; the public room reflects it |
-| Reset the room layout | `/studio` → Room → Reset | Reverts to the derived default room |
+| Create a room | `/studio` → Room manager → Blank room / preset | Adds a room (preset rooms come furnished); becomes active; records `room_created` |
+| Set entry room / rename / retype | `/studio` → Room manager | Entry star moves; name/type update; one entry room always |
+| Delete a room | `/studio` → Room manager → trash | Blocked for the last room or a room with objects (reason shown); else confirm → removed (`room_deleted`); doors that pointed at it are cleared |
+| Add a door / stairs | `/studio` → palette → Door/Stairs → pick target room | Object placed; inspector "Go to room" sets `targetRoomId` |
+| Walk through rooms | `/shop/[address]` | Clicking a door/stairs switches rooms instantly (no reload); breadcrumb + back update; records `room_link_clicked` + `room_entered` |
+| Save the house | `/studio` → Room → Save house | Persists all rooms to `ai-bazaar-rooms`; the public house reflects it |
+| Reset the house | `/studio` → Room → Reset house | Reverts to the derived single-room default |
 
 ## Room editor flow (Creator Studio)
 
@@ -79,10 +84,16 @@ save buttons, guestbook panel, footer links, owner-profile links) disappear.
 7. Adjust label, action + URL, zone, anchor spot, scale, and layer (Forward /
    Backward); hide, duplicate, or delete (delete is confirmed).
 8. **Undo / redo** with `⌘Z` / `⌘⇧Z` or the toolbar buttons.
-9. **Autosave** persists ~5s after changes (watch the status); or press
-   **Save layout** to publish immediately; **Reset layout** reverts to the default.
-10. Toggle **Preview** to see the room as visitors do, then open the house's
-    public page to confirm the room and clickable objects.
+9. **Multi-room (V4):** use the **Room manager** to add rooms (blank or a preset),
+   rename/retype them, set the entry room, switch the active room, or delete one
+   (guarded). Add a **Door** or **Stairs** object and pick its target room so
+   visitors can move between rooms.
+10. **Undo / redo** with `⌘Z` / `⌘⇧Z` works across the whole house (object edits
+    and room create/delete).
+11. **Autosave** persists ~5s after changes (watch the status); or press
+    **Save house** to publish immediately; **Reset house** reverts to the default.
+12. Toggle **Preview** to see the room as visitors do (doors navigate), then open
+    the house's public page to confirm the rooms, breadcrumb, and clickable objects.
 
 ## Expected behaviours that look like bugs but aren't
 
@@ -134,11 +145,14 @@ Keys: `ai-bazaar-user`, `ai-bazaar-shop`, `ai-bazaar-world-seen`,
 
 ## Automated coverage
 
-`npm run test` (Vitest, 46 tests) covers the pure/storage helpers: tag
+`npm run test` (Vitest, 60 tests) covers the pure/storage helpers: tag
 normalization, collection save/remove, notification read/unread, report status
 transitions, hidden-house filtering, relative-time formatting, the room engine
 (schema creation, zone + placement validation, action-type validation, save/reset
 layout, free-drag bounds, resize validation, undo/redo history, template
-generation), and the **V3 interactive objects** (gallery/video/product/contact
-validation, URL/favicon helpers, `hasActionData`, and analytics tracking). UI
-flows are still manual.
+generation), the **V3 interactive objects** (gallery/video/product/contact
+validation, URL/favicon helpers, `hasActionData`, and analytics tracking), and the
+**V4 multi-room houses** (`test/house.test.ts`: room create/delete with entry +
+object guards, entry validation, door-target validation, persistence incl. legacy
+single-room migration, duplicate-id guard, and navigation analytics). UI flows are
+still manual.
