@@ -18,8 +18,8 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 
 - **Stack:** Next.js 15 (App Router), React 19, strict TypeScript, Tailwind 3, lucide. **Node 20 required** (machine default is v16): `export PATH="/Users/hannan/.nvm/versions/node/v20.20.2/bin:$PATH"`.
 - **Runs as a client-side demo.** Blank Supabase env → `lib/supabase/*` returns `null`; state lives in `localStorage`, seed content in `lib/data.ts`. The SQL schema is a **production-parity mirror, not run at runtime here.** Every feature has two layers: a demo lib + matching SQL.
-- **Shipped:** village map → street → house kit; **Room Engine V1** (full-screen public room + studio editor), **V2 — Creator Studio** (free drag/resize, layers, duplicate, delete-confirm, multi-select, Edit/Preview, undo/redo, autosave, six templates), **V3 — Real Interactive Objects** (real gallery/video/link/product/booking/contact/profile panels, `profile` type, tooltips, visitor analytics, owner insights, inspector editors, working presets), **V4 — Multi-Room Houses** (`HouseRooms` + entry room, `door`/`stairs` + `room_link` navigation, public breadcrumb/back, studio room manager + room presets, whole-house undo, nav analytics, legacy migrate-on-read), and **V5 — Richer Visuals + Rotation** (per-category object sprites, engraved nameplates, rotation editor, five room background variants, improved empty state); creator profiles, notifications, guestbooks, collections, activity feed, tags, discovery, analytics, reporting/moderation, asset catalog.
-- **Gates (all green):** `npm run typecheck && npm run lint && npm run test && npm run build` (67 tests, ~81 pages).
+- **Shipped:** village map → street → house kit; **Room Engine V1** (full-screen public room + studio editor), **V2 — Creator Studio** (free drag/resize, layers, duplicate, delete-confirm, multi-select, Edit/Preview, undo/redo, autosave, six templates), **V3 — Real Interactive Objects** (real gallery/video/link/product/booking/contact/profile panels, `profile` type, tooltips, visitor analytics, owner insights, inspector editors, working presets), **V4 — Multi-Room Houses** (`HouseRooms` + entry room, `door`/`stairs` + `room_link` navigation, public breadcrumb/back, studio room manager + room presets, whole-house undo, nav analytics, legacy migrate-on-read), and **V5 — Richer Visuals + Rotation** (per-category object sprites, engraved nameplates, rotation editor, five room background variants, improved empty state); creator profiles, notifications, guestbooks, collections, activity feed, tags, discovery, analytics, reporting/moderation, asset catalog. **Backend cutover prep** (2026-06-19): env-derived runtime mode + dev-only badge, a repository layer (local impls + Supabase stubs), and `docs/supabase-cutover.md` — demo remains the default and is unchanged.
+- **Gates (all green):** `npm run typecheck && npm run lint && npm run test && npm run build` (75 tests, ~81 pages).
 
 ---
 
@@ -65,6 +65,11 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 
 **Database:** `supabase/schema.sql` (fresh-install superset), `supabase/migrations/*` (ordered), `supabase/seed.sql`.
 
+**Backend cutover seam (prep — not yet consumed by the app):**
+- `lib/runtime-mode.ts` — `getRuntimeMode()` (`demo`|`production`) from Supabase env presence; `components/dev-mode-badge.tsx` (dev-only chip, in `app/layout.tsx`).
+- `lib/repos/` — async repo interfaces (`types.ts`), local impls delegating to the demo libs (`local.ts`), Supabase **stubs** that throw (`supabase.ts`), and `getRepositories(mode?)` factory (`index.ts`). Mirrors `lib/storage/`.
+- `docs/supabase-cutover.md` — drift audit + migration order + env + local/staging setup + RLS smoke tests + rollback.
+
 ---
 
 ## Current Feature Flags
@@ -88,6 +93,7 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 - Room object actions are **real** (V3); their panels load **third-party embeds/images** (YouTube, Vimeo, Calendly, favicons, sample preset images) — external requests that won't render offline.
 - Placement is **free drag + resize + rotate** (V2/V5). Objects render as **CSS sprites around an icon** (V5) — richer than a tile but not per-asset illustration; resize-handle math is axis-aligned, so resizing a heavily rotated object is approximate. Objects can crowd on tiny viewports.
 - **Multi-room ships in V4**, but navigation is **client-only**: a visitor always lands in the entry room and a URL can't deep-link to a specific inner room yet.
+- **Backend cutover is prep only:** the Supabase repositories (`lib/repos/supabase.ts`) are `NotImplementedError` stubs and the repo layer is **not yet consumed by components** (they still call the demo libs). The migration chain can't build from an empty DB — fresh DB → apply `schema.sql` (see `docs/supabase-cutover.md`).
 - **AI and image storage are mocked** (`/api/generations`, placeholder asset URLs).
 - **SQL never executed against live Postgres here** — dry-run migrations + RLS on staging before production.
 - Tests cover **libs, not UI** (no component/E2E).
@@ -97,13 +103,13 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 
 ## Recommended Next Sprint
 
-The room engine is feature-complete for the demo (V1–V5). Highest-value next step
-is the **production backend cutover** — wire the Supabase `rooms`/`room_objects`
-shapes behind the existing demo libs and verify RLS live, keeping localStorage as a
-fallback. Smaller alternatives: **deep-linkable rooms** (encode the current room in
-the URL; today navigation is client-only and always starts at the entry room), or
-**per-asset illustration** if an asset-art pipeline appears. Explicitly **not**
-AI/marketplace/payments/chat.
+**Execute the production backend cutover.** The seams now exist (repository layer +
+runtime mode + `docs/supabase-cutover.md`). Implement the Supabase repositories in
+`lib/repos/supabase.ts`, adopt `getRepositories()` in the components/libs that call
+the demo libs directly (keeping local impls as the demo fallback), stand up
+local + staging Supabase, and run the RLS smoke tests. If a from-zero migration
+build is needed, author a `20260610_00_baseline.sql`. Rollback is unsetting the
+Supabase env vars. Explicitly **not** AI/marketplace/payments/chat.
 
 ---
 
@@ -111,6 +117,7 @@ AI/marketplace/payments/chat.
 
 - **Room object schema** (`RoomObject`/`Room` in `lib/types.ts` + `room_objects` columns) — public rooms and saved layouts depend on the exact shape; migrate, don't mutate. `width`/`height` are **optional** (V2); `RoomActionData` fields are **all optional** (V3) and stored in the `action_data` jsonb — grow it additively, keep fields optional so old saved rooms stay valid.
 - **`RoomActionType` is a closed enum** — adding a type (like V3's `profile`) means a TS change, a `room_action_type` enum-value migration, a panel in `object-action-modal.tsx`, and a spec/ADR update.
+- **Demo-by-default backend signal** — the app must stay pure-demo when the Supabase env vars are absent. `getRuntimeMode()` keys off `NEXT_PUBLIC_SUPABASE_URL` + `_ANON_KEY`; don't gate the backend behind a feature flag or make any path require Supabase to run. The repo layer must keep its local implementations as the demo fallback.
 - **`HouseRooms` shape + entry invariant** (V4) — a house has ≥1 room and exactly one `entryRoomId` that references a real room; `lib/room.ts` migrates a legacy single-`Room` save on read. Don't change the `ai-bazaar-rooms` key or break migrate-on-read, or pre-V4 layouts vanish. Door/stairs targets (`actionData.targetRoomId`) must be validated against existing rooms.
 - **Migration ordering / enum split** — new enum *values* must commit (in `_01_extend_enums`) before use (`_02_*`); never reorder or rename existing migration files.
 - **localStorage keys** (`ai-bazaar-*`, e.g. `ai-bazaar-rooms`, `ai-bazaar-shop`) — renaming silently wipes demo state.

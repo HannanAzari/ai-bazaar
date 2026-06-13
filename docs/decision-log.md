@@ -433,6 +433,57 @@ resize/rotate/select behaviour built in V2–V4.
 
 ---
 
+## ADR-014 — Repository layer + env-derived runtime mode for the Supabase cutover
+
+**Status:** Accepted · 2026-06-19
+
+### Context
+AI Bazaar has always run as a localStorage demo (ADR-003) with a production-parity
+SQL mirror (ADR-004) that is never executed at runtime. Moving to a real Supabase
+backend must be possible **without breaking demo mode** and without a risky
+big-bang rewrite of every component that reads/writes state.
+
+### Decision
+- **Backend mode is derived from env, not a feature flag.** `lib/runtime-mode.ts`
+  returns `"production"` only when both `NEXT_PUBLIC_SUPABASE_URL` and
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY` are present, else `"demo"` — matching how the
+  Supabase clients already null out. A dev-only badge surfaces the current mode.
+- **A repository layer is the cutover seam** (`lib/repos/*`), mirroring the existing
+  `getImageStorage()` factory. Async interfaces (houses/rooms/room objects/profiles/
+  events/reports) are implemented twice: `local.ts` delegates to the existing demo
+  libs (no behaviour change); `supabase.ts` are typed stubs that throw
+  `NotImplementedError`. `getRepositories(mode?)` picks by runtime mode.
+- **Interfaces are async** so the same contract fits both the synchronous demo
+  (wrapped in `Promise.resolve`) and real network I/O later.
+- **Prep does not rewire the app.** Components keep calling the demo libs directly;
+  the repo layer is introduced unused, so demo mode is provably unchanged and the
+  cutover becomes an incremental, per-repo swap.
+- **Migrations stay append-only** (ADR-009). The audit found the migration chain
+  can't build from an empty DB (baseline tables/types live only in `schema.sql`);
+  the resolution is to **apply `schema.sql` for a fresh DB** and treat migrations as
+  incremental patches — documented in `docs/supabase-cutover.md` rather than
+  rewriting history.
+
+### Alternatives Considered
+- **A feature flag for the backend** — rejected; presence of credentials is the
+  natural, fail-safe signal (no flag can make a keyless app talk to Supabase).
+- **Rewrite components onto Supabase directly** — rejected; high risk, no demo
+  fallback, and couples the cutover to a single deploy.
+- **Author a from-zero baseline migration now** — deferred; out of prep scope and
+  would duplicate `schema.sql`. Tracked as future work.
+
+### Consequences
+- (+) Cutover (and rollback) is a config action: set/unset env vars. A single repo
+  can switch to Supabase while others stay local (staged rollout).
+- (+) Demo mode is untouched and the seam is unit-tested (mode detection, selection,
+  file presence).
+- (−) Two implementations per repo to maintain once Supabase is wired; the stubs are
+  currently dead code that must be filled in before production.
+- (−) The repo layer is not yet consumed by components, so adopting it later is a
+  follow-up refactor.
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

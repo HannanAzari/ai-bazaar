@@ -248,6 +248,26 @@ Internal table names such as `shops`, `shop_slots`, and `shop_decorations` remai
 - `assets` — the asset-metadata catalog; published rows are public, admins manage the rest.
 - `rooms`, `room_objects`, `room_object_tags` — the Room Engine layout; rooms of visible houses are public, owners manage their own. Zones are an app-defined template (an enum column on each object), not a table.
 
+## Runtime mode & backend cutover
+
+The app auto-detects its backend: **demo** (localStorage) when the Supabase env
+vars are blank, **production** when `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` are both set (`lib/runtime-mode.ts`). A dev-only
+badge (bottom-left) shows the current mode; it never renders in production builds.
+
+A **repository layer** (`lib/repos/`) is the cutover seam — async interfaces for
+houses/rooms/room objects/profiles/events/reports, with localStorage
+implementations (delegating to the demo libs) and Supabase **stubs** selected by
+runtime mode via `getRepositories()`, mirroring `getImageStorage()`. The Supabase
+implementations are not written yet; the app still calls the demo libs directly, so
+demo mode is unchanged. The full audit + migration order + env vars + local/staging
+setup + RLS smoke tests + rollback plan live in
+[docs/supabase-cutover.md](docs/supabase-cutover.md).
+
+> **Migrations note:** `supabase/schema.sql` is the canonical fresh-install superset
+> — apply it for a new database. The `supabase/migrations/*` files are incremental
+> patches on an existing baseline and don't build from an empty DB on their own.
+
 ## Mock Generation
 
 The room editor still uses the mock generation flow:

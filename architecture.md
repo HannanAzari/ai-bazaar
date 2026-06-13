@@ -166,6 +166,13 @@ Brand-new `CREATE TYPE` enums can be created and used in the same migration.
 
 > The SQL has never been run against a live Postgres in this environment — **dry-run new migrations on staging** before production.
 
+> **Cutover audit (2026-06-19):** enum values fully reconcile (`schema.sql` is a
+> correct superset; no value drift), but the migration chain is **not runnable from
+> an empty DB** — the base enums and core tables exist only in `schema.sql`, and
+> `20260610_village_model.sql` assumes them. **Fresh DB → apply `schema.sql`;**
+> migrations are incremental patches for an already-baselined DB. Full audit +
+> runbook in [docs/supabase-cutover.md](docs/supabase-cutover.md).
+
 ---
 
 ## 5. Feature flags (`lib/flags.ts`)
@@ -254,6 +261,19 @@ location.reload();
 is active; an R2 implementation can replace it without touching the editor. No
 real uploads yet.
 
+### Runtime mode + repository layer (Supabase cutover seam)
+- **Runtime mode** (`lib/runtime-mode.ts`): `getRuntimeMode()` → `"demo"` |
+  `"production"` from the presence of `NEXT_PUBLIC_SUPABASE_URL` +
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY` (same signal as the null-returning Supabase
+  clients). A **dev-only badge** (`components/dev-mode-badge.tsx`, in `app/layout.tsx`)
+  shows DEMO/LIVE; it renders nothing in production builds.
+- **Repository layer** (`lib/repos/`): async interfaces (`types.ts`) for houses,
+  rooms, room objects, profiles, events, reports; `local.ts` delegates to the demo
+  libs; `supabase.ts` are typed stubs (`NotImplementedError`); `getRepositories(mode?)`
+  (`index.ts`) selects by runtime mode, mirroring `getImageStorage()`. **Not yet
+  consumed by components** — it is the cutover seam, so demo behaviour is unchanged.
+- See [docs/supabase-cutover.md](docs/supabase-cutover.md) for the audit + runbook.
+
 ### Hydration discipline
 Demo state loads in `useEffect`, never during render; components initialise to
 empty/zero so the server and first client render match. Any deterministic
@@ -280,9 +300,10 @@ variation (house specs, hex positions) derives from stable seeds — **never
 - **Analytics**: `trackEvent` (8 types incl. `object_click`), counts on moderation page.
 - **Reporting/moderation**: report house/item/user/guestbook, `/moderation` queue with `pending→reviewed→hidden→dismissed`; `hidden` soft-hides from discovery/tags.
 - **Asset catalog**: internal `/assets` grid with filters.
-- **Quality**: Vitest suite (67 tests) for the demo libs incl. room move/resize/undo-redo/templates, V3 gallery/video/product/contact validation + analytics, V4 multi-room (create/delete/entry/door-target/persistence/analytics), and V5 (visual-variant selection, background validation, rotation/background persistence); QA checklist; flags + demo behaviour documented.
+- **Backend cutover prep**: env-derived runtime mode + dev-only badge, a repository layer (local impls + Supabase stubs + factory), and `docs/supabase-cutover.md` (drift audit + runbook). Demo stays the default; no app rewiring.
+- **Quality**: Vitest suite (75 tests) for the demo libs incl. room move/resize/undo-redo/templates, V3 gallery/video/product/contact validation + analytics, V4 multi-room (create/delete/entry/door-target/persistence/analytics), V5 (visual-variant selection, background validation, rotation/background persistence), and cutover-prep (mode detection, repository selection, migration/schema file presence); QA checklist; flags + demo behaviour documented.
 
-Verification gates (all green): `npm run typecheck && npm run lint && npm run test && npm run build` (67 tests, build emits ~81 pages).
+Verification gates (all green): `npm run typecheck && npm run lint && npm run test && npm run build` (75 tests, build emits ~81 pages).
 
 ---
 

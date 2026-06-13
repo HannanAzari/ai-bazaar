@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Nunito_Sans } from "next/font/google";
 import { DemoProvider } from "@/components/providers/demo-provider";
 import { SiteHeader } from "@/components/site-header";
+import { DevModeBadge } from "@/components/dev-mode-badge";
 import "./globals.css";
 
 // Display face: storybook serif with high softness; UI face: rounded but adult.
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <DemoProvider>
           <SiteHeader />
           <main>{children}</main>
+          <DevModeBadge />
         </DemoProvider>
       </body>
     </html>

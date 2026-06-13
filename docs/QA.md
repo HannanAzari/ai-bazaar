@@ -147,7 +147,7 @@ Keys: `ai-bazaar-user`, `ai-bazaar-shop`, `ai-bazaar-world-seen`,
 
 ## Automated coverage
 
-`npm run test` (Vitest, 67 tests) covers the pure/storage helpers: tag
+`npm run test` (Vitest, 75 tests) covers the pure/storage helpers: tag
 normalization, collection save/remove, notification read/unread, report status
 transitions, hidden-house filtering, relative-time formatting, the room engine
 (schema creation, zone + placement validation, action-type validation, save/reset
@@ -158,5 +158,17 @@ validation, URL/favicon helpers, `hasActionData`, and analytics tracking), and t
 object guards, entry validation, door-target validation, persistence incl. legacy
 single-room migration, duplicate-id guard, and navigation analytics), and the
 **V5 visuals** (`test/room-visuals.test.ts`: visual-variant selection, background
-style validation, and rotation/background persistence through the store). UI flows
-are still manual.
+style validation, and rotation/background persistence through the store), and the
+**backend cutover prep** (`test/runtime-mode.test.ts`: demo/production mode
+detection, repository selection, schema/migration file presence). UI flows are
+still manual.
+
+## Backend mode (dev-only)
+
+In development a small badge in the bottom-left shows the backend mode: **DEMO ·
+localStorage** (default) or **LIVE · Supabase** when `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` are set in `.env.local`. The badge never renders in
+production builds. With Supabase env set today, data-backed surfaces will surface
+`NotImplementedError` (the Supabase repositories are stubs) — expected during
+cutover prep; unset the vars to return to full demo behaviour. See
+[supabase-cutover.md](supabase-cutover.md).

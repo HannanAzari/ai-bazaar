@@ -8,6 +8,34 @@ for technical detail.
 
 ---
 
+## 2026-06-19 — Production Backend Cutover Prep
+
+Prepares the move from the localStorage demo to a real Supabase backend **without
+breaking demo mode**. No visuals/AI/payments/marketplace. No app rewiring — demo
+remains the default and behaves identically; this sprint adds the seams + runbook.
+
+### Added
+- **Migration/schema drift audit** (in `docs/supabase-cutover.md`): enum values fully reconcile (`schema.sql` is a correct superset; no value drift). **Finding:** the migration chain is **not runnable from an empty DB** — base enums (`decoration_type`, `generation_status`, `report_target_type`, `report_status`) and core tables (`profiles`, `bazaars`, `shops`, `shop_slots`, `shop_decorations`, `shop_links`, `likes`, `follows`, `generation_jobs`) live only in `schema.sql`; `20260610_village_model.sql` assumes them. Resolution: fresh DB → apply `schema.sql`; migrations are incremental patches (append-only, not rewritten).
+- **`docs/supabase-cutover.md`** — audit, migration order, env vars, local + staging setup, RLS smoke tests, rollback plan, pre-flip checklist.
+- **Runtime mode detection** (`lib/runtime-mode.ts`): `getRuntimeMode()` → `demo | production` from the presence of `NEXT_PUBLIC_SUPABASE_URL` + `_ANON_KEY`; `hasSupabaseEnv`, `isProductionBackend`, `runtimeModeLabel`.
+- **Dev-only mode badge** (`components/dev-mode-badge.tsx`, mounted in `app/layout.tsx`): a corner chip showing DEMO/LIVE; renders nothing in production builds.
+- **Repository layer** (`lib/repos/`): async interfaces for houses, rooms, room objects, profiles, events, reports (`types.ts`); local implementations delegating to the existing demo libs (`local.ts`); Supabase **stubs** that throw `NotImplementedError` (`supabase.ts`); a `getRepositories(mode?)` factory selecting by runtime mode (`index.ts`), mirroring `getImageStorage()`.
+- Tests (`test/runtime-mode.test.ts`, suite now **75**): mode detection (env present/absent/partial), repository selection (demo→local resolve; production→stub throws), and schema/migration file presence + order.
+
+### Changed
+- None to runtime behaviour — the app keeps calling the existing libs directly; the repository layer is the (currently unused) cutover seam.
+
+### Database
+- **None.** No migration added; `schema.sql` and the migration set are unchanged (audit only).
+
+### Flags
+- None. (Backend mode is env-derived, not a feature flag.)
+
+### Documentation
+- README, architecture.md, roadmap.md, handoff.md, QA.md updated; new ADR-014 in decision-log.md; new `docs/supabase-cutover.md`.
+
+---
+
 ## 2026-06-18 — Room Engine V5: Richer Visuals + Rotation
 
 Makes room objects visually richer and more place-like, and lets owners rotate

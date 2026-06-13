@@ -43,6 +43,7 @@ by **selecting from a curated asset library**, never by generating visuals.
 | Room Engine V3 — Real Interactive Objects | 2026-06-16 | Real panels (gallery/video/link/product/booking/contact/profile), `profile` type + 7 assets, rich action data, tooltips, visitor analytics, owner insights, inspector editors, working presets (`20260616_*`) |
 | Room Engine V4 — Multi-Room Houses | 2026-06-17 | `HouseRooms` + entry room, `door`/`stairs` categories + `room_link` navigation, public breadcrumb/back, studio room manager + room presets, whole-house undo, nav analytics, legacy migrate-on-read (`20260617_*`) |
 | Room Engine V5 — Richer Visuals + Rotation | 2026-06-18 | Per-category object sprites (frames show real images), engraved nameplates, rotation editor (slider + ±15°), five room background variants, improved empty state (no schema change) |
+| Production Backend Cutover Prep | 2026-06-19 | Migration/schema drift audit, `docs/supabase-cutover.md` runbook, env-derived runtime mode + dev-only badge, repository layer (local impls + Supabase stubs + factory), tests; demo unchanged |
 
 All sprints ship green: `typecheck · lint · test · build`.
 
@@ -50,25 +51,26 @@ All sprints ship green: `typecheck · lint · test · build`.
 
 ## In Progress
 
-No feature sprint active. Room Engine V5 (Richer Visuals + Rotation) shipped 2026-06-18.
+No feature sprint active. Backend Cutover Prep shipped 2026-06-19 (seams + runbook;
+Supabase repos are stubs).
 
 ---
 
 ## Next Sprint
 
-### Production backend cutover (P3) — or deep-linkable rooms
+### Production backend cutover (execute)
 
-The room engine is feature-complete for the demo (V1–V5). The highest-value next
-step is wiring the Supabase layer behind the demo libs, or a small spatial polish.
-Explicitly **not** AI, marketplace, payments, or chat.
+The seams exist (repository layer + runtime mode + runbook). This sprint does the
+real wiring. Explicitly **not** AI, marketplace, payments, or chat.
 
-**Candidate goals (pick one)**
-- **Backend cutover:** read/write the `rooms` / `room_objects` / `houses` shapes through Supabase behind the existing libs; verify RLS live; keep the localStorage demo as a fallback.
-- **Deep-linkable rooms:** encode the current room in the URL so an inner room is shareable (today navigation is client-only and always starts at the entry room).
-- **Per-asset illustration:** replace CSS-around-an-icon sprites with richer art if/when an asset-art pipeline exists.
+**Goals**
+- Implement the Supabase repositories in `lib/repos/supabase.ts` (houses, rooms, room objects, profiles, events, reports), replacing the `NotImplementedError` stubs.
+- Adopt `getRepositories()` in the components/libs that currently call the demo libs directly, keeping the local impls as the demo fallback.
+- Stand up local + staging Supabase per `docs/supabase-cutover.md`; run all RLS smoke tests; dry-run migrations.
+- (If a from-zero migration build is required) author a `20260610_00_baseline.sql` for the base types/tables so migrations run on an empty DB.
 
 **Success criteria**
-- All gates green; new helpers covered by tests; no visual regression to village/street/exteriors.
+- With Supabase env set, core surfaces read/write the live DB; with it unset, the app is byte-for-byte the demo. RLS smoke tests pass. All gates green; no visual regression.
 
 ---
 
