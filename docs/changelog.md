@@ -8,6 +8,35 @@ for technical detail.
 
 ---
 
+## 2026-06-18 — Room Engine V5: Richer Visuals + Rotation
+
+Makes room objects visually richer and more place-like, and lets owners rotate
+them — **without** redesigning the village, houses, palette, typography, or art
+direction. No AI/marketplace/payments/chat; all prior room behaviour preserved.
+
+### Added
+- **Per-category object sprites** (`lib/room-visuals.ts` + `components/room/room-object.tsx`): generic icon tiles are replaced by CSS treatments around the existing glyph — framed artwork (gallery/photo, shows the object's first image when present), TV/screen (video), shelf (bookshelf/product/display), desk (desk/guestbook table), placard/card (sign/business card), portrait/certificate/pin-board (profile), door, stairs, plant, rug, sofa, and a generic-tile fallback. `objectVisual(assetId, category)` resolves the kind (asset → category → tile).
+- **Rotation editor UI** (`room-editor.tsx`): a rotation slider plus rotate-left/right (±15°) buttons; persists `rotation` and is respected in both the editor and the public room. Live-drag + commit mirrors the scale control.
+- **Natural object labels**: the floating pill is replaced by an engraved museum-placard nameplate at each object's base.
+- **Room background variants** (`lib/room-visuals.ts` `ROOM_BACKGROUNDS` + `room-canvas.tsx`): Warm studio, Gallery wall, Shop floor, Office, Garden room — palettes that recolour the **existing** room shell via the `--room-wall` variable + a soft mood tint. Owners pick a background in the studio room-meta panel; new/preset rooms default by room type (`defaultBackgroundForType`). Stored in `room.background`.
+- **Improved empty-room state**: a warm illustrated placeholder + guidance instead of the dashed box.
+- Tests (`test/room-visuals.test.ts`, suite now **67**): visual-variant selection, background-style validation, and rotation/background persistence through the store.
+
+### Changed
+- `RoomCanvas` applies the room's background palette; `RoomObjectView` renders the sprite and the engraved nameplate while keeping the selection ring, hidden state, interactive cue, hover tooltip, resize handles, rotation, and `data-object-id`/`data-resize-handle` hooks intact.
+- `addObjectFromAsset`'s `action.data` param widened to the canonical `RoomActionData` (type-correctness; carried over from the V4 audit).
+
+### Database
+- **None.** `room_objects.rotation` and `rooms.background` already exist; backgrounds are app-defined style keys (no enum), so no migration was needed.
+
+### Flags
+- None (under the existing `ENABLE_ROOM_ENGINE`).
+
+### Documentation
+- README, architecture.md, roadmap.md, handoff.md, room-engine-spec.md, QA.md updated; new ADR-013 in decision-log.md.
+
+---
+
 ## 2026-06-17 — Room Engine V4: Multi-Room Houses
 
 Turns a house from a single room into connected spaces a visitor explores via

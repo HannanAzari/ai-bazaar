@@ -61,7 +61,7 @@ export function renameRoom(house: HouseRooms, roomId: string, name: string): Hou
   return { ...house, rooms: house.rooms.map((room) => (room.id === roomId ? { ...room, name: trimmed } : room)) };
 }
 
-export function updateRoomMeta(house: HouseRooms, roomId: string, patch: { name?: string; type?: RoomKind; description?: string }): HouseRooms {
+export function updateRoomMeta(house: HouseRooms, roomId: string, patch: { name?: string; type?: RoomKind; description?: string; background?: string }): HouseRooms {
   return {
     ...house,
     rooms: house.rooms.map((room) => {
@@ -70,6 +70,7 @@ export function updateRoomMeta(house: HouseRooms, roomId: string, patch: { name?
       if (patch.name !== undefined && patch.name.trim()) next.name = patch.name.trim().slice(0, ROOM_NAME_MAX);
       if (patch.type !== undefined) next.type = patch.type;
       if (patch.description !== undefined) next.description = patch.description;
+      if (patch.background !== undefined) next.background = patch.background;
       return next;
     }),
   };

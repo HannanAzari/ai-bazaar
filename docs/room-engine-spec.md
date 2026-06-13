@@ -174,21 +174,29 @@ Rules:
 ## 7. Rendering rules
 
 1. The room renders as a **single composed scene** using the shared room shell
-   (walls, floor, window, light). The shell is consistent across all rooms; only
-   objects and theme vary.
-2. **Public view:** hidden objects are omitted; remaining objects render in
-   ascending layer (z-index) order; an object's position, scale, and rotation come
-   from its placement and transform.
-3. An object is **visibly interactive** when its action is not `none` (an affordance
+   (walls, floor, window, light). The shell is consistent across all rooms; its
+   **background variant** (V5: warm studio, gallery wall, shop floor, office, garden
+   room) recolours the same shell — it never introduces new scene art.
+2. **Object visuals (V5):** each object renders a **category-appropriate visual
+   treatment** (framed artwork, screen, shelf, desk, placard, portrait/certificate/
+   board, door, stairs, plant, rug, seat) drawn from the existing palette around its
+   icon glyph; a gallery/photo frame shows the object's first image when it has one.
+   The treatment is **deterministic** from the asset (and category), with a generic
+   tile fallback. Object labels render as a **natural engraved nameplate** at the
+   object's base, not a floating label.
+3. **Public view:** hidden objects are omitted; remaining objects render in
+   ascending layer (z-index) order; an object's position, scale, **rotation**, and
+   size come from its placement and transform.
+4. An object is **visibly interactive** when its action is not `none` (an affordance
    cue) and **inert/decorative** otherwise.
-4. Objects are **keyboard-focusable and screen-reader labelled** with their label
+5. Objects are **keyboard-focusable and screen-reader labelled** with their label
    and, when actionable, their action.
-5. An **empty room** shows a gentle "nothing here yet" state rather than a blank
-   canvas.
-6. A room belonging to a **moderator-hidden house** is not shown to visitors; a
+6. An **empty room** shows a gentle, warm "ready to furnish / nothing here yet"
+   state (per mode) rather than a blank canvas.
+7. A room belonging to a **moderator-hidden house** is not shown to visitors; a
    neutral "resting" notice is shown instead (ownership and history are preserved).
-7. Rendering is **deterministic** — no randomness; the same Room data always
-   produces the same scene.
+8. Rendering is **deterministic** — no randomness; the same Room data always
+   produces the same scene (object visuals and backgrounds included).
 
 ---
 
@@ -204,8 +212,10 @@ visitor never edits).
 2. The owner can **select** an object in the canvas to edit it, **shift-click** to
    add to a selection, or drag a **selection marquee** over several objects.
 3. For a selected object the owner can edit: **label**, **action type and its data**,
-   **zone**, **anchor point**, **scale**, **size**, and **layer order**; and can
-   **hide**, **duplicate**, or **delete** it. A multi-selection supports batch
+   **zone**, **anchor point**, **scale**, **size**, **rotation** (slider + rotate
+   left/right), and **layer order**; and can **hide**, **duplicate**, or **delete**
+   it. The owner can also set the **room's background variant** and its name/type.
+   A multi-selection supports batch
    **move**, **delete**, and **layer change**.
 4. **Placement is direct manipulation (V2):** objects are **dragged freely** with
    mouse or touch and **resized** with a scale slider or corner handles; the

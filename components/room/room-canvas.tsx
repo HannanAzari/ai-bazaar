@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import { Armchair } from "lucide-react";
 import { RoomObjectView } from "@/components/room/room-object";
 import { MIN_OBJECT_SIZE, findZone, moveObjectTo, objectCenter, resizeObject } from "@/lib/room-schema";
+import { roomBackground } from "@/lib/room-visuals";
 import type { Room, RoomObject } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +52,7 @@ export function RoomCanvas({
   const dragRef = useRef<Drag>(null);
   const roomRef = useRef(room);
   roomRef.current = room;
+  const background = roomBackground(room.background);
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
   const objects = (mode === "public" ? room.objects.filter((o) => !o.hidden) : room.objects)
@@ -217,7 +220,7 @@ export function RoomCanvas({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       className={cn("grain shop-glow relative size-full overflow-hidden", mode === "editor" && "touch-none")}
-      style={{ "--room-wall": "#e6cfa9" } as CSSProperties}
+      style={{ "--room-wall": background.wall } as CSSProperties}
     >
       {/* ── Shared room shell ── */}
       <div className="room-wallpaper pointer-events-none absolute inset-x-0 top-0 h-[64%]" />
@@ -233,6 +236,9 @@ export function RoomCanvas({
       </div>
       <div className="window-beam pointer-events-none absolute left-[32%] top-[10%] h-[52%] w-[34%] [clip-path:polygon(28%_0,72%_0,100%_100%,0_100%)]" />
       <div className="lamp-glow pointer-events-none absolute right-[10%] top-[6%] h-[36%] w-[32%]" />
+
+      {/* Background-variant mood tint (existing shell, recoloured) */}
+      <div className="pointer-events-none absolute inset-0" style={{ background: background.tint }} aria-hidden="true" />
 
       {/* ── Placed objects ── */}
       {objects.map((object) => {
@@ -263,8 +269,14 @@ export function RoomCanvas({
       )}
 
       {objects.length === 0 && (
-        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-dashed border-ink/20 bg-white/70 px-6 py-4 text-center text-sm text-ink/55 shadow-lg backdrop-blur">
-          This room is empty. {mode === "editor" ? "Add an object or apply a template." : "Come back soon."}
+        <div className="pointer-events-none absolute left-1/2 top-[46%] flex max-w-[80%] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 text-center">
+          <span className="grid size-16 place-items-center rounded-full border border-[#7c5436]/25 bg-[#fff8e9]/85 text-terracotta shadow-soft backdrop-blur">
+            <Armchair size={28} strokeWidth={1.6} />
+          </span>
+          <p className="rounded-2xl border border-white/60 bg-[#fff8e9]/85 px-5 py-3 shadow-soft backdrop-blur">
+            <span className="display block text-lg text-[#5a3b22]">{mode === "editor" ? "An empty room, ready to furnish" : "Nothing here yet"}</span>
+            <span className="mt-0.5 block text-xs font-bold text-ink/45">{mode === "editor" ? "Add an object, apply a template, or pick a preset room." : "This room is still being arranged — check back soon."}</span>
+          </p>
         </div>
       )}
     </div>

@@ -56,6 +56,8 @@ save buttons, guestbook panel, footer links, owner-profile links) disappear.
 | Edit the room | `/studio` → Room | Add from palette; select an object; change label/action/zone/anchor/scale/layer; hide/duplicate/delete |
 | Drag an object | `/studio` → Room (Edit) | Object follows the pointer (mouse or touch), stays inside the room; records `room_object_moved` |
 | Resize an object | `/studio` → Room (Edit) | Scale slider or corner handles change its size; records `room_object_resized` |
+| Rotate an object | `/studio` → Room (Edit) | Rotation slider or rotate-left/right buttons tilt it; persists and shows in the public room |
+| Pick a room background | `/studio` → Room manager → Background | Wall recolours (warm studio / gallery wall / shop floor / office / garden room); persists per room |
 | Multi-select | `/studio` → Room (Edit) | Shift-click or drag a box over objects; batch move/delete/layer in the panel |
 | Delete an object | `/studio` → Room (Edit) | Confirmation dialog appears; confirming removes it; records `room_object_deleted` |
 | Undo / redo | `/studio` → Room (Edit) | `⌘Z` / `⌘⇧Z` or the toolbar buttons step through edits |
@@ -145,7 +147,7 @@ Keys: `ai-bazaar-user`, `ai-bazaar-shop`, `ai-bazaar-world-seen`,
 
 ## Automated coverage
 
-`npm run test` (Vitest, 60 tests) covers the pure/storage helpers: tag
+`npm run test` (Vitest, 67 tests) covers the pure/storage helpers: tag
 normalization, collection save/remove, notification read/unread, report status
 transitions, hidden-house filtering, relative-time formatting, the room engine
 (schema creation, zone + placement validation, action-type validation, save/reset
@@ -154,5 +156,7 @@ generation), the **V3 interactive objects** (gallery/video/product/contact
 validation, URL/favicon helpers, `hasActionData`, and analytics tracking), and the
 **V4 multi-room houses** (`test/house.test.ts`: room create/delete with entry +
 object guards, entry validation, door-target validation, persistence incl. legacy
-single-room migration, duplicate-id guard, and navigation analytics). UI flows are
-still manual.
+single-room migration, duplicate-id guard, and navigation analytics), and the
+**V5 visuals** (`test/room-visuals.test.ts`: visual-variant selection, background
+style validation, and rotation/background persistence through the store). UI flows
+are still manual.

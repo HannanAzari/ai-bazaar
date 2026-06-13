@@ -169,6 +169,8 @@ The public house page is a full-screen personal room rather than a profile.
     the room bounds.
   - **Resize** — a scale slider plus corner handles (stores scale + width/height;
     zero/negative sizes are rejected).
+  - **Rotate (V5)** — a rotation slider plus rotate-left/right (±15°) buttons;
+    rotation persists and is respected in the public room.
   - **Layers** — Bring Forward / Send Backward; z-index persists.
   - **Duplicate** and **delete** (delete asks for confirmation).
   - **Multi-select** — shift-click or drag a selection box, then batch move,
@@ -185,6 +187,13 @@ The public house page is a full-screen personal room rather than a profile.
     presets now populate working sample content.
   - **Room insights (V3)** — an owner-only panel: total object clicks, most-clicked
     object, and most popular object type (from analytics events).
+  - **Background (V5)** — pick a room background variant (warm studio, gallery
+    wall, shop floor, office, garden room); new/preset rooms default by room type.
+- **Richer object visuals (V5)** — objects render as per-category CSS treatments
+  (framed artwork that shows its first image, TV/screen, shelf, desk, placard,
+  portrait/certificate/board, door, stairs, plant, rug, sofa) around the asset
+  icon, with engraved nameplate labels — no new art, palette unchanged. Background
+  variants recolour the existing room shell.
 - **Assets** — placeable assets come from the catalog (`lib/assets.ts`); the
   room-ready ones carry `compatibleZones`, `defaultScale`, and `defaultActionType`.
   V3 adds profile objects (avatar portrait, certificate, achievement board) and a

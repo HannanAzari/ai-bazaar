@@ -42,6 +42,7 @@ by **selecting from a curated asset library**, never by generating visuals.
 | Room Engine V2 — Creator Studio | 2026-06-15 | Free drag/resize, layers, duplicate, delete-confirm, multi-select, Edit/Preview, undo/redo, autosave, six templates, editing analytics (`20260615_*`) |
 | Room Engine V3 — Real Interactive Objects | 2026-06-16 | Real panels (gallery/video/link/product/booking/contact/profile), `profile` type + 7 assets, rich action data, tooltips, visitor analytics, owner insights, inspector editors, working presets (`20260616_*`) |
 | Room Engine V4 — Multi-Room Houses | 2026-06-17 | `HouseRooms` + entry room, `door`/`stairs` categories + `room_link` navigation, public breadcrumb/back, studio room manager + room presets, whole-house undo, nav analytics, legacy migrate-on-read (`20260617_*`) |
+| Room Engine V5 — Richer Visuals + Rotation | 2026-06-18 | Per-category object sprites (frames show real images), engraved nameplates, rotation editor (slider + ±15°), five room background variants, improved empty state (no schema change) |
 
 All sprints ship green: `typecheck · lint · test · build`.
 
@@ -49,30 +50,24 @@ All sprints ship green: `typecheck · lint · test · build`.
 
 ## In Progress
 
-No feature sprint active. Room Engine V4 (Multi-Room Houses) shipped 2026-06-17.
+No feature sprint active. Room Engine V5 (Richer Visuals + Rotation) shipped 2026-06-18.
 
 ---
 
 ## Next Sprint
 
-### Room Engine V5 — richer object visuals & rotation
+### Production backend cutover (P3) — or deep-linkable rooms
 
-Spatial structure is done (V2 editing, V3 interactions, V4 multi-room); objects
-still read as a single **icon tile**. V5 deepens the *visual* layer — explicitly
-**not** AI, marketplace, payments, or chat.
+The room engine is feature-complete for the demo (V1–V5). The highest-value next
+step is wiring the Supabase layer behind the demo libs, or a small spatial polish.
+Explicitly **not** AI, marketplace, payments, or chat.
 
-**Goals**
-- Richer per-asset object visuals (small illustrated treatments beyond the icon tile) while reusing the existing room shell.
-- A rotation control in the editor (the model already stores `rotation`).
-- Wire room edits into the activity feed (`updated_house`) and confirm V2–V4 events surface in moderation counts.
-- Optional: deep-link to a specific room (URL/room state) so an inner room is shareable.
-
-**Files likely affected**
-- `components/room/room-object.tsx`, `room-canvas.tsx`, `room-editor.tsx`, `room-experience.tsx`
-- `lib/room-schema.ts`; `test/room.test.ts`; `supabase/*` only if a shape grows
+**Candidate goals (pick one)**
+- **Backend cutover:** read/write the `rooms` / `room_objects` / `houses` shapes through Supabase behind the existing libs; verify RLS live; keep the localStorage demo as a fallback.
+- **Deep-linkable rooms:** encode the current room in the URL so an inner room is shareable (today navigation is client-only and always starts at the entry room).
+- **Per-asset illustration:** replace CSS-around-an-icon sprites with richer art if/when an asset-art pipeline exists.
 
 **Success criteria**
-- Objects read richer than a single icon; an owner can rotate objects.
 - All gates green; new helpers covered by tests; no visual regression to village/street/exteriors.
 
 ---

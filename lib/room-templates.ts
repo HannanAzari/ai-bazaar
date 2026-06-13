@@ -1,6 +1,7 @@
 import type { CatalogAsset, Room, RoomActionData, RoomActionType, RoomKind } from "@/lib/types";
 import { getAsset } from "@/lib/assets";
 import { addObjectFromAsset, createRoom, nextRoomId } from "@/lib/room-schema";
+import { defaultBackgroundForType } from "@/lib/room-visuals";
 
 // Starter room layouts a creator can apply in one click. Templates compose only
 // EXISTING room-ready catalog assets (no generated graphics) and obey the same
@@ -191,5 +192,5 @@ export function buildPresetRoom(presetId: RoomPresetId, address: string): Room {
   const preset = ROOM_PRESET_DEFS.find((p) => p.id === presetId);
   if (!preset) return { ...createRoom(address, "New room", "custom", nextRoomId(address)) };
   const base = applyTemplate(preset.template, address);
-  return { ...base, id: nextRoomId(address), name: preset.name, type: preset.type, description: "" };
+  return { ...base, id: nextRoomId(address), name: preset.name, type: preset.type, description: "", background: defaultBackgroundForType(preset.type) };
 }

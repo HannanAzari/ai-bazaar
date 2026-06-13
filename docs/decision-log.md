@@ -378,6 +378,61 @@ model unchanged (spec §10 reserved this).
 
 ---
 
+## ADR-013 — Richer objects as CSS treatments around existing icons; backgrounds as shell recolours
+
+**Status:** Accepted · 2026-06-18
+
+### Context
+Through V4 every object rendered as the same parchment **icon tile**, and the room
+shell was a single fixed look. V5 had to make objects visually richer / more
+place-like and add room background variety **without** redesigning the village,
+houses, palette, typography, or art direction — and without regressing the drag/
+resize/rotate/select behaviour built in V2–V4.
+
+### Decision
+- **Objects are CSS treatments wrapping the existing lucide glyph**, not new art
+  files or bitmap sprites. A pure `objectVisual(assetId, category)` maps an asset
+  to a visual *kind* (frame / screen / shelf / desk / card / portrait / certificate
+  / board / door / stairs / plant / rug / seat / tile); the renderer draws that kind
+  in the existing warm palette. Frames show the object's first gallery/product
+  image when it has one. The fallback is the original tile, so anything unmapped
+  still renders.
+- **Behaviour is preserved by layering**: the sprite fills the object box
+  (`size-full`) inside the same interactive shell that still carries the selection
+  ring, hidden state, interactive cue, tooltip, resize handles, rotation transform,
+  and `data-object-id`/`data-resize-handle` hooks. Hit area and handles are
+  unchanged.
+- **Backgrounds recolour the existing shell**, they are not new scenes:
+  `ROOM_BACKGROUNDS` is a small map of palettes (wall colour + a soft mood tint)
+  applied via the `--room-wall` CSS variable and one overlay div. Stored in the
+  existing `room.background` text field — **app-defined keys, no enum, no
+  migration**. Owners pick one; new/preset rooms default by room type.
+- **Labels become engraved nameplates** at the object base (museum-placard
+  style) rather than floating pills — "natural", per the brief.
+- **Rotation** reuses the model's existing `rotation` field and the V2 live/commit
+  interaction pattern; no schema change.
+
+### Alternatives Considered
+- **Hand-built inline SVG sprites per category** — more distinctly illustrated, but
+  far more visual-design surface and higher regression risk against the drag/
+  resize/rotate hit areas; rejected for the lower-risk CSS-framing approach.
+- **Background as a new enum / theme system** — unnecessary; `room.background`
+  already exists as free text, so variants are app-defined with zero DB work.
+- **Deriving background purely from room type** — less owner control; chose an
+  explicit picker that *defaults* by type.
+
+### Consequences
+- (+) Rooms read as composed places (framed art, screens, shelves, doors) while the
+  art direction, palette, and village are untouched; no new assets to maintain.
+- (+) No schema/migration; backgrounds and rotation ride existing columns.
+- (+) Pure `objectVisual` / `roomBackground` are unit-tested and deterministic.
+- (−) Visual richness is bounded by what CSS-around-an-icon can express (not true
+  per-asset illustration).
+- (−) Resize-handle math remains axis-aligned, so resizing a heavily rotated object
+  is approximate (pre-existing; rotation UI makes it more reachable).
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

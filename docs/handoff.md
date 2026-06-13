@@ -18,8 +18,8 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 
 - **Stack:** Next.js 15 (App Router), React 19, strict TypeScript, Tailwind 3, lucide. **Node 20 required** (machine default is v16): `export PATH="/Users/hannan/.nvm/versions/node/v20.20.2/bin:$PATH"`.
 - **Runs as a client-side demo.** Blank Supabase env → `lib/supabase/*` returns `null`; state lives in `localStorage`, seed content in `lib/data.ts`. The SQL schema is a **production-parity mirror, not run at runtime here.** Every feature has two layers: a demo lib + matching SQL.
-- **Shipped:** village map → street → house kit; **Room Engine V1** (full-screen public room + studio editor), **V2 — Creator Studio** (free drag/resize, layers, duplicate, delete-confirm, multi-select, Edit/Preview, undo/redo, autosave, six templates), **V3 — Real Interactive Objects** (real gallery/video/link/product/booking/contact/profile panels, `profile` type, tooltips, visitor analytics, owner insights, inspector editors, working presets), and **V4 — Multi-Room Houses** (`HouseRooms` + entry room, `door`/`stairs` + `room_link` navigation, public breadcrumb/back, studio room manager + room presets, whole-house undo, nav analytics, legacy migrate-on-read); creator profiles, notifications, guestbooks, collections, activity feed, tags, discovery, analytics, reporting/moderation, asset catalog.
-- **Gates (all green):** `npm run typecheck && npm run lint && npm run test && npm run build` (60 tests, ~81 pages).
+- **Shipped:** village map → street → house kit; **Room Engine V1** (full-screen public room + studio editor), **V2 — Creator Studio** (free drag/resize, layers, duplicate, delete-confirm, multi-select, Edit/Preview, undo/redo, autosave, six templates), **V3 — Real Interactive Objects** (real gallery/video/link/product/booking/contact/profile panels, `profile` type, tooltips, visitor analytics, owner insights, inspector editors, working presets), **V4 — Multi-Room Houses** (`HouseRooms` + entry room, `door`/`stairs` + `room_link` navigation, public breadcrumb/back, studio room manager + room presets, whole-house undo, nav analytics, legacy migrate-on-read), and **V5 — Richer Visuals + Rotation** (per-category object sprites, engraved nameplates, rotation editor, five room background variants, improved empty state); creator profiles, notifications, guestbooks, collections, activity feed, tags, discovery, analytics, reporting/moderation, asset catalog.
+- **Gates (all green):** `npm run typecheck && npm run lint && npm run test && npm run build` (67 tests, ~81 pages).
 
 ---
 
@@ -42,7 +42,7 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 - `lib/types.ts` — `HouseRooms` (V4: `{ shopAddress, entryRoomId, rooms[] }`), `Room` (incl. optional `width`/`height`, `description`), `RoomZoneDef`, `RoomObject`, `RoomZoneType` (9), `RoomActionType` (11, incl. `profile`, `room_link`), `RoomKind` (+ V4 types), `AssetCategory` (+ `door`/`stairs`), rich `RoomActionData` (+ `targetRoomId`). *Note: distinct from the legacy `RoomZone` string-union used by `Decoration`.*
 - `lib/room-schema.ts` — `ZONE_TEMPLATE`, `createRoom` (+ `nextRoomId`), `deriveDefaultRoom`, `validatePlacement`, and pure layout helpers (`addObjectFromAsset`, `moveObject`, `moveObjectTo`, `resizeObject`, `objectCenter`, `duplicateObject`, `deleteObject`, `bringToFront`/`sendToBack`, `bringForward`/`sendBackward`).
 - `lib/house.ts` — pure `HouseRooms` ops: `deriveDefaultHouse`, `addRoom`, `renameRoom`, `updateRoomMeta`, `setEntryRoom`, `deleteRoom`/`canDeleteRoom`, `withRoom`, `isValidRoomLink`, `roomLinkTargets`, `normalizeHouse`/`houseFromRoom`.
-- `lib/room-actions.ts` — pure action-data helpers (`galleryImages`, `productCard`, `contactMethods`, `faviconUrl`, `hostname`, `hasActionData`). `lib/embeds.ts` — `videoEmbed` (YouTube/Vimeo). `lib/room-insights.ts` — owner `getRoomInsights`.
+- `lib/room-actions.ts` — pure action-data helpers (`galleryImages`, `productCard`, `contactMethods`, `faviconUrl`, `hostname`, `hasActionData`). `lib/embeds.ts` — `videoEmbed` (YouTube/Vimeo). `lib/room-insights.ts` — owner `getRoomInsights`. `lib/room-visuals.ts` — `objectVisual(assetId, category)` (per-category sprite kind) + `ROOM_BACKGROUNDS`/`roomBackground`/`defaultBackgroundForType` (background variants).
 - `lib/room-templates.ts` — six object templates (`ROOM_TEMPLATES`, `applyTemplate`) + V4 room presets (`ROOM_PRESETS`, `buildPresetRoom`). `lib/room-history.ts` — pure undo/redo `History<T>`.
 - `lib/room.ts` — house store: `getHouse`/`getStoredHouse`/`saveHouse`/`resetHouse` (key `ai-bazaar-rooms`, legacy single-room migrate-on-read) + back-compat `getRoom`/`saveRoom`/`resetRoom` (entry room).
 - `components/room/room-experience.tsx` — full-screen public surface; renders the current room of a multi-room house, breadcrumb + back, `room_link` navigation, per-type `*_opened` + `room_entered`/`room_link_clicked` analytics.
@@ -86,7 +86,7 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 ## Open Problems (known limitations)
 
 - Room object actions are **real** (V3); their panels load **third-party embeds/images** (YouTube, Vimeo, Calendly, favicons, sample preset images) — external requests that won't render offline.
-- Placement is **free drag + resize** (V2); rotation is in the model but has no editor UI yet. Objects still render as a single **icon tile** (no per-asset art). Objects can crowd on tiny viewports.
+- Placement is **free drag + resize + rotate** (V2/V5). Objects render as **CSS sprites around an icon** (V5) — richer than a tile but not per-asset illustration; resize-handle math is axis-aligned, so resizing a heavily rotated object is approximate. Objects can crowd on tiny viewports.
 - **Multi-room ships in V4**, but navigation is **client-only**: a visitor always lands in the entry room and a URL can't deep-link to a specific inner room yet.
 - **AI and image storage are mocked** (`/api/generations`, placeholder asset URLs).
 - **SQL never executed against live Postgres here** — dry-run migrations + RLS on staging before production.
@@ -97,15 +97,13 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 
 ## Recommended Next Sprint
 
-**Room Engine V5 — richer object visuals & rotation.** Spatial structure is done
-(V2 editing, V3 interactions, V4 multi-room); objects still read as a single **icon
-tile**. Add richer per-asset object visuals (small illustrated treatments reusing
-the room shell) and a **rotation** control (the model already stores `rotation`).
-Optionally make an inner room deep-linkable (room state in the URL). Explicitly
-**not** AI/marketplace/payments/chat. Likely files: `components/room/*`,
-`lib/room-schema.ts`, `test/room.test.ts`. Success: objects read richer than an
-icon; an owner can rotate objects; all gates green; no village/street/exterior
-regressions.
+The room engine is feature-complete for the demo (V1–V5). Highest-value next step
+is the **production backend cutover** — wire the Supabase `rooms`/`room_objects`
+shapes behind the existing demo libs and verify RLS live, keeping localStorage as a
+fallback. Smaller alternatives: **deep-linkable rooms** (encode the current room in
+the URL; today navigation is client-only and always starts at the entry room), or
+**per-asset illustration** if an asset-art pipeline appears. Explicitly **not**
+AI/marketplace/payments/chat.
 
 ---
 

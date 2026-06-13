@@ -17,6 +17,7 @@ import {
   Plus,
   Redo2,
   RotateCcw,
+  RotateCw,
   Save,
   Star,
   Trash2,
@@ -52,6 +53,7 @@ import {
   undo,
 } from "@/lib/room-history";
 import { ROOM_PRESETS, ROOM_TEMPLATES, type RoomPresetId, type RoomTemplateId, applyTemplate, buildPresetRoom } from "@/lib/room-templates";
+import { ROOM_BACKGROUNDS, ROOM_BACKGROUND_IDS, roomBackground } from "@/lib/room-visuals";
 import {
   ROOM_ACTION_TYPES,
   actionLabels,
@@ -85,6 +87,14 @@ const ROOM_TYPES: { value: RoomKind; label: string }[] = [
   { value: "garden", label: "Garden" },
   { value: "custom", label: "Custom" },
 ];
+
+/** Add `delta` degrees and wrap the result into [-180, 180]. */
+function rotateDeg(current: number, delta: number): number {
+  let next = (current + delta) % 360;
+  if (next > 180) next -= 360;
+  if (next < -180) next += 360;
+  return next;
+}
 
 export function RoomEditor({ shop }: { shop: Shop }) {
   const palette = useMemo(() => roomReadyAssets(), []);
@@ -331,6 +341,11 @@ export function RoomEditor({ shop }: { shop: Shop }) {
                 {!ROOM_TYPES.some((t) => t.value === activeRoom.type) && <option value={activeRoom.type}>{activeRoom.type}</option>}
               </select>
             </label>
+            <label className="block text-xs font-black uppercase tracking-wider text-ink/45">Background
+              <select value={roomBackground(activeRoom.background).id} onChange={(e) => commit(updateRoomMeta(presentRef.current, activeId, { background: e.target.value }))} className="mt-1.5 min-h-10 w-full rounded-xl border border-ink/10 bg-white px-3 text-sm normal-case tracking-normal text-ink">
+                {ROOM_BACKGROUND_IDS.map((id) => <option key={id} value={id}>{ROOM_BACKGROUNDS[id].label}</option>)}
+              </select>
+            </label>
           </div>
         </div>
 
@@ -433,6 +448,29 @@ export function RoomEditor({ shop }: { shop: Shop }) {
                 className="mt-1.5 w-full"
               />
             </label>
+
+            <div>
+              <div className="flex items-center justify-between text-xs font-black uppercase tracking-wider text-ink/45">
+                <span>Rotation</span>
+                <span className="normal-case tracking-normal text-ink/40">{Math.round(selected.rotation)}°</span>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <button onClick={() => commitRoom(updateObject(activeRoom, selected.id, { rotation: rotateDeg(selected.rotation, -15) }))} aria-label="Rotate left" className="grid size-9 shrink-0 place-items-center rounded-lg border border-ink/10 text-ink/60 hover:border-terracotta hover:text-terracotta"><RotateCcw size={15} /></button>
+                <input
+                  type="range"
+                  min={-180}
+                  max={180}
+                  step={5}
+                  value={selected.rotation}
+                  onPointerDown={interactionStart}
+                  onChange={(e) => liveRoom(updateObject(activeRoom, selected.id, { rotation: Number(e.target.value) }))}
+                  onPointerUp={() => commitInteraction("resized")}
+                  onKeyUp={() => commitInteraction("resized")}
+                  className="w-full"
+                />
+                <button onClick={() => commitRoom(updateObject(activeRoom, selected.id, { rotation: rotateDeg(selected.rotation, 15) }))} aria-label="Rotate right" className="grid size-9 shrink-0 place-items-center rounded-lg border border-ink/10 text-ink/60 hover:border-terracotta hover:text-terracotta"><RotateCw size={15} /></button>
+              </div>
+            </div>
             <p className="-mt-1 text-[10px] text-ink/40">Tip: drag the object to move it; drag a corner handle to resize.</p>
 
             <div className="flex flex-wrap gap-1.5">
