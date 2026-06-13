@@ -13,7 +13,8 @@ export type FeatureFlag =
   | "ENABLE_COLLECTIONS"
   | "ENABLE_ACTIVITY_FEED"
   | "ENABLE_ASSET_CATALOG"
-  | "ENABLE_ROOM_ENGINE";
+  | "ENABLE_ROOM_ENGINE"
+  | "ENABLE_AI_DESIGNER";
 
 const defaults: Record<FeatureFlag, boolean> = {
   // Sprint 1 — implemented, on by default
@@ -26,6 +27,8 @@ const defaults: Record<FeatureFlag, boolean> = {
   ENABLE_ASSET_CATALOG: true,
   // Room Engine V1 — on by default; off falls back to the legacy room
   ENABLE_ROOM_ENGINE: true,
+  // AI Room Designer V1 — on by default; off hides the studio "Design" mode
+  ENABLE_AI_DESIGNER: true,
 };
 
 // next/font + Next inlines NEXT_PUBLIC_* at build time, so this lookup must use
@@ -38,6 +41,7 @@ const overrides: Record<FeatureFlag, string | undefined> = {
   ENABLE_ACTIVITY_FEED: process.env.NEXT_PUBLIC_ENABLE_ACTIVITY_FEED,
   ENABLE_ASSET_CATALOG: process.env.NEXT_PUBLIC_ENABLE_ASSET_CATALOG,
   ENABLE_ROOM_ENGINE: process.env.NEXT_PUBLIC_ENABLE_ROOM_ENGINE,
+  ENABLE_AI_DESIGNER: process.env.NEXT_PUBLIC_ENABLE_AI_DESIGNER,
 };
 
 export function isEnabled(flag: FeatureFlag): boolean {
@@ -54,4 +58,5 @@ export const flags = {
   activityFeed: isEnabled("ENABLE_ACTIVITY_FEED"),
   assetCatalog: isEnabled("ENABLE_ASSET_CATALOG"),
   roomEngine: isEnabled("ENABLE_ROOM_ENGINE"),
+  aiDesigner: isEnabled("ENABLE_AI_DESIGNER"),
 };

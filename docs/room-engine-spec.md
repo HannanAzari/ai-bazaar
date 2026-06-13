@@ -288,19 +288,33 @@ A house is a set of **connected rooms**. Behavior:
 
 ---
 
-## 11. Future — AI room designer support
+## 11. AI room designer support (V1)
 
-An assistant that helps an owner **compose** a room. Hard rule: it **selects and
-arranges existing catalog assets — it never generates visuals**.
+An assistant that helps an owner **compose** a room from a natural-language brief.
+Hard rule: it **selects and arranges existing catalog assets — it never generates
+visuals**, and it calls **no external/LLM/image APIs**. Shipped V1 (2026-06-20) as
+the studio **Design** mode; see ADR-006 and ADR-015.
 
-Reserved behavior:
-- Given a house's tags, theme, and existing content, it **proposes a layout**:
-  which assets, in which zones, with which suggested labels/actions.
-- All proposals obey the placement and validation rules; the designer cannot create
-  an invalid room.
-- The owner **reviews and approves** changes; nothing publishes without consent.
-- It is deterministic/explainable enough to be testable, and may run as a heuristic
-  recommender before any model is involved.
+Behavior (V1):
+- The owner gives a **brief** ("create a cozy reading room") and picks a **style
+  preset** (Cozy · Minimal · Modern · Creative · Professional · Playful) and,
+  optionally, a room type. The brief is matched to a design **intent** by keyword
+  scoring (with a personal fallback when nothing matches).
+- The designer **proposes a layout**: which assets, in which zones, with suggested
+  labels/actions, plus a room type and background.
+- All proposals **obey the placement and validation rules** (§6, §9) — composition
+  routes through the same placement pipeline as every manual edit, so the designer
+  **cannot create an invalid room** (an asset that can't be placed is skipped).
+- The owner **reviews and approves**: the proposal is shown next to the current
+  room and **nothing publishes until Apply**, which replaces the selected room's
+  contents while preserving its identity. **Regenerate** offers a fresh layout.
+- It is **deterministic and explainable**: identical input always yields the
+  identical room; a regenerate `variant` deterministically reshuffles near-ties.
+  Every choice is explained in plain language ("Added Bookshelf because it's core to
+  a reading room"). It runs as a heuristic recommender — no model is involved, and a
+  future model could only change which intents/assets are proposed, not the contract.
+- Activations record `room_design_generated` / `room_design_applied` /
+  `room_design_regenerated`.
 
 ---
 

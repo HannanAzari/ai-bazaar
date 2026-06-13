@@ -20,6 +20,7 @@ npm run typecheck && npm run lint && npm run test && npm run build
 | `/bazaar/[slug]` | — | Horizontal street of 24 houses; arrows scroll; claim flow on open houses |
 | `/shop/[address]` | `ENABLE_ROOM_ENGINE` | Full-screen room; objects clickable; owner/guestbook drawers; corner actions (off → legacy room) |
 | `/studio` | — | Owner editor (needs a claimed house); Room engine, exterior, tags, details |
+| `/studio` → **Design** | `ENABLE_AI_DESIGNER` | AI room designer (needs `ENABLE_ROOM_ENGINE`); brief + style → preview → Apply/Regenerate. Off → the Design tab is hidden |
 | `/discover` | — | Trending/newest, explore-by-tag, mobile swipe deck, desktop grid/list |
 | `/tags` and `/tags/[tag]` | — | Tag search + popular tags; tag detail lists houses & items |
 | `/u/[handle]` | `ENABLE_CREATOR_PROFILES` | Avatar, name, handle, bio, links, houses, follower/following, activity/placeholder |
@@ -70,6 +71,10 @@ save buttons, guestbook panel, footer links, owner-profile links) disappear.
 | Walk through rooms | `/shop/[address]` | Clicking a door/stairs switches rooms instantly (no reload); breadcrumb + back update; records `room_link_clicked` + `room_entered` |
 | Save the house | `/studio` → Room → Save house | Persists all rooms to `ai-bazaar-rooms`; the public house reflects it |
 | Reset the house | `/studio` → Room → Reset house | Reverts to the derived single-room default |
+| Generate an AI design | `/studio` → Design → brief + style → Generate | Proposed room appears beside the current room; "Why this layout" lists reasons; records `room_design_generated`. No images are generated |
+| Regenerate a design | `/studio` → Design → Regenerate | A fresh-but-related layout appears (same brief, deterministic); records `room_design_regenerated` |
+| Apply a design | `/studio` → Design → Apply | Replaces the selected room's contents; nothing changes until Apply; records `room_design_applied`; the public room reflects it |
+| Designer determinism | `/studio` → Design | Same brief + style ⇒ the same room every time; "reading"/"photography"/"gaming"/"office" briefs pick sensible themes |
 
 ## Room editor flow (Creator Studio)
 

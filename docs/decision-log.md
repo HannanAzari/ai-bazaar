@@ -484,6 +484,79 @@ big-bang rewrite of every component that reads/writes state.
 
 ---
 
+## ADR-015 — AI Room Designer: a deterministic, selection-only recommender
+
+**Status:** Accepted · 2026-06-20
+
+### Context
+ADR-006 committed to an asset-library-first AI strategy and room-engine-spec §11
+reserved an "AI room designer" that **selects and arranges existing catalog assets
+— never generates visuals**. The AI Room Designer V1 sprint had to deliver that:
+turn a natural-language brief ("create a cozy reading room") into a furnished room,
+with a hard constraint of **no image generation and no external/LLM APIs** of any
+kind, and the requirement that it be deterministic and testable.
+
+### Decision
+- **A pure, rules-based engine** (`lib/ai-room-designer.ts`), no provider calls.
+  Three composable, individually-tested stages: (1) `matchIntent(brief)` scores the
+  brief's tokens against an ordered table of design **intents** (keyword lists →
+  room kind, background, preferred assets/tags/actions), with a trailing
+  always-matching `personal` fallback; (2) `scoreAssets(intent, style, variant)`
+  ranks the **room-ready catalog assets** by core-asset rank + tag overlap +
+  category/action fit + style affinity; (3) `generateRoomDesign` composes the top
+  picks into a room.
+- **Composition reuses the existing placement pipeline** (`createRoom` +
+  `addObjectFromAsset`), so every generated room is valid **by construction** —
+  zone/category/capacity/bounds rules are never re-implemented or bypassed, and an
+  asset that can't be placed is simply skipped. Navigation assets (door/stairs) are
+  excluded — a single generated room has no link targets.
+- **Determinism with controlled variety via a `variant` integer.** Identical input
+  (brief, style, roomType, variant) always yields the identical room and the
+  identical explanations. "Regenerate" bumps `variant`, which feeds a deterministic
+  per-asset hash jitter that reshuffles **near-ties only** (it never overrides a
+  strong intent match) — fresh-but-reproducible layouts, fully unit-testable. (As
+  everywhere in the engine, object **ids** still carry a timestamp; equality is
+  asserted on assetIds/zones/labels, not ids.)
+- **Preview-before-apply, replacing the active room.** The studio **Design** mode
+  (`components/room/room-designer.tsx`, flag `ENABLE_AI_DESIGNER`) shows the
+  proposal next to the current room; **Apply** replaces the selected room's
+  contents (objects/type/background/name) via `saveHouse`, keeping the room's id
+  and house identity intact, so multi-room houses and door links are undisturbed.
+  Nothing persists until Apply.
+- **Explanations are generated from the same scoring data** (matched keywords,
+  chosen background, style, per-pick reason) — no second source of truth.
+- **Analytics as enum-value additions** (`room_design_generated/applied/
+  regenerated`), committed alone in `20260620_extend_enums.sql` (ADR-009); no table
+  change since the designer only composes existing `Room`/`room_objects` shapes.
+
+### Alternatives Considered
+- **Call an LLM / image model to design or render the room** — rejected outright by
+  the product constraint (ADR-006) and the sprint brief; also non-deterministic and
+  untestable. The catalog is the source of truth.
+- **A new free-form placement path for generated rooms** — rejected; routing
+  through `addObjectFromAsset` guarantees validity and keeps one placement code path.
+- **Non-deterministic randomness for "regenerate"** (e.g. `Math.random`) — rejected
+  for hydration-safety/testability (ADR-008); the `variant`+hash approach gives
+  variety while staying pure and reproducible.
+- **A standalone `/design` route** — rejected in favour of a studio **Design** mode,
+  keeping it in the owner-editing context next to the manual editor.
+
+### Consequences
+- (+) A genuinely useful "describe it and see it" designer that is on-brand,
+  deterministic, and fully unit-tested; it can later sit behind a real model
+  without changing the contract (the model would only propose intents/picks).
+- (+) Zero risk to saved rooms or the renderer — output is an ordinary `Room`;
+  Apply is the only mutation and it preserves room identity.
+- (+) No schema change beyond three analytics enum values; demo mode is otherwise
+  untouched.
+- (−) Design quality is bounded by **catalog breadth** and the hand-authored intent
+  table; new themes/assets mean editing the intent/scoring tables (tracked as the
+  P1 "asset ecosystem expansion").
+- (−) The `variant` jitter only reorders near-ties, so on a brief with one dominant
+  intent, regenerate produces modest variety rather than dramatically different rooms.
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

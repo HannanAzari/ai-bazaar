@@ -8,6 +8,35 @@ for technical detail.
 
 ---
 
+## 2026-06-20 — AI Room Designer V1
+
+Lets a creator describe a room in plain language and have the app compose a layout
+from existing catalog assets. **Selection only — no image generation, no external
+APIs, no LLM/SD/Gemini** (ADR-006/ADR-015, room-engine-spec §11). Deterministic and
+fully testable. Demo behaviour for every other surface is unchanged.
+
+### Added
+- **`lib/ai-room-designer.ts`** — the deterministic engine. `matchIntent(brief)` scores the brief against ten design intents (reading, photography, gallery, art studio, gaming, podcast, office, shop, garden, + a personal fallback) by keyword; `scoreAssets(intent, style, variant)` ranks the room-ready assets by core-asset / tag / category / action / style affinity (navigation door/stairs excluded); `generateRoomDesign(input)` composes a valid `Room` via `addObjectFromAsset` and returns `{ room, picks, explanations, matchedKeywords, intentLabel }`. Six **style presets** (Cozy · Minimal · Modern · Creative · Professional · Playful) modulate object count + scoring. Determinism: identical input ⇒ identical room; a `variant` (bumped by Regenerate) deterministically reshuffles near-ties.
+- **`components/room/room-designer.tsx`** — the studio **Design** mode: brief input + example chips, style picker, optional room-type override, room-to-replace selector (multi-room houses), **current-vs-proposed** `RoomCanvas` preview, **Apply** / **Regenerate**, and a "Why this layout" explanation panel. Nothing persists until Apply, which replaces the selected room's contents via `saveHouse` (room identity preserved).
+- **Studio Design tab** (`app/studio/page.tsx`) — a new mode alongside Room / Exterior / Classic interior, shown when `ENABLE_ROOM_ENGINE` and `ENABLE_AI_DESIGNER` are on.
+- **Analytics** — three new `event_type`s: `room_design_generated`, `room_design_applied`, `room_design_regenerated` (recorded by the designer; counts surface on `/moderation`).
+- Tests (`test/ai-room-designer.test.ts`, suite now **92**): tokenize, keyword matching (incl. fallback + every intent's own keyword), asset ranking (core > unrelated, no door/stairs, sorted by score), deterministic generation (identical input ⇒ identical room; variant varies the layout; room-type override), room validity (valid for every style; placed objects pass `validatePlacement`), and explanation generation.
+
+### Changed
+- `lib/flags.ts` + `.env.example`: new `ENABLE_AI_DESIGNER` flag (default **on**; the Design tab also requires `ENABLE_ROOM_ENGINE`).
+- `lib/events.ts`: `eventLabels` for the three new event types.
+
+### Database
+- `supabase/migrations/20260620_extend_enums.sql` — `event_type` += `room_design_generated`, `room_design_applied`, `room_design_regenerated`. **Enum-value additions only**, so it stands alone (ADR-009); no table change — the designer composes existing `Room`/`room_objects` shapes. Mirrored into `supabase/schema.sql`.
+
+### Flags
+- `ENABLE_AI_DESIGNER` (default on). Off → the studio Design tab is hidden; everything else is unaffected.
+
+### Documentation
+- README, architecture.md, roadmap.md, handoff.md, QA.md, room-engine-spec.md (§11 Future → shipped V1) updated; new ADR-015 in decision-log.md.
+
+---
+
 ## 2026-06-19 — Production Backend Cutover Prep
 
 Prepares the move from the localStorage demo to a real Supabase backend **without

@@ -98,7 +98,11 @@ export type EventType =
   | "room_entered"
   | "room_created"
   | "room_deleted"
-  | "room_link_clicked";
+  | "room_link_clicked"
+  // AI Room Designer (V1) lifecycle.
+  | "room_design_generated"
+  | "room_design_applied"
+  | "room_design_regenerated";
 
 export type BazaarEvent = {
   id: string;

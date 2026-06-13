@@ -44,6 +44,7 @@ by **selecting from a curated asset library**, never by generating visuals.
 | Room Engine V4 — Multi-Room Houses | 2026-06-17 | `HouseRooms` + entry room, `door`/`stairs` categories + `room_link` navigation, public breadcrumb/back, studio room manager + room presets, whole-house undo, nav analytics, legacy migrate-on-read (`20260617_*`) |
 | Room Engine V5 — Richer Visuals + Rotation | 2026-06-18 | Per-category object sprites (frames show real images), engraved nameplates, rotation editor (slider + ±15°), five room background variants, improved empty state (no schema change) |
 | Production Backend Cutover Prep | 2026-06-19 | Migration/schema drift audit, `docs/supabase-cutover.md` runbook, env-derived runtime mode + dev-only badge, repository layer (local impls + Supabase stubs + factory), tests; demo unchanged |
+| AI Room Designer V1 | 2026-06-20 | Deterministic, selection-only room designer (`lib/ai-room-designer.ts`): brief→intent keyword matching, asset ranking, six style presets, valid-room composition, preview-before-apply (studio Design mode), design explanations, `room_design_*` analytics (`20260620_*`); no image generation |
 
 All sprints ship green: `typecheck · lint · test · build`.
 
@@ -51,8 +52,9 @@ All sprints ship green: `typecheck · lint · test · build`.
 
 ## In Progress
 
-No feature sprint active. Backend Cutover Prep shipped 2026-06-19 (seams + runbook;
-Supabase repos are stubs).
+No feature sprint active. AI Room Designer V1 shipped 2026-06-20 (deterministic,
+selection-only). Backend Cutover Prep shipped 2026-06-19 (seams + runbook; Supabase
+repos are stubs).
 
 ---
 
@@ -77,11 +79,11 @@ real wiring. Explicitly **not** AI, marketplace, payments, or chat.
 ## Future (prioritized backlog)
 
 **P1**
-- **AI Room Designer (mock)** — heuristic "auto-arrange" / "suggest assets" that selects from the catalog by house tags/theme. No visual generation; mirrors the existing mock-generation pattern; clearly labelled until a provider is wired.
-- **Asset ecosystem expansion** — more room-ready assets, per-village themed sets, real placeholder art, asset detail surfaced in the editor.
+- ~~**AI Room Designer (mock)**~~ — ✅ shipped 2026-06-20 (AI Room Designer V1).
+- **Asset ecosystem expansion** — more room-ready assets, per-village themed sets, real placeholder art, asset detail surfaced in the editor. (Directly lifts the designer's ceiling — its room richness is bounded by catalog breadth.)
 
 **P2**
-- **AI Room Editor (mock)** — natural-language commands mapped to deterministic asset/zone operations ("add a plant on the shelf").
+- **AI Room Editor (mock)** — natural-language commands mapped to deterministic asset/zone operations ("add a plant on the shelf"). Builds on the V1 designer's intent/keyword + placement machinery (spec §12).
 - **Multi-room houses** — `rooms` already supports it; add room switching + the studio "Add room" flow (currently a placeholder).
 - **Room theming** — wall/floor/lighting variants driven by `Room.theme`/`background`.
 

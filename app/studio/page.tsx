@@ -6,6 +6,7 @@ import { Armchair, CheckCircle2, DoorOpen, ExternalLink, Eye, Flower2, Home, Ima
 import { useDemo } from "@/components/providers/demo-provider";
 import { ShopRoom } from "@/components/shop-room";
 import { RoomEditor } from "@/components/room/room-editor";
+import { RoomDesigner } from "@/components/room/room-designer";
 import { TagInput } from "@/components/tags-ui";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { recordActivity } from "@/lib/activity";
@@ -67,7 +68,7 @@ export default function StudioPage() {
   const [tagsOpen, setTagsOpen] = useState(false);
   const [linkLabel, setLinkLabel] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
-  const [mode, setMode] = useState<"interior" | "exterior" | "room">(flags.roomEngine ? "room" : "interior");
+  const [mode, setMode] = useState<"interior" | "exterior" | "room" | "design">(flags.roomEngine ? "room" : "interior");
   const [selectedZone, setSelectedZone] = useState<RoomZone>("floor");
 
   if (!user) return <section className="shell grid min-h-[70vh] place-items-center py-12 text-center"><div className="card max-w-md rounded-4xl p-9"><WandSparkles className="mx-auto text-terracotta" /><h1 className="display mt-4 text-4xl">Your place is waiting.</h1><p className="mt-3 text-ink/55">Log in, claim a house, and begin shaping your place.</p><ButtonLink href="/auth/login" variant="accent" className="mt-6">Log in</ButtonLink></div></section>;
@@ -130,6 +131,7 @@ export default function StudioPage() {
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap rounded-full bg-white/70 p-1 shadow-sm">
           {flags.roomEngine && <button onClick={() => setMode("room")} className={cn("flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-black", mode === "room" ? "bg-ink text-white" : "text-ink/50")}><Armchair size={16} /> Room</button>}
+          {flags.roomEngine && flags.aiDesigner && <button onClick={() => setMode("design")} className={cn("flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-black", mode === "design" ? "bg-terracotta text-white" : "text-ink/50")}><WandSparkles size={16} /> Design</button>}
           <button onClick={() => setMode("exterior")} className={cn("flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-black", mode === "exterior" ? "bg-terracotta text-white" : "text-ink/50")}><Home size={16} /> Exterior</button>
           <button onClick={() => setMode("interior")} className={cn("flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-black", mode === "interior" ? "bg-ink text-white" : "text-ink/50")}><DoorOpen size={16} /> {flags.roomEngine ? "Classic interior" : "Interior"}</button>
         </div>
@@ -138,6 +140,8 @@ export default function StudioPage() {
 
       {mode === "room" ? (
         <RoomEditor shop={ownedShop} />
+      ) : mode === "design" ? (
+        <RoomDesigner shop={ownedShop} />
       ) : mode === "exterior" ? (
         <div className="grid items-start gap-6 xl:grid-cols-[330px_1fr]">
           <aside className="card space-y-5 rounded-[2rem] p-5 xl:sticky xl:top-20">

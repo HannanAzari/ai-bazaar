@@ -119,6 +119,7 @@ Flags resolve identically on server and client; blank uses the built-in default.
 | `ENABLE_ACTIVITY_FEED` | on | `/activity`, profile feed, activity recording |
 | `ENABLE_ASSET_CATALOG` | on | `/assets` (internal) |
 | `ENABLE_ROOM_ENGINE` | on | full-screen public room + studio room editor (off = legacy room) |
+| `ENABLE_AI_DESIGNER` | on | studio **Design** mode (AI room designer) — needs `ENABLE_ROOM_ENGINE` |
 
 When a flag is off, its route returns 404 and its UI entry points are hidden.
 The exception is `ENABLE_ROOM_ENGINE`: off it falls back to the legacy
@@ -205,6 +206,32 @@ address; layouts saved before V4 are migrated on read into a one-room house);
 production writes the same shape to the `rooms` / `room_objects` tables (one
 `rooms` row per room, with an `is_entry` flag).
 
+## AI Room Designer
+
+A creator can describe a room in plain language and the app composes a layout
+from existing catalog assets — **no image generation, no external APIs**. It is a
+deterministic, rules-based recommender (ADR-006, room-engine-spec §11), gated by
+`ENABLE_AI_DESIGNER` and surfaced as the studio's **Design** mode.
+
+- **Design brief** — type something like "Create a cozy reading room", "a
+  photography studio", "a gaming room", or "a minimalist office", and pick a
+  **style preset** (Cozy · Minimal · Modern · Creative · Professional · Playful)
+  and an optional room type.
+- **Deterministic generation** (`lib/ai-room-designer.ts`) — the brief is matched
+  to a design *intent* by keyword scoring; room-ready assets are ranked by tag /
+  category / action / style affinity; the top picks are placed through the same
+  `addObjectFromAsset` rules as every other edit, so the result is always a valid
+  `Room`. Identical input always yields the identical room; **Regenerate** bumps a
+  `variant` that deterministically reshuffles near-ties for a fresh-but-reproducible
+  layout.
+- **Preview before apply** — the proposed room renders next to the current room;
+  nothing changes until **Apply**, which replaces the selected room's contents via
+  `saveHouse` (the room's id/identity is preserved).
+- **Design explanations** — a "Why this layout" panel lists the matched theme, the
+  chosen background, the style, and a one-line reason per placed object.
+- **Analytics** — records `room_design_generated`, `room_design_applied`, and
+  `room_design_regenerated`.
+
 ## Supabase
 
 For a fresh project:
@@ -229,7 +256,8 @@ For an existing project, run migrations in filename order:
 12. `supabase/migrations/20260616_extend_enums.sql` — `room_action_type` += `profile`; `event_type` += the six `*_opened` events. (Enum-value additions only; `action_data` is already jsonb, so no table change.)
 13. `supabase/migrations/20260617_01_extend_enums.sql` — `asset_category` += `door`, `stairs`; `room_kind` += `living_room`, `office`, `bedroom`, `garden`, `custom`; `room_action_type` += `room_link`; `event_type` += the four `room_*` events. Must commit before step 14.
 14. `supabase/migrations/20260617_02_multi_room.sql` — `rooms.description`, `rooms.is_entry` + a partial unique index (one entry room per shop). Multi-room reuses the existing `rooms` / `room_objects.room_id`; door targets live in `action_data`.
-15. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
+15. `supabase/migrations/20260620_extend_enums.sql` — adds the AI-designer `event_type` values (`room_design_generated`, `room_design_applied`, `room_design_regenerated`). Enum-value additions only; stands alone (no table change — the designer composes existing Room/room_objects shapes).
+16. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
 
 The two-step enum split (in `20260611_*`, `20260612_*`, `20260615_*`, and `20260617_*`) is required: PostgreSQL will not let a single transaction add an enum value and then use it, so new enum values are committed in `_01` before `_02` references them. Migrations that only add enum values (e.g. `20260616_extend_enums.sql`) stand alone.
 
@@ -313,7 +341,7 @@ components/
   collections-client.tsx Collections page
   activity-feed.tsx      Global + profile activity feed
   assets-client.tsx      Internal asset catalog grid
-  room/                  Room Engine: canvas, object, action modal, experience, editor
+  room/                  Room Engine: canvas, object, action modal, experience, editor, designer
 lib/
   data.ts                Villages (with hex coords), sample residents, tags
   flags.ts               Feature flags (NEXT_PUBLIC_ENABLE_*)
@@ -329,6 +357,7 @@ lib/
   assets.ts              Sample asset catalog (+ room-ready assets)
   room-schema.ts         Zone template, derive/validate, pure layout helpers
   room.ts                Room layout store (get/save/reset)
+  ai-room-designer.ts    Deterministic brief→room designer (selection, no AI gen)
 supabase/
   schema.sql             Tables, policies, triggers, and constraints
   seed.sql               Ten villages, 240 houses, starter tags

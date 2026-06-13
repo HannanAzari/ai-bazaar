@@ -31,6 +31,9 @@ export const eventLabels: Record<EventType, string> = {
   room_created: "Rooms created",
   room_deleted: "Rooms deleted",
   room_link_clicked: "Door/stair clicks",
+  room_design_generated: "AI designs generated",
+  room_design_applied: "AI designs applied",
+  room_design_regenerated: "AI designs regenerated",
 };
 
 function read(): BazaarEvent[] {

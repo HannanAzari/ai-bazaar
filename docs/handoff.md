@@ -18,8 +18,8 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 
 - **Stack:** Next.js 15 (App Router), React 19, strict TypeScript, Tailwind 3, lucide. **Node 20 required** (machine default is v16): `export PATH="/Users/hannan/.nvm/versions/node/v20.20.2/bin:$PATH"`.
 - **Runs as a client-side demo.** Blank Supabase env → `lib/supabase/*` returns `null`; state lives in `localStorage`, seed content in `lib/data.ts`. The SQL schema is a **production-parity mirror, not run at runtime here.** Every feature has two layers: a demo lib + matching SQL.
-- **Shipped:** village map → street → house kit; **Room Engine V1** (full-screen public room + studio editor), **V2 — Creator Studio** (free drag/resize, layers, duplicate, delete-confirm, multi-select, Edit/Preview, undo/redo, autosave, six templates), **V3 — Real Interactive Objects** (real gallery/video/link/product/booking/contact/profile panels, `profile` type, tooltips, visitor analytics, owner insights, inspector editors, working presets), **V4 — Multi-Room Houses** (`HouseRooms` + entry room, `door`/`stairs` + `room_link` navigation, public breadcrumb/back, studio room manager + room presets, whole-house undo, nav analytics, legacy migrate-on-read), and **V5 — Richer Visuals + Rotation** (per-category object sprites, engraved nameplates, rotation editor, five room background variants, improved empty state); creator profiles, notifications, guestbooks, collections, activity feed, tags, discovery, analytics, reporting/moderation, asset catalog. **Backend cutover prep** (2026-06-19): env-derived runtime mode + dev-only badge, a repository layer (local impls + Supabase stubs), and `docs/supabase-cutover.md` — demo remains the default and is unchanged.
-- **Gates (all green):** `npm run typecheck && npm run lint && npm run test && npm run build` (75 tests, ~81 pages).
+- **Shipped:** village map → street → house kit; **Room Engine V1** (full-screen public room + studio editor), **V2 — Creator Studio** (free drag/resize, layers, duplicate, delete-confirm, multi-select, Edit/Preview, undo/redo, autosave, six templates), **V3 — Real Interactive Objects** (real gallery/video/link/product/booking/contact/profile panels, `profile` type, tooltips, visitor analytics, owner insights, inspector editors, working presets), **V4 — Multi-Room Houses** (`HouseRooms` + entry room, `door`/`stairs` + `room_link` navigation, public breadcrumb/back, studio room manager + room presets, whole-house undo, nav analytics, legacy migrate-on-read), and **V5 — Richer Visuals + Rotation** (per-category object sprites, engraved nameplates, rotation editor, five room background variants, improved empty state); creator profiles, notifications, guestbooks, collections, activity feed, tags, discovery, analytics, reporting/moderation, asset catalog. **Backend cutover prep** (2026-06-19): env-derived runtime mode + dev-only badge, a repository layer (local impls + Supabase stubs), and `docs/supabase-cutover.md` — demo remains the default and is unchanged. **AI Room Designer V1** (2026-06-20): a deterministic, selection-only designer (`lib/ai-room-designer.ts`) that turns a natural-language brief + style preset into a valid room from existing catalog assets — no image generation; surfaced as the studio **Design** mode with preview-before-apply + explanations.
+- **Gates (all green):** `npm run typecheck && npm run lint && npm run test && npm run build` (92 tests, ~81 pages).
 
 ---
 
@@ -28,7 +28,7 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 1. **The room is the primary UX.** The public house page is a full-screen room; profile data is secondary (drawers/panels).
 2. **The village is the navigation layer.** Hex map → village street → house. Don't turn navigation into a feed.
 3. **The asset library is the source of truth** for anything placeable. Room objects reference catalog assets.
-4. **AI never generates graphics.** AI may only *select/arrange* existing assets. (No real AI is wired yet — mock only.)
+4. **AI never generates graphics.** AI may only *select/arrange* existing assets. The **AI Room Designer V1** (`lib/ai-room-designer.ts`) is a deterministic, rules-based recommender — no LLM/SD/Gemini, no image generation, no external APIs.
 5. **Public rooms use the full-screen experience** (`RoomExperience`); the legacy room is only the `ENABLE_ROOM_ENGINE=off` fallback.
 6. **Two layers, always in sync.** New feature = demo localStorage lib (SSR-guarded, try/catch, `*-changed` event) **and** schema.sql + a dated migration.
 7. **No `Math.random`/`Date.now` in render** — hydration safety. Derive variation from stable seeds.
@@ -47,6 +47,7 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 - `lib/room.ts` — house store: `getHouse`/`getStoredHouse`/`saveHouse`/`resetHouse` (key `ai-bazaar-rooms`, legacy single-room migrate-on-read) + back-compat `getRoom`/`saveRoom`/`resetRoom` (entry room).
 - `components/room/room-experience.tsx` — full-screen public surface; renders the current room of a multi-room house, breadcrumb + back, `room_link` navigation, per-type `*_opened` + `room_entered`/`room_link_clicked` analytics.
 - `components/room/room-editor.tsx` — **Creator Studio** editor: room manager (create/rename/retype/set-entry/delete + presets + switch), templates, palette, drag/resize canvas, inspector with per-action `ActionDataEditor`, Edit/Preview, whole-house undo/redo, autosave, save/reset house, delete-confirm, owner insights.
+- `lib/ai-room-designer.ts` + `components/room/room-designer.tsx` — **AI Room Designer V1** (studio Design mode, flag `ENABLE_AI_DESIGNER`): `matchIntent`/`scoreAssets`/`generateRoomDesign` (deterministic, selection-only) → preview-vs-current → Apply (replaces the selected room via `saveHouse`) / Regenerate (`variant`) + "Why this layout" explanations; `room_design_*` analytics.
 - `components/room/object-action-modal.tsx` — **real V3 interactive panels** (gallery lightbox, video embed, link, product, booking, contact, profile). `action-data-editor.tsx` — inspector field editor.
 - `components/room/{room-canvas,room-object}.tsx` — rendering pieces; `room-canvas` owns editor pointer interaction (drag/resize/marquee) and threads `ownerName` for tooltips.
 - `lib/assets.ts` — asset catalog; room-ready assets carry `compatibleZones`/`defaultScale`/`defaultActionType`; `roomReadyAssets()`, `getAsset()`.
@@ -85,6 +86,7 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 | `ENABLE_ACTIVITY_FEED` | on | `/activity`, profile feed, recording | route 404, recording skipped |
 | `ENABLE_ASSET_CATALOG` | on | `/assets` (internal) | route 404 |
 | `ENABLE_ROOM_ENGINE` | on | full-screen room + room editor | **legacy room (no 404)** |
+| `ENABLE_AI_DESIGNER` | on | studio **Design** mode (AI room designer) | Design tab hidden (needs `roomEngine`) |
 
 ---
 
