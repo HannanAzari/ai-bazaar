@@ -21,6 +21,12 @@ export const eventLabels: Record<EventType, string> = {
   room_object_moved: "Objects moved",
   room_object_resized: "Objects resized",
   room_template_applied: "Templates applied",
+  gallery_opened: "Galleries opened",
+  video_opened: "Videos opened",
+  product_opened: "Products opened",
+  booking_opened: "Bookings opened",
+  contact_opened: "Contacts opened",
+  profile_opened: "Profiles opened",
 };
 
 function read(): BazaarEvent[] {

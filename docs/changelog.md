@@ -8,6 +8,40 @@ for technical detail.
 
 ---
 
+## 2026-06-16 — Room Engine V3: Real Interactive Objects
+
+Turns room objects from decorative placeholders into real, useful destinations a
+visitor can explore without leaving the room. **No visual redesign** — village,
+houses, room shell, typography, and palette are unchanged. No AI, marketplace,
+payments, or chat.
+
+### Added
+- **Real action panels** (`components/room/object-action-modal.tsx` rewrite): gallery lightbox (multi-image, next/prev, captions, dot nav, keyboard arrows, mobile full-screen), embedded video (YouTube/Vimeo, local fallback), link card (favicon + title + description → opens externally), product card (image/title/price → redirect, no payments), booking card (Calendly iframe / external), unified contact modal (email/website/phone/socials), and a **profile** panel (creator card with followers/likes/visitors + recent activity, links to the full profile/collections).
+- **New `profile` action type** + 3 profile assets (`ast-avatar-portrait`, `ast-certificate`, `ast-achievement-board`) and 4 thematic assets (`ast-projector`, `ast-sign`, `ast-display-table`, `ast-business-card`).
+- **Rich `RoomActionData`** (jsonb-backed): `title`, `description`, `images[]`, `price`, `image`, `email`, `website`, `phone`, `socials[]`.
+- **Object tooltips** (`components/room/room-object.tsx`): hover/focus shows title + description + owner.
+- **Visitor analytics**: `gallery_opened`, `video_opened`, `product_opened`, `booking_opened`, `contact_opened`, `profile_opened` (`lib/events.ts`), on the moderation counts grid.
+- **Owner room insights** (`lib/room-insights.ts` + a studio panel): total object clicks, most-clicked object, popular object type — derived from existing events, no new store.
+- **Inspector action-data editors** (`components/room/action-data-editor.tsx`): per-action field groups (gallery image rows, video URL, link, product, booking, contact + socials rows) so owners configure real objects.
+- **Working presets**: the six templates now ship sample `actionData` (real gallery images, a video, products, contacts, a profile) so an applied preset is immediately interactive.
+- Pure helpers `lib/room-actions.ts` (`galleryImages`, `productCard`, `contactMethods`, `faviconUrl`, `hostname`, `hasActionData`) and `lib/embeds.ts` (`videoEmbed`).
+- Tests (`test/room-actions.test.ts`, suite now **46**): gallery/video/product/contact validation, URL helpers, `hasActionData`, and analytics tracking.
+
+### Changed
+- `room-experience.tsx` `onActivate`: gallery/video/link/product/booking/contact/profile all open their real in-room panel (the visitor stays in the room); each fires its specific `*_opened` event.
+- `RoomCanvas`/`RoomObjectView` accept an `ownerName` for tooltips; `ObjectActionModal` now takes the `shop`.
+
+### Database
+- Migration `20260616_extend_enums.sql`: `room_action_type` += `profile`; `event_type` += the six `*_opened` values (enum-value additions, per ADR-009; `action_data` is already jsonb). Mirrored in `schema.sql`.
+
+### Flags
+- None (all behaviour sits under the existing `ENABLE_ROOM_ENGINE`).
+
+### Documentation
+- README, architecture.md, roadmap.md, handoff.md, room-engine-spec.md, QA.md updated; new ADR-011 in decision-log.md.
+
+---
+
 ## 2026-06-15 — Room Engine V2: Creator Studio
 
 Turns the V1 zone/anchor editor into a real creator tool. **No visual redesign** —

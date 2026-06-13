@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine,
+  BarChart3,
   ChevronsDown,
   ChevronsUp,
   Copy,
@@ -20,8 +21,10 @@ import {
 } from "lucide-react";
 import { RoomCanvas } from "@/components/room/room-canvas";
 import { ObjectActionModal } from "@/components/room/object-action-modal";
+import { ActionDataEditor } from "@/components/room/action-data-editor";
 import { objectIcon } from "@/components/room/room-object";
 import { getRoom, resetRoom, saveRoom } from "@/lib/room";
+import { type RoomInsights, getRoomInsights } from "@/lib/room-insights";
 import {
   HISTORY_LIMIT,
   type History,
@@ -53,7 +56,6 @@ import { trackEvent } from "@/lib/events";
 import type { Room, RoomActionType, RoomObject, RoomZoneType, Shop } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const URL_ACTIONS: RoomActionType[] = ["link", "video", "product", "booking", "gallery"];
 type SaveStatus = "saved" | "saving" | "unsaved";
 const AUTOSAVE_MS = 5000;
 
@@ -67,6 +69,7 @@ export function RoomEditor({ shop }: { shop: Shop }) {
   const [notice, setNotice] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null);
   const [previewAction, setPreviewAction] = useState<RoomObject | null>(null);
+  const [insights, setInsights] = useState<RoomInsights | null>(null);
 
   const presentRef = useRef(room);
   presentRef.current = room;
@@ -78,6 +81,14 @@ export function RoomEditor({ shop }: { shop: Shop }) {
     setSelectedIds([]);
     setSaveStatus("saved");
   }, [shop]);
+
+  // Owner-facing visitor insights, recomputed when analytics change.
+  useEffect(() => {
+    const sync = () => setInsights(getRoomInsights(presentRef.current, shop.id));
+    sync();
+    window.addEventListener("ai-bazaar-events-changed", sync);
+    return () => window.removeEventListener("ai-bazaar-events-changed", sync);
+  }, [shop.id, room]);
 
   const flash = (message: string) => {
     setNotice(message);
@@ -305,11 +316,7 @@ export function RoomEditor({ shop }: { shop: Shop }) {
               </select>
             </label>
 
-            {URL_ACTIONS.includes(selected.actionType) && (
-              <label className="block text-xs font-black uppercase tracking-wider text-ink/45">Link / URL
-                <input value={selected.actionData?.url ?? ""} onChange={(e) => patchSelected({ actionData: { ...selected.actionData, url: e.target.value } })} placeholder="https://…" className="mt-1.5 min-h-10 w-full rounded-xl border border-ink/10 bg-white px-3 text-sm normal-case tracking-normal" />
-              </label>
-            )}
+            <ActionDataEditor actionType={selected.actionType} data={selected.actionData ?? {}} onChange={(data) => patchSelected({ actionData: data })} />
 
             <label className="block text-xs font-black uppercase tracking-wider text-ink/45">Scale
               <input
@@ -381,6 +388,29 @@ export function RoomEditor({ shop }: { shop: Shop }) {
             <button onClick={saveNow} className="inline-flex items-center gap-2 rounded-full bg-terracotta px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#9a4a30]"><Save size={15} /> Save layout</button>
           </div>
         </div>
+
+        {/* ── Owner room insights (visitor journey) ── */}
+        <div className="card mt-4 rounded-[2rem] p-5">
+          <p className="eyebrow text-teal"><BarChart3 size={13} className="-mt-0.5 mr-1 inline" /> Room insights</p>
+          {insights && insights.totalClicks > 0 ? (
+            <div className="mt-3 grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-2xl border border-ink/10 bg-white/60 p-3">
+                <strong className="block text-xl">{insights.totalClicks}</strong>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink/35">Object clicks</span>
+              </div>
+              <div className="rounded-2xl border border-ink/10 bg-white/60 p-3">
+                <strong className="block truncate text-sm">{insights.mostClicked?.label ?? "—"}</strong>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink/35">Most clicked{insights.mostClicked ? ` · ${insights.mostClicked.count}` : ""}</span>
+              </div>
+              <div className="rounded-2xl border border-ink/10 bg-white/60 p-3">
+                <strong className="block truncate text-sm">{insights.popularType?.label ?? "—"}</strong>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink/35">Popular type</span>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-ink/50">No visits yet. Share your room — clicks on its objects will show up here.</p>
+          )}
+        </div>
       </div>
 
       {/* ── Delete confirmation ── */}
@@ -398,7 +428,7 @@ export function RoomEditor({ shop }: { shop: Shop }) {
         </div>
       )}
 
-      {previewAction && <ObjectActionModal object={previewAction} onClose={() => setPreviewAction(null)} />}
+      {previewAction && <ObjectActionModal object={previewAction} shop={shop} onClose={() => setPreviewAction(null)} />}
     </div>
   );
 }

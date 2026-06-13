@@ -2,7 +2,11 @@
 
 import {
   Armchair,
+  Award,
+  BadgeCheck,
   BookOpen,
+  CircleUserRound,
+  Contact,
   DoorOpen,
   Frame,
   Images,
@@ -10,9 +14,12 @@ import {
   type LucideIcon,
   Monitor,
   PencilRuler,
+  Projector,
+  Signpost,
   Sprout,
   Square,
   Store,
+  Table,
 } from "lucide-react";
 import { actionLabels } from "@/lib/room-schema";
 import type { AnchorPoint, RoomObject as RoomObjectModel } from "@/lib/types";
@@ -33,6 +40,13 @@ const assetIcons: Record<string, LucideIcon> = {
   "ast-photo-wall": Images,
   "ast-door": DoorOpen,
   "ast-stairs": Square,
+  "ast-avatar-portrait": CircleUserRound,
+  "ast-certificate": BadgeCheck,
+  "ast-achievement-board": Award,
+  "ast-projector": Projector,
+  "ast-sign": Signpost,
+  "ast-display-table": Table,
+  "ast-business-card": Contact,
 };
 
 /** Base object box side in canvas pixels when an object carries no explicit
@@ -56,6 +70,7 @@ export function RoomObjectView({
   mode,
   selected,
   showHandles,
+  ownerName,
   onActivate,
   onSelect,
 }: {
@@ -65,6 +80,8 @@ export function RoomObjectView({
   selected?: boolean;
   /** Editor only: render corner resize handles (single-selection). */
   showHandles?: boolean;
+  /** Public only: owner name shown in the hover/focus tooltip. */
+  ownerName?: string;
   onActivate?: () => void;
   onSelect?: () => void;
 }) {
@@ -72,6 +89,8 @@ export function RoomObjectView({
   const left = ((anchor?.x ?? 0.5) + object.x) * 100;
   const top = ((anchor?.y ?? 0.5) + object.y) * 100;
   const interactive = mode === "public" ? object.actionType !== "none" : true;
+  const tooltipText = object.actionData?.description?.trim() || object.actionData?.text?.trim()
+    || (object.actionType !== "none" ? actionLabels[object.actionType] : "Just decoration");
 
   // Effective rendered box: base/explicit dimensions × the uniform scale.
   const scale = object.scale || 1;
@@ -120,6 +139,12 @@ export function RoomObjectView({
           className={tileClass}
         >
           {tileInner}
+          {/* Tooltip — title, description, owner — on hover / keyboard focus. */}
+          <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-44 -translate-x-1/2 translate-y-1 rounded-2xl border border-[#7c5436]/25 bg-[#fff8e9] p-2.5 text-center opacity-0 shadow-lg transition duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+            <span className="block text-xs font-black leading-tight text-[#5a3b22]">{object.label}</span>
+            <span className="mt-0.5 block text-[10px] leading-snug text-ink/55">{tooltipText}</span>
+            {ownerName && <span className="mt-1 block text-[9px] font-bold uppercase tracking-wider text-terracotta">{ownerName}</span>}
+          </span>
         </button>
       ) : (
         <div

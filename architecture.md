@@ -55,7 +55,8 @@ profile-style room (`components/shop-room.tsx`), it does **not** 404.
 - **`RoomZoneDef`**: `{ id, type (RoomZoneType), allowedCategories[], anchors[], maxObjects? }`
 - **`RoomObject`**: `{ id, assetId, zoneId, anchorId, x, y, scale, width?, height?, rotation, zIndex, label, actionType, actionData?, tags[], hidden }` — `width`/`height` (px box; `scale` multiplies) are V2 additions, optional for back-compat (pre-V2 rooms render at a base size).
 - **`RoomZoneType`** (9): `back_wall, left_wall, right_wall, floor_left, floor_center, floor_right, shelf, window, door`
-- **`RoomActionType`** (9): `link, video, product, booking, contact, gallery, guestbook, collection, none`
+- **`RoomActionType`** (10): `link, video, product, booking, contact, gallery, profile, guestbook, collection, none`
+- **`RoomActionData`** — optional jsonb-backed bag carrying each action's content: `url, text, title, description, images[], price, image, email, website, phone, socials[]`
 - **`AnchorPoint`**: `{ id, x, y }` — normalised **0..1 across the whole canvas**
   (not per-zone), so a stored object renders without per-zone geometry.
 
@@ -77,17 +78,20 @@ profile-style room (`components/shop-room.tsx`), it does **not** 404.
 
 ### Components (`components/room/`)
 - `room-canvas.tsx` — renders the shared room shell (reuses the wallpaper/floor/window/lamp CSS from `globals.css`) and positions objects by anchor + offset, at `width × height × scale`. Modes: `"public"` (clickable, hides hidden objects) and `"editor"`. In editor mode the canvas owns all pointer interaction — **free drag (mouse + touch), corner resize, and a selection marquee** — driven through an `editor` callback bundle (`selectedIds`, `onSelectionChange`, `onInteractionStart`, `onLiveChange`, `onCommit`).
-- `room-object.tsx` — one object: lucide icon per asset (`objectIcon(assetId)`), label plaque, keyboard-accessible `<button>`. Exports `objectIcon`.
-- `object-action-modal.tsx` — placeholder panels for `video/product/booking/contact/gallery`.
-- `room-experience.tsx` — **the full-screen public surface**. Loads `getRoom`, renders the canvas at viewport scale, plus: top-left "where am I" chip, top-right action cluster (like/follow/save/share), bottom-left owner chip + guestbook button, slide-over **drawers** (owner info/stats/links, guestbook), and the action modal. Handles object activation: `link`→new tab, `guestbook`→drawer, `none`→noop, else→modal. Tracks `object_click` + `decoration_click`.
+- `room-object.tsx` — one object: lucide icon per asset (`objectIcon(assetId)`), label plaque, hover/focus **tooltip** (title + description + owner), keyboard-accessible `<button>`. Exports `objectIcon`.
+- `object-action-modal.tsx` — **real V3 interactive panels** by action type: gallery lightbox, embedded video (YouTube/Vimeo via `lib/embeds.ts`), link card (favicon), product card (redirect), booking (Calendly embed/external), unified contact modal, and a creator profile panel. Uses pure helpers in `lib/room-actions.ts`.
+- `action-data-editor.tsx` — the studio inspector's per-action field editor (gallery image rows, video URL, link, product, booking, contact + socials rows).
+- `room-experience.tsx` — **the full-screen public surface**. Loads `getRoom`, renders the canvas at viewport scale, plus: top-left "where am I" chip, top-right action cluster (like/follow/save/share), bottom-left owner chip + guestbook button, slide-over **drawers** (owner info/stats/links, guestbook), and the action modal. Handles object activation: `guestbook`→drawer, `none`→noop, everything else → its in-room panel. Tracks `object_click` + `decoration_click` + a per-type `*_opened` event.
 - `room-editor.tsx` — **the studio editor (Creator Studio, V2)**. Template picker, asset palette (`roomReadyAssets()`), drag/resize canvas, single-object inspector (label, action + URL, zone, anchor, scale, layer forward/backward, hide, duplicate, delete) and a multi-select batch panel (layer, delete). **Edit / Preview** toggle, **undo/redo** (buttons + `⌘Z`/`⌘⇧Z`), **autosave** (5s, with saved/saving/unsaved status) plus the manual **Save layout** (`saveRoom`) / **Reset layout** (`resetRoom`); delete is confirmed via a dialog. Tracks `room_object_added/deleted/moved/resized` and `room_template_applied`.
 
 ### Assets (`lib/assets.ts`)
 Placeable assets come from the catalog. Room-ready assets carry optional
 `compatibleZones`, `defaultScale`, `defaultActionType`. Helpers: `roomReadyAssets()`,
-`getAsset(id)`. The 12 room-ready ids: `ast-bookshelf, ast-painting, ast-screen,
+`getAsset(id)`. The 19 room-ready ids: `ast-bookshelf, ast-painting, ast-screen,
 ast-desk, ast-sofa, ast-rug, ast-plant, ast-product-shelf, ast-guestbook-table,
-ast-photo-wall, ast-door, ast-stairs`.
+ast-photo-wall, ast-door, ast-stairs` plus the V3 set `ast-avatar-portrait,
+ast-certificate, ast-achievement-board` (action `profile`), `ast-projector` (video),
+`ast-sign` (link), `ast-display-table` (product), `ast-business-card` (contact).
 
 ### Wiring
 - Public: `components/shop-page-client.tsx` is a thin switch — if `flags.roomEngine && !hidden` → `<RoomExperience>`, else `<LegacyHouseView>` (the old profile-style layout, which also handles the moderator "resting" state).
@@ -145,6 +149,7 @@ reasons; the **product language is house/place/room**. `is_admin()` and
 5. `20260613_collections_activity_assets.sql`
 6. `20260614_room_engine.sql`
 7. `20260615_01_extend_enums.sql` → `20260615_02_room_studio.sql`
+8. `20260616_extend_enums.sql` (`room_action_type` += `profile`; `event_type` += six `*_opened`)
 
 `schema.sql` is the fresh-install superset. **Critical Postgres rule:** a new
 enum **value** added to an existing enum must be committed before it is used, so
@@ -254,6 +259,7 @@ variation (house specs, hex positions) derives from stable seeds — **never
 - **Village**: hex district map (10 villages), horizontal street (24 houses each), seed-deterministic SVG house kit, claim-a-house flow.
 - **Room Engine V1**: full-screen public room, nine-zone schema, room objects with 9 action types, studio room editor (palette/select/inspector/save/reset), 12 room-ready assets, default room derived per house.
 - **Room Engine V2 — Creator Studio**: free drag-and-drop (mouse + touch, bounds-clamped), resize (scale slider + corner handles, `width`/`height`), Bring Forward / Send Backward, duplicate, delete-with-confirmation, multi-select (shift-click + marquee) with batch move/delete/layer, Edit/Preview toggle, undo/redo (`⌘Z`/`⌘⇧Z`), 5s autosave with status, six starter templates, and editing analytics.
+- **Room Engine V3 — Real Interactive Objects**: real in-room panels (gallery lightbox, embedded video, link card, product card, booking, unified contact, creator profile), a `profile` action type + 7 new assets, rich `RoomActionData`, object tooltips, per-type visitor analytics, owner room insights, inspector action-data editors, and working presets.
 - **Creator profiles** (`/u/[handle]`): avatar/bio/links/houses/follower counts, follow, profile activity feed.
 - **Notifications**: header bell + `/notifications`, 6 types, read/unread, demo seed.
 - **Guestbooks**: per-house notes, owner hide/delete, report a note, owner notification on new note.
@@ -264,16 +270,16 @@ variation (house specs, hex positions) derives from stable seeds — **never
 - **Analytics**: `trackEvent` (8 types incl. `object_click`), counts on moderation page.
 - **Reporting/moderation**: report house/item/user/guestbook, `/moderation` queue with `pending→reviewed→hidden→dismissed`; `hidden` soft-hides from discovery/tags.
 - **Asset catalog**: internal `/assets` grid with filters.
-- **Quality**: Vitest suite (33 tests) for the demo libs incl. room move/resize/undo-redo/templates; QA checklist; flags + demo behaviour documented.
+- **Quality**: Vitest suite (46 tests) for the demo libs incl. room move/resize/undo-redo/templates and V3 gallery/video/product/contact validation + analytics; QA checklist; flags + demo behaviour documented.
 
-Verification gates (all green): `npm run typecheck && npm run lint && npm run test && npm run build` (33 tests, build emits ~81 pages).
+Verification gates (all green): `npm run typecheck && npm run lint && npm run test && npm run build` (46 tests, build emits ~81 pages).
 
 ---
 
 ## 9. Known limitations
 
 - **Demo, single-user.** No real auth; one claimed house per browser. Notifications/activity are seeded + self-generated (no other users). "Following" counts on profiles are demo-derived per handle.
-- **Room actions are placeholders** for `video/product/booking/contact/gallery` (simple panels, not real experiences). One room per house; multi-room/stairs are placeholders. (Placement is now **free drag + resize** as of V2; rotation has no UI yet.) Objects can crowd on very small viewports.
+- **Room object actions are real** as of V3 (gallery/video/link/product/booking/contact/profile). Their panels load **third-party embeds/images** (YouTube, Vimeo, Calendly, favicons, sample preset images) — external requests outside the app's control; offline these degrade to placeholders/broken images. One room per house; multi-room/stairs are placeholders. Placement is free drag + resize; rotation has no UI yet. Objects can crowd on very small viewports.
 - **AI/storage are mocked**: `/api/generations` and `createGeneration` are fake; image URLs are placeholders that don't load.
 - **SQL is unverified at runtime** — schema/migrations mirror the demo but have never been executed against Postgres here. Dry-run before production; RLS in particular needs live testing.
 - **Tests cover libs, not UI** — no component/E2E tests.

@@ -16,7 +16,7 @@ import { recordActivity } from "@/lib/activity";
 import { normalizeHandle } from "@/lib/creators";
 import { flags } from "@/lib/flags";
 import { bazaars } from "@/lib/data";
-import type { Room, RoomObject, Shop } from "@/lib/types";
+import type { EventType, Room, RoomObject, Shop } from "@/lib/types";
 import { cn, formatCount } from "@/lib/utils";
 
 type Drawer = "none" | "owner" | "guestbook";
@@ -73,18 +73,28 @@ export function RoomExperience({ shop }: { shop: Shop }) {
   const onActivate = (object: RoomObject) => {
     trackEvent("object_click", { shopId: shop.id, targetId: object.id });
     trackEvent("decoration_click", { shopId: shop.id, targetId: object.id });
+    // V3: a specific "opened" event per interactive object type.
+    const opened: Partial<Record<RoomObject["actionType"], EventType>> = {
+      gallery: "gallery_opened",
+      video: "video_opened",
+      product: "product_opened",
+      booking: "booking_opened",
+      contact: "contact_opened",
+      profile: "profile_opened",
+      link: "link_click",
+    };
+    const event = opened[object.actionType];
+    if (event) trackEvent(event, { shopId: shop.id, targetId: object.id });
+
     switch (object.actionType) {
-      case "link": {
-        const url = object.actionData?.url;
-        if (url) window.open(url, "_blank", "noopener,noreferrer");
-        return;
-      }
       case "guestbook":
         if (flags.guestbooks) setDrawer("guestbook");
         return;
       case "none":
         return;
       default:
+        // Gallery / video / link / product / booking / contact / profile all open
+        // their real in-room panel (the visitor stays in the room).
         setActionObject(object);
     }
   };
@@ -93,7 +103,7 @@ export function RoomExperience({ shop }: { shop: Shop }) {
 
   return (
     <div className="relative h-[calc(100dvh-3.5rem)] w-full overflow-hidden bg-[#ead7bd]">
-      {room && <RoomCanvas room={room} mode="public" onActivate={onActivate} />}
+      {room && <RoomCanvas room={room} mode="public" ownerName={shop.owner} onActivate={onActivate} />}
 
       {/* Top-left: where am I */}
       <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-col gap-2 sm:left-5 sm:top-5">
@@ -189,7 +199,7 @@ export function RoomExperience({ shop }: { shop: Shop }) {
         </div>
       )}
 
-      {actionObject && <ObjectActionModal object={actionObject} onClose={() => setActionObject(null)} />}
+      {actionObject && <ObjectActionModal object={actionObject} shop={shop} onClose={() => setActionObject(null)} />}
     </div>
   );
 }

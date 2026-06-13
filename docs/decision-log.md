@@ -278,6 +278,55 @@ saved-room shape.
 
 ---
 
+## ADR-011 — Real interactive objects: rich action data + a `profile` type
+
+**Status:** Accepted · 2026-06-16
+
+### Context
+Through V2 the object `actionType`s `gallery/video/product/booking/contact` were
+**placeholder panels**, and `link` just opened a URL. The V3 goal was to make
+objects real destinations a visitor can use **inside the room**, plus add
+profile objects — without redesigning visuals or adding AI/marketplace/payments.
+
+### Decision
+- **Grow `RoomActionData` as an open, optional, flat shape** (`title`,
+  `description`, `images[]`, `price`, `image`, `email`, `website`, `phone`,
+  `socials[]`). It is stored in the existing `room_objects.action_data` **jsonb**
+  column, so richer content needs **no table migration** and old objects stay
+  valid (missing data → an inert click, never an error).
+- **Add one new action type, `profile`** (TS enum + `room_action_type` enum
+  value), rather than overloading `link`. Profile objects open a real in-room
+  creator card (reusing profiles + activity) and deep-link to `/u/[handle]`. New
+  action types are a spec change, recorded here and in room-engine-spec.md §5.
+- **Keep panels client-only and provider-light**: video parses YouTube/Vimeo to
+  an embed URL (`lib/embeds.ts`); booking embeds Calendly or links out; product
+  and link redirect externally. No payments, no messaging — AI Bazaar never
+  brokers the transaction or the message.
+- **Pure, tested helpers** (`lib/room-actions.ts`) normalise/validate action data
+  for both the visitor panels and the owner inspector, so a half-filled object
+  degrades gracefully.
+- **Insights reuse the events log** (`object_click`) joined with the room — no new
+  store, no dashboards (`lib/room-insights.ts`).
+
+### Alternatives Considered
+- **Typed per-action columns / tables** — rejected; jsonb already exists and the
+  shapes are small and evolving.
+- **Reuse `link` for profiles** (deep-link only) — rejected; it wouldn't be a real
+  in-room experience and fails the "interact without leaving the room" goal.
+- **Embed a real payment/booking backend** — out of scope by product constraint;
+  redirect/iframe only.
+
+### Consequences
+- (+) Objects are genuinely useful; a room reads as "an interactive world."
+- (+) Back-compatible: jsonb absorbs the shape; pre-V3 objects still work.
+- (+) The action set stays a closed, enumerated contract (now 10 types).
+- (−) Visitor panels load third-party embeds/images (YouTube, Vimeo, Calendly,
+  favicons, sample images) — external requests outside AI Bazaar's control.
+- (−) `RoomActionData` is a permissive union; helpers (not types) enforce which
+  fields matter per action.
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

@@ -49,7 +49,9 @@ save buttons, guestbook panel, footer links, owner-profile links) disappear.
 | Report a note/house/item/owner | guestbook entry / report dialog | Report lands in `/moderation` as `pending` |
 | Moderate a report | `/moderation` | Status cycles pending → reviewed → hidden → dismissed; `hidden` soft-hides the house |
 | Read a notification | `/notifications` | Toggle read/unread; mark-all clears the bell badge |
-| Open a room object | `/shop/[address]` | Object with an action fires it: link → new tab, guestbook → drawer, others → placeholder panel; records `object_click` |
+| Open a room object | `/shop/[address]` | Object fires its real panel: gallery → lightbox, video → embedded player, link → favicon card → external, product → redirect card, booking → Calendly/external, contact → email/website/phone/socials, profile → creator card, guestbook → drawer; records `object_click` + a `*_opened` event |
+| Hover/focus an object | `/shop/[address]` | Tooltip shows the object's title, description, and owner |
+| See room insights | `/studio` → Room | Owner panel shows total object clicks, most-clicked object, popular object type |
 | Apply a room template | `/studio` → Room → a template | Room fills with that template's objects; records `room_template_applied`; undoable |
 | Edit the room | `/studio` → Room | Add from palette; select an object; change label/action/zone/anchor/scale/layer; hide/duplicate/delete |
 | Drag an object | `/studio` → Room (Edit) | Object follows the pointer (mouse or touch), stays inside the room; records `room_object_moved` |
@@ -95,8 +97,12 @@ save buttons, guestbook panel, footer links, owner-profile links) disappear.
 - **Every house already has a furnished room** even before its owner edits one —
   it's derived from the house's decorations and links. Saving in the editor
   replaces that default.
-- **Room object actions are placeholders** for `video`/`product`/`booking`/
-  `contact`/`gallery` — they open a simple panel, not a real experience yet.
+- **Room object panels load third-party content** (V3): YouTube/Vimeo embeds,
+  Calendly, favicons, and sample preset images come from external services, so
+  they need a network connection and won't render offline. An object with missing
+  data shows a gentle empty state rather than erroring.
+- **Applying a preset populates working sample content** (real gallery images, a
+  video, a product, a contact, a profile) — owners replace it with their own.
 - **`ENABLE_ROOM_ENGINE=false`** falls back to the legacy profile-style room
   (it does not 404 the house page).
 
@@ -128,9 +134,11 @@ Keys: `ai-bazaar-user`, `ai-bazaar-shop`, `ai-bazaar-world-seen`,
 
 ## Automated coverage
 
-`npm run test` (Vitest, 33 tests) covers the pure/storage helpers: tag
+`npm run test` (Vitest, 46 tests) covers the pure/storage helpers: tag
 normalization, collection save/remove, notification read/unread, report status
-transitions, hidden-house filtering, relative-time formatting, and the room
-engine (schema creation, zone + placement validation, action-type validation,
-save/reset layout, **free-drag bounds, resize validation, undo/redo history, and
-template generation**). UI flows are still manual.
+transitions, hidden-house filtering, relative-time formatting, the room engine
+(schema creation, zone + placement validation, action-type validation, save/reset
+layout, free-drag bounds, resize validation, undo/redo history, template
+generation), and the **V3 interactive objects** (gallery/video/product/contact
+validation, URL/favicon helpers, `hasActionData`, and analytics tracking). UI
+flows are still manual.

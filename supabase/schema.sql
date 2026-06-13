@@ -4,10 +4,10 @@ create type public.decoration_type as enum ('text', 'image', 'ai_image', 'link',
 create type public.generation_status as enum ('queued', 'building', 'complete', 'failed');
 create type public.report_target_type as enum ('shop', 'decoration', 'user', 'guestbook');
 create type public.report_status as enum ('pending', 'reviewed', 'hidden', 'dismissed');
-create type public.event_type as enum ('house_view', 'room_view', 'decoration_click', 'object_click', 'link_click', 'share_click', 'follow', 'like', 'room_object_added', 'room_object_deleted', 'room_object_moved', 'room_object_resized', 'room_template_applied');
+create type public.event_type as enum ('house_view', 'room_view', 'decoration_click', 'object_click', 'link_click', 'share_click', 'follow', 'like', 'room_object_added', 'room_object_deleted', 'room_object_moved', 'room_object_resized', 'room_template_applied', 'gallery_opened', 'video_opened', 'product_opened', 'booking_opened', 'contact_opened', 'profile_opened');
 create type public.notification_type as enum ('house_view', 'like', 'follow', 'guestbook_entry', 'item_click', 'report_status');
 create type public.room_zone_type as enum ('back_wall', 'left_wall', 'right_wall', 'floor_left', 'floor_center', 'floor_right', 'shelf', 'window', 'door');
-create type public.room_action_type as enum ('link', 'video', 'product', 'booking', 'contact', 'gallery', 'guestbook', 'collection', 'none');
+create type public.room_action_type as enum ('link', 'video', 'product', 'booking', 'contact', 'gallery', 'profile', 'guestbook', 'collection', 'none');
 create type public.room_kind as enum ('studio', 'shop', 'gallery', 'lounge', 'standard');
 create type public.saved_kind as enum ('house', 'item');
 create type public.activity_type as enum ('claimed_house', 'updated_house', 'added_decoration', 'liked_house', 'followed_creator', 'guestbook_entry', 'saved_to_collection');

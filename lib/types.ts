@@ -86,7 +86,14 @@ export type EventType =
   | "room_object_deleted"
   | "room_object_moved"
   | "room_object_resized"
-  | "room_template_applied";
+  | "room_template_applied"
+  // Room V3 visitor object interactions.
+  | "gallery_opened"
+  | "video_opened"
+  | "product_opened"
+  | "booking_opened"
+  | "contact_opened"
+  | "profile_opened";
 
 export type BazaarEvent = {
   id: string;
@@ -247,6 +254,7 @@ export type RoomActionType =
   | "booking"
   | "contact"
   | "gallery"
+  | "profile"
   | "guestbook"
   | "collection"
   | "none";
@@ -264,9 +272,39 @@ export type RoomZoneDef = {
   maxObjects?: number;
 };
 
+/** A single social handle/link shown in a contact panel. */
+export type ContactSocial = { label: string; url: string };
+
+/** A single image in a gallery object. */
+export type GalleryImage = { src: string; caption?: string };
+
+/**
+ * Everything an object's action needs to do its job. All fields are optional and
+ * stored as `jsonb` in `room_objects.action_data`, so the shape can grow without
+ * a schema migration. Which fields matter depends on the object's `actionType`:
+ * - link    → url, title, description
+ * - video   → url (YouTube/Vimeo/local)
+ * - gallery → images[]
+ * - product → image, title, price, url
+ * - booking → url (Calendly/external), text
+ * - contact → email, website, phone, socials[]
+ * - profile → (none; reuses the house owner's creator profile)
+ */
 export type RoomActionData = {
   url?: string;
   text?: string;
+  title?: string;
+  description?: string;
+  // gallery
+  images?: GalleryImage[];
+  // product
+  price?: string;
+  image?: string;
+  // contact
+  email?: string;
+  website?: string;
+  phone?: string;
+  socials?: ContactSocial[];
 };
 
 export type RoomObject = {

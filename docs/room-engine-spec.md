@@ -113,24 +113,31 @@ Rules:
 ## 5. Action types
 
 An object's **action** defines what happens when a visitor activates it. There are
-nine action types. `none` means the object is decorative.
+**ten** action types. `none` means the object is decorative.
 
 | Action | Visitor outcome | Status |
 |---|---|---|
-| `link` | Opens an external URL in a new tab | V1 |
+| `link` | Opens a link card (favicon + title + description) then the URL externally | V3 |
+| `gallery` | Opens an image-gallery lightbox (multiple images, next/prev, captions) | V3 |
+| `video` | Plays an embedded YouTube/Vimeo video (local URL → placeholder) | V3 |
+| `product` | Shows a product card (image, title, price) that redirects to the seller — no payments | V3 |
+| `booking` | Opens a booking card (Calendly embed or external scheduling link) | V3 |
+| `contact` | Opens a unified contact modal (email, website, phone, socials) | V3 |
+| `profile` | Opens the house owner's creator profile card (followers, activity, link to full profile) | V3 |
 | `guestbook` | Opens the house's guestbook | V1 |
 | `collection` | Saves the house/object to the visitor's collection | V1 intent (placeholder panel today) |
-| `gallery` | Opens an image gallery | Future panel (placeholder today) |
-| `video` | Plays a video | Future panel (placeholder today) |
-| `product` | Shows a product/item card | Future panel (placeholder today) |
-| `booking` | Opens a booking/scheduling flow | Future panel (placeholder today) |
-| `contact` | Opens a contact method | Future panel (placeholder today) |
 | `none` | No action — purely decorative | V1 |
 
 Rules:
-- Every interactive activation is **analytics-tracked** as an object interaction.
-- Actions requiring a destination (e.g. `link`) need that data to do anything; an
-  action with missing data is treated as inert (no error, no broken click).
+- Every interactive activation is **analytics-tracked**: a generic `object_click`
+  plus a per-type event (`gallery_opened`, `video_opened`, `product_opened`,
+  `booking_opened`, `contact_opened`, `profile_opened`; `link` also records
+  `link_click`).
+- Actions requiring data (link/video/booking need a URL; gallery needs images;
+  product/contact need fields) treat **missing data as inert** — no error, no
+  broken click. `guestbook`/`collection`/`profile` need no stored data.
+- A visitor experiences these **inside the room** (a modal/lightbox over the room),
+  not by being navigated away — except an explicit external "Open"/"View" button.
 - Action types are an **enumerated, closed set**. New action types are a spec change.
 
 ---

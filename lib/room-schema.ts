@@ -17,7 +17,7 @@ import { getAsset, roomReadyAssets } from "@/lib/assets";
 // where, and how many objects fit.
 
 export const ROOM_ACTION_TYPES: RoomActionType[] = [
-  "link", "video", "product", "booking", "contact", "gallery", "guestbook", "collection", "none",
+  "link", "video", "product", "booking", "contact", "gallery", "profile", "guestbook", "collection", "none",
 ];
 
 export const zoneLabels: Record<RoomZoneType, string> = {
@@ -39,6 +39,7 @@ export const actionLabels: Record<RoomActionType, string> = {
   booking: "Book a time",
   contact: "Contact",
   gallery: "Open gallery",
+  profile: "View profile",
   guestbook: "Sign guestbook",
   collection: "Save to collection",
   none: "No action",

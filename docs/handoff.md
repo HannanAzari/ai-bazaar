@@ -18,8 +18,8 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 
 - **Stack:** Next.js 15 (App Router), React 19, strict TypeScript, Tailwind 3, lucide. **Node 20 required** (machine default is v16): `export PATH="/Users/hannan/.nvm/versions/node/v20.20.2/bin:$PATH"`.
 - **Runs as a client-side demo.** Blank Supabase env → `lib/supabase/*` returns `null`; state lives in `localStorage`, seed content in `lib/data.ts`. The SQL schema is a **production-parity mirror, not run at runtime here.** Every feature has two layers: a demo lib + matching SQL.
-- **Shipped:** village map → street → house kit; **Room Engine V1** (full-screen public room + studio editor) and **V2 — Creator Studio** (free drag/resize, layers, duplicate, delete-confirm, multi-select, Edit/Preview, undo/redo, autosave, six templates); creator profiles, notifications, guestbooks, collections, activity feed, tags, discovery, analytics, reporting/moderation, asset catalog.
-- **Gates (all green):** `npm run typecheck && npm run lint && npm run test && npm run build` (33 tests, ~81 pages).
+- **Shipped:** village map → street → house kit; **Room Engine V1** (full-screen public room + studio editor), **V2 — Creator Studio** (free drag/resize, layers, duplicate, delete-confirm, multi-select, Edit/Preview, undo/redo, autosave, six templates), and **V3 — Real Interactive Objects** (real gallery/video/link/product/booking/contact/profile panels, `profile` type, tooltips, visitor analytics, owner insights, inspector editors, working presets); creator profiles, notifications, guestbooks, collections, activity feed, tags, discovery, analytics, reporting/moderation, asset catalog.
+- **Gates (all green):** `npm run typecheck && npm run lint && npm run test && npm run build` (46 tests, ~81 pages).
 
 ---
 
@@ -39,13 +39,15 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 ## Important Files
 
 **Room engine (the core)**
-- `lib/types.ts` — `Room`, `RoomZoneDef`, `RoomObject` (incl. optional `width`/`height`), `RoomZoneType` (9), `RoomActionType` (9). *Note: distinct from the legacy `RoomZone` string-union used by `Decoration`.*
+- `lib/types.ts` — `Room`, `RoomZoneDef`, `RoomObject` (incl. optional `width`/`height`), `RoomZoneType` (9), `RoomActionType` (10, incl. `profile`), rich `RoomActionData`. *Note: distinct from the legacy `RoomZone` string-union used by `Decoration`.*
 - `lib/room-schema.ts` — `ZONE_TEMPLATE`, `createRoom`, `deriveDefaultRoom`, `validatePlacement`, and pure layout helpers (`addObjectFromAsset`, `moveObject`, `moveObjectTo`, `resizeObject`, `objectCenter`, `duplicateObject`, `deleteObject`, `bringToFront`/`sendToBack`, `bringForward`/`sendBackward`).
-- `lib/room-templates.ts` — six starter templates: `ROOM_TEMPLATES`, `applyTemplate`. `lib/room-history.ts` — pure undo/redo `History<T>`.
+- `lib/room-actions.ts` — pure action-data helpers (`galleryImages`, `productCard`, `contactMethods`, `faviconUrl`, `hostname`, `hasActionData`). `lib/embeds.ts` — `videoEmbed` (YouTube/Vimeo). `lib/room-insights.ts` — owner `getRoomInsights`.
+- `lib/room-templates.ts` — six starter templates with working sample data: `ROOM_TEMPLATES`, `applyTemplate`. `lib/room-history.ts` — pure undo/redo `History<T>`.
 - `lib/room.ts` — layout store: `getRoom`/`saveRoom`/`resetRoom` (key `ai-bazaar-rooms`).
-- `components/room/room-experience.tsx` — full-screen public room + drawers + action handling.
-- `components/room/room-editor.tsx` — **Creator Studio** editor (templates, palette, drag/resize canvas, single + multi-select inspector, Edit/Preview, undo/redo, autosave, save/reset, delete-confirm).
-- `components/room/{room-canvas,room-object,object-action-modal}.tsx` — rendering pieces; `room-canvas` owns editor pointer interaction (drag/resize/marquee).
+- `components/room/room-experience.tsx` — full-screen public room + drawers + action handling (per-type `*_opened` analytics).
+- `components/room/room-editor.tsx` — **Creator Studio** editor (templates, palette, drag/resize canvas, single + multi-select inspector with per-action `ActionDataEditor`, Edit/Preview, undo/redo, autosave, save/reset, delete-confirm, owner insights panel).
+- `components/room/object-action-modal.tsx` — **real V3 interactive panels** (gallery lightbox, video embed, link, product, booking, contact, profile). `action-data-editor.tsx` — inspector field editor.
+- `components/room/{room-canvas,room-object}.tsx` — rendering pieces; `room-canvas` owns editor pointer interaction (drag/resize/marquee) and threads `ownerName` for tooltips.
 - `lib/assets.ts` — asset catalog; room-ready assets carry `compatibleZones`/`defaultScale`/`defaultActionType`; `roomReadyAssets()`, `getAsset()`.
 
 **Wiring / surfaces**
@@ -82,8 +84,9 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 
 ## Open Problems (known limitations)
 
-- Room object actions `video/product/booking/contact/gallery` are **placeholder panels**, not real experiences.
+- Room object actions are **real** (V3); their panels load **third-party embeds/images** (YouTube, Vimeo, Calendly, favicons, sample preset images) — external requests that won't render offline.
 - Placement is **free drag + resize** (V2); rotation is in the model but has no editor UI yet. Objects can crowd on tiny viewports.
+- One room per house (multi-room/stairs are placeholders); objects still render as a single icon tile.
 - One room per house (multi-room/stairs are placeholders).
 - **AI and image storage are mocked** (`/api/generations`, placeholder asset URLs).
 - **SQL never executed against live Postgres here** — dry-run migrations + RLS on staging before production.
@@ -94,20 +97,22 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 
 ## Recommended Next Sprint
 
-**Room Engine V3 — real object actions & richer visuals.** Replace placeholder
-object actions with real panels (gallery image grid, video player, product card);
-add a rotation control in the editor (model already supports `rotation`); richer
-per-asset object visuals (reusing the room shell). Likely files: `components/room/*`,
-`lib/types.ts` (`RoomActionData`), `app/studio/page.tsx`, `test/room.test.ts`.
-Success: a visitor opens a non-placeholder gallery/video/product panel; objects
-read richer than a single icon; all gates green; no village/street/exterior
+**Room Engine V4 — richer object visuals & multi-room.** Objects are interactive
+(V3) but still read as a single icon tile and a house has one room. Add richer
+per-asset object visuals + a rotation control (model already stores `rotation`),
+and multi-room houses (room switching + studio "Add room"; the `rooms` model
+permits it). Explicitly **not** AI/marketplace/payments/chat. Likely files:
+`components/room/*`, `lib/room-schema.ts`/`lib/room.ts`, `app/studio/page.tsx`,
+`test/room.test.ts`. Success: objects read richer than an icon; a house can hold
+multiple rooms a visitor moves between; all gates green; no village/street/exterior
 regressions.
 
 ---
 
 ## Do Not Accidentally Change
 
-- **Room object schema** (`RoomObject`/`Room` in `lib/types.ts` + `room_objects` columns) — public rooms and saved layouts depend on the exact shape; migrate, don't mutate. `width`/`height` are **optional** (added in V2); keep them optional so pre-V2 saved rooms stay valid.
+- **Room object schema** (`RoomObject`/`Room` in `lib/types.ts` + `room_objects` columns) — public rooms and saved layouts depend on the exact shape; migrate, don't mutate. `width`/`height` are **optional** (V2); `RoomActionData` fields are **all optional** (V3) and stored in the `action_data` jsonb — grow it additively, keep fields optional so old saved rooms stay valid.
+- **`RoomActionType` is a closed enum** — adding a type (like V3's `profile`) means a TS change, a `room_action_type` enum-value migration, a panel in `object-action-modal.tsx`, and a spec/ADR update.
 - **Migration ordering / enum split** — new enum *values* must commit (in `_01_extend_enums`) before use (`_02_*`); never reorder or rename existing migration files.
 - **localStorage keys** (`ai-bazaar-*`, e.g. `ai-bazaar-rooms`, `ai-bazaar-shop`) — renaming silently wipes demo state.
 - **Public room route behavior** — `/shop/[address]` must keep the `RoomExperience` (flag on) / `LegacyHouseView` (off or hidden) switch; the hidden-by-moderator "resting" path must stay.

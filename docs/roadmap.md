@@ -40,6 +40,7 @@ by **selecting from a curated asset library**, never by generating visuals.
 | QA & stability | 2026-06-13 | Audit + small fixes, Vitest suite, QA checklist, DX docs |
 | Room Engine V1 | 2026-06-14 | Full-screen public room, 9-zone schema, room objects + actions, studio room editor, room-ready assets (`20260614_*`) |
 | Room Engine V2 — Creator Studio | 2026-06-15 | Free drag/resize, layers, duplicate, delete-confirm, multi-select, Edit/Preview, undo/redo, autosave, six templates, editing analytics (`20260615_*`) |
+| Room Engine V3 — Real Interactive Objects | 2026-06-16 | Real panels (gallery/video/link/product/booking/contact/profile), `profile` type + 7 assets, rich action data, tooltips, visitor analytics, owner insights, inspector editors, working presets (`20260616_*`) |
 
 All sprints ship green: `typecheck · lint · test · build`.
 
@@ -47,32 +48,31 @@ All sprints ship green: `typecheck · lint · test · build`.
 
 ## In Progress
 
-No feature sprint active. Room Engine V2 (Creator Studio) shipped 2026-06-15.
+No feature sprint active. Room Engine V3 (Real Interactive Objects) shipped 2026-06-16.
 
 ---
 
 ## Next Sprint
 
-### Room Engine V3 — real object actions & richer visuals
+### Room Engine V4 — richer object visuals & multi-room
 
-The Creator Studio (V2) made editing real; V3 turns the remaining V1 placeholders
-into real visitor experiences.
+Objects are now interactive (V3) but still read as a single icon tile, and a house
+has one room. V4 deepens the *visual* and *spatial* experience — explicitly **not**
+AI, marketplace, payments, or chat.
 
 **Goals**
-- Real action panels for `gallery` (image grid), `video` (embed/placeholder player), and `product` (item card) — replacing the generic modal.
-- Richer object visuals per asset (beyond the icon tile) while reusing the existing room shell; optional rotation control (model already supports it; no UI yet).
-- Wire room edits into the activity feed (`updated_house`) and confirm the new room editing events surface in moderation counts.
+- Richer per-asset object visuals (small illustrated treatments beyond the icon tile) while reusing the existing room shell; a rotation control (model already stores `rotation`).
+- Multi-room houses: room switching + the studio "Add room" flow (the `rooms` model already permits it; stairs/door connectors).
+- Wire room edits into the activity feed (`updated_house`) and confirm V2/V3 events surface in moderation counts.
 
 **Files likely affected**
-- `components/room/object-action-modal.tsx` (split into per-action panels)
-- `components/room/room-object.tsx`, `room-canvas.tsx`, `room-editor.tsx`
-- `lib/types.ts` (richer `RoomActionData`)
-- `app/studio/page.tsx`, `components/room/room-experience.tsx`
-- `test/room.test.ts`; `supabase/*` only if `action_data` shape grows
+- `components/room/room-object.tsx`, `room-canvas.tsx`, `room-editor.tsx`, `room-experience.tsx`
+- `lib/room-schema.ts` / `lib/room.ts` (multi-room), `app/studio/page.tsx`
+- `test/room.test.ts`; `supabase/*` if a per-room/connector shape grows
 
 **Success criteria**
-- A visitor can open a gallery/video/product object and see a real (non-placeholder) panel.
-- Objects read richer than a single icon tile; an owner can rotate objects.
+- Objects read richer than a single icon; an owner can rotate objects.
+- A house can have more than one room and a visitor can move between them.
 - All gates green; new helpers covered by tests; no visual regression to village/street/exteriors.
 
 ---

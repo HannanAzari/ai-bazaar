@@ -35,11 +35,14 @@ export function RoomCanvas({
   room,
   mode,
   editor,
+  ownerName,
   onActivate,
 }: {
   room: Room;
   mode: "public" | "editor";
   editor?: EditorProps;
+  /** Public only: owner name for object tooltips. */
+  ownerName?: string;
   onActivate?: (object: RoomObject) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -244,6 +247,7 @@ export function RoomCanvas({
             mode={mode}
             selected={isSelected}
             showHandles={isSelected && selectedIds.length === 1}
+            ownerName={ownerName}
             onActivate={() => onActivate?.(object)}
             onSelect={() => editor?.onSelectionChange([object.id])}
           />
