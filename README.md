@@ -232,6 +232,32 @@ deterministic, rules-based recommender (ADR-006, room-engine-spec §11), gated b
 - **Analytics** — records `room_design_generated`, `room_design_applied`, and
   `room_design_regenerated`.
 
+### V2 — Smarter briefs, constraints, drafts
+
+- **Advanced brief parser** (`parseBrief`) — extracts a **creator type**
+  (photographer, artist, developer, podcaster, shop owner, writer, musician,
+  designer, coach, small business), a **mood** (cozy, luxury, dark, playful,
+  professional, warm, minimal, elegant), a **purpose** (portfolio, booking,
+  selling, storytelling, community, personal profile, gallery), and
+  **constraints** (no plants / no video / no products, a max object count,
+  "minimal / clean", show social links / booking / gallery).
+- **Constraints engine** — the generated room respects constraints: excluded
+  categories/actions are dropped, "minimal" and "max N" cap the object count, and
+  "I sell products" / "I take bookings" prioritise the product shelf / booking
+  desk.
+- **Creator presets** — eight one-click buttons (Photographer Portfolio, Artist
+  Gallery, Developer Studio, Podcast Room, Online Shop, Writer's Room, Coach /
+  Consultant, Personal Bio Room) that fill the brief + style and generate.
+- **Drafts** — save a generated design as a draft, view your drafts, apply one
+  later, or delete it. Demo drafts persist under `ai-bazaar-design-drafts`;
+  production writes the `room_design_drafts` table (owner-private).
+- **Designer history** — a session "recent designs" list (brief · style · intent ·
+  constraints) you can click to revisit; "last applied" is surfaced too.
+- **Richer explanation panel** — shows the detected creator type, mood, purpose,
+  the constraints applied, and a reason per placed object.
+- **Analytics (V2)** — `room_design_draft_saved`, `room_design_draft_applied`,
+  `room_design_constraint_detected`, `room_design_preset_used`.
+
 ## Supabase
 
 For a fresh project:
@@ -257,7 +283,9 @@ For an existing project, run migrations in filename order:
 13. `supabase/migrations/20260617_01_extend_enums.sql` — `asset_category` += `door`, `stairs`; `room_kind` += `living_room`, `office`, `bedroom`, `garden`, `custom`; `room_action_type` += `room_link`; `event_type` += the four `room_*` events. Must commit before step 14.
 14. `supabase/migrations/20260617_02_multi_room.sql` — `rooms.description`, `rooms.is_entry` + a partial unique index (one entry room per shop). Multi-room reuses the existing `rooms` / `room_objects.room_id`; door targets live in `action_data`.
 15. `supabase/migrations/20260620_extend_enums.sql` — adds the AI-designer `event_type` values (`room_design_generated`, `room_design_applied`, `room_design_regenerated`). Enum-value additions only; stands alone (no table change — the designer composes existing Room/room_objects shapes).
-16. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
+16. `supabase/migrations/20260621_01_extend_enums.sql` — AI Room Designer V2 `event_type` values (`room_design_draft_saved`, `room_design_draft_applied`, `room_design_constraint_detected`, `room_design_preset_used`). Must commit before step 17.
+17. `supabase/migrations/20260621_02_design_drafts.sql` — the `room_design_drafts` table (owner-private designer drafts) + RLS.
+18. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
 
 The two-step enum split (in `20260611_*`, `20260612_*`, `20260615_*`, and `20260617_*`) is required: PostgreSQL will not let a single transaction add an enum value and then use it, so new enum values are committed in `_01` before `_02` references them. Migrations that only add enum values (e.g. `20260616_extend_enums.sql`) stand alone.
 
@@ -275,6 +303,7 @@ Internal table names such as `shops`, `shop_slots`, and `shop_decorations` remai
 - `activity_events` — public, append-only activity stream powering the global and profile feeds.
 - `assets` — the asset-metadata catalog; published rows are public, admins manage the rest.
 - `rooms`, `room_objects`, `room_object_tags` — the Room Engine layout; rooms of visible houses are public, owners manage their own. Zones are an app-defined template (an enum column on each object), not a table.
+- `room_design_drafts` — AI Room Designer V2 drafts (the generated room as jsonb + brief/style/intent/constraints). Owner-private (RLS scopes to the house owner).
 
 ## Runtime mode & backend cutover
 
@@ -357,7 +386,8 @@ lib/
   assets.ts              Sample asset catalog (+ room-ready assets)
   room-schema.ts         Zone template, derive/validate, pure layout helpers
   room.ts                Room layout store (get/save/reset)
-  ai-room-designer.ts    Deterministic brief→room designer (selection, no AI gen)
+  ai-room-designer.ts    Deterministic brief→room designer + V2 parser/constraints/presets
+  room-design-drafts.ts  Owner-private designer drafts store (save/list/apply/delete)
 supabase/
   schema.sql             Tables, policies, triggers, and constraints
   seed.sql               Ten villages, 240 houses, starter tags

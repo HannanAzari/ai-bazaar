@@ -557,6 +557,77 @@ kind, and the requirement that it be deterministic and testable.
 
 ---
 
+## ADR-016 — AI Room Designer V2: layered brief parsing, a constraints engine, and SQL-backed drafts
+
+**Status:** Accepted · 2026-06-21
+
+### Context
+ADR-015 shipped a deterministic, selection-only designer that maps a brief to a
+single *intent* and composes a room. V2 had to make it feel more intelligent —
+understand creator type, mood, purpose, and explicit constraints ("no plants",
+"only 4 objects", "show booking"), let owners keep multiple **drafts**, and offer
+one-click **creator presets** — all while keeping the hard constraints (no real
+AI, no image generation, no external APIs) and **not breaking the V1 contract**.
+
+### Decision
+- **Parsing is a new pure layer on top of the V1 intent, not a replacement.**
+  `parseBrief()` returns a structured `{ creatorType?, mood?, purpose?, constraints }`
+  via ordered keyword tables (first match wins — deterministic). `generateRoomDesign`
+  now: picks the intent from the detected creator type when present (else the V1
+  `matchIntent`), derives style from mood when none is supplied, then applies
+  constraints. V1's `matchIntent`/`scoreAssets`/`variant` determinism is untouched,
+  so all V1 tests keep passing.
+- **Constraints are applied as score boosts + an exclusion filter + a count cap,
+  never as a new placement path.** Excluded categories/actions are filtered out of
+  the ranked candidates; purpose / show-X flags add deterministic score boosts
+  (e.g. desk → booking, product shelf for selling); "minimal" and "max N" tighten
+  the target count. Placement still routes through `addObjectFromAsset`, so the
+  room remains valid by construction (spec §6/§9) and the engine can never emit an
+  invalid room from a hostile brief.
+- **Drafts get full SQL parity** (ADR-004), not a demo-only exception. A new
+  owner-private `room_design_drafts` table stores the generated room + brief/style/
+  intent/constraints as jsonb, with `owns_shop` RLS; the demo mirror is
+  `lib/room-design-drafts.ts` on `ai-bazaar-design-drafts`. The generated room is
+  stored whole (jsonb) so a draft is a self-contained snapshot, independent of
+  later catalog/intent changes.
+- **History is session-only (in-memory), drafts are the persistence mechanism.**
+  The "recent designs" list lives in component state; anything worth keeping is
+  saved as a draft. This avoids a second persisted store/ànalytics surface for
+  what is largely ephemeral working state.
+- **Presets are pure data** (`CREATOR_PRESETS`: brief + style) that drive the
+  existing generate path — no special-case generation.
+- **Analytics as enum-value additions** (`room_design_draft_saved/draft_applied/
+  constraint_detected/preset_used`), committed in `20260621_01` before the
+  `20260621_02` table migration (ADR-009). The V2 UI reuses the `ENABLE_AI_DESIGNER`
+  flag rather than adding one.
+
+### Alternatives Considered
+- **Replace the V1 intent model with the parser** — rejected; layering keeps V1
+  deterministic and back-compatible and avoids re-tuning the whole asset scorer.
+- **Demo-only drafts (no table)** — considered (the sprint said "if appropriate"),
+  rejected to honour the strict two-layer rule; drafts are owner data worth
+  modelling in Postgres with RLS.
+- **A separate persisted history log (with its own table/events)** — rejected as
+  over-engineered; drafts already cover durable persistence and history is a
+  convenience list.
+- **Hard-failing on impossible constraints** (e.g. "no plants" in a garden) —
+  rejected; constraints degrade gracefully (filter what's possible) rather than
+  refusing to produce a room.
+
+### Consequences
+- (+) Briefs feel understood (creator/mood/purpose/constraints surfaced and
+  respected); presets and drafts make the tool faster to use and iterate with.
+- (+) Fully deterministic and unit-tested; the V1 contract and tests are intact.
+- (+) Drafts are production-ready (table + RLS), consistent with every other
+  feature.
+- (−) The keyword tables are hand-authored — new vocabulary/creator types mean
+  editing `parseBrief`/intent maps (shares the V1 "catalog/vocab breadth" ceiling).
+- (−) One more owner-scoped table + RLS policy to test live during the Supabase
+  cutover; `room_design_drafts.room` is denormalised jsonb (a snapshot), so a draft
+  won't reflect later edits to the live room — intended, but worth noting.
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

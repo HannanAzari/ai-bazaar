@@ -75,6 +75,13 @@ save buttons, guestbook panel, footer links, owner-profile links) disappear.
 | Regenerate a design | `/studio` → Design → Regenerate | A fresh-but-related layout appears (same brief, deterministic); records `room_design_regenerated` |
 | Apply a design | `/studio` → Design → Apply | Replaces the selected room's contents; nothing changes until Apply; records `room_design_applied`; the public room reflects it |
 | Designer determinism | `/studio` → Design | Same brief + style ⇒ the same room every time; "reading"/"photography"/"gaming"/"office" briefs pick sensible themes |
+| Use a creator preset | `/studio` → Design → a preset button | Fills the brief + style and generates; panel shows the detected creator type; records `room_design_preset_used` |
+| Brief with constraints | `/studio` → Design → "dark minimalist developer room with no plants" | Panel shows Creator: Developer, Mood: Dark, and the "no plants" constraint; the room has no plant objects; records `room_design_constraint_detected` |
+| Constraint — sell + book | `/studio` → Design → "online shop selling products with booking" | Proposed room includes a product object and a booking object |
+| Save a draft | `/studio` → Design → Save draft | The design appears under "Saved drafts"; records `room_design_draft_saved` |
+| Apply a draft | `/studio` → Design → draft → Apply | Replaces the selected room's contents; records `room_design_draft_applied` |
+| Delete a draft | `/studio` → Design → draft → trash | Draft is removed from the list |
+| Recent designs | `/studio` → Design (after ≥2 generates) | A "Recent designs" list appears; clicking one re-shows that proposal |
 
 ## Room editor flow (Creator Studio)
 

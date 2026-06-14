@@ -316,6 +316,26 @@ Behavior (V1):
 - Activations record `room_design_generated` / `room_design_applied` /
   `room_design_regenerated`.
 
+Behavior (V2 — smarter briefs, constraints, drafts; 2026-06-21, ADR-016):
+- The brief is parsed into structured dimensions — **creator type** (photographer,
+  artist, developer, podcaster, shop owner, writer, musician, designer, coach,
+  small business), **mood**, and **purpose** — which steer intent, style, and asset
+  emphasis. All detection is deterministic keyword matching.
+- **Constraints in the brief are honoured**: exclusions ("no plants / no video /
+  no products") remove those assets; "minimal / make it clean" and "only N
+  objects" cap the object count; "I sell products" / "I take bookings" / "show my
+  gallery / social links" prioritise the matching objects. A generated room never
+  violates a stated constraint, and constraints never produce an invalid room
+  (they filter and cap within the same placement/validation rules).
+- **One-click creator presets** fill the brief + style for common creator types.
+- **Drafts**: a proposed design can be **saved as a draft**, reviewed later,
+  **applied**, or **deleted** — owner-private. (Demo: `ai-bazaar-design-drafts`;
+  production: the `room_design_drafts` table.) Drafts never publish on their own.
+- The explanation panel additionally reports the detected creator type, mood,
+  purpose, and the constraints that were applied.
+- Activations also record `room_design_draft_saved` / `room_design_draft_applied`
+  / `room_design_constraint_detected` / `room_design_preset_used`.
+
 ---
 
 ## 12. Future — AI room editor support

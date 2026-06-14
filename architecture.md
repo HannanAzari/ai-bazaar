@@ -87,7 +87,7 @@ profile-style room (`components/shop-room.tsx`), it does **not** 404.
 - `object-action-modal.tsx` — **real V3 interactive panels** by action type: gallery lightbox, embedded video (YouTube/Vimeo via `lib/embeds.ts`), link card (favicon), product card (redirect), booking (Calendly embed/external), unified contact modal, and a creator profile panel. Uses pure helpers in `lib/room-actions.ts`.
 - `action-data-editor.tsx` — the studio inspector's per-action field editor (gallery image rows, video URL, link, product, booking, contact + socials rows).
 - `room-experience.tsx` — **the full-screen public surface**. Loads `getHouse`, renders the **current room** of a multi-room house; top-left "where am I" chip + a subtle **breadcrumb** (`House › Room › Room`) with crumb jumps and a back button; top-right action cluster; bottom-left owner chip + guestbook; slide-over **drawers**; the action modal. Object activation: `room_link`→navigate to the target room (client-side, no reload), `guestbook`→drawer, `none`→noop, else → in-room panel. Tracks `object_click` + `decoration_click` + per-type `*_opened` + `room_entered`/`room_link_clicked`.
-- `room-designer.tsx` — **the studio Design mode (AI Room Designer V1)**: brief input + style presets + optional room type, current-vs-proposed `RoomCanvas` preview, Apply/Regenerate, and the explanation panel. Pure logic in `lib/ai-room-designer.ts` (`generateRoomDesign`, `matchIntent`, `scoreAssets`); selection-only, deterministic, no AI/image generation.
+- `room-designer.tsx` — **the studio Design mode (AI Room Designer V1 + V2)**: brief input, creator presets, style presets + optional room type, current-vs-proposed `RoomCanvas` preview, Apply/Regenerate/Save-draft, saved-drafts list, session history, and the richer explanation panel (detected dimensions + constraints + per-object reasons). Pure logic in `lib/ai-room-designer.ts` (`generateRoomDesign`, `matchIntent`, `scoreAssets`, `parseBrief`, `CREATOR_PRESETS`); drafts in `lib/room-design-drafts.ts`. Selection-only, deterministic, no AI/image generation.
 - `room-editor.tsx` — **the studio editor (Creator Studio, V2 + V4)**. A **room manager** (create blank/preset, rename, set type, set entry, delete with guards, switch active room), object templates (furnish the active room), asset palette, single-object inspector (label, action, zone, anchor, action-data editor, scale, layer, hide, duplicate, delete) and a multi-select batch panel. **Edit / Preview** toggle, whole-house **undo/redo** (`⌘Z`/`⌘⇧Z`), **autosave** (5s) plus **Save house** (`saveHouse`) / **Reset house** (`resetHouse`); deletes confirmed. Owner **room insights** panel. Tracks `room_object_*`, `room_template_applied`, `room_created`, `room_deleted`.
 
 ### Assets (`lib/assets.ts`)
@@ -129,7 +129,7 @@ Postgres with Row-Level Security. Internal table names keep `shop*` for historic
 reasons; the **product language is house/place/room**. `is_admin()` and
 `owns_shop(shop_id)` are SECURITY DEFINER helpers used throughout RLS.
 
-### Tables (25)
+### Tables (26)
 | Group | Tables |
 |---|---|
 | Identity | `profiles` |
@@ -141,7 +141,7 @@ reasons; the **product language is house/place/room**. `is_admin()` and
 | Moderation | `reports` |
 | Generation | `generation_jobs` |
 | Catalog | `assets` |
-| **Room engine** | `rooms`, `room_objects`, `room_object_tags` |
+| **Room engine** | `rooms`, `room_objects`, `room_object_tags`, `room_design_drafts` |
 
 ### Enums (16)
 `decoration_type, generation_status, report_target_type` (`shop|decoration|user|guestbook`),
@@ -160,6 +160,7 @@ reasons; the **product language is house/place/room**. `is_admin()` and
 8. `20260616_extend_enums.sql` (`room_action_type` += `profile`; `event_type` += six `*_opened`)
 9. `20260617_01_extend_enums.sql` (`asset_category` += `door`,`stairs`; `room_kind` += 5; `room_action_type` += `room_link`; `event_type` += four `room_*`) → `20260617_02_multi_room.sql` (`rooms.description`, `rooms.is_entry` + partial unique index)
 10. `20260620_extend_enums.sql` (`event_type` += three `room_design_*`; stands alone, no table change)
+11. `20260621_01_extend_enums.sql` (`event_type` += four V2 `room_design_*`) → `20260621_02_design_drafts.sql` (`room_design_drafts` table + RLS)
 
 `schema.sql` is the fresh-install superset. **Critical Postgres rule:** a new
 enum **value** added to an existing enum must be committed before it is used, so
@@ -246,6 +247,7 @@ subscribe to for reactivity. Some seed demo data once (`*-seeded` guard key).
 | `lib/collections.ts` | `ai-bazaar-collections` | collections + saved items |
 | `lib/activity.ts` | `ai-bazaar-activity` (+`-seeded`) | activity feed |
 | `lib/room.ts` | `ai-bazaar-rooms` | saved room layouts |
+| `lib/room-design-drafts.ts` | `ai-bazaar-design-drafts` | AI designer drafts (V2) |
 | DemoProvider | `ai-bazaar-user`, `ai-bazaar-shop` | demo user + claimed house |
 | Onboarding | `ai-bazaar-world-seen` | overlay dismissed |
 
@@ -294,6 +296,7 @@ variation (house specs, hex positions) derives from stable seeds — **never
 - **Room Engine V4 — Multi-Room Houses**: a house is a set of connected rooms (`HouseRooms` with one entry room); `door`/`stairs` asset categories + a `room_link` action navigate between rooms client-side; public breadcrumb + back; studio room manager (create/rename/retype/set-entry/delete with guards) + room presets; whole-house undo/redo; multi-room navigation analytics; legacy single-room saves migrated on read.
 - **Room Engine V5 — Richer Visuals + Rotation**: per-category object sprites (CSS treatments around the icon, frames show real images) replacing generic tiles; engraved nameplate labels; rotation editor (slider + ±15° buttons), respected in public + editor; five room **background variants** (warm studio, gallery wall, shop floor, office, garden room) recolouring the existing shell; improved empty-room state. No new art, no schema change.
 - **AI Room Designer V1**: a deterministic, rules-based room designer (`lib/ai-room-designer.ts`) — no image generation, no external APIs (ADR-006/ADR-015, spec §11). A natural-language brief is matched to a design *intent* by keyword scoring; room-ready assets are ranked by tag/category/action/style affinity (deterministic per `variant`); top picks are placed through the standard `addObjectFromAsset` rules so the result is always a valid `Room`. Surfaced as the studio **Design** mode (`components/room/room-designer.tsx`, flag `ENABLE_AI_DESIGNER`): brief + six style presets + optional room type, current-vs-proposed preview, Apply (replaces the selected room's contents via `saveHouse`) / Regenerate (bumps `variant`), a "Why this layout" explanation panel, and `room_design_generated/applied/regenerated` analytics.
+- **AI Room Designer V2 — Smarter Briefs, Constraints, Drafts** (ADR-016): a pure `parseBrief()` extracts **creator type · mood · purpose · constraints** from the brief; a **constraints engine** filters assets (no plants/video/products), caps the object count (minimal / max N), and prioritises product/booking/social/gallery assets; **8 creator presets** fill brief+style; an owner-private **drafts** store (`lib/room-design-drafts.ts`, key `ai-bazaar-design-drafts`, table `room_design_drafts`) saves/lists/applies/deletes designs; a session **history** ("recent designs"); a richer explanation panel (detected dimensions + constraints + per-object reasons); analytics `room_design_draft_saved/draft_applied/constraint_detected/preset_used`. Deterministic and selection-only — no AI/image generation.
 - **Creator profiles** (`/u/[handle]`): avatar/bio/links/houses/follower counts, follow, profile activity feed.
 - **Notifications**: header bell + `/notifications`, 6 types, read/unread, demo seed.
 - **Guestbooks**: per-house notes, owner hide/delete, report a note, owner notification on new note.
@@ -305,9 +308,9 @@ variation (house specs, hex positions) derives from stable seeds — **never
 - **Reporting/moderation**: report house/item/user/guestbook, `/moderation` queue with `pending→reviewed→hidden→dismissed`; `hidden` soft-hides from discovery/tags.
 - **Asset catalog**: internal `/assets` grid with filters.
 - **Backend cutover prep**: env-derived runtime mode + dev-only badge, a repository layer (local impls + Supabase stubs + factory), and `docs/supabase-cutover.md` (drift audit + runbook). Demo stays the default; no app rewiring.
-- **Quality**: Vitest suite (92 tests) for the demo libs incl. room move/resize/undo-redo/templates, V3 gallery/video/product/contact validation + analytics, V4 multi-room (create/delete/entry/door-target/persistence/analytics), V5 (visual-variant selection, background validation, rotation/background persistence), cutover-prep (mode detection, repository selection, migration/schema file presence), and AI-designer (keyword matching, asset ranking, deterministic generation, room validity, explanation generation); QA checklist; flags + demo behaviour documented.
+- **Quality**: Vitest suite (125 tests) for the demo libs incl. room move/resize/undo-redo/templates, V3 gallery/video/product/contact validation + analytics, V4 multi-room (create/delete/entry/door-target/persistence/analytics), V5 (visual-variant selection, background validation, rotation/background persistence), cutover-prep (mode detection, repository selection, migration/schema file presence), AI-designer V1 (keyword matching, asset ranking, deterministic generation, room validity, explanation generation), and AI-designer V2 (brief parsing, creator-type/mood/purpose detection, constraints engine, presets, drafts store); QA checklist; flags + demo behaviour documented.
 
-Verification gates (all green): `npm run typecheck && npm run lint && npm run test && npm run build` (92 tests, build emits ~81 pages).
+Verification gates (all green): `npm run typecheck && npm run lint && npm run test && npm run build` (125 tests, build emits ~81 pages).
 
 ---
 

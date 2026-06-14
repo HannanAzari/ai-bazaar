@@ -45,6 +45,7 @@ by **selecting from a curated asset library**, never by generating visuals.
 | Room Engine V5 — Richer Visuals + Rotation | 2026-06-18 | Per-category object sprites (frames show real images), engraved nameplates, rotation editor (slider + ±15°), five room background variants, improved empty state (no schema change) |
 | Production Backend Cutover Prep | 2026-06-19 | Migration/schema drift audit, `docs/supabase-cutover.md` runbook, env-derived runtime mode + dev-only badge, repository layer (local impls + Supabase stubs + factory), tests; demo unchanged |
 | AI Room Designer V1 | 2026-06-20 | Deterministic, selection-only room designer (`lib/ai-room-designer.ts`): brief→intent keyword matching, asset ranking, six style presets, valid-room composition, preview-before-apply (studio Design mode), design explanations, `room_design_*` analytics (`20260620_*`); no image generation |
+| AI Room Designer V2 — Smarter Briefs, Constraints, Drafts | 2026-06-21 | Advanced brief parser (creator type · mood · purpose · constraints), constraints engine, 8 creator presets, owner-private drafts (`room_design_drafts` + `20260621_*`), session history, richer explanation panel, 4 V2 analytics events; still deterministic + selection-only |
 
 All sprints ship green: `typecheck · lint · test · build`.
 
@@ -52,9 +53,9 @@ All sprints ship green: `typecheck · lint · test · build`.
 
 ## In Progress
 
-No feature sprint active. AI Room Designer V1 shipped 2026-06-20 (deterministic,
-selection-only). Backend Cutover Prep shipped 2026-06-19 (seams + runbook; Supabase
-repos are stubs).
+No feature sprint active. AI Room Designer V2 shipped 2026-06-21 (smarter briefs,
+constraints, drafts, presets). Backend Cutover Prep shipped 2026-06-19 (seams +
+runbook; Supabase repos are stubs).
 
 ---
 

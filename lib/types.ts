@@ -102,7 +102,12 @@ export type EventType =
   // AI Room Designer (V1) lifecycle.
   | "room_design_generated"
   | "room_design_applied"
-  | "room_design_regenerated";
+  | "room_design_regenerated"
+  // AI Room Designer (V2): drafts, constraints, presets.
+  | "room_design_draft_saved"
+  | "room_design_draft_applied"
+  | "room_design_constraint_detected"
+  | "room_design_preset_used";
 
 export type BazaarEvent = {
   id: string;

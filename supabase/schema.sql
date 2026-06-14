@@ -4,7 +4,7 @@ create type public.decoration_type as enum ('text', 'image', 'ai_image', 'link',
 create type public.generation_status as enum ('queued', 'building', 'complete', 'failed');
 create type public.report_target_type as enum ('shop', 'decoration', 'user', 'guestbook');
 create type public.report_status as enum ('pending', 'reviewed', 'hidden', 'dismissed');
-create type public.event_type as enum ('house_view', 'room_view', 'decoration_click', 'object_click', 'link_click', 'share_click', 'follow', 'like', 'room_object_added', 'room_object_deleted', 'room_object_moved', 'room_object_resized', 'room_template_applied', 'gallery_opened', 'video_opened', 'product_opened', 'booking_opened', 'contact_opened', 'profile_opened', 'room_entered', 'room_created', 'room_deleted', 'room_link_clicked', 'room_design_generated', 'room_design_applied', 'room_design_regenerated');
+create type public.event_type as enum ('house_view', 'room_view', 'decoration_click', 'object_click', 'link_click', 'share_click', 'follow', 'like', 'room_object_added', 'room_object_deleted', 'room_object_moved', 'room_object_resized', 'room_template_applied', 'gallery_opened', 'video_opened', 'product_opened', 'booking_opened', 'contact_opened', 'profile_opened', 'room_entered', 'room_created', 'room_deleted', 'room_link_clicked', 'room_design_generated', 'room_design_applied', 'room_design_regenerated', 'room_design_draft_saved', 'room_design_draft_applied', 'room_design_constraint_detected', 'room_design_preset_used');
 create type public.notification_type as enum ('house_view', 'like', 'follow', 'guestbook_entry', 'item_click', 'report_status');
 create type public.room_zone_type as enum ('back_wall', 'left_wall', 'right_wall', 'floor_left', 'floor_center', 'floor_right', 'shelf', 'window', 'door');
 create type public.room_action_type as enum ('link', 'video', 'product', 'booking', 'contact', 'gallery', 'profile', 'room_link', 'guestbook', 'collection', 'none');
@@ -306,6 +306,19 @@ create table public.room_object_tags (
   primary key (object_id, tag_id)
 );
 
+-- AI Room Designer V2: owner-private design drafts (saved, un-applied designs).
+create table public.room_design_drafts (
+  id uuid primary key default gen_random_uuid(),
+  shop_id uuid not null references public.shops(id) on delete cascade,
+  name text not null default 'Draft' check (char_length(name) between 1 and 80),
+  brief text not null default '',
+  style text not null default 'cozy',
+  intent_id text not null default 'personal',
+  parsed jsonb not null default '{}'::jsonb,
+  room jsonb not null,
+  created_at timestamptz not null default now()
+);
+
 create index shops_address_idx on public.shops using btree (address);
 create index shops_created_at_idx on public.shops using btree (created_at desc) where hidden = false;
 create index decorations_shop_idx on public.shop_decorations (shop_id, sort_order) where hidden = false;
@@ -327,6 +340,7 @@ create index assets_category_idx on public.assets (category) where status = 'pub
 create index assets_status_idx on public.assets (status);
 create index rooms_shop_idx on public.rooms (shop_id);
 create index room_objects_room_idx on public.room_objects (room_id, z_index);
+create index room_design_drafts_shop_idx on public.room_design_drafts (shop_id);
 
 create or replace function public.is_admin()
 returns boolean
@@ -506,6 +520,7 @@ alter table public.assets enable row level security;
 alter table public.rooms enable row level security;
 alter table public.room_objects enable row level security;
 alter table public.room_object_tags enable row level security;
+alter table public.room_design_drafts enable row level security;
 alter table public.tags enable row level security;
 alter table public.shop_tags enable row level security;
 alter table public.decoration_tags enable row level security;
@@ -606,6 +621,12 @@ create policy "room object tags are public" on public.room_object_tags for selec
 create policy "owners manage room object tags" on public.room_object_tags for all
   using (exists (select 1 from public.room_objects o join public.rooms r on r.id = o.room_id where o.id = object_id and (public.owns_shop(r.shop_id) or public.is_admin())))
   with check (exists (select 1 from public.room_objects o join public.rooms r on r.id = o.room_id where o.id = object_id and (public.owns_shop(r.shop_id) or public.is_admin())));
+
+create policy "owners read design drafts" on public.room_design_drafts for select
+  using (public.owns_shop(shop_id) or public.is_admin());
+create policy "owners manage design drafts" on public.room_design_drafts for all
+  using (public.owns_shop(shop_id) or public.is_admin())
+  with check (public.owns_shop(shop_id) or public.is_admin());
 
 create policy "tags are public" on public.tags for select using (true);
 create policy "authenticated create tags" on public.tags for insert to authenticated with check (true);

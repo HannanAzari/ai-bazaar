@@ -262,6 +262,210 @@ export function matchIntent(brief: string): IntentMatch {
   return best;
 }
 
+// ── V2: advanced brief parsing (creator type · mood · purpose · constraints) ──
+//
+// All detection is deterministic keyword matching — no model, no API. Each
+// dimension is optional; an unrecognised brief simply leaves it undefined and the
+// designer falls back to its intent/style defaults.
+
+export type CreatorType =
+  | "photographer"
+  | "artist"
+  | "developer"
+  | "podcaster"
+  | "shop_owner"
+  | "writer"
+  | "musician"
+  | "designer"
+  | "coach"
+  | "small_business";
+
+export type Mood =
+  | "cozy"
+  | "luxury"
+  | "dark"
+  | "playful"
+  | "professional"
+  | "warm"
+  | "minimal"
+  | "elegant";
+
+export type Purpose =
+  | "portfolio"
+  | "booking"
+  | "selling"
+  | "storytelling"
+  | "community"
+  | "personal_profile"
+  | "gallery";
+
+export type DesignConstraints = {
+  noPlants?: boolean;
+  noVideo?: boolean;
+  noProducts?: boolean;
+  /** Hard cap on the number of placed objects. */
+  maxObjects?: number;
+  /** "Make it clean / minimal" — fewer objects. */
+  minimal?: boolean;
+  showSocialLinks?: boolean;
+  showBooking?: boolean;
+  showGallery?: boolean;
+};
+
+export type ParsedBrief = {
+  creatorType?: CreatorType;
+  mood?: Mood;
+  purpose?: Purpose;
+  constraints: DesignConstraints;
+};
+
+// Ordered detection tables: the first keyword that matches wins for that
+// dimension, so ordering is the deterministic tie-break.
+const CREATOR_TYPE_KEYWORDS: [CreatorType, string[]][] = [
+  ["photographer", ["photographer", "photography", "photo", "photos", "camera"]],
+  ["podcaster", ["podcaster", "podcast", "podcasting"]],
+  ["developer", ["developer", "engineer", "coder", "programmer", "software", "dev"]],
+  ["musician", ["musician", "music", "band", "dj", "producer", "songwriter"]],
+  ["designer", ["designer", "design studio", "ux", "ui", "graphic"]],
+  ["writer", ["writer", "author", "blogger", "novelist", "journalist", "poet"]],
+  ["coach", ["coach", "consultant", "mentor", "advisor", "trainer", "therapist"]],
+  ["shop_owner", ["shop owner", "shopkeeper", "store owner", "merchant", "seller"]],
+  ["small_business", ["small business", "business owner", "studio owner", "boutique"]],
+  ["artist", ["artist", "painter", "illustrator", "sculptor", "maker"]],
+];
+
+const MOOD_KEYWORDS: [Mood, string[]][] = [
+  ["luxury", ["luxury", "luxurious", "lavish", "opulent", "premium"]],
+  ["elegant", ["elegant", "refined", "sophisticated", "classy", "chic"]],
+  ["dark", ["dark", "moody", "noir", "midnight", "black"]],
+  ["minimal", ["minimal", "minimalist", "clean", "simple", "uncluttered", "spare"]],
+  ["playful", ["playful", "fun", "quirky", "whimsical", "lively"]],
+  ["professional", ["professional", "corporate", "businesslike", "polished"]],
+  ["cozy", ["cozy", "cosy", "snug", "homey", "comfortable"]],
+  ["warm", ["warm", "inviting", "welcoming"]],
+];
+
+const PURPOSE_KEYWORDS: [Purpose, string[]][] = [
+  ["booking", ["booking", "bookings", "appointment", "appointments", "schedule", "scheduling", "book a"]],
+  ["selling", ["selling", "sell", "sale", "shop", "store", "products", "merch", "ecommerce"]],
+  ["portfolio", ["portfolio", "showcase", "show my work", "case studies"]],
+  ["gallery", ["gallery", "exhibit", "exhibition"]],
+  ["storytelling", ["storytelling", "story", "journal", "blog", "narrative"]],
+  ["community", ["community", "guestbook", "visitors", "fans", "audience"]],
+  ["personal_profile", ["personal", "bio", "about me", "profile", "introduce"]],
+];
+
+/** Detect a hard object cap from phrasings like "only 4 objects" / "max 3". */
+function detectMaxObjects(brief: string): number | undefined {
+  const match = brief.match(/(?:only|max(?:imum)?|just|up to)\s+(\d{1,2})\s*(?:objects|items|things|pieces)?/i)
+    ?? brief.match(/(\d{1,2})\s+objects/i);
+  if (!match) return undefined;
+  const n = Number(match[1]);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 12) : undefined;
+}
+
+function firstMatch<T>(table: [T, string[]][], brief: string, tokens: Set<string>): T | undefined {
+  for (const [value, keywords] of table) {
+    for (const keyword of keywords) {
+      const hit = keyword.includes(" ") ? brief.includes(keyword) : tokens.has(keyword);
+      if (hit) return value;
+    }
+  }
+  return undefined;
+}
+
+function has(brief: string, ...phrases: string[]): boolean {
+  return phrases.some((p) => brief.includes(p));
+}
+
+/** Parse a natural-language brief into structured creator/mood/purpose/constraints. */
+export function parseBrief(brief: string): ParsedBrief {
+  const lower = brief.toLowerCase();
+  const tokens = new Set(tokenize(brief));
+
+  const constraints: DesignConstraints = {};
+  if (has(lower, "no plant", "no plants", "without plant", "no greenery")) constraints.noPlants = true;
+  if (has(lower, "no video", "without video", "no videos", "no screen")) constraints.noVideo = true;
+  if (has(lower, "no product", "no products", "without product", "don't sell", "not selling")) constraints.noProducts = true;
+  const max = detectMaxObjects(lower);
+  if (max !== undefined) constraints.maxObjects = max;
+  if (has(lower, "minimal", "minimalist", "make it clean", "keep it clean", "clean look", "uncluttered", "simple", "few objects", "spare")) constraints.minimal = true;
+  if (has(lower, "social link", "social links", "socials", "social media", "my links")) constraints.showSocialLinks = true;
+  if (has(lower, "booking", "bookings", "appointment", "schedule", "book a")) constraints.showBooking = true;
+  if (has(lower, "gallery", "portfolio", "showcase", "show my work")) constraints.showGallery = true;
+
+  return {
+    creatorType: firstMatch(CREATOR_TYPE_KEYWORDS, lower, tokens),
+    mood: firstMatch(MOOD_KEYWORDS, lower, tokens),
+    purpose: firstMatch(PURPOSE_KEYWORDS, lower, tokens),
+    constraints,
+  };
+}
+
+// Map a detected creator type to the design intent that selects its assets.
+const CREATOR_TYPE_INTENT: Record<CreatorType, string> = {
+  photographer: "photography",
+  artist: "art_studio",
+  developer: "office",
+  podcaster: "podcast",
+  shop_owner: "shop",
+  writer: "reading",
+  musician: "podcast",
+  designer: "art_studio",
+  coach: "office",
+  small_business: "shop",
+};
+
+// Map a detected mood to a style preset (used only when no style is supplied).
+const MOOD_STYLE: Record<Mood, DesignStyle> = {
+  cozy: "cozy",
+  warm: "cozy",
+  luxury: "professional",
+  elegant: "modern",
+  dark: "modern",
+  playful: "playful",
+  professional: "professional",
+  minimal: "minimal",
+};
+
+export const creatorTypeLabels: Record<CreatorType, string> = {
+  photographer: "Photographer",
+  artist: "Artist",
+  developer: "Developer",
+  podcaster: "Podcaster",
+  shop_owner: "Shop owner",
+  writer: "Writer",
+  musician: "Musician",
+  designer: "Designer",
+  coach: "Coach / consultant",
+  small_business: "Small business",
+};
+
+export const moodLabels: Record<Mood, string> = {
+  cozy: "Cozy", luxury: "Luxury", dark: "Dark", playful: "Playful",
+  professional: "Professional", warm: "Warm", minimal: "Minimal", elegant: "Elegant",
+};
+
+export const purposeLabels: Record<Purpose, string> = {
+  portfolio: "Portfolio", booking: "Booking", selling: "Selling",
+  storytelling: "Storytelling", community: "Community",
+  personal_profile: "Personal profile", gallery: "Gallery",
+};
+
+// ── V2: one-click creator presets (fill brief + style) ──
+export type CreatorPreset = { id: string; label: string; brief: string; style: DesignStyle };
+
+export const CREATOR_PRESETS: CreatorPreset[] = [
+  { id: "photographer", label: "Photographer Portfolio", brief: "A photographer portfolio with a gallery wall and a showreel", style: "creative" },
+  { id: "artist", label: "Artist Gallery", brief: "An artist gallery showcasing my paintings and prints for sale", style: "creative" },
+  { id: "developer", label: "Developer Studio", brief: "A minimalist developer studio with my projects and contact desk", style: "minimal" },
+  { id: "podcast", label: "Podcast Room", brief: "A cozy podcast room with an episode screen and booking desk", style: "cozy" },
+  { id: "shop", label: "Online Shop", brief: "An online shop selling products with a welcome display", style: "modern" },
+  { id: "writer", label: "Writer's Room", brief: "A cozy writer's room with a bookshelf and reading nook", style: "cozy" },
+  { id: "coach", label: "Coach / Consultant", brief: "A professional coaching office with booking and social links", style: "professional" },
+  { id: "bio", label: "Personal Bio Room", brief: "A warm personal bio room with an about-me profile and my links", style: "cozy" },
+];
+
 // ── Deterministic per-variant jitter (reshuffles near-ties on regenerate) ──
 function hashJitter(seed: string, variant: number): number {
   let h = 2166136261 ^ variant;
@@ -372,7 +576,58 @@ export type DesignResult = {
   matchedKeywords: string[];
   picks: DesignPick[];
   explanations: string[];
+  /** V2: the structured brief (creator type · mood · purpose · constraints). */
+  parsed: ParsedBrief;
+  /** V2: human labels for the constraints that were applied. */
+  detectedConstraints: string[];
 };
+
+// ── V2: constraint + purpose helpers (pure) ──
+
+/** Extra score for assets that satisfy the brief's purpose / show-X constraints. */
+function boostFor(asset: CatalogAsset, parsed: ParsedBrief): number {
+  let bonus = 0;
+  const c = parsed.constraints;
+  const action = asset.defaultActionType ?? "none";
+  if (parsed.purpose === "selling" && action === "product") bonus += 6;
+  if ((c.showBooking || parsed.purpose === "booking") && asset.id === "ast-desk") bonus += 6;
+  if ((c.showGallery || parsed.purpose === "portfolio" || parsed.purpose === "gallery") && (asset.id === "ast-painting" || asset.id === "ast-photo-wall")) bonus += 5;
+  if (c.showSocialLinks && (asset.id === "ast-business-card" || asset.id === "ast-sign" || asset.id === "ast-bookshelf")) bonus += 5;
+  if (parsed.purpose === "personal_profile" && action === "profile") bonus += 4;
+  if (parsed.purpose === "community" && action === "guestbook") bonus += 4;
+  return bonus;
+}
+
+/** True when a constraint forbids this asset entirely. */
+function excludedByConstraints(asset: CatalogAsset, c: DesignConstraints): boolean {
+  if (c.noPlants && asset.category === "plant") return true;
+  const action = asset.defaultActionType ?? "none";
+  if (c.noVideo && action === "video") return true;
+  if (c.noProducts && action === "product") return true;
+  return false;
+}
+
+/** The action an asset should carry given the brief (e.g. desk → booking). */
+function actionForAsset(asset: CatalogAsset, parsed: ParsedBrief): RoomActionType {
+  const c = parsed.constraints;
+  if (asset.id === "ast-desk" && (c.showBooking || parsed.purpose === "booking")) return "booking";
+  if (asset.id === "ast-business-card" && c.showSocialLinks) return "contact";
+  return asset.defaultActionType ?? "none";
+}
+
+/** Human-readable labels for the active constraints (panel + analytics). */
+export function describeConstraints(c: DesignConstraints): string[] {
+  const out: string[] = [];
+  if (c.noPlants) out.push("no plants");
+  if (c.noVideo) out.push("no video");
+  if (c.noProducts) out.push("no products");
+  if (c.minimal) out.push("minimal / clean");
+  if (c.maxObjects !== undefined) out.push(`max ${c.maxObjects} objects`);
+  if (c.showSocialLinks) out.push("show social links");
+  if (c.showBooking) out.push("show booking");
+  if (c.showGallery) out.push("show gallery");
+  return out;
+}
 
 function roomNameFromBrief(brief: string, intentLabel: string): string {
   const cleaned = brief.trim().replace(/\s+/g, " ");
@@ -388,9 +643,19 @@ function roomNameFromBrief(brief: string, intentLabel: string): string {
  * and decides whether to apply.
  */
 export function generateRoomDesign(input: DesignInput): DesignResult {
-  const style = input.style ?? "cozy";
   const variant = input.variant ?? 0;
-  const { intent, matchedKeywords } = matchIntent(input.brief);
+  const parsed = parseBrief(input.brief);
+  const constraints = parsed.constraints;
+
+  // Intent: prefer the detected creator type, else keyword-match the brief.
+  const keywordMatch = matchIntent(input.brief);
+  const intent = parsed.creatorType
+    ? DESIGN_INTENTS.find((i) => i.id === CREATOR_TYPE_INTENT[parsed.creatorType!]) ?? keywordMatch.intent
+    : keywordMatch.intent;
+  const matchedKeywords = keywordMatch.matchedKeywords;
+
+  // Style: explicit wins; else derive from the detected mood; else cozy.
+  const style = input.style ?? (parsed.mood ? MOOD_STYLE[parsed.mood] : undefined) ?? "cozy";
 
   const roomType = input.roomType ?? intent.roomKind;
   const background = input.roomType ? defaultBackgroundForType(input.roomType) : intent.background;
@@ -399,14 +664,23 @@ export function generateRoomDesign(input: DesignInput): DesignResult {
   let room = createRoom(input.address, name, roomType);
   room = { ...room, background };
 
-  const ranked = scoreAssets(intent, style, variant);
-  const target = STYLE_PRESETS[style].objectCount;
+  // Rank → apply purpose/constraint boosts → drop constrained assets → re-sort.
+  let ranked = scoreAssets(intent, style, variant).map((s) => ({ ...s, score: s.score + boostFor(s.asset, parsed) }));
+  ranked = ranked
+    .filter((s) => !excludedByConstraints(s.asset, constraints))
+    .sort((a, b) => b.score - a.score || a.asset.id.localeCompare(b.asset.id));
+
+  // Target object count: the style default, tightened by minimal / maxObjects.
+  let target = STYLE_PRESETS[style].objectCount;
+  if (constraints.minimal) target = Math.min(target, 4);
+  if (constraints.maxObjects !== undefined) target = Math.min(target, constraints.maxObjects);
+  target = Math.max(target, 1);
 
   const picks: DesignPick[] = [];
   for (const scored of ranked) {
     if (picks.length >= target) break;
     const label = labelFor(scored.asset);
-    const action = scored.asset.defaultActionType ?? "none";
+    const action = actionForAsset(scored.asset, parsed);
     const next = addObjectFromAsset(room, scored.asset, label, { type: action });
     // addObjectFromAsset is a no-op when no compatible zone has a free slot.
     if (next.objects.length === room.objects.length) continue;
@@ -414,7 +688,8 @@ export function generateRoomDesign(input: DesignInput): DesignResult {
     picks.push({ assetId: scored.asset.id, assetName: scored.asset.name, label, action, reason: pickReason(scored, intent) });
   }
 
-  const explanations = explainDesign({ intent, matchedKeywords, style, background, picks });
+  const detectedConstraints = describeConstraints(constraints);
+  const explanations = explainDesign({ intent, matchedKeywords, style, background, picks, parsed, detectedConstraints });
   return {
     room,
     intentId: intent.id,
@@ -423,6 +698,8 @@ export function generateRoomDesign(input: DesignInput): DesignResult {
     matchedKeywords,
     picks,
     explanations,
+    parsed,
+    detectedConstraints,
   };
 }
 
@@ -432,19 +709,30 @@ function explainDesign(args: {
   style: DesignStyle;
   background: string;
   picks: DesignPick[];
+  parsed: ParsedBrief;
+  detectedConstraints: string[];
 }): string[] {
-  const { intent, matchedKeywords, style, background, picks } = args;
+  const { intent, matchedKeywords, style, background, picks, parsed, detectedConstraints } = args;
   const lines: string[] = [];
 
+  // Theme line first (kept stable so callers can read the headline at [0]).
   if (matchedKeywords.length > 0) {
     lines.push(`Read your brief as a ${intent.label} — matched on ${matchedKeywords.slice(0, 4).join(", ")}.`);
+  } else if (parsed.creatorType) {
+    lines.push(`Detected a ${creatorTypeLabels[parsed.creatorType].toLowerCase()}, so I composed a ${intent.label}.`);
   } else {
     lines.push(`No strong theme detected, so I composed a balanced ${intent.label}.`);
   }
 
+  if (parsed.creatorType) lines.push(`Creator type: ${creatorTypeLabels[parsed.creatorType]}.`);
+  if (parsed.mood) lines.push(`Mood: ${moodLabels[parsed.mood]}.`);
+  if (parsed.purpose) lines.push(`Purpose: ${purposeLabels[parsed.purpose]}.`);
+
   const bg = roomBackground(background);
   lines.push(`Chose the “${bg.label}” background because it suits a ${intent.label}.`);
   lines.push(`Applied the ${STYLE_PRESETS[style].label} style — ${STYLE_PRESETS[style].description.toLowerCase()}`);
+
+  if (detectedConstraints.length > 0) lines.push(`Respected your constraints: ${detectedConstraints.join(", ")}.`);
 
   for (const pick of picks) {
     lines.push(`Added ${pick.assetName} (“${pick.label}”) because ${pick.reason}.`);

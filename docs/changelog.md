@@ -8,6 +8,71 @@ for technical detail.
 
 ---
 
+## 2026-06-21 — AI Room Designer V2: Smarter Briefs, Constraints, Drafts
+
+Makes the designer feel more intelligent while staying **deterministic and
+selection-only** — no real AI, no image generation, no external APIs, no
+marketplace/payments, no visual redesign. Builds on V1; the V1 contract and tests
+are preserved.
+
+### Added
+- **Advanced brief parser** (`parseBrief` in `lib/ai-room-designer.ts`) — pure,
+  keyword-based extraction of **creator type** (photographer, artist, developer,
+  podcaster, shop owner, writer, musician, designer, coach, small business),
+  **mood** (cozy, luxury, dark, playful, professional, warm, minimal, elegant),
+  **purpose** (portfolio, booking, selling, storytelling, community, personal
+  profile, gallery), and **constraints** (no plants / no video / no products, a max
+  object count, minimal/clean, show social links / booking / gallery).
+- **Constraints engine** — `generateRoomDesign` now excludes constrained
+  assets/actions, caps the object count (minimal → ≤4; "max N" → ≤N), and boosts
+  the assets that satisfy the purpose / show-X flags (product shelf for selling,
+  desk-as-booking for bookings, gallery frames for portfolios, cards/shelf for
+  social links). Still routes every placement through `addObjectFromAsset`, so the
+  room stays valid by construction.
+- **8 creator presets** (`CREATOR_PRESETS`) — Photographer Portfolio, Artist
+  Gallery, Developer Studio, Podcast Room, Online Shop, Writer's Room, Coach /
+  Consultant, Personal Bio Room — one click fills the brief + style and generates.
+- **Designer drafts** (`lib/room-design-drafts.ts`) — save a generated design as a
+  draft, list drafts per house, apply one later, delete one. localStorage key
+  `ai-bazaar-design-drafts`; full SQL parity in the new `room_design_drafts` table.
+- **Designer history** — a session "recent designs" list (brief · style · intent ·
+  object count) you can click to revisit; "last applied" is surfaced in the panel.
+- **Richer explanation panel** (`components/room/room-designer.tsx`) — detected
+  creator type / mood / purpose / theme chips, the constraints applied, and a
+  reason per placed object.
+- **Result shape** — `DesignResult` now carries `parsed: ParsedBrief` and
+  `detectedConstraints: string[]`; new exports `parseBrief`, `describeConstraints`,
+  `CREATOR_PRESETS`, `creatorTypeLabels`/`moodLabels`/`purposeLabels`.
+- **Analytics** — four new `event_type`s: `room_design_draft_saved`,
+  `room_design_draft_applied`, `room_design_constraint_detected`,
+  `room_design_preset_used`.
+- Tests (suite now **125**): `test/ai-room-designer.test.ts` gains brief parsing,
+  creator-type/mood/purpose detection, the constraints engine (excludes plants/
+  video, caps count, prioritises product/booking), preset generation, and V2 result
+  shape; new `test/room-design-drafts.test.ts` covers save/list/scope/find/delete.
+
+### Changed
+- `lib/ai-room-designer.ts` `generateRoomDesign` now parses the brief, derives
+  style from mood when none is supplied, applies constraints, and emits richer
+  explanations. V1 behaviour (intent matching, deterministic variant) is unchanged.
+- `lib/events.ts`: `eventLabels` for the four new event types.
+
+### Database
+- `supabase/migrations/20260621_01_extend_enums.sql` — `event_type` += the four V2
+  events (committed before `_02` per ADR-009).
+- `supabase/migrations/20260621_02_design_drafts.sql` — new `room_design_drafts`
+  table (owner-private; `owns_shop` RLS; `room`/`parsed` as jsonb) + index.
+- Both mirrored into `supabase/schema.sql` (now 26 tables).
+
+### Flags
+- None new — reuses `ENABLE_AI_DESIGNER` (the V2 UI lives in the same Design mode).
+
+### Documentation
+- README, architecture.md, roadmap.md, handoff.md, QA.md, room-engine-spec.md (§11)
+  updated; new ADR-016 in decision-log.md.
+
+---
+
 ## 2026-06-20 — AI Room Designer V1
 
 Lets a creator describe a room in plain language and have the app compose a layout

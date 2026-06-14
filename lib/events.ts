@@ -34,6 +34,10 @@ export const eventLabels: Record<EventType, string> = {
   room_design_generated: "AI designs generated",
   room_design_applied: "AI designs applied",
   room_design_regenerated: "AI designs regenerated",
+  room_design_draft_saved: "AI drafts saved",
+  room_design_draft_applied: "AI drafts applied",
+  room_design_constraint_detected: "AI constraints detected",
+  room_design_preset_used: "AI presets used",
 };
 
 function read(): BazaarEvent[] {
