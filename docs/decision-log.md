@@ -628,6 +628,71 @@ AI, no image generation, no external APIs) and **not breaking the V1 contract**.
 
 ---
 
+## ADR-017 — Creator Auto Build: a deterministic, no-scraping profile analyzer that feeds the existing designer
+
+**Status:** Accepted · 2026-06-22
+
+### Context
+V3 had to let a creator generate a room from their **online identity** (Instagram,
+TikTok, YouTube, website, bio) while keeping every prior constraint: no real AI, no
+image generation, no external APIs — and, critically, **no scraping** of those
+profiles. The challenge is extracting useful signal from URLs the app must not fetch.
+
+### Decision
+- **Analyze the strings, never the network.** `lib/creator-analyzer.ts`
+  `analyzeCreator()` derives signals purely from what the user typed: usernames
+  (first URL path segment), domain words (hostname minus www/TLD, split on
+  separators), and bio text. No `fetch`, no headless browser, no API. Fully
+  deterministic and unit-testable.
+- **Reuse the V2 vocabulary and designer.** The analyzer runs the existing
+  `parseBrief` over a corpus (bio + handles + domain words) to get creator type /
+  mood / purpose, with **platform fallbacks** (YouTube→podcaster, Instagram→
+  photographer, TikTok→personal) and a `personal` last resort. Room building goes
+  through the existing `generateRoomDesign()` — V3 adds no second generator.
+- **Augment, don't fork, the room.** `generateCreatorRoom()` trims the base design
+  to a small budget, then adds an **about-me profile object** and **one `link`
+  object per supplied platform** via the standard `addObjectFromAsset` (so the room
+  stays valid and overflow is skipped, not forced). One object per platform matches
+  the sprint's intent and the existing action system — **no new room mechanics**.
+- **Extend `CreatorType` with `consultant` and `personal`** to cover the sprint's 12
+  types as first-class values (keyword tables ordered so the V2 "coach and
+  consultant"→coach test still holds; `personal` uses specific signals only).
+- **Confidence is a transparent function of signal count** (links + bio + whether a
+  keyword type/purpose was found), surfaced as a percentage — explainable, not a
+  black box.
+- **Welcome message is a deterministic template** stored in the existing
+  `room.description` field (no schema change). Apply was fixed to persist
+  `description` so the message survives.
+- **Analytics as enum-value additions** (`creator_profile_analyzed`,
+  `creator_room_generated`, `creator_room_applied`, `creator_social_object_created`)
+  in `20260622_extend_enums.sql` (ADR-009). **No new table** — creator rooms are
+  ordinary Rooms and drafts reuse `room_design_drafts`. Reuses `ENABLE_AI_DESIGNER`.
+
+### Alternatives Considered
+- **Scrape/fetch the profiles for real signal** — rejected outright (sprint
+  constraint, privacy, non-determinism, network in a demo). String analysis is
+  enough for a useful, testable heuristic.
+- **A combined contact object holding all socials** — rejected in favour of one
+  object per platform (the sprint's literal ask, and more discoverable in-room).
+- **Analyzer-only creator types mapped to the existing 10** — rejected in favour of
+  extending the union, so all 12 are first-class and consistent across the designer.
+- **A dedicated creator-room generator** — rejected; reusing `generateRoomDesign`
+  keeps one composition/validation path.
+
+### Consequences
+- (+) "Paste your links → get a room" with auto socials, an about-me, and a welcome
+  line; deterministic, explainable (confidence + rationale), and fully unit-tested.
+- (+) No scraping/API/schema-table surface; reuses the designer, drafts, and flag.
+- (+) The 12 creator types are now first-class across V2 + V3.
+- (−) Signal quality is bounded by what URLs/bios literally contain — a cryptic
+  handle yields low confidence and a platform-based guess (by design).
+- (−) The base design is trimmed to make room for auto objects, so a creator room is
+  intentionally leaner than a pure brief design; heavy multi-platform inputs can hit
+  zone capacity and silently skip the lowest-priority objects (graceful, but worth
+  noting).
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

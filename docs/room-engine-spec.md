@@ -336,6 +336,25 @@ Behavior (V2 — smarter briefs, constraints, drafts; 2026-06-21, ADR-016):
 - Activations also record `room_design_draft_saved` / `room_design_draft_applied`
   / `room_design_constraint_detected` / `room_design_preset_used`.
 
+Behavior (V3 — Creator Auto Build; 2026-06-22, ADR-017):
+- A creator may supply **social profile URLs** (Instagram / TikTok / YouTube /
+  Website, any combination) and an optional **bio**. The analyzer reads signals
+  **only from those strings** — usernames, domain words, bio text — and **never
+  scrapes or fetches** anything. It is deterministic.
+- The analysis yields a **creator type** (one of 12), **mood**, **purpose**,
+  **keywords**, the **social links**, a **confidence** score, and a **summary**,
+  which feed the existing room generation (room type / style / background / assets /
+  actions). Nothing publishes until the owner applies.
+- The generated room automatically includes: **one social object per supplied
+  platform** (a `link` object), an **about-me profile object** (populated with the
+  creator title, summary, links, and detected type), and a deterministic **welcome
+  message** stored in `room.description`. These reuse existing action types and
+  zones — no new room mechanics.
+- The owner sees **analyzer insights** (detected type / purpose / mood / keywords /
+  confidence + rationale) and can Apply / Regenerate / Save as draft.
+- Activations record `creator_profile_analyzed` / `creator_room_generated` /
+  `creator_room_applied` / `creator_social_object_created`.
+
 ---
 
 ## 12. Future — AI room editor support

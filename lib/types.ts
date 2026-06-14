@@ -107,7 +107,12 @@ export type EventType =
   | "room_design_draft_saved"
   | "room_design_draft_applied"
   | "room_design_constraint_detected"
-  | "room_design_preset_used";
+  | "room_design_preset_used"
+  // AI Room Designer (V3): creator auto build from social profiles.
+  | "creator_profile_analyzed"
+  | "creator_room_generated"
+  | "creator_room_applied"
+  | "creator_social_object_created";
 
 export type BazaarEvent = {
   id: string;

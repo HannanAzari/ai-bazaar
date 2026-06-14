@@ -38,6 +38,10 @@ export const eventLabels: Record<EventType, string> = {
   room_design_draft_applied: "AI drafts applied",
   room_design_constraint_detected: "AI constraints detected",
   room_design_preset_used: "AI presets used",
+  creator_profile_analyzed: "Creator profiles analyzed",
+  creator_room_generated: "Creator rooms generated",
+  creator_room_applied: "Creator rooms applied",
+  creator_social_object_created: "Creator social objects created",
 };
 
 function read(): BazaarEvent[] {

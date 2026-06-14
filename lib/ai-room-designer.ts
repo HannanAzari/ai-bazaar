@@ -278,7 +278,9 @@ export type CreatorType =
   | "musician"
   | "designer"
   | "coach"
-  | "small_business";
+  | "consultant"
+  | "small_business"
+  | "personal";
 
 export type Mood =
   | "cozy"
@@ -328,10 +330,14 @@ const CREATOR_TYPE_KEYWORDS: [CreatorType, string[]][] = [
   ["musician", ["musician", "music", "band", "dj", "producer", "songwriter"]],
   ["designer", ["designer", "design studio", "ux", "ui", "graphic"]],
   ["writer", ["writer", "author", "blogger", "novelist", "journalist", "poet"]],
-  ["coach", ["coach", "consultant", "mentor", "advisor", "trainer", "therapist"]],
+  // Coach stays ahead of consultant so "coach and consultant" resolves to coach.
+  ["coach", ["coach", "coaching", "mentor", "trainer", "therapist"]],
+  ["consultant", ["consultant", "consulting", "consultancy", "advisor", "advisory"]],
   ["shop_owner", ["shop owner", "shopkeeper", "store owner", "merchant", "seller"]],
   ["small_business", ["small business", "business owner", "studio owner", "boutique"]],
   ["artist", ["artist", "painter", "illustrator", "sculptor", "maker"]],
+  // Personal creator: low-priority, specific signals only (the analyzer's fallback).
+  ["personal", ["influencer", "vlogger", "lifestyle"]],
 ];
 
 const MOOD_KEYWORDS: [Mood, string[]][] = [
@@ -413,8 +419,16 @@ const CREATOR_TYPE_INTENT: Record<CreatorType, string> = {
   musician: "podcast",
   designer: "art_studio",
   coach: "office",
+  consultant: "office",
   small_business: "shop",
+  personal: "personal",
 };
+
+/** The design-intent label a creator type maps to (e.g. "photography studio"). */
+export function intentLabelForCreatorType(type: CreatorType): string {
+  const id = CREATOR_TYPE_INTENT[type];
+  return DESIGN_INTENTS.find((i) => i.id === id)?.label ?? FALLBACK_INTENT.label;
+}
 
 // Map a detected mood to a style preset (used only when no style is supplied).
 const MOOD_STYLE: Record<Mood, DesignStyle> = {
@@ -437,8 +451,10 @@ export const creatorTypeLabels: Record<CreatorType, string> = {
   writer: "Writer",
   musician: "Musician",
   designer: "Designer",
-  coach: "Coach / consultant",
+  coach: "Coach",
+  consultant: "Consultant",
   small_business: "Small business",
+  personal: "Personal creator",
 };
 
 export const moodLabels: Record<Mood, string> = {

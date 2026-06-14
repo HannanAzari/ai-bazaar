@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, Lightbulb, RefreshCw, Save, Sparkles, Trash2, WandSparkles } from "lucide-react";
+import { Check, Clock, Gauge, Lightbulb, RefreshCw, Save, Sparkles, Trash2, UserSearch, WandSparkles } from "lucide-react";
 import { RoomCanvas } from "@/components/room/room-canvas";
 import { Button } from "@/components/ui/button";
 import { getHouse, saveHouse } from "@/lib/room";
@@ -18,6 +18,7 @@ import {
   styleDescription,
   styleLabel,
 } from "@/lib/ai-room-designer";
+import { type CreatorAnalysis, type CreatorAnalyzerInput, generateCreatorRoom } from "@/lib/creator-analyzer";
 import { type RoomDesignDraft, deleteDraft, getDrafts, saveDraft } from "@/lib/room-design-drafts";
 import { recordActivity } from "@/lib/activity";
 import { trackEvent } from "@/lib/events";
@@ -49,6 +50,14 @@ export function RoomDesigner({ shop }: { shop: Shop }) {
   const [variant, setVariant] = useState(0);
   const [result, setResult] = useState<DesignResult | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  // ── V3: Creator Auto Build ──
+  const [igUrl, setIgUrl] = useState("");
+  const [ttUrl, setTtUrl] = useState("");
+  const [ytUrl, setYtUrl] = useState("");
+  const [webUrl, setWebUrl] = useState("");
+  const [autoBio, setAutoBio] = useState("");
+  const [analysis, setAnalysis] = useState<CreatorAnalysis | null>(null);
+  const [creatorInput, setCreatorInput] = useState<CreatorAnalyzerInput | null>(null);
   const [drafts, setDrafts] = useState<RoomDesignDraft[]>([]);
   const [lastApplied, setLastApplied] = useState<string>("");
   const [notice, setNotice] = useState("");
@@ -87,13 +96,18 @@ export function RoomDesigner({ shop }: { shop: Shop }) {
     });
     setResult(design);
     setVariant(nextVariant);
+    setAnalysis(null);
+    setCreatorInput(null);
     setHistory((h) => [{ brief: brief.trim(), result: design }, ...h].slice(0, 6));
     trackEvent(regenerated ? "room_design_regenerated" : "room_design_generated", { shopId: shop.id });
     if (design.detectedConstraints.length > 0) trackEvent("room_design_constraint_detected", { shopId: shop.id });
   };
 
   const generate = () => runGenerate(0, false);
-  const regenerate = () => runGenerate(variant + 1, true);
+  const regenerate = () => {
+    if (creatorInput) autoBuild(creatorInput, variant + 1, true);
+    else runGenerate(variant + 1, true);
+  };
 
   const runPreset = (presetId: string) => {
     const preset = CREATOR_PRESETS.find((p) => p.id === presetId);
@@ -103,16 +117,47 @@ export function RoomDesigner({ shop }: { shop: Shop }) {
     const design = generateRoomDesign({ brief: preset.brief, address: shop.address, style: preset.style, variant: 0 });
     setResult(design);
     setVariant(0);
+    setAnalysis(null);
+    setCreatorInput(null);
     setHistory((h) => [{ brief: preset.brief, result: design }, ...h].slice(0, 6));
     trackEvent("room_design_preset_used", { shopId: shop.id, targetId: preset.id });
     trackEvent("room_design_generated", { shopId: shop.id });
     if (design.detectedConstraints.length > 0) trackEvent("room_design_constraint_detected", { shopId: shop.id });
   };
 
+  // ── V3: build a room from social profiles ──
+  const autoBuild = (input: CreatorAnalyzerInput, nextVariant: number, regenerated: boolean) => {
+    const built = generateCreatorRoom(input, shop.address, nextVariant);
+    setResult(built.result);
+    setAnalysis(built.analysis);
+    setCreatorInput(input);
+    setVariant(nextVariant);
+    setHistory((h) => [{ brief: built.analysis.summary, result: built.result }, ...h].slice(0, 6));
+    trackEvent("creator_profile_analyzed", { shopId: shop.id });
+    trackEvent("creator_room_generated", { shopId: shop.id });
+    for (let i = 0; i < built.socialObjects; i += 1) trackEvent("creator_social_object_created", { shopId: shop.id });
+    void regenerated;
+  };
+
+  const runAutoBuild = () => {
+    const input: CreatorAnalyzerInput = {
+      instagramUrl: igUrl.trim() || undefined,
+      tiktokUrl: ttUrl.trim() || undefined,
+      youtubeUrl: ytUrl.trim() || undefined,
+      websiteUrl: webUrl.trim() || undefined,
+      bio: autoBio.trim() || undefined,
+    };
+    if (!input.instagramUrl && !input.tiktokUrl && !input.youtubeUrl && !input.websiteUrl && !input.bio) {
+      flash("Add at least one profile link or a bio.");
+      return;
+    }
+    autoBuild(input, 0, false);
+  };
+
   // Replace the active room's content with `room`, keeping its identity.
   const applyRoom = (room: Room, label: string) => {
     if (!targetRoom) return;
-    const merged = { ...targetRoom, name: room.name, type: room.type, background: room.background, objects: room.objects };
+    const merged = { ...targetRoom, name: room.name, type: room.type, background: room.background, description: room.description ?? "", objects: room.objects };
     const nextHouse = withRoom(house, merged);
     saveHouse(nextHouse);
     setHouse(nextHouse);
@@ -125,8 +170,8 @@ export function RoomDesigner({ shop }: { shop: Shop }) {
 
   const apply = () => {
     if (!result) return;
-    applyRoom(result.room, "the design");
-    trackEvent("room_design_applied", { shopId: shop.id });
+    applyRoom(result.room, creatorInput ? "your creator room" : "the design");
+    trackEvent(creatorInput ? "creator_room_applied" : "room_design_applied", { shopId: shop.id });
     setResult(null);
   };
 
@@ -135,7 +180,7 @@ export function RoomDesigner({ shop }: { shop: Shop }) {
     saveDraft({
       shopAddress: shop.address,
       name: result.room.name,
-      brief,
+      brief: creatorInput ? (analysis?.summary ?? "Creator room") : brief,
       style: result.style,
       intentId: result.intentId,
       parsed: result.parsed,
@@ -186,6 +231,22 @@ export function RoomDesigner({ shop }: { shop: Shop }) {
           <Button onClick={generate} variant="accent" className="mt-3 w-full" disabled={!brief.trim()}>
             <Sparkles size={15} /> Generate design
           </Button>
+        </div>
+
+        {/* Creator Auto Build (V3) */}
+        <div className="card rounded-[2rem] p-5">
+          <p className="eyebrow text-teal"><UserSearch size={13} className="-mt-0.5 mr-1 inline" /> Creator auto build</p>
+          <p className="mt-1 text-xs text-ink/45">
+            Paste your profiles — we read the links + bio (no scraping, no APIs) and build a room with your socials and an about-me.
+          </p>
+          <div className="mt-3 space-y-2">
+            <input value={igUrl} onChange={(e) => setIgUrl(e.target.value)} aria-label="Instagram URL" placeholder="instagram.com/yourhandle" className="min-h-10 w-full rounded-xl border border-ink/10 bg-white px-3 text-sm text-ink" />
+            <input value={ttUrl} onChange={(e) => setTtUrl(e.target.value)} aria-label="TikTok URL" placeholder="tiktok.com/@yourhandle" className="min-h-10 w-full rounded-xl border border-ink/10 bg-white px-3 text-sm text-ink" />
+            <input value={ytUrl} onChange={(e) => setYtUrl(e.target.value)} aria-label="YouTube URL" placeholder="youtube.com/@yourchannel" className="min-h-10 w-full rounded-xl border border-ink/10 bg-white px-3 text-sm text-ink" />
+            <input value={webUrl} onChange={(e) => setWebUrl(e.target.value)} aria-label="Website URL" placeholder="your-studio.com" className="min-h-10 w-full rounded-xl border border-ink/10 bg-white px-3 text-sm text-ink" />
+            <textarea value={autoBio} onChange={(e) => setAutoBio(e.target.value)} rows={2} aria-label="Bio" placeholder="Optional bio — e.g. “Wedding photographer taking bookings”" className="w-full resize-none rounded-xl border border-ink/10 bg-white p-3 text-sm text-ink" />
+          </div>
+          <Button onClick={runAutoBuild} variant="accent" className="mt-3 w-full"><UserSearch size={15} /> Auto-build room</Button>
         </div>
 
         {/* Creator presets */}
@@ -300,6 +361,42 @@ export function RoomDesigner({ shop }: { shop: Shop }) {
                 </div>
               </div>
             </div>
+
+            {/* Analyzer insights (V3 — creator auto build) */}
+            {analysis && (
+              <div className="card mt-4 rounded-[2rem] p-5">
+                <div className="flex items-center justify-between">
+                  <p className="eyebrow text-teal"><UserSearch size={13} className="-mt-0.5 mr-1 inline" /> Analyzer insights</p>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-teal/10 px-2.5 py-1 text-[11px] font-bold text-teal"><Gauge size={12} /> {Math.round(analysis.confidence * 100)}% confidence</span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <Chip label="Creator" value={creatorTypeLabels[analysis.creatorType]} />
+                  <Chip label="Purpose" value={purposeLabels[analysis.purpose]} />
+                  <Chip label="Mood" value={moodLabels[analysis.mood]} />
+                </div>
+                {analysis.socialLinks.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-ink/40">Social links</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {analysis.socialLinks.map((l) => (
+                        <span key={l.platform} className="rounded-full bg-ink/5 px-2.5 py-1 text-[11px] font-bold text-ink/60">{l.label}{l.username ? ` · @${l.username}` : ""}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {analysis.keywords.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-ink/40">Keywords found</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {analysis.keywords.map((k) => (
+                        <span key={k} className="rounded-full bg-saffron/15 px-2.5 py-1 text-[11px] font-bold text-amber-700">{k}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <p className="mt-3 text-sm text-ink/60">{analysis.summary}</p>
+              </div>
+            )}
 
             {/* Detected dimensions */}
             <div className="card mt-4 rounded-[2rem] p-5">

@@ -258,6 +258,33 @@ deterministic, rules-based recommender (ADR-006, room-engine-spec §11), gated b
 - **Analytics (V2)** — `room_design_draft_saved`, `room_design_draft_applied`,
   `room_design_constraint_detected`, `room_design_preset_used`.
 
+### V3 — Creator Auto Build
+
+Build a room from a creator's online identity, **without scraping** — the analyzer
+(`lib/creator-analyzer.ts`) reads signals straight from the strings you provide.
+
+- **Creator Auto Build panel** (in Design mode) — paste any combination of
+  **Instagram / TikTok / YouTube / Website** URLs and an optional **bio**.
+- **Profile analyzer** — `analyzeCreator()` parses usernames, domain words, and bio
+  text into `{ creatorType, mood, purpose, keywords[], socialLinks[], confidence,
+  summary }`. Deterministic; no network, no APIs, no image generation.
+- **Creator type detection** (12) — photographer, artist, developer, designer,
+  podcaster, writer, coach, consultant, online shop, small business, musician,
+  personal creator — with a **confidence score** (0–100%).
+- **Auto room** — feeds the analysis into the existing `generateRoomDesign()` for
+  room type / style / background / assets / actions.
+- **Auto social objects** — one `link` object per supplied platform (Instagram,
+  TikTok, YouTube, Website).
+- **Auto profile object** — an about-me object populated with the creator title,
+  summary, links, and detected type.
+- **Welcome message** — a deterministic `room.description`, e.g. "Welcome to my
+  photography studio where I share my work."
+- **Analyzer insights** — detected type, purpose, mood, keywords, confidence, and
+  a plain-language rationale; preview-before-apply with Apply / Regenerate / Save
+  draft.
+- **Analytics (V3)** — `creator_profile_analyzed`, `creator_room_generated`,
+  `creator_room_applied`, `creator_social_object_created`.
+
 ## Supabase
 
 For a fresh project:
@@ -285,7 +312,8 @@ For an existing project, run migrations in filename order:
 15. `supabase/migrations/20260620_extend_enums.sql` — adds the AI-designer `event_type` values (`room_design_generated`, `room_design_applied`, `room_design_regenerated`). Enum-value additions only; stands alone (no table change — the designer composes existing Room/room_objects shapes).
 16. `supabase/migrations/20260621_01_extend_enums.sql` — AI Room Designer V2 `event_type` values (`room_design_draft_saved`, `room_design_draft_applied`, `room_design_constraint_detected`, `room_design_preset_used`). Must commit before step 17.
 17. `supabase/migrations/20260621_02_design_drafts.sql` — the `room_design_drafts` table (owner-private designer drafts) + RLS.
-18. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
+18. `supabase/migrations/20260622_extend_enums.sql` — AI Room Designer V3 `event_type` values (`creator_profile_analyzed`, `creator_room_generated`, `creator_room_applied`, `creator_social_object_created`). Enum-value additions only; stands alone (no table change — creator rooms are ordinary Rooms and reuse `room_design_drafts`).
+19. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
 
 The two-step enum split (in `20260611_*`, `20260612_*`, `20260615_*`, and `20260617_*`) is required: PostgreSQL will not let a single transaction add an enum value and then use it, so new enum values are committed in `_01` before `_02` references them. Migrations that only add enum values (e.g. `20260616_extend_enums.sql`) stand alone.
 
@@ -387,6 +415,7 @@ lib/
   room-schema.ts         Zone template, derive/validate, pure layout helpers
   room.ts                Room layout store (get/save/reset)
   ai-room-designer.ts    Deterministic brief→room designer + V2 parser/constraints/presets
+  creator-analyzer.ts    V3 profile analyzer + creator auto-build (no scraping/APIs)
   room-design-drafts.ts  Owner-private designer drafts store (save/list/apply/delete)
 supabase/
   schema.sql             Tables, policies, triggers, and constraints

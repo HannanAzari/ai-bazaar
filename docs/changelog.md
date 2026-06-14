@@ -8,6 +8,65 @@ for technical detail.
 
 ---
 
+## 2026-06-22 — AI Room Designer V3: Creator Auto Build
+
+Lets a creator paste their social profiles + a bio and auto-generate a room from
+their online identity. **Deterministic — no scraping, no APIs, no image
+generation, no marketplace/payments/chat.** Builds on V1/V2; their contracts and
+tests are preserved.
+
+### Added
+- **`lib/creator-analyzer.ts`** — a pure, no-network profile analyzer.
+  `analyzeCreator({instagramUrl?, tiktokUrl?, youtubeUrl?, websiteUrl?, bio?})`
+  reads usernames (URL paths), domain words, and bio text into
+  `{ creatorType, mood, purpose, keywords[], socialLinks[], confidence, summary }`
+  (reuses V2 `parseBrief` + platform/domain heuristics; confidence rises with
+  signals). Helpers: `extractUsername`, `domainWords`, `welcomeMessage`,
+  `generateCreatorRoom`.
+- **`generateCreatorRoom(input, address, variant?)`** — feeds the analysis into
+  the existing `generateRoomDesign()`, trims the base to leave zone capacity, then
+  adds an **about-me profile object** (title/summary/links/type) and **one `link`
+  object per supplied platform** (Instagram/TikTok/YouTube/Website), and sets a
+  deterministic welcome `room.description`. Returns a `DesignResult` the existing
+  preview / draft / apply UI consumes.
+- **12 creator types** — `CreatorType` gains `consultant` and `personal` (so the
+  full set is photographer, artist, developer, designer, podcaster, writer, coach,
+  consultant, shop owner/online shop, small business, musician, personal creator),
+  with keyword/intent/label maps updated (coach still wins "coach and consultant").
+- **Creator Auto Build panel + Analyzer insights** (`components/room/room-designer.tsx`)
+  — IG/TikTok/YouTube/Website + bio inputs, an insights panel (detected type /
+  purpose / mood / keywords / confidence + rationale), preview-before-apply with
+  Apply / Regenerate / Save draft (reuses the V2 drafts store).
+- **Analytics** — four new `event_type`s: `creator_profile_analyzed`,
+  `creator_room_generated`, `creator_room_applied`, `creator_social_object_created`.
+- Tests (suite now **140**): new `test/creator-analyzer.test.ts` — URL/username/
+  domain parsing, creator-type detection (bio/domain/platform), confidence scoring,
+  social-link extraction, welcome message, creator-room generation (profile + per-
+  platform objects + valid placement + description), and determinism.
+
+### Changed
+- `lib/ai-room-designer.ts`: `CreatorType` union + `CREATOR_TYPE_KEYWORDS`/
+  `CREATOR_TYPE_INTENT`/`creatorTypeLabels` extended; new export
+  `intentLabelForCreatorType`.
+- `components/room/room-designer.tsx`: **fix** — `applyRoom` now persists the
+  room's `description` (so the V3 welcome message is saved on Apply).
+- `lib/events.ts`: `eventLabels` for the four new event types.
+
+### Database
+- `supabase/migrations/20260622_extend_enums.sql` — `event_type` += the four V3
+  `creator_*` events. Enum-value additions only; stands alone (ADR-009). **No new
+  table** — creator rooms are ordinary Rooms and drafts reuse `room_design_drafts`.
+  Mirrored into `supabase/schema.sql`.
+
+### Flags
+- None new — reuses `ENABLE_AI_DESIGNER` (the panel lives in the same Design mode).
+
+### Documentation
+- README, architecture.md, roadmap.md, handoff.md, QA.md, room-engine-spec.md (§11)
+  updated; new ADR-017 in decision-log.md.
+
+---
+
 ## 2026-06-21 — AI Room Designer V2: Smarter Briefs, Constraints, Drafts
 
 Makes the designer feel more intelligent while staying **deterministic and

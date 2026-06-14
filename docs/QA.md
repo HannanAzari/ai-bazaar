@@ -82,6 +82,12 @@ save buttons, guestbook panel, footer links, owner-profile links) disappear.
 | Apply a draft | `/studio` → Design → draft → Apply | Replaces the selected room's contents; records `room_design_draft_applied` |
 | Delete a draft | `/studio` → Design → draft → trash | Draft is removed from the list |
 | Recent designs | `/studio` → Design (after ≥2 generates) | A "Recent designs" list appears; clicking one re-shows that proposal |
+| Auto-build from one profile | `/studio` → Design → Creator auto build → Instagram URL → Auto-build room | Analyzer insights show a detected creator type + confidence %; proposed room has a profile object + an Instagram link object; records `creator_profile_analyzed` + `creator_room_generated` |
+| Auto-build YouTube/Website only | `/studio` → Design → Creator auto build | YouTube→Podcaster; a developer/photography domain→matching type; one social object per supplied link |
+| Auto-build from mixed profiles | `/studio` → Design → Creator auto build (IG+TikTok+YouTube+Website+bio) | Higher confidence; one social object per platform; an about-me profile object; a welcome message in the room |
+| Welcome message | after auto-build → Apply | The applied room's description reads "Welcome to my … where I …"; visible on the public room |
+| Creator analytics | after auto-build + Apply | Records `creator_profile_analyzed`, `creator_room_generated`, `creator_social_object_created` (per object), and `creator_room_applied` |
+| Auto-build is deterministic / no network | `/studio` → Design → Creator auto build | Same inputs ⇒ same room every time; works offline (no scraping/API calls) |
 
 ## Room editor flow (Creator Studio)
 
