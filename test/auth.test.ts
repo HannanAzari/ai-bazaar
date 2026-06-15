@@ -63,9 +63,10 @@ describe("supabase auth (mocked client)", () => {
   function mockClient(overrides: Record<string, unknown> = {}) {
     return {
       auth: {
-        getUser: async () => ({ data: { user: { id: "u1", email: "jane@x.io", user_metadata: { name: "Jane" } } }, error: null }),
+        getUser: async () => ({ data: { user: { id: "u1", email: "jane@x.io", user_metadata: { display_name: "Jane" } } }, error: null }),
         signInWithPassword: async () => ({ data: { user: { id: "u1", email: "jane@x.io", user_metadata: {} } }, error: null }),
-        signUp: async () => ({ data: { user: { id: "u1", email: "jane@x.io", user_metadata: { name: "Jane" } } }, error: null }),
+        // Default: confirmation OFF → a session is returned.
+        signUp: async () => ({ data: { user: { id: "u1", email: "jane@x.io", user_metadata: { display_name: "Jane" } }, session: { access_token: "t" } }, error: null }),
         signOut: async () => ({ error: null }),
         onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
         ...overrides,
@@ -73,7 +74,7 @@ describe("supabase auth (mocked client)", () => {
     } as never;
   }
 
-  it("maps the Supabase user to a SessionUser", async () => {
+  it("maps the Supabase user to a SessionUser (display_name)", async () => {
     const client = new SupabaseAuthClient(mockClient());
     expect(await client.getInitialUser()).toEqual({ id: "u1", email: "jane@x.io", name: "Jane" });
   });
@@ -81,5 +82,17 @@ describe("supabase auth (mocked client)", () => {
   it("derives a name from email when metadata is absent (sign-in)", async () => {
     const client = new SupabaseAuthClient(mockClient());
     expect(await client.signIn({ email: "jane@x.io", password: "pw" })).toEqual({ id: "u1", email: "jane@x.io", name: "Jane" });
+  });
+
+  it("sign-up returns the user when a session is present", async () => {
+    const client = new SupabaseAuthClient(mockClient());
+    expect(await client.signUp({ email: "jane@x.io", password: "pw", name: "Jane" })).toEqual({ id: "u1", email: "jane@x.io", name: "Jane" });
+  });
+
+  it("sign-up with email confirmation pending (no session) asks to confirm", async () => {
+    const client = new SupabaseAuthClient(mockClient({
+      signUp: async () => ({ data: { user: { id: "u1", email: "jane@x.io", user_metadata: {} }, session: null }, error: null }),
+    }));
+    await expect(client.signUp({ email: "jane@x.io", password: "pw" })).rejects.toThrow(/confirm/i);
   });
 });

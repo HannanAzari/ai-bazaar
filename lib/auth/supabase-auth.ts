@@ -10,7 +10,10 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 function mapUser(user: User | null): SessionUser | null {
   if (!user || !user.email) return null;
-  const metaName = (user.user_metadata?.name as string | undefined)?.trim();
+  // The DB trigger names the profile from `display_name`; read it first, then a
+  // legacy `name`, then derive from the email.
+  const meta = user.user_metadata ?? {};
+  const metaName = ((meta.display_name as string | undefined) ?? (meta.name as string | undefined))?.trim();
   return { id: user.id, email: user.email, name: metaName || nameFromEmail(user.email) };
 }
 
@@ -29,14 +32,22 @@ export class SupabaseAuthClient implements AuthClient {
   }
 
   async signUp(input: SignUpInput): Promise<SessionUser> {
+    const displayName = input.name?.trim() || nameFromEmail(input.email);
     const { data, error } = await this.client.auth.signUp({
       email: input.email,
       password: input.password,
-      options: { data: { name: input.name?.trim() || nameFromEmail(input.email) } },
+      // The on_auth_user_created trigger reads `display_name` to name the profile.
+      options: { data: { display_name: displayName, name: displayName } },
     });
     if (error) throw error;
+    // With email confirmation ON, signUp returns a user but NO session. Treat that
+    // as "confirm your email" rather than a logged-in state (an unconfirmed user
+    // has no session cookie, so every RLS-guarded call would fail).
+    if (!data.session) {
+      throw new Error("Check your email to confirm your account, then sign in.");
+    }
     const user = mapUser(data.user);
-    if (!user) throw new Error("Sign-up succeeded but no user/session was returned (email confirmation may be required).");
+    if (!user) throw new Error("Sign-up returned no user.");
     return user;
   }
 

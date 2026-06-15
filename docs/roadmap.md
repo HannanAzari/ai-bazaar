@@ -56,10 +56,13 @@ All sprints ship green: `typecheck · lint · test · build`.
 ## In Progress
 
 No feature sprint active. Production Cutover V1 shipped 2026-06-23 (real auth +
-profiles + room persistence behind runtime mode; demo unchanged). **Next:** apply
-`schema.sql` to the project + run `docs/staging-checklist.md` to verify live DB
-persistence/RLS; then production shop-claiming and the `events`/`reports` Supabase
-repos (still stubs).
+profiles + room persistence behind runtime mode; demo unchanged). Live probe
+(2026-06-23): schema applied; **read path + anon RLS verified live**; authenticated
+persistence **blocked** by env (email-confirm ON + default-SMTP `429`, and
+`seed.sql` not applied). **Next, to finish live cutover:** (1) staging email-confirm
+off or custom SMTP; (2) apply `seed.sql` (villages/slots); (3) add a production
+**shop-claim** repo (the one code follow-up); then run `docs/staging-checklist.md`
+§3–§7. After that: `events`/`reports` Supabase repos (still stubs).
 
 ---
 

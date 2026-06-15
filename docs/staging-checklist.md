@@ -12,8 +12,49 @@ the production path before any production flip. Pairs with
 - ✅ **Demo** path end-to-end (login → onboarding → room → save → reload → persist
   → sign out → sign in) — verified in-browser.
 - ✅ Gates: typecheck · lint · tests · build.
-- ❌ Live **DB persistence** (profiles/rooms) + **RLS** — schema not applied, no
-  elevated access. Verify here.
+- ❌ Live **authenticated DB persistence** (profiles/rooms) — blocked (see §0a).
+
+## 0a. Live probe results — 2026-06-23 (schema now applied, anon key only)
+
+Ran against the real project. **Verified live:**
+- ✅ Schema present: `profiles`, `shops`, `rooms` (+ `rooms.client_id`/`rooms.objects`),
+  `bazaars`, `shop_slots` all resolve (REST `200`).
+- ✅ **Production read path** in-browser: the public room issues a real
+  `GET /rest/v1/shops?address=eq.…` (`200`), finds none, and renders the derived
+  room — no crash, no console errors, LIVE badge.
+- ✅ **RLS (anon)**: public `select` on `rooms`/`shops` → `200`; anon `insert` into
+  `rooms` → `401` and into `profiles` → `401` (owner-write protection holds).
+- ✅ Auth endpoint rejects bad credentials (`400`).
+
+**Blocked (could NOT verify live — environment, not code):**
+- ⚠️ **Email confirmation is ON** (`mailer_autoconfirm:false`) and the project uses
+  the **default email sender** → sign-up immediately hit `429
+  over_email_send_rate_limit`. With anon-only access there is **no way to obtain a
+  confirmed session** (can't read the inbox, no service role to admin-confirm). So
+  create-account → session → onboarding → save → persist **cannot be run here**.
+  - **Fix to unblock:** in Supabase → Auth, either enable **"Confirm email" = off**
+    for staging, or configure a **custom SMTP** sender and confirm a test inbox, or
+    create+confirm a test user via the dashboard/service role.
+- ⚠️ **`seed.sql` is NOT applied** (`bazaars` count = 0) → no `bazaars`/`shop_slots`
+  → a real `shops` row **cannot** be created (it requires a `slot_id` FK + the
+  village-address trigger). Apply `supabase/seed.sql`.
+- ⚠️ **No production shop-claim path** (code follow-up): `claimShop` only writes
+  localStorage, so even with a session + seed, onboarding's "create first Nest"
+  won't insert a `shops` row and `saveHouse` throws "no shop found for address".
+  This is the **next required bug-fix** for live persistence (a `shops` insert repo:
+  resolve an open `shop_slots` row in the chosen village, insert `shops` with
+  `owner_id = auth.uid()` + the village-prefixed address). Demo persistence is
+  unaffected.
+
+**Fixed this pass (auth correctness bugs found during probing):**
+- Sign-up now gates on a returned **session**: with confirmation ON, Supabase
+  returns a user but no session — the app no longer treats that as logged-in
+  (which would have left every RLS call unauthenticated); it asks the user to
+  confirm their email.
+- Sign-up writes the `display_name` user-metadata key the `on_auth_user_created`
+  trigger reads (was `name`), so the auto-created `profiles.display_name` is correct.
+
+Once email-confirm + seed + the shop-claim fix are in place, run §3–§7 below.
 
 ## 1. Environment variables (staging host)
 
@@ -37,6 +78,10 @@ App self-check: the dev badge should read **LIVE · Supabase**.
 5. Create a **Storage bucket** named `room-images` (public read) for `SupabaseStorage`.
 
 ## 3. Auth verification
+
+> Prereq (see §0a): for an automatable flow, set **Confirm email = off** on
+> staging, or use a custom SMTP + a confirmable inbox. The default sender is
+> rate-limited (`429`) after a few sends and blocks the create-account step.
 
 - [ ] Sign up (email + password) → account created (check Auth → Users).
 - [ ] Sign in → session persists across reload (cookie present).

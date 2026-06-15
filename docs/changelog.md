@@ -8,6 +8,35 @@ for technical detail.
 
 ---
 
+## 2026-06-23 — Production Cutover V1 · live staging probe + auth fixes
+
+Ran the live staging checks once the project schema was applied (anon key only).
+No new features; fixed two auth-correctness bugs found during probing.
+
+### Verified live (real project)
+- Schema present (`profiles`/`shops`/`rooms` incl. `client_id`/`objects`, `bazaars`,
+  `shop_slots`); production **read path** works in-browser (public room issues a real
+  `shops` query, falls back to the derived room, no console errors, LIVE badge).
+- **RLS (anon):** public read of `rooms`/`shops` allowed; anon insert into `rooms`
+  and `profiles` denied (`401`). Bad-credential sign-in rejected.
+
+### Fixed (bugs needed for production correctness)
+- `SupabaseAuthClient.signUp` now requires a returned **session**; with email
+  confirmation ON, Supabase returns a user but no session — the app asks the user to
+  confirm instead of entering a broken "logged-in but unauthenticated" state.
+- `signUp` writes the `display_name` metadata key (was `name`) that the
+  `on_auth_user_created` trigger reads, so the auto-created profile is named correctly.
+- Tests: +2 (suite **170**); `mapUser` now reads `display_name`.
+
+### Blocked (environment, not code — documented in `docs/staging-checklist.md` §0a)
+- **Authenticated** create-account→persist flow could **not** be run: email
+  confirmation is ON + the default email sender hit `429` (no inbox/service-role to
+  confirm), and **`seed.sql` is not applied** (no villages/slots → no `shops` row).
+- **Follow-up bug:** no production shop-claim path yet (demo `claimShop` is
+  localStorage-only); needed before live room persistence. Demo unaffected.
+
+---
+
 ## 2026-06-23 — Production Cutover V1
 
 Moves AI Bazaar / Nestudio from a demo-only app toward a pilot-ready production
