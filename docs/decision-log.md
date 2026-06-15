@@ -693,6 +693,70 @@ profiles. The challenge is extracting useful signal from URLs the app must not f
 
 ---
 
+## ADR-018 — Production Cutover V1: unified session, mode-selected repos/storage, jsonb room persistence
+
+**Status:** Accepted · 2026-06-23
+
+### Context
+The seam from ADR-014 (runtime mode + repository layer + Supabase stubs) needed to
+become real for a pilot: actual Supabase auth, profiles, and room persistence —
+**without breaking demo mode** (ADR-003) and using only the **anon key under RLS**
+(no service role). The live project exists but its schema was not yet applied, and
+the room model (string ids, `ast-*` asset keys) doesn't fit the normalized
+`rooms.id uuid` / `room_objects.asset_id uuid` shape.
+
+### Decision
+- **One unified, mode-aware session** (`lib/auth/*` + `AuthProvider`/`useSession`).
+  `DemoAuthClient` keeps the existing `ai-bazaar-user` localStorage session
+  (passwordless, as before); `SupabaseAuthClient` wraps Supabase email+password.
+  `DemoProvider` now *derives* its `user` from the session and delegates
+  login/logout, so the dozens of `useDemo().user` consumers are untouched. This
+  beats a parallel provider (two sources of truth for "who's signed in").
+- **Mode selects the implementation everywhere** via small factories that mirror
+  each other: `getAuthClient()`, `getRepositories()`, `getImageStorage()`. Runtime
+  mode (env presence) stays the single source of truth; rollback is unsetting env.
+- **Supabase repos resolve their client lazily.** Constructing a repo never
+  requires env (so selection is testable and the factory never throws); the client
+  is needed only when a method runs. Only `profiles`/`houses`/`rooms`/`roomObjects`
+  are implemented; `events`/`reports` stay `NotImplementedError` (scope).
+- **Rooms persist as a jsonb snapshot on the `rooms` table** (`client_id` = app
+  room id, `objects` = jsonb), not normalized `room_objects` rows. This preserves
+  the full Room Engine V5 model (objects, action_data, rotation, backgrounds, room
+  links, multi-room, descriptions) with pure, tested mappers and **no room-engine
+  redesign**, sidestepping the uuid/asset-key impedance. Normalized `room_objects`
+  rows are retained for future analytics.
+- **An async house-store seam** (`lib/house-store.ts`) is what components call; in
+  demo it routes through the local repo → the same `lib/room.ts` → identical
+  behavior. This is the first real adoption of the repo layer by the UI.
+- **Onboarding reuses V3** (`creator-analyzer`) rather than a second system, and
+  works in demo so it's verifiable without a backend.
+- **Subdomain is a pure host parser + a middleware rewrite** to the existing
+  `/u/<handle>` route — no new pages, no DNS this sprint.
+
+### Alternatives Considered
+- **Parallel Supabase auth provider** beside DemoProvider — rejected (duplicate
+  session state); unified abstraction chosen.
+- **Normalized `room_objects` rows + an `asset_key`/uuid bridge** — more faithful
+  to the schema but a larger migration and a redesign risk against `asset_id uuid`;
+  deferred. jsonb snapshot is the pragmatic V1.
+- **Eager repo client construction** — made selection throw without env and broke
+  testability; rejected for lazy resolution.
+- **Applying the schema from the app** — impossible/again-scoped-out with anon-only
+  access; made a staging-checklist step instead.
+
+### Consequences
+- (+) Real auth + profiles + room persistence in production behind one env flag;
+  demo is unchanged and remains the verified path; rollback is config-only.
+- (+) Pure mappers + lazy repos are unit-tested (168 tests); factories are uniform.
+- (−) **Production DB persistence is unverified** until the schema is applied to the
+  project (anon key can't run DDL) — documented, not claimed.
+- (−) jsonb room storage diverges from the normalized `room_objects` table (two
+  shapes coexist); revisit if per-object querying is needed.
+- (−) Production **shop claiming** still uses the demo path; a `shops` insert repo
+  and `events`/`reports` Supabase repos are follow-ups.
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

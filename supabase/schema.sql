@@ -273,6 +273,10 @@ create table public.rooms (
   is_entry boolean not null default false,
   theme text not null default 'warm',
   background text not null default 'standard',
+  -- Production Cutover V1: app-side room id + the full object list (jsonb), so the
+  -- Room Engine V5 model round-trips without uuid asset/room id friction.
+  client_id text,
+  objects jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -339,6 +343,7 @@ create index activity_actor_idx on public.activity_events (actor_handle, created
 create index assets_category_idx on public.assets (category) where status = 'published';
 create index assets_status_idx on public.assets (status);
 create index rooms_shop_idx on public.rooms (shop_id);
+create unique index rooms_shop_client_idx on public.rooms (shop_id, client_id);
 create index room_objects_room_idx on public.room_objects (room_id, z_index);
 create index room_design_drafts_shop_idx on public.room_design_drafts (shop_id);
 

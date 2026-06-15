@@ -28,7 +28,7 @@ import { RoomCanvas } from "@/components/room/room-canvas";
 import { ObjectActionModal } from "@/components/room/object-action-modal";
 import { ActionDataEditor } from "@/components/room/action-data-editor";
 import { objectIcon } from "@/components/room/room-object";
-import { getHouse, resetHouse, saveHouse } from "@/lib/room";
+import { forgetHouse, loadHouse, persistHouse } from "@/lib/house-store";
 import { type RoomInsights, getRoomInsights } from "@/lib/room-insights";
 import {
   addRoom,
@@ -119,11 +119,19 @@ export function RoomEditor({ shop }: { shop: Shop }) {
 
   // Load the saved (or derived) house on the client.
   useEffect(() => {
-    const loaded = getHouse(shop);
-    setHistory(createHistory(loaded));
-    setActiveRoomId(loaded.entryRoomId);
-    setSelectedIds([]);
-    setSaveStatus("saved");
+    let active = true;
+    loadHouse(shop)
+      .then((loaded) => {
+        if (!active) return;
+        setHistory(createHistory(loaded));
+        setActiveRoomId(loaded.entryRoomId);
+        setSelectedIds([]);
+        setSaveStatus("saved");
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, [shop]);
 
   // Owner-facing visitor insights, recomputed when analytics change.
@@ -182,8 +190,9 @@ export function RoomEditor({ shop }: { shop: Shop }) {
     if (saveStatus !== "unsaved") return;
     const timer = window.setTimeout(() => {
       setSaveStatus("saving");
-      saveHouse(presentRef.current);
-      window.setTimeout(() => setSaveStatus("saved"), 300);
+      persistHouse(presentRef.current)
+        .then(() => setSaveStatus("saved"))
+        .catch(() => setSaveStatus("unsaved"));
     }, AUTOSAVE_MS);
     return () => window.clearTimeout(timer);
   }, [saveStatus, house]);
@@ -271,9 +280,12 @@ export function RoomEditor({ shop }: { shop: Shop }) {
   };
   const switchRoom = (roomId: string) => { setActiveRoomId(roomId); setSelectedIds([]); };
 
-  const saveNow = () => { saveHouse(house); setSaveStatus("saved"); flash("House saved"); };
+  const saveNow = () => {
+    setSaveStatus("saving");
+    persistHouse(house).then(() => { setSaveStatus("saved"); flash("House saved"); }).catch(() => { setSaveStatus("unsaved"); flash("Could not save — check your connection."); });
+  };
   const reset = () => {
-    resetHouse(shop.address);
+    void forgetHouse(shop.address).catch(() => undefined);
     const fresh = deriveDefaultHouse(shop);
     setHistory(createHistory(fresh));
     setActiveRoomId(fresh.entryRoomId);

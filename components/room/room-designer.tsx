@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, Clock, Gauge, Lightbulb, RefreshCw, Save, Sparkles, Trash2, UserSearch, WandSparkles } from "lucide-react";
 import { RoomCanvas } from "@/components/room/room-canvas";
 import { Button } from "@/components/ui/button";
-import { getHouse, saveHouse } from "@/lib/room";
+import { loadHouse, persistHouse } from "@/lib/house-store";
 import { deriveDefaultHouse, getRoomById, withRoom } from "@/lib/house";
 import {
   CREATOR_PRESETS,
@@ -64,8 +64,12 @@ export function RoomDesigner({ shop }: { shop: Shop }) {
 
   // Load the saved (or derived) house + drafts on the client.
   useEffect(() => {
-    setHouse(getHouse(shop));
-    setTargetRoomId(getHouse(shop).entryRoomId);
+    loadHouse(shop)
+      .then((loaded) => {
+        setHouse(loaded);
+        setTargetRoomId(loaded.entryRoomId);
+      })
+      .catch(() => undefined);
   }, [shop]);
 
   useEffect(() => {
@@ -159,7 +163,7 @@ export function RoomDesigner({ shop }: { shop: Shop }) {
     if (!targetRoom) return;
     const merged = { ...targetRoom, name: room.name, type: room.type, background: room.background, description: room.description ?? "", objects: room.objects };
     const nextHouse = withRoom(house, merged);
-    saveHouse(nextHouse);
+    void persistHouse(nextHouse).catch(() => flash("Could not save — check your connection."));
     setHouse(nextHouse);
     setLastApplied(merged.name);
     if (flags.activityFeed) {

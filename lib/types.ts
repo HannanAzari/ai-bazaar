@@ -222,6 +222,18 @@ export type ActivityEntry = {
   createdAt: string;
 };
 
+// ── User profile (auth-linked; parity with the `profiles` table) ──
+export type UserProfile = {
+  /** Matches auth user id (Supabase `auth.users.id`; the session id in demo). */
+  id: string;
+  displayName: string;
+  /** Public handle (no leading "@"); unique. */
+  username?: string;
+  avatarUrl?: string;
+  bio?: string;
+  isAdmin: boolean;
+};
+
 // ── Asset catalog ───────────────────────────────────────────
 export type AssetCategory = "furniture" | "wall" | "floor" | "plant" | "lighting" | "decor" | "structure" | "door" | "stairs";
 export type AssetPlacement = "floor" | "wall" | "ceiling" | "exterior" | "any";

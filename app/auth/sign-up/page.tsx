@@ -4,18 +4,35 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Mail, Sparkles, UserRound } from "lucide-react";
-import { useDemo } from "@/components/providers/demo-provider";
+import { useSession } from "@/components/providers/auth-provider";
+import { isDemoMode } from "@/lib/runtime-mode";
 import { Button } from "@/components/ui/button";
 
 export default function SignUpPage() {
   const router = useRouter();
-  const { login } = useDemo();
+  const { signUp } = useSession();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
-    login(email);
-    router.push("/bazaar");
+    setError("");
+    setBusy(true);
+    try {
+      await signUp({ email, password, name });
+      // New accounts land in onboarding to reach their first room fast.
+      router.push("/onboarding");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not create account.";
+      // Supabase with email-confirmation on returns a user but no session.
+      if (/confirm/i.test(message)) setNotice("Check your email to confirm your account, then sign in.");
+      else setError(message);
+      setBusy(false);
+    }
   };
 
   return (
@@ -28,7 +45,7 @@ export default function SignUpPage() {
         <form onSubmit={submit} className="mt-8 space-y-4">
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Display name</span>
-            <span className="flex items-center gap-3 rounded-2xl border border-ink/10 bg-white px-4"><UserRound size={18} className="text-ink/30" /><input required placeholder="Your name" className="min-h-14 w-full bg-transparent outline-none" /></span>
+            <span className="flex items-center gap-3 rounded-2xl border border-ink/10 bg-white px-4"><UserRound size={18} className="text-ink/30" /><input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" className="min-h-14 w-full bg-transparent outline-none" /></span>
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Email</span>
@@ -36,9 +53,11 @@ export default function SignUpPage() {
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Password</span>
-            <input required type="password" minLength={6} placeholder="At least 6 characters" className="min-h-14 w-full rounded-2xl border border-ink/10 bg-white px-4 outline-none" />
+            <input required={!isDemoMode()} type="password" minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={isDemoMode() ? "Not needed in demo" : "At least 6 characters"} className="min-h-14 w-full rounded-2xl border border-ink/10 bg-white px-4 outline-none" />
           </label>
-          <Button type="submit" variant="accent" className="w-full">Create account <ArrowRight size={18} /></Button>
+          {error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-terracotta">{error}</p>}
+          {notice && <p className="rounded-xl bg-teal/10 px-3 py-2 text-sm font-bold text-teal">{notice}</p>}
+          <Button type="submit" variant="accent" className="w-full" disabled={busy}>{busy ? "Creating…" : "Create account"} <ArrowRight size={18} /></Button>
         </form>
         <p className="mt-6 text-center text-sm text-ink/45">Already have a key? <Link href="/auth/login" className="font-bold text-teal">Log in</Link></p>
       </div>

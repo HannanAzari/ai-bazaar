@@ -10,7 +10,7 @@ import { ReportButton } from "@/components/report-dialog";
 import { SaveButton } from "@/components/save-button";
 import { TagChips } from "@/components/tags-ui";
 import { useDemo } from "@/components/providers/demo-provider";
-import { getHouse } from "@/lib/room";
+import { loadHouse } from "@/lib/house-store";
 import { getRoomById } from "@/lib/house";
 import { trackEvent } from "@/lib/events";
 import { recordActivity } from "@/lib/activity";
@@ -42,12 +42,15 @@ export function RoomExperience({ shop }: { shop: Shop }) {
   // pruned to rooms that still exist (falling back to the entry room).
   useEffect(() => {
     const sync = () => {
-      const next = getHouse(shop);
-      setHouse(next);
-      setTrail((prev) => {
-        const valid = prev.filter((id) => next.rooms.some((room) => room.id === id));
-        return valid.length ? valid : [next.entryRoomId];
-      });
+      loadHouse(shop)
+        .then((next) => {
+          setHouse(next);
+          setTrail((prev) => {
+            const valid = prev.filter((id) => next.rooms.some((room) => room.id === id));
+            return valid.length ? valid : [next.entryRoomId];
+          });
+        })
+        .catch(() => undefined);
     };
     sync();
     window.addEventListener("ai-bazaar-rooms-changed", sync);

@@ -285,6 +285,12 @@ A house is a set of **connected rooms**. Behavior:
   (no navigation, no error).
 - **Back-compat:** a house saved before V4 (a single room) is read as a one-room
   house whose only room is the entry room.
+- **Persistence (Production Cutover V1, ADR-018):** where a house is stored is
+  **runtime-mode-selected and transparent to room behavior** — localStorage in demo,
+  Supabase in production (a jsonb snapshot on the `rooms` table preserving the full
+  model: zones via the template, objects, action data, rotation, background,
+  description, room links, and the entry-room pointer). Components load/save via the
+  async `house-store` seam; the room model and all rules above are unchanged.
 
 ---
 

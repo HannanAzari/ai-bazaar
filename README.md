@@ -313,7 +313,8 @@ For an existing project, run migrations in filename order:
 16. `supabase/migrations/20260621_01_extend_enums.sql` — AI Room Designer V2 `event_type` values (`room_design_draft_saved`, `room_design_draft_applied`, `room_design_constraint_detected`, `room_design_preset_used`). Must commit before step 17.
 17. `supabase/migrations/20260621_02_design_drafts.sql` — the `room_design_drafts` table (owner-private designer drafts) + RLS.
 18. `supabase/migrations/20260622_extend_enums.sql` — AI Room Designer V3 `event_type` values (`creator_profile_analyzed`, `creator_room_generated`, `creator_room_applied`, `creator_social_object_created`). Enum-value additions only; stands alone (no table change — creator rooms are ordinary Rooms and reuse `room_design_drafts`).
-19. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
+19. `supabase/migrations/20260623_room_jsonb_persistence.sql` — Production Cutover V1: `rooms.client_id` + `rooms.objects` (jsonb) + `rooms_shop_client_idx`. Also create a public Storage bucket named `room-images`.
+20. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
 
 The two-step enum split (in `20260611_*`, `20260612_*`, `20260615_*`, and `20260617_*`) is required: PostgreSQL will not let a single transaction add an enum value and then use it, so new enum values are committed in `_01` before `_02` references them. Migrations that only add enum values (e.g. `20260616_extend_enums.sql`) stand alone.
 
@@ -342,12 +343,29 @@ badge (bottom-left) shows the current mode; it never renders in production build
 
 A **repository layer** (`lib/repos/`) is the cutover seam — async interfaces for
 houses/rooms/room objects/profiles/events/reports, with localStorage
-implementations (delegating to the demo libs) and Supabase **stubs** selected by
-runtime mode via `getRepositories()`, mirroring `getImageStorage()`. The Supabase
-implementations are not written yet; the app still calls the demo libs directly, so
-demo mode is unchanged. The full audit + migration order + env vars + local/staging
-setup + RLS smoke tests + rollback plan live in
-[docs/supabase-cutover.md](docs/supabase-cutover.md).
+implementations (delegating to the demo libs) and Supabase implementations selected
+by runtime mode via `getRepositories()`, mirroring `getImageStorage()` and
+`getAuthClient()`.
+
+**Production Cutover V1 (2026-06-23)** wired the first real production path:
+
+- **Auth** — `lib/auth/*` + `useSession()` (a unified, mode-aware session).
+  Production uses Supabase email+password; demo keeps the passwordless localStorage
+  session. `middleware.ts` refreshes the session cookie and protects `/studio` +
+  `/onboarding` in production.
+- **Profiles / houses / rooms** — real Supabase repositories (anon key + RLS, lazy
+  client). Rooms persist as a jsonb snapshot on the `rooms` table (`client_id` +
+  `objects`), preserving the full Room Engine V5 model. Components save/load via the
+  async `lib/house-store.ts` seam (demo path identical).
+- **Image storage** — `SupabaseStorage` behind `getImageStorage()` (bucket `room-images`).
+- **Onboarding** — `/onboarding` turns a creator's links + bio into a first room
+  (reuses Creator Auto Build). **Subdomain** prep: `<handle>.nestud.io` → `/u/<handle>`.
+
+`events`/`reports` Supabase repos remain stubs (out of V1 scope). The full audit +
+migration order + env + local/staging setup + RLS tests + rollback live in
+[docs/supabase-cutover.md](docs/supabase-cutover.md); the go-live steps are in
+[docs/staging-checklist.md](docs/staging-checklist.md); subdomain detail in
+[docs/subdomain-routing.md](docs/subdomain-routing.md).
 
 > **Migrations note:** `supabase/schema.sql` is the canonical fresh-install superset
 > — apply it for a new database. The `supabase/migrations/*` files are incremental
@@ -414,6 +432,10 @@ lib/
   assets.ts              Sample asset catalog (+ room-ready assets)
   room-schema.ts         Zone template, derive/validate, pure layout helpers
   room.ts                Room layout store (get/save/reset)
+  house-store.ts         Async house load/save seam (routes to repos by mode)
+  auth/                  Unified session (demo + Supabase email/password)
+  profile-store.ts       Demo profile store (parity with `profiles`)
+  subdomain.ts           `<handle>.nestud.io` host → /u/<handle>
   ai-room-designer.ts    Deterministic brief→room designer + V2 parser/constraints/presets
   creator-analyzer.ts    V3 profile analyzer + creator auto-build (no scraping/APIs)
   room-design-drafts.ts  Owner-private designer drafts store (save/list/apply/delete)

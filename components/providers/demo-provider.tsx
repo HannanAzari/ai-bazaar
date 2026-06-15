@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useSession } from "@/components/providers/auth-provider";
 import { createThreeWordAddress } from "@/lib/addresses";
 import { bazaars, shops } from "@/lib/data";
 import { recordActivity } from "@/lib/activity";
@@ -42,16 +43,18 @@ type DemoContextValue = {
 const DemoContext = createContext<DemoContextValue | null>(null);
 
 export function DemoProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<DemoUser>(null);
+  // The session is owned by AuthProvider (mode-aware). DemoProvider derives its
+  // user from it and delegates login/logout, so every useDemo().user consumer
+  // keeps working in both demo and production mode.
+  const { user: sessionUser, signIn, signOut } = useSession();
+  const user: DemoUser = sessionUser ? { name: sessionUser.name, email: sessionUser.email } : null;
   const [ownedShop, setOwnedShop] = useState<Shop | null>(null);
   const [likedShops, setLikedShops] = useState<Set<string>>(new Set());
   const [followedOwners, setFollowedOwners] = useState<Set<string>>(new Set());
   const [jobs, setJobs] = useState<GenerationJob[]>([]);
 
   useEffect(() => {
-    const savedUser = window.localStorage.getItem("ai-bazaar-user");
     const savedShop = window.localStorage.getItem("ai-bazaar-shop");
-    if (savedUser) setUser(JSON.parse(savedUser));
     if (savedShop) {
       const parsed = JSON.parse(savedShop) as Shop;
       const village = bazaars.find((item) => item.id === parsed.bazaarId);
@@ -67,11 +70,6 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (user) window.localStorage.setItem("ai-bazaar-user", JSON.stringify(user));
-    else window.localStorage.removeItem("ai-bazaar-user");
-  }, [user]);
-
-  useEffect(() => {
     if (ownedShop) window.localStorage.setItem("ai-bazaar-shop", JSON.stringify(ownedShop));
   }, [ownedShop]);
 
@@ -82,9 +80,12 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       likedShops,
       followedOwners,
       jobs,
-      login: (email = "maker@example.com") =>
-        setUser({ name: "Bazaar Maker", email }),
-      logout: () => setUser(null),
+      login: (email = "maker@example.com") => {
+        void signIn({ email, password: "" });
+      },
+      logout: () => {
+        void signOut();
+      },
       claimShop: (bazaarId, slotNumber, customSecond, customThird) => {
         if (!user || ownedShop) return null;
         const village = bazaars.find((item) => item.id === bazaarId);
@@ -205,7 +206,9 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         }, 2400);
       },
     }),
-    [user, ownedShop, likedShops, followedOwners, jobs],
+    // `user` is derived from `sessionUser` in the same render; depend on the source.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sessionUser, ownedShop, likedShops, followedOwners, jobs, signIn, signOut],
   );
 
   return <DemoContext.Provider value={value}>{children}</DemoContext.Provider>;

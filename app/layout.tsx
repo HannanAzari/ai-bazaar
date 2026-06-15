@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Nunito_Sans } from "next/font/google";
+import { AuthProvider } from "@/components/providers/auth-provider";
 import { DemoProvider } from "@/components/providers/demo-provider";
 import { SiteHeader } from "@/components/site-header";
 import { DevModeBadge } from "@/components/dev-mode-badge";
@@ -31,11 +32,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={`${fraunces.variable} ${nunitoSans.variable}`}>
       <body>
-        <DemoProvider>
-          <SiteHeader />
-          <main>{children}</main>
-          <DevModeBadge />
-        </DemoProvider>
+        <AuthProvider>
+          <DemoProvider>
+            <SiteHeader />
+            <main>{children}</main>
+            <DevModeBadge />
+          </DemoProvider>
+        </AuthProvider>
       </body>
     </html>
   );

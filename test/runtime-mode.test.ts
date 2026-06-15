@@ -48,11 +48,15 @@ describe("repository selection", () => {
     await expect(repos.reports.list()).resolves.toBeInstanceOf(Array);
   });
 
-  it("returns Supabase stubs in production mode that throw NotImplemented", () => {
+  it("selects Supabase repositories in production mode (constructed lazily)", async () => {
     const repos = getRepositories("production");
+    // Out-of-scope repos remain typed stubs.
     expect(() => repos.events.list()).toThrow(NotImplementedError);
-    expect(() => repos.houses.getStoredHouse("x")).toThrow(/not implemented/i);
-    expect(() => repos.profiles.getByHandle("mina")).toThrow(NotImplementedError);
+    expect(() => repos.reports.list()).toThrow(NotImplementedError);
+    // Profiles/houses/rooms are implemented (V1). getByHandle aggregation is deferred → null.
+    await expect(repos.profiles.getByHandle("mina")).resolves.toBeNull();
+    // Without Supabase env in the test runner, a real query reports the missing client.
+    await expect(repos.houses.getStoredHouse("x")).rejects.toThrow(/supabase client unavailable/i);
   });
 
   it("exposes the full repository set", () => {
@@ -82,6 +86,11 @@ describe("schema & migration file presence", () => {
       "20260616_extend_enums.sql",
       "20260617_01_extend_enums.sql",
       "20260617_02_multi_room.sql",
+      "20260620_extend_enums.sql",
+      "20260621_01_extend_enums.sql",
+      "20260621_02_design_drafts.sql",
+      "20260622_extend_enums.sql",
+      "20260623_room_jsonb_persistence.sql",
     ];
     const present = readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql"));
     for (const file of expected) expect(present).toContain(file);

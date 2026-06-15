@@ -8,8 +8,10 @@ import type {
   Room,
   RoomObject,
   Shop,
+  UserProfile,
 } from "@/lib/types";
 import type { Creator } from "@/lib/creators";
+import type { SessionUser } from "@/lib/auth/types";
 
 // Repository layer — the seam for the demo → Supabase cutover.
 //
@@ -44,6 +46,12 @@ export interface RoomObjectRepository {
 export interface ProfileRepository {
   /** A creator (aggregated from their houses) by handle. */
   getByHandle(handle: string): Promise<Creator | null>;
+  /** The auth-linked profile for a user id, or null if none yet. */
+  getById(id: string): Promise<UserProfile | null>;
+  /** Create the profile on first login if absent, returning the current one. */
+  ensureProfile(user: SessionUser): Promise<UserProfile>;
+  /** Patch mutable profile fields. */
+  update(id: string, patch: Partial<Omit<UserProfile, "id" | "isAdmin">>): Promise<UserProfile>;
 }
 
 export interface EventsRepository {

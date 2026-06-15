@@ -47,6 +47,7 @@ by **selecting from a curated asset library**, never by generating visuals.
 | AI Room Designer V1 | 2026-06-20 | Deterministic, selection-only room designer (`lib/ai-room-designer.ts`): brief→intent keyword matching, asset ranking, six style presets, valid-room composition, preview-before-apply (studio Design mode), design explanations, `room_design_*` analytics (`20260620_*`); no image generation |
 | AI Room Designer V2 — Smarter Briefs, Constraints, Drafts | 2026-06-21 | Advanced brief parser (creator type · mood · purpose · constraints), constraints engine, 8 creator presets, owner-private drafts (`room_design_drafts` + `20260621_*`), session history, richer explanation panel, 4 V2 analytics events; still deterministic + selection-only |
 | AI Room Designer V3 — Creator Auto Build | 2026-06-22 | Deterministic profile analyzer (`lib/creator-analyzer.ts`, no scraping/APIs): IG/TikTok/YouTube/Website + bio → creator type (12) / mood / purpose / keywords / confidence; auto room via `generateRoomDesign`, auto social objects + about-me profile object, deterministic welcome message, analyzer insights, 4 `creator_*` analytics (`20260622_*`) |
+| Production Cutover V1 | 2026-06-23 | Real Supabase auth (unified `useSession()`), profiles wiring, real `profiles`/`houses`/`rooms` repos (anon+RLS), jsonb room persistence (`20260623_*`), `SupabaseStorage`, onboarding (`/onboarding`), subdomain prep + middleware, staging checklist; demo unchanged. Live-verified demo flow + production auth; DB persistence deferred to staging (schema not applied) |
 
 All sprints ship green: `typecheck · lint · test · build`.
 
@@ -54,9 +55,11 @@ All sprints ship green: `typecheck · lint · test · build`.
 
 ## In Progress
 
-No feature sprint active. AI Room Designer V3 shipped 2026-06-22 (Creator Auto
-Build from social profiles). Backend Cutover Prep shipped 2026-06-19 (seams +
-runbook; Supabase repos are stubs).
+No feature sprint active. Production Cutover V1 shipped 2026-06-23 (real auth +
+profiles + room persistence behind runtime mode; demo unchanged). **Next:** apply
+`schema.sql` to the project + run `docs/staging-checklist.md` to verify live DB
+persistence/RLS; then production shop-claiming and the `events`/`reports` Supabase
+repos (still stubs).
 
 ---
 

@@ -8,11 +8,13 @@ import type {
   RoomObjectRepository,
   RoomRepository,
 } from "@/lib/repos/types";
-import type { EventType, ReportStatus, Shop } from "@/lib/types";
+import type { EventType, ReportStatus, Shop, UserProfile } from "@/lib/types";
+import type { SessionUser } from "@/lib/auth/types";
 import { getHouse, getStoredHouse, resetHouse, saveHouse } from "@/lib/room";
 import { eventCounts, getEvents, trackEvent } from "@/lib/events";
 import { fileReport, getReports, hiddenRefs, setReportStatus } from "@/lib/reports";
 import { getCreator } from "@/lib/creators";
+import { ensureProfile, getProfile, updateProfile } from "@/lib/profile-store";
 import { shops } from "@/lib/data";
 
 // Local (demo) repositories — thin async wrappers over the existing localStorage
@@ -57,6 +59,15 @@ export class LocalRoomObjectRepository implements RoomObjectRepository {
 export class LocalProfileRepository implements ProfileRepository {
   async getByHandle(handle: string) {
     return getCreator(shops, handle);
+  }
+  async getById(id: string) {
+    return getProfile(id);
+  }
+  async ensureProfile(user: SessionUser): Promise<UserProfile> {
+    return ensureProfile(user);
+  }
+  async update(id: string, patch: Partial<Omit<UserProfile, "id" | "isAdmin">>) {
+    return updateProfile(id, patch);
   }
 }
 

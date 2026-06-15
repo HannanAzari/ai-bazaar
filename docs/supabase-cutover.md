@@ -6,9 +6,14 @@ wiring (the Supabase repository implementations) is still pending. See
 [architecture.md](../architecture.md) §4 for the schema and
 [decision-log.md](decision-log.md) ADR-003/004/014 for the why.
 
-> **Status:** prep only. Runtime **mode detection** and a **repository layer**
-> (`lib/repos/*`) are in place; the Supabase repositories are typed **stubs** that
-> throw `NotImplementedError`. Demo mode remains the default and is unchanged.
+> **Status (updated 2026-06-23 — Production Cutover V1, ADR-018):** real Supabase
+> **auth** (`lib/auth/*` + `useSession()`), **profiles**, and **houses/rooms**
+> repositories are implemented (anon key + RLS, lazy client); rooms persist as a
+> jsonb snapshot on the `rooms` table (`client_id` + `objects`). `SupabaseStorage`,
+> onboarding, and subdomain rewrite are in. `events`/`reports` Supabase repos remain
+> `NotImplementedError` stubs. Demo mode remains the **default** and is unchanged.
+> **Not yet done:** the live project's **schema is not applied** (anon-only access),
+> so production DB persistence + RLS are unverified — run **[staging-checklist.md](staging-checklist.md)**.
 
 ---
 
@@ -69,7 +74,12 @@ Apply in lexicographic filename order (= chronological). For a **fresh** DB, run
 9. `20260615_01_extend_enums.sql` → 10. `20260615_02_room_studio.sql`
 11. `20260616_extend_enums.sql`
 12. `20260617_01_extend_enums.sql` → 13. `20260617_02_multi_room.sql`
-14. `supabase/seed.sql` (starter tag vocabulary)
+14. `20260620_extend_enums.sql` (AI designer V1 events)
+15. `20260621_01_extend_enums.sql` → 16. `20260621_02_design_drafts.sql` (designer drafts)
+17. `20260622_extend_enums.sql` (creator auto-build events)
+18. `20260623_room_jsonb_persistence.sql` (rooms.client_id + rooms.objects) — **Production Cutover V1**
+19. `supabase/seed.sql` (starter tag vocabulary)
+20. Create a public Storage bucket **`room-images`** (for `SupabaseStorage`).
 
 `_01_extend_enums` files only `ADD VALUE`; they **must commit before** the paired
 `_02` that uses the value.
@@ -177,7 +187,8 @@ Mode detection makes rollback a **config** action, not a deploy:
 
 - [ ] Migrations dry-run clean on staging; `seed.sql` applied.
 - [ ] All §6 RLS smoke tests pass.
-- [ ] Supabase repository implementations replace the stubs in `lib/repos/supabase.ts`.
+- [x] Supabase repository implementations for **profiles/houses/rooms** are in `lib/repos/supabase.ts` (Production Cutover V1). `events`/`reports` remain stubs (out of scope).
+- [ ] Storage bucket `room-images` created (public read).
 - [ ] Pre-cutover DB backup taken.
 - [ ] Env vars set in the production host; service-role key server-only.
 - [ ] Dev/staging badge reads **LIVE · Supabase**; gates green.

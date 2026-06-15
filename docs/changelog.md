@@ -8,6 +8,76 @@ for technical detail.
 
 ---
 
+## 2026-06-23 — Production Cutover V1
+
+Moves AI Bazaar / Nestudio from a demo-only app toward a pilot-ready production
+foundation: real Supabase **auth**, **profiles**, and **room persistence**, an
+image-storage driver, an onboarding flow, and subdomain prep — all behind runtime
+mode, with **demo mode preserved and unchanged** (localStorage remains the default
+and the fully-verified path). No visual/village/room redesign; no payments/
+marketplace/messaging/notifications/feeds/comments/followers/ads.
+
+### Added
+- **Unified session** (`lib/auth/*`, `components/providers/auth-provider.tsx`): a
+  mode-aware `AuthClient` (`DemoAuthClient` on localStorage, `SupabaseAuthClient`
+  on Supabase email+password) + `useSession()` (sign up / in / out, persistence).
+  `getAuthClient()` selects by runtime mode. `DemoProvider` now derives its user
+  from the session, so every `useDemo().user` consumer is unchanged.
+- **Protected routes + middleware** (`middleware.ts`): production refreshes the
+  Supabase session cookie and gates `/studio` + `/onboarding`; demo is client-gated.
+- **Profiles** (Task 2): `UserProfile` type (parity with `profiles`); extended
+  `ProfileRepository` (`getById`/`ensureProfile`/`update`); demo store
+  (`lib/profile-store.ts`) + Supabase impl. Profile is created on first login.
+- **Real repositories** (Tasks 3–4): Supabase `profiles`/`houses`/`rooms`/
+  `roomObjects` implemented (lazy client; anon + RLS) with pure, tested mappers
+  (`lib/repos/supabase-mappers.ts`). An async **house-store seam**
+  (`lib/house-store.ts`) is adopted by the room editor, designer, and experience;
+  in demo it delegates to the same `lib/room.ts` (byte-for-byte identical).
+- **Room persistence** preserves multi-room houses, metadata, descriptions,
+  backgrounds, room links, interactive objects, action data, and rotations (V5).
+- **Image storage** (Task 5): `SupabaseStorage` behind `ImageStorage`;
+  `getImageStorage()` selects by mode (bucket `room-images`).
+- **Onboarding V1** (`app/onboarding/page.tsx`): one screen — what you create +
+  IG/TikTok/YouTube/Website → generate profile, run Creator Auto Build (V3), claim
+  first Nest, land in the room. Reuses `creator-analyzer`; works in demo.
+- **Subdomain prep** (`lib/subdomain.ts` + middleware rewrite): `<handle>.nestud.io`
+  → `/u/<handle>`; local dev via `*.localhost`. No DNS deployed. Documented in
+  `docs/subdomain-routing.md`.
+- **Docs**: `docs/staging-checklist.md` (env/migrations/auth/storage/RLS/rollback/
+  readiness) and `docs/subdomain-routing.md`.
+- Tests (suite now **168**, target 150+): `auth` (demo + mocked Supabase),
+  `profile-store`, `supabase-mappers` (room/house round-trip), `subdomain`,
+  `onboarding` data path, and updated repository-selection (production selects
+  Supabase, constructed lazily).
+
+### Changed
+- `lib/storage/index.ts` + `lib/repos/index.ts`: mode-aware factories (storage now
+  selects Supabase in production).
+- Auth pages use `useSession()` (email+password in production; passwordless demo).
+- `lib/repos/supabase.ts`: stubs replaced by real profiles/houses/rooms impls
+  (events/reports remain stubs — out of scope); client resolved lazily.
+
+### Database
+- `supabase/migrations/20260623_room_jsonb_persistence.sql` — `rooms.client_id`
+  (app room id) + `rooms.objects` (jsonb) + `rooms_shop_client_idx`, so the Room
+  Engine V5 model round-trips without uuid asset/room friction. Mirrored in
+  `schema.sql`. Requires a Storage bucket `room-images` (manual, per checklist).
+
+### Verification
+- ✅ **Demo**: full flow verified in-browser (sign up → onboarding → room →
+  reload → persist → sign out → sign in → room exists); no console errors.
+- ✅ **Production auth**: live project reachable; real sign-in **rejects** bad
+  credentials in-browser (LIVE badge); no console errors.
+- ❌ **Production DB persistence / RLS**: **not** verified — the project's schema
+  is not yet applied and only the anon key is available (no DDL). See
+  `docs/staging-checklist.md`.
+
+### Documentation
+- README, architecture.md, roadmap.md, handoff.md, room-engine-spec.md,
+  supabase-cutover.md updated; new ADR-018; new staging + subdomain docs.
+
+---
+
 ## 2026-06-22 — AI Room Designer V3: Creator Auto Build
 
 Lets a creator paste their social profiles + a bio and auto-generate a room from
