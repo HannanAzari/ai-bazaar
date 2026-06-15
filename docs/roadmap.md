@@ -56,13 +56,13 @@ All sprints ship green: `typecheck · lint · test · build`.
 ## In Progress
 
 No feature sprint active. Production Cutover V1 shipped 2026-06-23 (real auth +
-profiles + room persistence behind runtime mode; demo unchanged). Live probe
-(2026-06-23): schema applied; **read path + anon RLS verified live**; authenticated
-persistence **blocked** by env (email-confirm ON + default-SMTP `429`, and
-`seed.sql` not applied). **Next, to finish live cutover:** (1) staging email-confirm
-off or custom SMTP; (2) apply `seed.sql` (villages/slots); (3) add a production
-**shop-claim** repo (the one code follow-up); then run `docs/staging-checklist.md`
-§3–§7. After that: `events`/`reports` Supabase repos (still stubs).
+profiles + room persistence behind runtime mode; demo unchanged) and the **full
+authenticated flow is verified live** on staging (create account → onboarding →
+claim Nest → save → reload → persists from Supabase → logout → login → still
+exists; RLS holds). Production shop-claiming + public shop resolution shipped.
+**Next:** production-grade email (custom SMTP if confirmation is re-enabled),
+`events`/`reports` Supabase repos (still stubs), and `/u/[handle]` aggregate in
+production (`getByHandle` returns null in V1).
 
 ---
 

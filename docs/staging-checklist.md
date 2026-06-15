@@ -6,6 +6,21 @@ The live verification this sprint **could not** run in the build environment
 the production path before any production flip. Pairs with
 [supabase-cutover.md](supabase-cutover.md).
 
+## 0z. Live result — 2026-06-23 (staging fully provisioned) ✅
+
+With schema + seed + `room-images` bucket applied and **"Confirm email" OFF**, the
+**full authenticated flow was verified live** against the real project (anon client +
+a confirmed test user), no console errors:
+create account (`signup 200`) → login → onboarding → **create Nest** (`shops 201`,
+`moon.tiny.bell`) → **save room** (`rooms upsert 201` + prune `204`) → reload →
+**room persists from Supabase** (5 objects) → logout → login again
+(`signInWithPassword`) → **room still exists**. RLS: authenticated owner writes
+succeed; anon writes denied (`401`); public reads `200`. Production shop-claim
+shipped in `lib/shop-claim.ts`; public shop resolution via `getShopByAddress`.
+
+> The remaining items below are retained as the repeatable runbook for any new
+> staging/prod project.
+
 ## 0. What was / wasn't verified in the build env
 
 - ✅ Supabase **Auth** endpoint reachable + email auth enabled (probed).
@@ -26,25 +41,35 @@ Ran against the real project. **Verified live:**
   `rooms` → `401` and into `profiles` → `401` (owner-write protection holds).
 - ✅ Auth endpoint rejects bad credentials (`400`).
 
-**Blocked (could NOT verify live — environment, not code):**
-- ⚠️ **Email confirmation is ON** (`mailer_autoconfirm:false`) and the project uses
-  the **default email sender** → sign-up immediately hit `429
-  over_email_send_rate_limit`. With anon-only access there is **no way to obtain a
-  confirmed session** (can't read the inbox, no service role to admin-confirm). So
-  create-account → session → onboarding → save → persist **cannot be run here**.
-  - **Fix to unblock:** in Supabase → Auth, either enable **"Confirm email" = off**
-    for staging, or configure a **custom SMTP** sender and confirm a test inbox, or
-    create+confirm a test user via the dashboard/service role.
-- ⚠️ **`seed.sql` is NOT applied** (`bazaars` count = 0) → no `bazaars`/`shop_slots`
-  → a real `shops` row **cannot** be created (it requires a `slot_id` FK + the
-  village-address trigger). Apply `supabase/seed.sql`.
-- ⚠️ **No production shop-claim path** (code follow-up): `claimShop` only writes
-  localStorage, so even with a session + seed, onboarding's "create first Nest"
-  won't insert a `shops` row and `saveHouse` throws "no shop found for address".
-  This is the **next required bug-fix** for live persistence (a `shops` insert repo:
-  resolve an open `shop_slots` row in the chosen village, insert `shops` with
-  `owner_id = auth.uid()` + the village-prefixed address). Demo persistence is
-  unaffected.
+**Update — second live probe (seed now applied):**
+- ✅ **`seed.sql` is applied** — `bazaars` = 10, `shop_slots` = 240; bazaar-by-slug
+  lookup + per-village slot listing work with the anon client (the claim read-side).
+- ✅ Anon RLS re-checked with data present: `insert` into `shops` → `401` (owner-write
+  holds); public reads of `rooms`/`shops`/`bazaars`/`shop_slots` → `200`.
+
+**Still blocked (sole remaining blocker — environment, not code):**
+- ⚠️ **Email confirmation is still ON** (`mailer_autoconfirm:false`); sign-up returns
+  a user with **no session** (`confirmation_sent_at` set) and the default sender is
+  rate-limited (`429`). With anon-only access there is **no way to mint a confirmed
+  session**, so create-account → session → onboarding → save → persist **cannot be
+  run here**. This blocks the *entire* authenticated flow regardless of code.
+  - **One action to unblock:** Supabase → Auth → **"Confirm email" = off** on
+    staging (or custom SMTP + a confirmable inbox, or a dashboard/service-role
+    pre-confirmed test user). After that the full flow can be run.
+
+**Remaining code follow-up (for when a session is available):**
+- ⚠️ **No production shop-claim path**: `claimShop` only writes localStorage, so
+  onboarding's "create first Nest" won't insert a `shops` row in production and
+  `saveHouse` throws "no shop found". This is **not built yet on purpose** — it
+  can't be exercised/verified without a session, and the flow is blocked above. The
+  exact rules are now known (verified against the live schema):
+  - Pick a village → its DB `bazaars.slug`; the address **prefix** must equal
+    `split_part(slug, '-', 1)` (e.g. `moon-court` → `moon.word.word`) per the
+    `validate_shop_village_address` trigger.
+  - Resolve an open `shop_slots` row (a slot with no `shops.slot_id` referencing it).
+  - Insert `shops { owner_id = auth.uid(), slot_id, address, display_name }`
+    (RLS "users claim one shop" requires `owner_id = auth.uid()` and no existing shop).
+  - Then `persistHouse` works unchanged. Demo persistence is unaffected.
 
 **Fixed this pass (auth correctness bugs found during probing):**
 - Sign-up now gates on a returned **session**: with confirmation ON, Supabase

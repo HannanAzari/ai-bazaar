@@ -752,8 +752,12 @@ the room model (string ids, `ast-*` asset keys) doesn't fit the normalized
   project (anon key can't run DDL) — documented, not claimed.
 - (−) jsonb room storage diverges from the normalized `room_objects` table (two
   shapes coexist); revisit if per-object querying is needed.
-- (−) Production **shop claiming** still uses the demo path; a `shops` insert repo
-  and `events`/`reports` Supabase repos are follow-ups.
+- (−) `events`/`reports` Supabase repos remain follow-ups; `/u/[handle]` aggregate
+  (`getByHandle`) returns null in production V1.
+- **Update 2026-06-23:** production **shop claiming** is now implemented
+  (`lib/shop-claim.ts`: `claimShopInSupabase` + `getShopByAddress`) and the **full
+  authenticated flow is verified live** on staging (account → onboarding → claim →
+  save → reload → persist → logout → login → persist; RLS holds).
 
 ---
 

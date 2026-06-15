@@ -12,8 +12,13 @@ wiring (the Supabase repository implementations) is still pending. See
 > jsonb snapshot on the `rooms` table (`client_id` + `objects`). `SupabaseStorage`,
 > onboarding, and subdomain rewrite are in. `events`/`reports` Supabase repos remain
 > `NotImplementedError` stubs. Demo mode remains the **default** and is unchanged.
-> **Not yet done:** the live project's **schema is not applied** (anon-only access),
-> so production DB persistence + RLS are unverified — run **[staging-checklist.md](staging-checklist.md)**.
+> **Live-verified 2026-06-23:** with staging fully provisioned (schema + seed +
+> `room-images` bucket + email-confirm OFF), the **full authenticated flow was
+> verified against the real project** — create account → onboarding → claim Nest
+> (`shops 201`) → save room (`rooms 201`) → reload → **persists from Supabase** →
+> logout → login → still exists; RLS owner-write/anon-deny/public-read all hold.
+> Production shop-claiming shipped (`lib/shop-claim.ts`). See
+> **[staging-checklist.md](staging-checklist.md) §0z**.
 
 ---
 

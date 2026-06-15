@@ -8,6 +8,48 @@ for technical detail.
 
 ---
 
+## 2026-06-23 — Production Cutover V1 · production shop claiming + full live verification
+
+With staging fully provisioned (schema + seed + `room-images` bucket + **email
+confirmation OFF**), implemented the last persistence gap and verified the entire
+authenticated flow against the real Supabase project. No new product features.
+
+### Added (bug-fix needed for production persistence)
+- **`lib/shop-claim.ts`** — production "create first Nest": `claimShopInSupabase()`
+  resolves the first village with an open `shop_slots` row and inserts a `shops`
+  row (`owner_id = auth.uid()`, slot, village-prefixed address) under RLS;
+  idempotent (returns an existing shop). Pure helpers `prefixFromSlug`,
+  `villageAddress`, `firstOpenSlotId` are unit-tested. Also `getShopByAddress()`
+  (public read) so production shops resolve on the public page.
+- **`components/shop-route-client.tsx`** now resolves the shop from Supabase by
+  address in production (demo still uses local data) — fixes the public room
+  showing "door closed" for a production-claimed shop.
+- Onboarding claims via Supabase in production (demo path unchanged). Tests +6
+  (suite **176**).
+
+### Verified LIVE (real project, anon client + a confirmed test user)
+Full authenticated flow, no console errors:
+1. **create account** → `POST /auth/v1/signup → 200` (session; profile auto-created by trigger)
+2. **login** → session cookie set
+3. **onboarding** → 4. **create first Nest** → `POST /rest/v1/shops → 201` (`moon.tiny.bell`)
+5. **save room** → `POST /rest/v1/rooms?on_conflict=shop_id,client_id → 201` (+ prune `DELETE → 204`)
+6. **reload** → 7. **room persists from Supabase** (5 objects render; loaded via `getShopByAddress` + `getStoredHouse`)
+8. **logout** (session cleared) → 9. **login again** → real `signInWithPassword` → `/studio`
+10. **room still exists** (5 objects from Supabase)
+- **RLS**: authenticated owner writes succeed under `owns_shop`/`owner_id` (shops 201,
+  rooms 201, profiles PATCH 200); anon writes denied (shops/rooms/profiles `401`);
+  public reads `200`.
+
+### Fixed earlier this day (kept)
+- `signUp` gates on a returned session (no "logged-in but unauthenticated" state).
+- `signUp` writes the `display_name` metadata key the profile trigger reads.
+
+### Note
+- A test user + shop (`moon.tiny.bell`) now exist in the **staging** project from
+  verification.
+
+---
+
 ## 2026-06-23 — Production Cutover V1 · live staging probe + auth fixes
 
 Ran the live staging checks once the project schema was applied (anon key only).
@@ -34,6 +76,15 @@ No new features; fixed two auth-correctness bugs found during probing.
   confirm), and **`seed.sql` is not applied** (no villages/slots → no `shops` row).
 - **Follow-up bug:** no production shop-claim path yet (demo `claimShop` is
   localStorage-only); needed before live room persistence. Demo unaffected.
+
+### Second probe (seed since applied) — 2026-06-23
+- ✅ `seed.sql` now applied (`bazaars`=10, `shop_slots`=240); bazaar/slot read-side
+  for a future shop-claim works with anon; anon `insert shops` → `401` (RLS holds).
+- ⚠️ **Sole remaining blocker:** email confirmation is still ON → no session
+  obtainable with the anon key → the authenticated flow still cannot be run live.
+  Disable "Confirm email" (or provide a confirmed user) to proceed. The production
+  shop-claim path remains the one code follow-up (rules recorded in the checklist),
+  intentionally not shipped unverified.
 
 ---
 

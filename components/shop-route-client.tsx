@@ -1,12 +1,38 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAllShops } from "@/components/providers/demo-provider";
 import { ShopPageClient } from "@/components/shop-page-client";
+import { getShopByAddress } from "@/lib/shop-claim";
+import { isProductionBackend } from "@/lib/runtime-mode";
+import type { Shop } from "@/lib/types";
 
 export function ShopRouteClient({ address }: { address: string }) {
-  const shop = useAllShops().find((item) => item.address === address);
+  // Demo seed shops (and the demo-claimed shop) resolve from local data; a
+  // production-claimed shop is fetched from Supabase by address (public read).
+  const demoShop = useAllShops().find((item) => item.address === address);
+  const [remoteShop, setRemoteShop] = useState<Shop | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (demoShop || !isProductionBackend()) return;
+    let active = true;
+    setLoading(true);
+    getShopByAddress(address)
+      .then((shop) => active && setRemoteShop(shop))
+      .catch(() => active && setRemoteShop(null))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [address, demoShop]);
+
+  const shop = demoShop ?? remoteShop;
 
   if (!shop) {
+    if (loading) {
+      return <section className="shell grid min-h-[70vh] place-items-center py-12 text-center"><p className="text-ink/50">Opening the door…</p></section>;
+    }
     return (
       <section className="shell grid min-h-[70vh] place-items-center py-12 text-center">
         <div>

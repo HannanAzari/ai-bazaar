@@ -8,6 +8,8 @@ import { useDemo } from "@/components/providers/demo-provider";
 import { Button } from "@/components/ui/button";
 import { bazaars } from "@/lib/data";
 import { generateCreatorRoom } from "@/lib/creator-analyzer";
+import { claimShopInSupabase } from "@/lib/shop-claim";
+import { isProductionBackend } from "@/lib/runtime-mode";
 import { persistHouse } from "@/lib/house-store";
 import { houseFromRoom } from "@/lib/house";
 import { getRepositories } from "@/lib/repos";
@@ -48,8 +50,11 @@ export default function OnboardingPage() {
         bio: bioParts.join(" ") || undefined,
       }).catch(() => undefined);
 
-      // 2. Claim the first Nest (demo: a slot in the first village).
-      const shop = ownedShop ?? claimShop(bazaars[0].id, 1);
+      // 2. Claim the first Nest. Production inserts a real `shops` row (Supabase);
+      // demo uses DemoProvider's localStorage claim (unchanged).
+      const shop = isProductionBackend()
+        ? await claimShopInSupabase({ displayName: user.name })
+        : ownedShop ?? claimShop(bazaars[0].id, 1);
       if (!shop) throw new Error("Could not create your Nest. Try again.");
 
       // 3. Run Creator Auto Build and persist the generated room.
