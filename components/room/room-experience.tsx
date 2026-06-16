@@ -13,6 +13,7 @@ import { useDemo } from "@/components/providers/demo-provider";
 import { loadHouse } from "@/lib/house-store";
 import { getRoomById } from "@/lib/house";
 import { trackEvent } from "@/lib/events";
+import { useVisitorSession } from "@/lib/visitor-session";
 import { recordActivity } from "@/lib/activity";
 import { normalizeHandle } from "@/lib/creators";
 import { flags } from "@/lib/flags";
@@ -57,6 +58,10 @@ export function RoomExperience({ shop }: { shop: Shop }) {
     return () => window.removeEventListener("ai-bazaar-rooms-changed", sync);
   }, [shop]);
 
+  // Anonymous visitor session (first/returning, start/end, duration) — feeds
+  // unique-visitor + session-duration insights. No auth required.
+  useVisitorSession(shop.id);
+
   useEffect(() => {
     trackEvent("house_view", { shopId: shop.id });
     trackEvent("room_view", { shopId: shop.id });
@@ -65,6 +70,18 @@ export function RoomExperience({ shop }: { shop: Shop }) {
 
   const currentRoomId = trail[trail.length - 1] ?? house?.entryRoomId;
   const currentRoom = house ? (house.rooms.find((room) => room.id === currentRoomId) ?? house.rooms[0]) : null;
+
+  // Object impressions: record one `object_view` per visible interactive object
+  // each time a room is shown, so per-object engagement (clicks ÷ views) is real.
+  useEffect(() => {
+    if (!currentRoom) return;
+    for (const object of currentRoom.objects) {
+      if (object.hidden || object.actionType === "none") continue;
+      trackEvent("object_view", { shopId: shop.id, targetId: object.id });
+    }
+    // currentRoom is derived each render; key on its stable id, not identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRoom?.id, shop.id]);
 
   // ── Room navigation (client-side, no URL change) ──
   const enterRoom = (roomId: string) => {

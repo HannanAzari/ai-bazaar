@@ -1,5 +1,6 @@
 import type {
   BazaarEvent,
+  EventPayload,
   EventType,
   HouseRooms,
   Report,
@@ -55,7 +56,7 @@ export interface ProfileRepository {
 }
 
 export interface EventsRepository {
-  record(type: EventType, payload?: { shopId?: string; targetId?: string }): Promise<void>;
+  record(type: EventType, payload?: EventPayload): Promise<void>;
   list(): Promise<BazaarEvent[]>;
   counts(): Promise<Record<EventType, number>>;
 }

@@ -129,7 +129,7 @@ Postgres with Row-Level Security. Internal table names keep `shop*` for historic
 reasons; the **product language is house/place/room**. `is_admin()` and
 `owns_shop(shop_id)` are SECURITY DEFINER helpers used throughout RLS.
 
-### Tables (26)
+### Tables (27)
 | Group | Tables |
 |---|---|
 | Identity | `profiles` |
@@ -137,7 +137,7 @@ reasons; the **product language is house/place/room**. `is_admin()` and
 | Social | `likes`, `follows`, `guestbook_entries`, `notifications` |
 | Discovery | `tags`, `shop_tags`, `decoration_tags`, `link_tags` |
 | Saving / feed | `collections`, `collection_items`, `activity_events` |
-| Analytics | `events` (+ `record_event()` fn, `event_counts` view) |
+| Analytics | `events` (+ `record_event()` fn, `event_counts` view), `visitor_sessions` (anonymous sessions; owner-read RLS) |
 | Moderation | `reports` |
 | Generation | `generation_jobs` |
 | Catalog | `assets` |
@@ -163,6 +163,8 @@ reasons; the **product language is house/place/room**. `is_admin()` and
 11. `20260621_01_extend_enums.sql` (`event_type` += four V2 `room_design_*`) → `20260621_02_design_drafts.sql` (`room_design_drafts` table + RLS)
 12. `20260622_extend_enums.sql` (`event_type` += four V3 `creator_*`; stands alone, no table change)
 13. `20260623_room_jsonb_persistence.sql` (Production Cutover V1: `rooms.client_id` + `rooms.objects` jsonb + `rooms_shop_client_idx`)
+14. `20260624_extend_enums.sql` (Pilot Hardening V1: `event_type` += four funnel events; stands alone, no table change)
+15. `20260625_01_extend_enums.sql` (Analytics + Discovery V1: `event_type` += `session_started`, `session_ended`, `object_view`) → `20260625_02_analytics.sql` (`visitor_sessions` table + RLS + indexes; an owner-read SELECT policy on `events` so creators read their own analytics; a `(metadata->>'visitorId')` expression index)
 
 `schema.sql` is the fresh-install superset. **Critical Postgres rule:** a new
 enum **value** added to an existing enum must be committed before it is used, so
@@ -242,7 +244,8 @@ subscribe to for reactivity. Some seed demo data once (`*-seeded` guard key).
 
 | Lib | localStorage key | Purpose |
 |---|---|---|
-| `lib/events.ts` | `ai-bazaar-events` | analytics `trackEvent()` + counts |
+| `lib/events.ts` | `ai-bazaar-events` | analytics — **mode-aware `trackEvent()`** (local in demo, Supabase `record_event` in production with local fallback) + counts; events carry visitor/session ids |
+| `lib/visitor-id.ts` / `lib/visitor-session.ts` | `ai-bazaar-visitor`, `ai-bazaar-session` | anonymous visitor + session ids (no auth); first/returning, session start/end + duration |
 | `lib/reports.ts` | `ai-bazaar-reports` | moderation reports + status, `hiddenRefs()` |
 | `lib/notifications.ts` | `ai-bazaar-notifications` (+`-seeded`) | inbox + bell |
 | `lib/guestbook.ts` | `ai-bazaar-guestbook` | per-house notes |
@@ -276,9 +279,12 @@ real uploads yet.
   shows DEMO/LIVE; it renders nothing in production builds.
 - **Repository layer** (`lib/repos/`): async interfaces (`types.ts`) for houses,
   rooms, room objects, profiles, events, reports; `local.ts` delegates to the demo
-  libs; `supabase.ts` are typed stubs (`NotImplementedError`); `getRepositories(mode?)`
-  (`index.ts`) selects by runtime mode, mirroring `getImageStorage()`. **Not yet
-  consumed by components** — it is the cutover seam, so demo behaviour is unchanged.
+  libs; `getRepositories(mode?)` (`index.ts`) selects by runtime mode, mirroring
+  `getImageStorage()`. In `supabase.ts`, **profiles/houses/rooms/roomObjects** (ADR-018)
+  and **events** (ADR-020: `record`/`list`/`counts` via the `record_event` RPC +
+  `event_counts` view, owner-read RLS) are implemented; **reports** remains a typed
+  stub (`NotImplementedError`). House persistence + durable analytics consume this
+  layer; demo behaviour is unchanged.
 - See [docs/supabase-cutover.md](docs/supabase-cutover.md) for the audit + runbook.
 
 ### Hydration discipline
@@ -299,6 +305,7 @@ variation (house specs, hex positions) derives from stable seeds — **never
 - **Room Engine V5 — Richer Visuals + Rotation**: per-category object sprites (CSS treatments around the icon, frames show real images) replacing generic tiles; engraved nameplate labels; rotation editor (slider + ±15° buttons), respected in public + editor; five room **background variants** (warm studio, gallery wall, shop floor, office, garden room) recolouring the existing shell; improved empty-room state. No new art, no schema change.
 - **AI Room Designer V1**: a deterministic, rules-based room designer (`lib/ai-room-designer.ts`) — no image generation, no external APIs (ADR-006/ADR-015, spec §11). A natural-language brief is matched to a design *intent* by keyword scoring; room-ready assets are ranked by tag/category/action/style affinity (deterministic per `variant`); top picks are placed through the standard `addObjectFromAsset` rules so the result is always a valid `Room`. Surfaced as the studio **Design** mode (`components/room/room-designer.tsx`, flag `ENABLE_AI_DESIGNER`): brief + six style presets + optional room type, current-vs-proposed preview, Apply (replaces the selected room's contents via `saveHouse`) / Regenerate (bumps `variant`), a "Why this layout" explanation panel, and `room_design_generated/applied/regenerated` analytics.
 - **AI Room Designer V2 — Smarter Briefs, Constraints, Drafts** (ADR-016): a pure `parseBrief()` extracts **creator type · mood · purpose · constraints** from the brief; a **constraints engine** filters assets (no plants/video/products), caps the object count (minimal / max N), and prioritises product/booking/social/gallery assets; **8 creator presets** fill brief+style; an owner-private **drafts** store (`lib/room-design-drafts.ts`, key `ai-bazaar-design-drafts`, table `room_design_drafts`) saves/lists/applies/deletes designs; a session **history** ("recent designs"); a richer explanation panel (detected dimensions + constraints + per-object reasons); analytics `room_design_draft_saved/draft_applied/constraint_detected/preset_used`. Deterministic and selection-only — no AI/image generation.
+- **Pilot Hardening V1** (ADR-019): reliability/safety polish for a friends & family pilot, no new features. Shared validation (`lib/validation.ts`: limits + handle/address/email/URL validators aligned with DB CHECKs); centralized friendly errors (`lib/errors.ts` `friendlyError(err, context)` — calm user copy, raw error to console) wired into login/sign-up/onboarding/room-save; loading + double-submit guards + studio session-loading state; internal pilot funnel events (`signup_completed`/`onboarding_completed`/`first_nest_created`/`room_saved`, `20260624_*`); draft legal/trust pages (`/privacy`,`/terms`,`/safety`,`/contact` via `LegalPage`, footer-linked); docs `pilot-readiness.md`/`pilot-ops.md`/`analytics-plan.md`. Demo + production unchanged in behaviour.
 - **AI Room Designer V3 — Creator Auto Build** (ADR-017): a deterministic, **no-scraping/no-API** profile analyzer (`lib/creator-analyzer.ts`). `analyzeCreator({instagramUrl?, tiktokUrl?, youtubeUrl?, websiteUrl?, bio?})` reads usernames + domain words + bio into `{ creatorType, mood, purpose, keywords[], socialLinks[], confidence, summary }` (12 creator types incl. the new `consultant`/`personal`); `generateCreatorRoom()` feeds that into `generateRoomDesign()`, trims the base, then auto-adds an **about-me profile object** and **one `link` object per supplied platform**, and sets a deterministic welcome `room.description`. Surfaced as the **Creator Auto Build** panel + **Analyzer insights** in Design mode; analytics `creator_profile_analyzed/room_generated/room_applied/social_object_created`. Reuses `ENABLE_AI_DESIGNER`; no new table.
 - **Production Cutover V1** (ADR-018): real, mode-selected production infrastructure with **demo unchanged**. Unified session (`lib/auth/*` + `useSession()`: `DemoAuthClient` localStorage / `SupabaseAuthClient` email+password); `middleware.ts` session refresh + `/studio`,`/onboarding` protection; profiles wired (`UserProfile`, extended `ProfileRepository`, demo `lib/profile-store.ts` + Supabase impl, create-on-first-login); real Supabase `profiles`/`houses`/`rooms` repos (anon+RLS, lazy client, pure mappers in `lib/repos/supabase-mappers.ts`); rooms persist as a jsonb snapshot (`rooms.client_id`+`rooms.objects`, V5-faithful); async `lib/house-store.ts` seam adopted by editor/designer/experience; `SupabaseStorage` behind `getImageStorage()`; onboarding (`/onboarding`, reuses Creator Auto Build); subdomain prep (`lib/subdomain.ts` + middleware rewrite, `docs/subdomain-routing.md`); `docs/staging-checklist.md`. `events`/`reports` Supabase repos remain stubs.
 - **Creator profiles** (`/u/[handle]`): avatar/bio/links/houses/follower counts, follow, profile activity feed.
@@ -308,13 +315,14 @@ variation (house specs, hex positions) derives from stable seeds — **never
 - **Activity feed**: global `/activity` + profile feed, 7 event types recorded on real actions.
 - **Tags**: normalized tags on houses/decorations/links, `/tags` + `/tags/[tag]`, studio editing.
 - **Discovery**: trending/newest, explore-by-tag, mobile swipe + desktop grid/list.
-- **Analytics**: `trackEvent` (8 types incl. `object_click`), counts on moderation page.
+- **Analytics + Discovery V1** (ADR-020): **mode-aware durable analytics** — `trackEvent` writes Supabase in production (`SupabaseEventsRepository` → `record_event`), localStorage in demo, with a local fallback; **anonymous visitor sessions** (`lib/visitor-id.ts`/`visitor-session.ts`: first/returning, start/end, duration); per-object `object_view` impressions; a pure **creator insights** engine (`lib/creator-insights.ts`: visits, unique visitors, room entries, avg session, top objects/room/day, funnel + conversion) surfaced in Studio (`creator-insights-panel.tsx`); **Featured Nests** discovery (`lib/discovery.ts` + `components/featured-nests.tsx`) on `/discover`; `visitor_sessions` table + owner-read events RLS.
+- **Analytics (legacy note)**: `trackEvent` event types, counts on the moderation page.
 - **Reporting/moderation**: report house/item/user/guestbook, `/moderation` queue with `pending→reviewed→hidden→dismissed`; `hidden` soft-hides from discovery/tags.
 - **Asset catalog**: internal `/assets` grid with filters.
 - **Backend cutover prep**: env-derived runtime mode + dev-only badge, a repository layer (local impls + Supabase stubs + factory), and `docs/supabase-cutover.md` (drift audit + runbook). Demo stays the default; no app rewiring.
-- **Quality**: Vitest suite (140 tests) for the demo libs incl. room move/resize/undo-redo/templates, room V3 gallery/video/product/contact validation + analytics, room V4 multi-room, room V5 visuals/rotation, cutover-prep, AI-designer V1 (keyword matching, asset ranking, deterministic generation, room validity, explanations), AI-designer V2 (brief parsing, creator-type/mood/purpose detection, constraints engine, presets, drafts store), AI-designer V3 (URL/username/domain parsing, creator-type detection, confidence scoring, social-link extraction, welcome message, creator-room generation, determinism), and Production Cutover V1 (auth flow demo + mocked Supabase, profile store, repository selection, room↔row persistence mappers, onboarding data path, subdomain parsing); QA checklist; flags + demo behaviour documented.
+- **Quality**: Vitest suite (140 tests) for the demo libs incl. room move/resize/undo-redo/templates, room V3 gallery/video/product/contact validation + analytics, room V4 multi-room, room V5 visuals/rotation, cutover-prep, AI-designer V1 (keyword matching, asset ranking, deterministic generation, room validity, explanations), AI-designer V2 (brief parsing, creator-type/mood/purpose detection, constraints engine, presets, drafts store), AI-designer V3 (URL/username/domain parsing, creator-type detection, confidence scoring, social-link extraction, welcome message, creator-room generation, determinism), Production Cutover V1 (auth flow demo + mocked Supabase, profile store, repository selection, room↔row persistence mappers, onboarding data path, subdomain parsing, shop-claim helpers), and Pilot Hardening V1 (validation limits, friendly error mapping + no-leak, pilot event labels, legal route + doc presence); QA checklist; flags + demo behaviour documented.
 
-Verification gates (all green): `npm run typecheck && npm run lint && npm run test && npm run build` (168 tests, build emits ~82 pages).
+Verification gates (all green): `npm run typecheck && npm run lint && npm run test && npm run build` (236 tests, build emits ~86 pages).
 
 ---
 
@@ -325,7 +333,7 @@ Verification gates (all green): `npm run typecheck && npm run lint && npm run te
 - **Object visuals are CSS treatments around an icon** (V5), not per-asset illustration; richness is bounded by what CSS can express. Resize-handle math is axis-aligned, so resizing a heavily rotated object is approximate.
 - **Multi-room houses ship in V4**, but room navigation state is **client-only**: a visitor always lands in the entry room, and a URL can't deep-link to a specific inner room yet.
 - **AI/storage are mocked**: `/api/generations` and `createGeneration` are fake; image URLs are placeholders that don't load.
-- **SQL is unverified at runtime** — schema/migrations mirror the demo but have never been executed against Postgres here. Dry-run before production; RLS in particular needs live testing.
+- **SQL is unverified at runtime** — schema/migrations mirror the demo but have never been executed against Postgres here. Dry-run before production; RLS in particular needs live testing. This includes **durable analytics** (Analytics + Discovery V1): the `SupabaseEventsRepository` + `record_event` path is implemented and unit-tested with a mock client and verified in demo (localStorage), but not against live Postgres — production writes fall back to the local mirror until the schema is applied. Production discovery trending is seed/local-backed until a public per-shop aggregate view exists.
 - **Tests cover libs, not UI** — no component/E2E tests.
 - **Node 16 is the machine default** but the toolchain needs Node 20 (eslint `structuredClone`, `next dev`). Always set the PATH as noted in section 1.
 

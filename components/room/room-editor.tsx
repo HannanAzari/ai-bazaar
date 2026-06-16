@@ -70,6 +70,7 @@ import {
 } from "@/lib/room-schema";
 import { getAsset, roomReadyAssets } from "@/lib/assets";
 import { trackEvent } from "@/lib/events";
+import { friendlyError } from "@/lib/errors";
 import type { HouseRooms, Room, RoomActionType, RoomKind, RoomObject, RoomZoneType, Shop } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -191,11 +192,11 @@ export function RoomEditor({ shop }: { shop: Shop }) {
     const timer = window.setTimeout(() => {
       setSaveStatus("saving");
       persistHouse(presentRef.current)
-        .then(() => setSaveStatus("saved"))
+        .then(() => { setSaveStatus("saved"); trackEvent("room_saved", { shopId: shop.id }); })
         .catch(() => setSaveStatus("unsaved"));
     }, AUTOSAVE_MS);
     return () => window.clearTimeout(timer);
-  }, [saveStatus, house]);
+  }, [saveStatus, house, shop.id]);
 
   const selected = selectedIds.length === 1 ? activeRoom.objects.find((o) => o.id === selectedIds[0]) ?? null : null;
   const selectedAsset = selected ? getAsset(selected.assetId) : undefined;
@@ -282,7 +283,7 @@ export function RoomEditor({ shop }: { shop: Shop }) {
 
   const saveNow = () => {
     setSaveStatus("saving");
-    persistHouse(house).then(() => { setSaveStatus("saved"); flash("House saved"); }).catch(() => { setSaveStatus("unsaved"); flash("Could not save — check your connection."); });
+    persistHouse(house).then(() => { setSaveStatus("saved"); trackEvent("room_saved", { shopId: shop.id }); flash("House saved"); }).catch((err) => { setSaveStatus("unsaved"); flash(friendlyError(err, "save")); });
   };
   const reset = () => {
     void forgetHouse(shop.address).catch(() => undefined);

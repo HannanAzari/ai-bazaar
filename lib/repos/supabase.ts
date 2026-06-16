@@ -8,7 +8,8 @@ import type {
   RoomObjectRepository,
   RoomRepository,
 } from "@/lib/repos/types";
-import type { HouseRooms, Shop, UserProfile } from "@/lib/types";
+import type { BazaarEvent, EventPayload, EventType, HouseRooms, Shop, UserProfile } from "@/lib/types";
+import { eventLabels } from "@/lib/events";
 import type { SessionUser } from "@/lib/auth/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { deriveDefaultHouse } from "@/lib/house";
@@ -175,16 +176,81 @@ const todo = (method: string): never => {
   throw new NotImplementedError(method);
 };
 
+type EventRow = {
+  id: string;
+  type: EventType;
+  shop_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+/**
+ * Durable analytics (Analytics + Discovery V1). Writes go through the
+ * `record_event` RPC (anon-insertable under RLS); reads come back filtered by
+ * RLS to the owner's own shop events (the "owners read own shop events" policy)
+ * or all events for admins. Visitor/session ids + the client object id live in
+ * the `events.metadata` jsonb so no schema column churn is needed.
+ */
 export class SupabaseEventsRepository implements EventsRepository {
-  record() {
-    return todo("SupabaseEventsRepository.record");
+  private injected?: SupabaseClient | null;
+  private resolved?: SupabaseClient;
+  constructor(db?: SupabaseClient | null) {
+    this.injected = db;
   }
-  list() {
-    return todo("SupabaseEventsRepository.list");
+  private get db(): SupabaseClient {
+    return (this.resolved ??= client(this.injected));
   }
-  counts() {
-    return todo("SupabaseEventsRepository.counts");
+
+  async record(type: EventType, payload: EventPayload = {}) {
+    const metadata: Record<string, unknown> = { ...(payload.metadata ?? {}) };
+    if (payload.targetId) metadata.targetId = payload.targetId;
+    if (payload.visitorId) metadata.visitorId = payload.visitorId;
+    if (payload.sessionId) metadata.sessionId = payload.sessionId;
+    const { error } = await this.db.rpc("record_event", {
+      p_type: type,
+      p_shop_id: payload.shopId ?? null,
+      p_metadata: metadata,
+    });
+    if (error) throw error;
   }
+
+  async list(): Promise<BazaarEvent[]> {
+    const { data, error } = await this.db
+      .from("events")
+      .select("id, type, shop_id, metadata, created_at")
+      .order("created_at", { ascending: false })
+      .limit(5000);
+    if (error) throw error;
+    return ((data ?? []) as EventRow[]).map(mapEventRow);
+  }
+
+  async counts(): Promise<Record<EventType, number>> {
+    const counts = Object.fromEntries(
+      (Object.keys(eventLabels) as EventType[]).map((type) => [type, 0]),
+    ) as Record<EventType, number>;
+    const { data, error } = await this.db.from("event_counts").select("type, total");
+    if (error) throw error;
+    for (const row of (data ?? []) as { type: EventType; total: number | string }[]) {
+      counts[row.type] = Number(row.total);
+    }
+    return counts;
+  }
+}
+
+/** Pure row→BazaarEvent mapper (visitor/session/target ids unpacked from jsonb). */
+export function mapEventRow(row: EventRow): BazaarEvent {
+  const meta = (row.metadata ?? {}) as Record<string, unknown>;
+  const { targetId, visitorId, sessionId, ...rest } = meta;
+  return {
+    id: row.id,
+    type: row.type,
+    shopId: row.shop_id ?? undefined,
+    targetId: typeof targetId === "string" ? targetId : undefined,
+    visitorId: typeof visitorId === "string" ? visitorId : undefined,
+    sessionId: typeof sessionId === "string" ? sessionId : undefined,
+    metadata: Object.keys(rest).length ? (rest as BazaarEvent["metadata"]) : undefined,
+    createdAt: row.created_at,
+  };
 }
 
 export class SupabaseReportsRepository implements ReportsRepository {

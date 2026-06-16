@@ -4,7 +4,7 @@ create type public.decoration_type as enum ('text', 'image', 'ai_image', 'link',
 create type public.generation_status as enum ('queued', 'building', 'complete', 'failed');
 create type public.report_target_type as enum ('shop', 'decoration', 'user', 'guestbook');
 create type public.report_status as enum ('pending', 'reviewed', 'hidden', 'dismissed');
-create type public.event_type as enum ('house_view', 'room_view', 'decoration_click', 'object_click', 'link_click', 'share_click', 'follow', 'like', 'room_object_added', 'room_object_deleted', 'room_object_moved', 'room_object_resized', 'room_template_applied', 'gallery_opened', 'video_opened', 'product_opened', 'booking_opened', 'contact_opened', 'profile_opened', 'room_entered', 'room_created', 'room_deleted', 'room_link_clicked', 'room_design_generated', 'room_design_applied', 'room_design_regenerated', 'room_design_draft_saved', 'room_design_draft_applied', 'room_design_constraint_detected', 'room_design_preset_used', 'creator_profile_analyzed', 'creator_room_generated', 'creator_room_applied', 'creator_social_object_created');
+create type public.event_type as enum ('house_view', 'room_view', 'decoration_click', 'object_click', 'link_click', 'share_click', 'follow', 'like', 'room_object_added', 'room_object_deleted', 'room_object_moved', 'room_object_resized', 'room_template_applied', 'gallery_opened', 'video_opened', 'product_opened', 'booking_opened', 'contact_opened', 'profile_opened', 'room_entered', 'room_created', 'room_deleted', 'room_link_clicked', 'room_design_generated', 'room_design_applied', 'room_design_regenerated', 'room_design_draft_saved', 'room_design_draft_applied', 'room_design_constraint_detected', 'room_design_preset_used', 'creator_profile_analyzed', 'creator_room_generated', 'creator_room_applied', 'creator_social_object_created', 'signup_completed', 'onboarding_completed', 'first_nest_created', 'room_saved', 'session_started', 'session_ended', 'object_view');
 create type public.notification_type as enum ('house_view', 'like', 'follow', 'guestbook_entry', 'item_click', 'report_status');
 create type public.room_zone_type as enum ('back_wall', 'left_wall', 'right_wall', 'floor_left', 'floor_center', 'floor_right', 'shelf', 'window', 'door');
 create type public.room_action_type as enum ('link', 'video', 'product', 'booking', 'contact', 'gallery', 'profile', 'room_link', 'guestbook', 'collection', 'none');
@@ -260,6 +260,20 @@ create table public.events (
   created_at timestamptz not null default now()
 );
 
+-- Analytics + Discovery V1: anonymous visitor sessions (no auth). visitor_id /
+-- session_id are app-generated opaque strings; these also ride on events.metadata
+-- so the visitor funnel can be derived from events alone.
+create table public.visitor_sessions (
+  id uuid primary key default gen_random_uuid(),
+  session_id text not null unique,
+  visitor_id text not null,
+  shop_id uuid references public.shops(id) on delete cascade,
+  is_returning boolean not null default false,
+  started_at timestamptz not null default now(),
+  ended_at timestamptz,
+  duration_ms bigint check (duration_ms is null or duration_ms >= 0)
+);
+
 -- ── Room engine ──────────────────────────────────────────────────────────────
 -- Zones are a fixed app-defined template (lib/room-schema.ts); the zone lives as
 -- an enum column on each object rather than its own table.
@@ -333,6 +347,9 @@ create index decoration_tags_tag_idx on public.decoration_tags (tag_id);
 create index link_tags_tag_idx on public.link_tags (tag_id);
 create index events_type_idx on public.events (type, created_at desc);
 create index events_shop_idx on public.events (shop_id) where shop_id is not null;
+create index events_visitor_idx on public.events ((metadata->>'visitorId')) where metadata ? 'visitorId';
+create index visitor_sessions_visitor_idx on public.visitor_sessions (visitor_id);
+create index visitor_sessions_shop_idx on public.visitor_sessions (shop_id, started_at desc) where shop_id is not null;
 create index guestbook_shop_idx on public.guestbook_entries (shop_id, created_at desc);
 create index notifications_user_idx on public.notifications (user_id, created_at desc);
 create index notifications_unread_idx on public.notifications (user_id) where read = false;
@@ -526,6 +543,7 @@ alter table public.rooms enable row level security;
 alter table public.room_objects enable row level security;
 alter table public.room_object_tags enable row level security;
 alter table public.room_design_drafts enable row level security;
+alter table public.visitor_sessions enable row level security;
 alter table public.tags enable row level security;
 alter table public.shop_tags enable row level security;
 alter table public.decoration_tags enable row level security;
@@ -653,3 +671,12 @@ create policy "owners manage link tags" on public.link_tags for all
 
 create policy "anyone records events" on public.events for insert with check (true);
 create policy "admins read events" on public.events for select using (public.is_admin());
+-- Analytics V1: creators read analytics for shops they own (insights dashboard).
+create policy "owners read own shop events" on public.events for select using (public.owns_shop(shop_id));
+
+-- Analytics V1: anonymous visitor sessions — anyone may open/close their own
+-- session row; only owners/admins may read them.
+create policy "anyone starts a session" on public.visitor_sessions for insert with check (true);
+create policy "anyone ends their session" on public.visitor_sessions for update using (true) with check (true);
+create policy "owners read shop sessions" on public.visitor_sessions for select
+  using (public.owns_shop(shop_id) or public.is_admin());

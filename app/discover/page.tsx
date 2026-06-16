@@ -1,5 +1,6 @@
 import { Compass, Search, Sparkles } from "lucide-react";
 import { DiscoveryClient } from "@/components/discovery-client";
+import { FeaturedNests } from "@/components/featured-nests";
 import { Footer } from "@/components/footer";
 
 export default function DiscoverPage() {
@@ -19,6 +20,7 @@ export default function DiscoverPage() {
             <Sparkles size={18} className="text-terracotta" />
           </div>
         </div>
+        <FeaturedNests />
         <DiscoveryClient />
       </section>
       <Footer />

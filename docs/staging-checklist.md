@@ -20,6 +20,12 @@ shipped in `lib/shop-claim.ts`; public shop resolution via `getShopByAddress`.
 
 > The remaining items below are retained as the repeatable runbook for any new
 > staging/prod project.
+>
+> **Pilot Hardening V1 (2026-06-24):** production paths now show friendly errors
+> (no raw Supabase strings; raw error stays in console) with loading/double-submit
+> guards; input limits live in `lib/validation.ts`; draft legal pages exist. For the
+> first-user audit + verdict see [pilot-readiness.md](pilot-readiness.md); for manual
+> cleanup/verify steps see [pilot-ops.md](pilot-ops.md).
 
 ## 0. What was / wasn't verified in the build env
 

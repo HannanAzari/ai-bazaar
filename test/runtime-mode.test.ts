@@ -50,13 +50,14 @@ describe("repository selection", () => {
 
   it("selects Supabase repositories in production mode (constructed lazily)", async () => {
     const repos = getRepositories("production");
-    // Out-of-scope repos remain typed stubs.
-    expect(() => repos.events.list()).toThrow(NotImplementedError);
+    // Reports remain a typed stub (out of scope).
     expect(() => repos.reports.list()).toThrow(NotImplementedError);
     // Profiles/houses/rooms are implemented (V1). getByHandle aggregation is deferred → null.
     await expect(repos.profiles.getByHandle("mina")).resolves.toBeNull();
-    // Without Supabase env in the test runner, a real query reports the missing client.
+    // Without Supabase env in the test runner, a real query reports the missing
+    // client. Events are now implemented (Analytics V1), so they behave likewise.
     await expect(repos.houses.getStoredHouse("x")).rejects.toThrow(/supabase client unavailable/i);
+    await expect(repos.events.list()).rejects.toThrow(/supabase client unavailable/i);
   });
 
   it("exposes the full repository set", () => {

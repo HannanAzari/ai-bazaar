@@ -19,8 +19,11 @@ The world map is a **hexagon district map**: ten villages laid out as a connecte
 ## Discovery, tags, analytics & moderation
 
 - **Tags** — houses, decorations, and links carry lowercase normalized tags. Browse `/tags`, open any tag at `/tags/<tag>`, and see every house and item that shares it. Owners edit tags from the studio.
-- **Discovery** (`/discover`) — trending and newest feeds, popular tags, inline explore-by-tag filtering, a mobile swipe deck, and a desktop grid/list toggle.
-- **Analytics events** — `trackEvent()` records `house_view`, `room_view`, `decoration_click`, `link_click`, `share_click`, `follow`, and `like`. Basic counts surface on the moderation page.
+- **Discovery** (`/discover`) — **Featured Nests** (Trending / New creators / Recently active, populated from real recorded visits + activity with seeded fallback, reusing the house-card visuals) plus the search-driven trending/newest feeds, popular tags, explore-by-tag, mobile swipe deck, and desktop grid/list toggle.
+- **Analytics** — `trackEvent()` is **mode-aware**: localStorage in demo, durable Supabase (`record_event`) in production with a local fallback. Records engagement, room, interactive-object, multi-room, AI-designer, pilot-funnel, and (Analytics V1) **visitor-session** (`session_started`/`session_ended`) + **object impression** (`object_view`) events — every event auto-tagged with an anonymous visitor + session id. Counts surface on `/moderation`.
+- **Anonymous visitor sessions** — opaque visitor/session ids (no auth, no PII; `lib/visitor-id.ts` / `lib/visitor-session.ts`) detect first-vs-returning visits and measure session duration.
+- **Creator insights** (`/studio` → **Insights & visitors**) — total visits, unique visitors, room entries, average session duration, top clicked objects (with engagement %), top room, top day of week, and the visitor funnel (visits → rooms → interactions → exits) with conversion %. Durable per-creator reads in production (owner-read RLS).
+- **Reporting & moderation** — visitors can report a house, an item, an owner, or a guestbook note. The admin page at `/moderation` lists reports with `pending → reviewed → hidden → dismissed` status control; hiding a place softly removes it from discovery while preserving ownership and history.
 - **Reporting & moderation** — visitors can report a house, an item, an owner, or a guestbook note. The admin page at `/moderation` lists reports with `pending → reviewed → hidden → dismissed` status control; hiding a place softly removes it from discovery while preserving ownership and history.
 
 In the running demo these features persist to `localStorage` (no backend required). The same shapes map onto the Supabase tables below for production.
@@ -314,16 +317,20 @@ For an existing project, run migrations in filename order:
 17. `supabase/migrations/20260621_02_design_drafts.sql` — the `room_design_drafts` table (owner-private designer drafts) + RLS.
 18. `supabase/migrations/20260622_extend_enums.sql` — AI Room Designer V3 `event_type` values (`creator_profile_analyzed`, `creator_room_generated`, `creator_room_applied`, `creator_social_object_created`). Enum-value additions only; stands alone (no table change — creator rooms are ordinary Rooms and reuse `room_design_drafts`).
 19. `supabase/migrations/20260623_room_jsonb_persistence.sql` — Production Cutover V1: `rooms.client_id` + `rooms.objects` (jsonb) + `rooms_shop_client_idx`. Also create a public Storage bucket named `room-images`.
-20. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
+20. `supabase/migrations/20260624_extend_enums.sql` — Pilot Hardening V1 funnel `event_type` values (`signup_completed`, `onboarding_completed`, `first_nest_created`, `room_saved`). Enum-only; internal analytics.
+21. `supabase/migrations/20260625_01_extend_enums.sql` — Analytics + Discovery V1 `event_type` values (`session_started`, `session_ended`, `object_view`). Must commit before step 22.
+22. `supabase/migrations/20260625_02_analytics.sql` — the `visitor_sessions` table (anonymous sessions) + RLS + indexes, an owner-read SELECT policy on `events` (creators read their own shop's analytics), and a `(metadata->>'visitorId')` expression index.
+23. Run the updated `supabase/seed.sql` (adds a starter tag vocabulary).
 
-The two-step enum split (in `20260611_*`, `20260612_*`, `20260615_*`, and `20260617_*`) is required: PostgreSQL will not let a single transaction add an enum value and then use it, so new enum values are committed in `_01` before `_02` references them. Migrations that only add enum values (e.g. `20260616_extend_enums.sql`) stand alone.
+The two-step enum split (in `20260611_*`, `20260612_*`, `20260615_*`, `20260617_*`, and `20260625_*`) is required: PostgreSQL will not let a single transaction add an enum value and then use it, so new enum values are committed in `_01` before `_02` references them. Migrations that only add enum values (e.g. `20260616_extend_enums.sql`) stand alone.
 
 Internal table names such as `shops`, `shop_slots`, and `shop_decorations` remain unchanged to avoid an unnecessary data migration. The visible product consistently uses village, house, place, room, item, and decoration language.
 
 ### New tables
 
 - `tags`, `shop_tags`, `decoration_tags`, `link_tags` — normalized tags and their joins.
-- `events` (+ `record_event()` helper, `event_counts` view) — append-only analytics; anyone records, only admins read.
+- `events` (+ `record_event()` helper, `event_counts` view) — append-only analytics; anyone records, **owners read their own shop's events** (Analytics V1) and admins read all. Visitor/session ids live in the `metadata` jsonb.
+- `visitor_sessions` — anonymous visitor sessions (no auth); anyone opens/closes their own row, owners/admins read.
 - `guestbook_entries` — public notes per house; visitors insert, owners moderate. An insert trigger notifies the house owner.
 - `notifications` (+ `push_notification()` helper) — per-recipient bell items; recipients read and mark their own.
 - `reports` — extended with `user` and `guestbook` target types (`reported_user_id`, `guestbook_entry_id`) and the `pending`/`reviewed`/`hidden`/`dismissed` status set.
@@ -400,6 +407,8 @@ app/
   activity/              Global activity feed
   assets/                Internal asset catalog
   moderation/            Admin reports queue + basic activity counts
+  onboarding/            Post-signup creator onboarding (production + demo)
+  privacy/ terms/ safety/ contact/   Pilot legal/trust placeholder pages
 components/
   village-world.tsx      Hexagon district map
   street-walk.tsx        24-house circular street
@@ -422,7 +431,11 @@ lib/
   flags.ts               Feature flags (NEXT_PUBLIC_ENABLE_*)
   addresses.ts           Village-prefixed address generation
   tags.ts                Tag normalization and aggregation
-  events.ts              trackEvent() and local count readers
+  events.ts              Mode-aware trackEvent() (local/Supabase) + count readers
+  visitor-id.ts          Anonymous visitor + session id storage (no deps)
+  visitor-session.ts     Visitor session lifecycle (first/returning, duration)
+  creator-insights.ts    Pure creator dashboard / object / funnel aggregation
+  discovery.ts           Featured Nests ranking (trending/new/recently active)
   reports.ts             Report store and status workflow
   creators.ts            Derive a creator from owned houses
   notifications.ts       Local notification store + demo seed
@@ -436,6 +449,8 @@ lib/
   auth/                  Unified session (demo + Supabase email/password)
   profile-store.ts       Demo profile store (parity with `profiles`)
   subdomain.ts           `<handle>.nestud.io` host → /u/<handle>
+  validation.ts          Shared input limits + validators (pilot safety)
+  errors.ts              friendlyError(): calm user copy, raw error to console
   ai-room-designer.ts    Deterministic brief→room designer + V2 parser/constraints/presets
   creator-analyzer.ts    V3 profile analyzer + creator auto-build (no scraping/APIs)
   room-design-drafts.ts  Owner-private designer drafts store (save/list/apply/delete)

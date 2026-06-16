@@ -11,8 +11,10 @@ export function Footer() {
           <Link href="/tags">Tags</Link>
           {flags.collections && <Link href="/collections">Collections</Link>}
           {flags.activityFeed && <Link href="/activity">Activity</Link>}
-          <Link href="/moderation">Safety</Link>
-          <a href="mailto:hello@aibazaar.local">Contact</a>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+          <Link href="/safety">Safety</Link>
+          <Link href="/contact">Contact</Link>
         </div>
       </div>
     </footer>

@@ -135,7 +135,11 @@ Rules:
   plus a per-type event (`gallery_opened`, `video_opened`, `product_opened`,
   `booking_opened`, `contact_opened`, `profile_opened`; `link` also records
   `link_click`; `room_link` records `room_link_clicked` and a `room_entered` for
-  the destination).
+  the destination). Analytics + Discovery V1 adds a per-object **`object_view`**
+  impression (recorded for each visible interactive object when a room is shown),
+  so the owner dashboard can show engagement = clicks ÷ views. Analytics are
+  mode-aware (durable in production); see ADR-020 — the room object/`Room` model is
+  unchanged (visitor/session ids ride on `events.metadata`, not the object).
 - Actions requiring data (link/video/booking need a URL; gallery needs images;
   product/contact need fields) treat **missing data as inert** — no error, no
   broken click. `guestbook`/`collection`/`profile` need no stored data.

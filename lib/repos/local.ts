@@ -8,10 +8,10 @@ import type {
   RoomObjectRepository,
   RoomRepository,
 } from "@/lib/repos/types";
-import type { EventType, ReportStatus, Shop, UserProfile } from "@/lib/types";
+import type { EventPayload, EventType, ReportStatus, Shop, UserProfile } from "@/lib/types";
 import type { SessionUser } from "@/lib/auth/types";
 import { getHouse, getStoredHouse, resetHouse, saveHouse } from "@/lib/room";
-import { eventCounts, getEvents, trackEvent } from "@/lib/events";
+import { eventCounts, getEvents, trackEventLocal } from "@/lib/events";
 import { fileReport, getReports, hiddenRefs, setReportStatus } from "@/lib/reports";
 import { getCreator } from "@/lib/creators";
 import { ensureProfile, getProfile, updateProfile } from "@/lib/profile-store";
@@ -72,8 +72,8 @@ export class LocalProfileRepository implements ProfileRepository {
 }
 
 export class LocalEventsRepository implements EventsRepository {
-  record(type: EventType, payload?: { shopId?: string; targetId?: string }) {
-    trackEvent(type, payload);
+  record(type: EventType, payload?: EventPayload) {
+    trackEventLocal(type, payload);
     return ok(undefined);
   }
   list() {

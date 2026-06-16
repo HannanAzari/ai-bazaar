@@ -14,6 +14,8 @@ import { persistHouse } from "@/lib/house-store";
 import { houseFromRoom } from "@/lib/house";
 import { getRepositories } from "@/lib/repos";
 import { trackEvent } from "@/lib/events";
+import { friendlyError } from "@/lib/errors";
+import { LIMITS, clampText } from "@/lib/validation";
 
 // Onboarding V1 — the fastest path from first login to a furnished room. Reuses
 // the V3 creator-analyzer + AI Room Designer (no second onboarding system). One
@@ -68,12 +70,16 @@ export default function OnboardingPage() {
       trackEvent("creator_room_generated", { shopId: shop.id });
       trackEvent("creator_room_applied", { shopId: shop.id });
       for (let i = 0; i < built.socialObjects; i += 1) trackEvent("creator_social_object_created", { shopId: shop.id });
+      // Pilot funnel.
+      trackEvent("first_nest_created", { shopId: shop.id });
+      trackEvent("room_saved", { shopId: shop.id });
+      trackEvent("onboarding_completed", { shopId: shop.id });
 
       if (typeof window !== "undefined") window.localStorage.setItem(ONBOARDED_KEY, "true");
       // 4. Land in the new room.
       router.push(`/shop/${shop.address}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(friendlyError(err, "onboarding"));
       setBusy(false);
     }
   };
@@ -89,7 +95,7 @@ export default function OnboardingPage() {
         <form onSubmit={build} className="mt-8 space-y-4">
           <label className="block">
             <span className="mb-2 block text-sm font-bold">What do you create?</span>
-            <input value={craft} onChange={(e) => setCraft(e.target.value)} required placeholder="e.g. Wedding photographer · Indie developer · Ceramics shop" className="min-h-14 w-full rounded-2xl border border-ink/10 bg-white px-4 outline-none" />
+            <input value={craft} onChange={(e) => setCraft(clampText(e.target.value, "craft"))} maxLength={LIMITS.craft} required placeholder="e.g. Wedding photographer · Indie developer · Ceramics shop" className="min-h-14 w-full rounded-2xl border border-ink/10 bg-white px-4 outline-none" />
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="flex items-center gap-3 rounded-2xl border border-ink/10 bg-white px-4"><Instagram size={18} className="text-ink/30" /><input value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="Instagram" aria-label="Instagram" className="min-h-13 w-full bg-transparent py-3 outline-none" /></label>

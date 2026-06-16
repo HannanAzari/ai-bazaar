@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowRight, KeyRound, Mail, Store } from "lucide-react";
 import { useSession } from "@/components/providers/auth-provider";
 import { isDemoMode } from "@/lib/runtime-mode";
+import { friendlyError } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
@@ -24,7 +25,7 @@ export default function LoginPage() {
       await signIn({ email, password });
       router.push("/studio");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not sign in.");
+      setError(friendlyError(err, "signin"));
       setBusy(false);
     }
   };

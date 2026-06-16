@@ -112,16 +112,43 @@ export type EventType =
   | "creator_profile_analyzed"
   | "creator_room_generated"
   | "creator_room_applied"
-  | "creator_social_object_created";
+  | "creator_social_object_created"
+  // Pilot Hardening V1: first-run funnel (public_room_viewed reuses room_view).
+  | "signup_completed"
+  | "onboarding_completed"
+  | "first_nest_created"
+  | "room_saved"
+  // Analytics + Discovery V1: anonymous visitor sessions + per-object views.
+  | "session_started"
+  | "session_ended"
+  | "object_view";
 
 export type BazaarEvent = {
   id: string;
   type: EventType;
   /** The shop the event relates to, when applicable. */
   shopId?: string;
-  /** A decoration or link id, when applicable. */
+  /** A decoration, link, room or object id, when applicable. */
   targetId?: string;
+  /** Anonymous visitor id (Analytics V1) — distinct browsers/devices. Stored in
+   * the `events.metadata` jsonb in production; no auth required. */
+  visitorId?: string;
+  /** Anonymous session id (Analytics V1) — one browsing session. */
+  sessionId?: string;
+  /** Free-form extra payload (e.g. session durationMs, returning flag). Mirrors
+   * the `events.metadata` jsonb column. */
+  metadata?: Record<string, string | number | boolean>;
   createdAt: string;
+};
+
+/** What a call site passes to record an event (visitor/session ids are attached
+ * automatically by trackEvent when present). */
+export type EventPayload = {
+  shopId?: string;
+  targetId?: string;
+  visitorId?: string;
+  sessionId?: string;
+  metadata?: Record<string, string | number | boolean>;
 };
 
 // ── Reporting / moderation ──────────────────────────────────

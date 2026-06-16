@@ -47,7 +47,9 @@ by **selecting from a curated asset library**, never by generating visuals.
 | AI Room Designer V1 | 2026-06-20 | Deterministic, selection-only room designer (`lib/ai-room-designer.ts`): brief→intent keyword matching, asset ranking, six style presets, valid-room composition, preview-before-apply (studio Design mode), design explanations, `room_design_*` analytics (`20260620_*`); no image generation |
 | AI Room Designer V2 — Smarter Briefs, Constraints, Drafts | 2026-06-21 | Advanced brief parser (creator type · mood · purpose · constraints), constraints engine, 8 creator presets, owner-private drafts (`room_design_drafts` + `20260621_*`), session history, richer explanation panel, 4 V2 analytics events; still deterministic + selection-only |
 | AI Room Designer V3 — Creator Auto Build | 2026-06-22 | Deterministic profile analyzer (`lib/creator-analyzer.ts`, no scraping/APIs): IG/TikTok/YouTube/Website + bio → creator type (12) / mood / purpose / keywords / confidence; auto room via `generateRoomDesign`, auto social objects + about-me profile object, deterministic welcome message, analyzer insights, 4 `creator_*` analytics (`20260622_*`) |
-| Production Cutover V1 | 2026-06-23 | Real Supabase auth (unified `useSession()`), profiles wiring, real `profiles`/`houses`/`rooms` repos (anon+RLS), jsonb room persistence (`20260623_*`), `SupabaseStorage`, onboarding (`/onboarding`), subdomain prep + middleware, staging checklist; demo unchanged. Live-verified demo flow + production auth; DB persistence deferred to staging (schema not applied) |
+| Production Cutover V1 | 2026-06-23 | Real Supabase auth (unified `useSession()`), profiles wiring, real `profiles`/`houses`/`rooms` repos (anon+RLS), jsonb room persistence (`20260623_*`), `SupabaseStorage`, onboarding (`/onboarding`), subdomain prep + middleware, staging checklist; demo unchanged. Full authenticated flow verified live on staging (incl. production shop-claiming) |
+| Pilot Hardening V1 | 2026-06-24 | Reliability/safety/polish for friends & family pilot (no new features): shared validation, centralized friendly errors (no raw Supabase leaks), loading/double-submit guards, internal funnel events (`20260624_*`), draft legal pages (`/privacy`,`/terms`,`/safety`,`/contact`), pilot-readiness/ops/analytics docs; demo + production unchanged; 200 tests |
+| Analytics + Discovery V1 | 2026-06-25 | Mode-aware **durable analytics** (`SupabaseEventsRepository` implemented; `trackEvent` writes Supabase in production, local fallback), **anonymous visitor sessions** (first/returning, duration), **creator insights dashboard** (visits, unique visitors, room entries, avg session, top objects/room/day), per-object + **visitor funnel** analytics, **Featured Nests** discovery (Trending/New/Recently active) on `/discover`; `visitor_sessions` table + owner-read events RLS (`20260625_*`); demo unchanged; 236 tests |
 
 All sprints ship green: `typecheck · lint · test · build`.
 
@@ -55,14 +57,15 @@ All sprints ship green: `typecheck · lint · test · build`.
 
 ## In Progress
 
-No feature sprint active. Production Cutover V1 shipped 2026-06-23 (real auth +
-profiles + room persistence behind runtime mode; demo unchanged) and the **full
-authenticated flow is verified live** on staging (create account → onboarding →
-claim Nest → save → reload → persists from Supabase → logout → login → still
-exists; RLS holds). Production shop-claiming + public shop resolution shipped.
-**Next:** production-grade email (custom SMTP if confirmation is re-enabled),
-`events`/`reports` Supabase repos (still stubs), and `/u/[handle]` aggregate in
-production (`getByHandle` returns null in V1).
+No feature sprint active. **Analytics + Discovery V1 shipped 2026-06-25** —
+durable mode-aware analytics, anonymous visitor sessions, a creator insights
+dashboard, per-object + funnel analytics, and Featured Nests discovery; demo
+unchanged, 236 tests. The app remains **safe for a friends & family pilot** (not
+public launch); see [pilot-readiness.md](pilot-readiness.md). **Next (post-pilot):**
+apply the schema to live Supabase to verify durable analytics end-to-end; a public
+per-shop aggregate view so production discovery trending is global (not seed/local);
+production-grade email (custom SMTP); the `reports` Supabase repo; `/u/[handle]`
+production aggregate; richer mobile pass.
 
 ---
 

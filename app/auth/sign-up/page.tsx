@@ -6,6 +6,8 @@ import Link from "next/link";
 import { ArrowRight, Mail, Sparkles, UserRound } from "lucide-react";
 import { useSession } from "@/components/providers/auth-provider";
 import { isDemoMode } from "@/lib/runtime-mode";
+import { friendlyError } from "@/lib/errors";
+import { trackEvent } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 
 export default function SignUpPage() {
@@ -24,13 +26,14 @@ export default function SignUpPage() {
     setBusy(true);
     try {
       await signUp({ email, password, name });
+      trackEvent("signup_completed");
       // New accounts land in onboarding to reach their first room fast.
       router.push("/onboarding");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not create account.";
-      // Supabase with email-confirmation on returns a user but no session.
-      if (/confirm/i.test(message)) setNotice("Check your email to confirm your account, then sign in.");
-      else setError(message);
+      const raw = err instanceof Error ? err.message : String(err);
+      // With email confirmation ON, sign-up succeeds but returns no session.
+      if (/confirm/i.test(raw)) setNotice("Check your email to confirm your account, then sign in.");
+      else setError(friendlyError(err, "signup"));
       setBusy(false);
     }
   };

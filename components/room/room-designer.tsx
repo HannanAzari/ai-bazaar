@@ -22,6 +22,7 @@ import { type CreatorAnalysis, type CreatorAnalyzerInput, generateCreatorRoom } 
 import { type RoomDesignDraft, deleteDraft, getDrafts, saveDraft } from "@/lib/room-design-drafts";
 import { recordActivity } from "@/lib/activity";
 import { trackEvent } from "@/lib/events";
+import { friendlyError } from "@/lib/errors";
 import { flags } from "@/lib/flags";
 import type { HouseRooms, Room, RoomKind, Shop } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -163,7 +164,7 @@ export function RoomDesigner({ shop }: { shop: Shop }) {
     if (!targetRoom) return;
     const merged = { ...targetRoom, name: room.name, type: room.type, background: room.background, description: room.description ?? "", objects: room.objects };
     const nextHouse = withRoom(house, merged);
-    void persistHouse(nextHouse).catch(() => flash("Could not save — check your connection."));
+    void persistHouse(nextHouse).catch((err) => flash(friendlyError(err, "save")));
     setHouse(nextHouse);
     setLastApplied(merged.name);
     if (flags.activityFeed) {

@@ -761,6 +761,109 @@ the room model (string ids, `ast-*` asset keys) doesn't fit the normalized
 
 ---
 
+## ADR-019 — Pilot hardening: shared validation, centralized friendly errors, internal funnel, draft legal pages
+
+**Status:** Accepted · 2026-06-24
+
+### Context
+Before letting real (friends & family) users in, the app needed reliability/safety
+polish — not features. Risks: raw Supabase errors leaking to users, double-submits,
+missing input limits, no legal/trust pages, and no first-run funnel measurement.
+
+### Decision
+- **One shared validation module** (`lib/validation.ts`) holding the limits + checks,
+  aligned with the DB CHECK constraints, so UI/demo/repos agree. Enforced at the
+  highest-leverage inputs; pure + tested.
+- **Centralized error mapping** (`lib/errors.ts` `friendlyError(err, context)`):
+  users see short calm copy; developers keep the raw error via `console.error`. This
+  satisfies "no raw Supabase errors to users" while preserving debuggability, and
+  keeps copy consistent instead of ad-hoc per call-site.
+- **Internal-only funnel analytics** reusing the existing `trackEvent`/`event_type`
+  enum (4 additions; `public_room_viewed` reuses `room_view` to avoid duplication).
+  **No external analytics** during pilot. Events remain client-side (the Supabase
+  events repo is still a stub) — accepted limitation, documented in
+  `docs/analytics-plan.md`.
+- **Draft legal/trust pages** as plain static placeholders behind a shared
+  `LegalPage`, clearly marked draft, linked in the footer — explicitly not real
+  legal documents.
+
+### Alternatives Considered
+- Per-call-site error strings — rejected (inconsistent, leak-prone).
+- A third-party analytics SDK — rejected for pilot (privacy + scope).
+- Building the Supabase events repo now — deferred; out of "no new infra" scope.
+
+### Consequences
+- (+) Calm, consistent UX on failure; safer inputs; measurable funnel; trust pages.
+- (+) Demo + production unchanged in behavior; all additive.
+- (−) Funnel data is per-browser until the events repo is wired (post-pilot).
+- (−) Validation is enforced at key inputs, not exhaustively every field yet.
+
+---
+
+## ADR-020 — Analytics + Discovery V1: mode-aware durable analytics, event-derived visitor sessions, and seed-backed discovery ranking
+
+**Status:** Accepted · 2026-06-25
+
+### Context
+Analytics were `trackEvent` → localStorage only (per-browser, lost on device
+change); the `SupabaseEventsRepository` was a stub. There were no visitor sessions,
+no unique-visitor / session-duration metrics, and discovery was search + tags only.
+This sprint had to make analytics **durable**, add **anonymous visitor sessions**, a
+**creator insights dashboard**, **per-object + funnel** analytics, and a first
+**creator-discovery** layer — without redesigning villages/rooms/onboarding and
+keeping demo mode byte-for-byte unchanged (ADR-003/ADR-004/ADR-014).
+
+### Decision
+- **`trackEvent` becomes mode-aware, not a new API.** Demo still writes localStorage;
+  production routes through `getRepositories().events.record()` (the now-implemented
+  `SupabaseEventsRepository` → `record_event` RPC). A remote failure **mirrors locally
+  and logs once**, so durability never costs data or floods logs. The local writer
+  (`trackEventLocal`) is split out so the local repo and the production fallback share
+  it without an import cycle (the repo is reached via a dynamic import).
+- **Visitor identity is opaque and event-derived.** `lib/visitor-id.ts` holds the
+  ids + storage (no deps, so `events.ts` can enrich every event and
+  `visitor-session.ts` can own the lifecycle without a cycle). The **event stream is
+  the source of truth** for the funnel — each event carries `visitorId`/`sessionId`
+  in the `events.metadata` jsonb — so demo and production share **one aggregation
+  path** (`lib/creator-insights.ts`). A `visitor_sessions` table is the normalized
+  SQL mirror (parity), not a second runtime store.
+- **One pure insights module** computes the dashboard, object analytics, and funnel,
+  keeping the UI thin and fully unit-tested. The dashboard reads events through the
+  repo (durable in production, local in demo) + the saved house for labels.
+- **Creators can read their own analytics** via a new `owns_shop(shop_id)` SELECT
+  policy on `events` (previously admin-only). Discovery stays public and does **not**
+  read the events table client-side (RLS forbids anon reads); Featured Nests rank from
+  **real stored data** — recorded `house_view`s / last activity in the local mirror,
+  **falling back to the seeded `shops` data** (visitors/likes/createdAt) so rails are
+  always populated. A global production trending feed (a public aggregate view) is
+  deferred.
+- **Enum additions follow ADR-009** (`_01_extend_enums` before `_02_analytics`); the
+  room object/`Room` model is untouched (no spec change).
+
+### Alternatives Considered
+- **A second `recordEvent` API + migrating call sites** — rejected; making
+  `trackEvent` mode-aware preserves the existing API and avoids churn.
+- **A dedicated `visitor_sessions` runtime store as the source of truth** — rejected
+  for V1; deriving the funnel from the event stream avoids a parallel store and keeps
+  one aggregation path. The table remains the normalized parity mirror.
+- **Public per-shop analytics for a global trending feed** — rejected for now; would
+  need a public aggregate view/RPC. Seed-backed ranking + the local mirror keep
+  discovery populated and honest without exposing raw events to anon.
+- **External product analytics (PostHog/GA)** — still intentionally excluded.
+
+### Consequences
+- (+) Analytics are durable in production (survive refresh/logout/device) with a
+  safe local fallback; demo is unchanged; the API and 200 prior tests are intact.
+- (+) Anonymous sessions + unique visitors + durations + object engagement + a funnel,
+  all from one tested pure module; discovery gains a creator layer reusing existing art.
+- (−) **Live Supabase persistence is still unverified** (schema not applied in this
+  env; ADR-018 limitation) — durability is implemented + unit-tested with a mock
+  client, and verified in demo via localStorage; not claimed against live Postgres.
+- (−) Production discovery trending is seed/local-backed until a public aggregate view
+  exists; `events`/`reports` aggregate reads are owner/admin-scoped by RLS.
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

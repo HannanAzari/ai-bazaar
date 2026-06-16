@@ -8,6 +8,110 @@ for technical detail.
 
 ---
 
+## 2026-06-25 — Analytics + Discovery V1
+
+Durable, mode-aware analytics + anonymous visitor sessions, a creator insights
+dashboard, per-object + funnel analytics, and the first creator-discovery layer
+(Featured Nests). **No product redesign** (villages/rooms/onboarding untouched; no
+avatars/weather/day-night/messaging/comments/followers/feeds/payments/notifications).
+
+### Added
+- **Durable analytics** (ADR-020): `trackEvent` is now **mode-aware** — demo writes
+  localStorage (unchanged), **production writes Supabase** via the `record_event`
+  RPC behind the implemented `SupabaseEventsRepository` (`record`/`list`/`counts`),
+  so analytics survive refresh/logout/device change. A remote failure mirrors the
+  event locally (logged once) so nothing is lost. Existing `trackEvent` API preserved.
+- **Anonymous visitor sessions** (`lib/visitor-id.ts` + `lib/visitor-session.ts`):
+  opaque visitor/session ids (no auth, no PII), first-vs-returning detection, session
+  start/end with duration, idempotent within a session; `useVisitorSession` hook in
+  the public room. New events `session_started`, `session_ended`. Every event is
+  auto-enriched with the current visitor/session id.
+- **Object analytics**: new `object_view` impression event fired per visible
+  interactive object on room entry; per-object views / clicks / opens + engagement %.
+- **Creator Insights Dashboard V1** (`lib/creator-insights.ts` +
+  `components/room/creator-insights-panel.tsx`): total visits, unique visitors, room
+  entries, average session duration, top clicked objects, top room, top day of week,
+  the visitor funnel (visits → rooms → interactions → exits) and conversion %.
+  Surfaced as an **Insights & visitors** card in Studio (existing visual style).
+- **Discovery V1 — Featured Nests** (`lib/discovery.ts` +
+  `components/featured-nests.tsx`): Trending (most visited, from real recorded
+  visits), New creators (newest), Recently active (most recent real activity), each
+  falling back to seeded data so the rails are always populated. Added to `/discover`,
+  reusing the existing house-card visuals. No feed, no social graph.
+- Tests (suite **236**, target 220+): analytics routing + `SupabaseEventsRepository`
+  (mock client) + `mapEventRow`, visitor sessions, creator-insights math (incl.
+  funnel/engagement/top-room/top-day), discovery ranking.
+
+### Changed
+- `RoomExperience` starts/ends a visitor session and records object impressions.
+- `BazaarEvent` carries optional `visitorId`/`sessionId`/`metadata` (stored in the
+  `events.metadata` jsonb in production); `EventsRepository.record` takes an
+  `EventPayload`. `LocalEventsRepository` writes via `trackEventLocal`.
+
+### Database
+- `supabase/migrations/20260625_01_extend_enums.sql` — `event_type` += `session_started`,
+  `session_ended`, `object_view` (enum-only, ADR-009).
+- `supabase/migrations/20260625_02_analytics.sql` — `visitor_sessions` table (+RLS,
+  indexes), an **owner-read events RLS policy** (creators can read their own shop's
+  analytics), and a visitor expression index. Mirrored in `schema.sql` (now **27**
+  tables). SQL unrun here (parity mirror) — dry-run on staging.
+
+---
+
+## 2026-06-24 — Pilot Hardening V1
+
+Reliability, safety, and polish for a friends & family pilot. **No new features**
+(no AI/room-engine/avatars/marketplace/payments/messaging/feeds/comments/ads, no new
+visuals). Demo and production both still work.
+
+### Added
+- **Shared validation** (`lib/validation.ts`): `LIMITS` + `clampText`/`withinLimit`,
+  `validateHandle`, `isValidEmail`/`isValidPassword`, `isValidAddress`,
+  `isValidSocialUrl` — one source of truth aligned with the DB CHECK constraints.
+- **Friendly errors** (`lib/errors.ts`): `friendlyError(err, context)` maps Supabase/
+  network errors to short, calm copy and logs the raw error to the console for
+  developers — **no raw Supabase strings shown to users**. Wired into login, sign-up,
+  onboarding, room save (editor + designer).
+- **Loading / double-submit guards**: auth + onboarding buttons show busy text and
+  disable while pending; studio shows a session-loading state instead of flashing
+  "please log in".
+- **Pilot funnel analytics** (internal only): `signup_completed`,
+  `onboarding_completed`, `first_nest_created`, `room_saved` (public-room view reuses
+  `room_view`). Fired in sign-up / onboarding / editor.
+- **Legal/trust placeholders**: `/privacy`, `/terms`, `/safety`, `/contact`
+  (draft-marked) via a shared `LegalPage`; linked in the footer.
+- **Docs**: `docs/pilot-readiness.md` (first-user QA audit + verdict),
+  `docs/pilot-ops.md` (manual cleanup/verify runbook), `docs/analytics-plan.md`.
+- Tests (suite **200**, target 190+): validation limits, error mapping (+ no-leak),
+  pilot event labels, legal route + doc presence.
+
+### Changed
+- Onboarding caps the "what do you create" input; auth pages surface friendly errors;
+  editor autosave/save + designer apply use `friendlyError`.
+
+### Database
+- `supabase/migrations/20260624_extend_enums.sql` — `event_type` += the four pilot
+  funnel events (enum-only, stand-alone; mirrored in `schema.sql`). Internal
+  analytics stay client-side; not runtime-critical.
+
+### Verification (browser)
+- **Production**: bad login → friendly "email or password doesn't match" (raw error
+  only in console, by design); `/privacy|/terms|/safety|/contact` render (200, draft
+  badge); 375px signup/room/legal have no horizontal overflow; no hydration errors.
+- **Demo**: passwordless login → `/studio`, session persists; no console errors.
+- Full auth+persistence flow itself was verified live in the prior sprint and is
+  unchanged here (only wrappers added).
+
+### Documentation
+- README, architecture.md, roadmap.md, handoff.md, staging-checklist.md updated;
+  new ADR-019; new pilot-readiness/ops/analytics docs.
+
+### Pilot verdict
+**Safe for friends & family pilot. Not public-launch ready.** See
+`docs/pilot-readiness.md`.
+
+---
+
 ## 2026-06-23 — Production Cutover V1 · production shop claiming + full live verification
 
 With staging fully provisioned (schema + seed + `room-images` bucket + **email

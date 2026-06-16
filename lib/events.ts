@@ -1,8 +1,15 @@
-import type { BazaarEvent, EventType } from "@/lib/types";
+import type { BazaarEvent, EventPayload, EventType } from "@/lib/types";
+import { isProductionBackend } from "@/lib/runtime-mode";
+import { readSessionId, readVisitorId } from "@/lib/visitor-id";
 
-// Demo analytics. In the running app events are appended to localStorage so
-// counts are visible without a backend; in production the same shape is written
-// to the Supabase `events` table via record_event() (see schema.sql).
+// Analytics. `trackEvent` is **mode-aware** (Analytics + Discovery V1):
+//   - demo:       events append to localStorage (offline, per-browser) — unchanged.
+//   - production: events are written durably to Supabase via the events repository
+//     (record_event RPC), so they survive refresh, logout, and device change. A
+//     remote failure falls back to the local mirror so nothing is silently lost.
+// Every event is automatically enriched with the current anonymous visitor +
+// session ids (lib/visitor-id.ts) so unique-visitor and session metrics work
+// without each call site threading them through.
 
 const STORAGE_KEY = "ai-bazaar-events";
 const MAX_EVENTS = 1000;
@@ -42,6 +49,13 @@ export const eventLabels: Record<EventType, string> = {
   creator_room_generated: "Creator rooms generated",
   creator_room_applied: "Creator rooms applied",
   creator_social_object_created: "Creator social objects created",
+  signup_completed: "Signups completed",
+  onboarding_completed: "Onboardings completed",
+  first_nest_created: "First Nests created",
+  room_saved: "Rooms saved",
+  session_started: "Visitor sessions started",
+  session_ended: "Visitor sessions ended",
+  object_view: "Object views",
 };
 
 function read(): BazaarEvent[] {
@@ -59,17 +73,56 @@ function write(events: BazaarEvent[]) {
   window.dispatchEvent(new Event("ai-bazaar-events-changed"));
 }
 
-/** Record one analytics event. No-op during SSR. */
-export function trackEvent(type: EventType, payload: { shopId?: string; targetId?: string } = {}) {
-  if (typeof window === "undefined") return;
-  const event: BazaarEvent = {
+function toEvent(type: EventType, payload: EventPayload): BazaarEvent {
+  return {
     id: `evt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     type,
     shopId: payload.shopId,
     targetId: payload.targetId,
+    visitorId: payload.visitorId,
+    sessionId: payload.sessionId,
+    metadata: payload.metadata,
     createdAt: new Date().toISOString(),
   };
-  write([...read(), event]);
+}
+
+/** Append one event to the local (demo) store. No-op during SSR. The demo path
+ * and the production fallback both go through here. */
+export function trackEventLocal(type: EventType, payload: EventPayload = {}) {
+  if (typeof window === "undefined") return;
+  write([...read(), toEvent(type, payload)]);
+}
+
+// Once the durable backend is unreachable we keep mirroring locally so nothing
+// is lost, but log only the first failure to avoid flooding the console.
+let remoteFailureLogged = false;
+
+/** Record one analytics event through the mode-selected backend. No-op in SSR. */
+export function trackEvent(type: EventType, payload: EventPayload = {}) {
+  if (typeof window === "undefined") return;
+  const enriched: EventPayload = {
+    ...payload,
+    visitorId: payload.visitorId ?? readVisitorId(),
+    sessionId: payload.sessionId ?? readSessionId(),
+  };
+  if (isProductionBackend()) {
+    void recordRemote(type, enriched).catch((err) => {
+      if (!remoteFailureLogged) {
+        remoteFailureLogged = true;
+        console.warn("[analytics] durable record failed; mirroring events locally for this session", err);
+      }
+      trackEventLocal(type, enriched);
+    });
+    return;
+  }
+  trackEventLocal(type, enriched);
+}
+
+// Dynamically imported so the Supabase client never bundles into the demo path
+// and there is no static import cycle (repos → events).
+async function recordRemote(type: EventType, payload: EventPayload) {
+  const { getRepositories } = await import("@/lib/repos");
+  await getRepositories().events.record(type, payload);
 }
 
 export function getEvents(): BazaarEvent[] {

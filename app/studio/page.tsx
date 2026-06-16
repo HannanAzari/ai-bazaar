@@ -2,11 +2,13 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Armchair, CheckCircle2, DoorOpen, ExternalLink, Eye, Flower2, Home, ImagePlus, Layers3, Link2, LoaderCircle, Palette, Signpost, Sparkles, StepForward, Tags, TreePine, Type, WandSparkles } from "lucide-react";
+import { Armchair, BarChart3, CheckCircle2, DoorOpen, ExternalLink, Eye, Flower2, Home, ImagePlus, Layers3, Link2, LoaderCircle, Palette, Signpost, Sparkles, StepForward, Tags, TreePine, Type, WandSparkles } from "lucide-react";
 import { useDemo } from "@/components/providers/demo-provider";
+import { useSession } from "@/components/providers/auth-provider";
 import { ShopRoom } from "@/components/shop-room";
 import { RoomEditor } from "@/components/room/room-editor";
 import { RoomDesigner } from "@/components/room/room-designer";
+import { CreatorInsightsPanel } from "@/components/room/creator-insights-panel";
 import { TagInput } from "@/components/tags-ui";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { recordActivity } from "@/lib/activity";
@@ -66,11 +68,15 @@ export default function StudioPage() {
   const [notice, setNotice] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
+  const [insightsOpen, setInsightsOpen] = useState(false);
   const [linkLabel, setLinkLabel] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [mode, setMode] = useState<"interior" | "exterior" | "room" | "design">(flags.roomEngine ? "room" : "interior");
   const [selectedZone, setSelectedZone] = useState<RoomZone>("floor");
+  const { loading: sessionLoading } = useSession();
 
+  // While the session is resolving (production), don't flash the "log in" card.
+  if (sessionLoading && !user) return <section className="shell grid min-h-[70vh] place-items-center py-12 text-center"><div className="card max-w-md rounded-4xl p-9"><LoaderCircle className="mx-auto animate-spin text-terracotta" /><p className="mt-4 text-ink/55">Opening your studio…</p></div></section>;
   if (!user) return <section className="shell grid min-h-[70vh] place-items-center py-12 text-center"><div className="card max-w-md rounded-4xl p-9"><WandSparkles className="mx-auto text-terracotta" /><h1 className="display mt-4 text-4xl">Your place is waiting.</h1><p className="mt-3 text-ink/55">Log in, claim a house, and begin shaping your place.</p><ButtonLink href="/auth/login" variant="accent" className="mt-6">Log in</ButtonLink></div></section>;
   if (!ownedShop) return <section className="shell grid min-h-[70vh] place-items-center py-12 text-center"><div className="card max-w-md rounded-4xl p-9"><Home className="mx-auto text-teal" /><h1 className="display mt-4 text-4xl">First, choose a house.</h1><p className="mt-3 text-ink/55">Wander the village and claim one open home to make your own.</p><ButtonLink href="/" variant="accent" className="mt-6">Return to the village</ButtonLink></div></section>;
 
@@ -194,6 +200,18 @@ export default function StudioPage() {
       <div className="mt-6 card rounded-[2rem] p-5">
         <button onClick={() => setProfileOpen((current) => !current)} className="flex w-full items-center justify-between text-left"><span className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-full bg-rosewater text-terracotta"><Palette size={18} /></span><span><span className="block font-black">Place details & links</span><span className="block text-xs text-ink/45">Secondary public information</span></span></span><span>{profileOpen ? "−" : "+"}</span></button>
         {profileOpen && <div className="mt-5 grid gap-5 border-t border-ink/10 pt-5 md:grid-cols-2"><form onSubmit={saveProfile} className="space-y-3"><input name="name" defaultValue={ownedShop.name} aria-label="Place name" className="min-h-11 w-full rounded-xl border border-ink/10 bg-white px-3 text-sm" /><input name="tagline" defaultValue={ownedShop.tagline} aria-label="Place tagline" className="min-h-11 w-full rounded-xl border border-ink/10 bg-white px-3 text-sm" /><textarea name="bio" defaultValue={ownedShop.bio} aria-label="Place bio" rows={3} className="w-full rounded-xl border border-ink/10 bg-white p-3 text-sm" /><Button type="submit" className="w-full">Save details</Button></form><form onSubmit={saveLink} className="space-y-3"><input value={linkLabel} onChange={(event) => setLinkLabel(event.target.value)} aria-label="Link label" placeholder="Instagram" className="min-h-11 w-full rounded-xl border border-ink/10 bg-white px-3 text-sm" /><input value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} aria-label="Link URL" type="url" placeholder="https://…" className="min-h-11 w-full rounded-xl border border-ink/10 bg-white px-3 text-sm" /><Button type="submit" variant="outline" className="w-full">Add link</Button></form></div>}
+      </div>
+
+      {/* Creator insights — house-wide visitor analytics (durable in production). */}
+      <div className="mt-4 card rounded-[2rem] p-5">
+        <button onClick={() => setInsightsOpen((current) => !current)} className="flex w-full items-center justify-between text-left">
+          <span className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-full bg-rosewater text-terracotta"><BarChart3 size={18} /></span>
+            <span><span className="block font-black">Insights &amp; visitors</span><span className="block text-xs text-ink/45">Who visited, what they opened, and how they moved through your place</span></span>
+          </span>
+          <span>{insightsOpen ? "−" : "+"}</span>
+        </button>
+        {insightsOpen && <CreatorInsightsPanel shop={ownedShop} />}
       </div>
 
       {/* Tags make a house and its items discoverable across the village. */}
