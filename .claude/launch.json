@@ -7,6 +7,13 @@
       "runtimeArgs": ["-c", "PATH=/Users/hannan/.nvm/versions/node/v20.20.2/bin:$PATH npm run dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "asset-factory-dev",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "cd apps/asset-factory && PATH=/Users/hannan/.nvm/versions/node/v20.20.2/bin:$PATH npm run dev"],
+      "port": 3100,
+      "autoPort": true
     }
   ]
 }

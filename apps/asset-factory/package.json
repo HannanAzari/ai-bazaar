@@ -1,0 +1,28 @@
+{
+  "name": "nestudio-asset-factory",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Internal review and export tool for Nestudio (AI Bazaar) assets. Deployed separately to assets-nestudio.vercel.app.",
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "build": "next build",
+    "start": "next start -p 3100",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "next": "15.5.19",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.10",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "15.5.19",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.9"
+  }
+}
