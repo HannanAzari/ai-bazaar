@@ -9,9 +9,25 @@ It is a **separate app** living at `apps/asset-factory/`, deployed independently
 `assets-nestudio.vercel.app`. It does **not** touch the main Nestudio app — not the
 room engine, not production auth, not user-facing routes.
 
-> **V1 has no live AI generation.** It focuses on import/upload → metadata →
+> **No live AI generation yet.** It focuses on import/upload → metadata →
 > review → approve/reject → export. Generation fields exist on the data model but
-> are inert; a future V2 will add a real provider (see below).
+> are inert; a future sprint will add a real provider (see below).
+
+> **V2 — Shared review backend.** The factory now runs in one of two modes,
+> auto-detected from env: **Local** (localStorage, the V1 default/fallback) or
+> **Shared** (a Supabase backend so approvals, imports, and the activity log
+> persist **across devices** — review on your laptop, see it on your phone). The
+> shared backend is reached only through password-gated server API routes using the
+> Supabase **service role**; the browser never touches the database directly. See
+> "Shared backend (V2)" below.
+
+> **V2.5 — Catalog pipeline validation.** Four tabs across the top: **Review**
+> (the dashboard), **Packs** (curate first-class asset packs + export), **Sandbox**
+> (run the room-designer logic on approved assets to prove they compose into valid
+> rooms), and **Reports** (Catalog Quality Score, coverage, room-readiness, and
+> Nestudio import validation). The goal is to prove the full pipeline
+> (asset → review → approve → export → import → designer → room) **before** any
+> large-scale AI generation. Full guide: [docs/catalog-validation.md](docs/catalog-validation.md).
 
 ---
 
@@ -64,11 +80,18 @@ Create a **second Vercel project** pointed at the same Git repo, with:
 - **Framework preset**: Next.js
 - **Build command / Install command**: defaults (`next build` / `npm install`)
 - **Production domain**: `assets-nestudio.vercel.app`
-- **Environment variable**: `ASSET_FACTORY_PASSWORD` (see below)
+- **Environment variables**: `ASSET_FACTORY_PASSWORD` (gate) and, for the shared
+  backend, `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` +
+  `SUPABASE_SERVICE_ROLE_KEY` (see below). Run the SQL in `supabase/` against the
+  project first.
 
 Because the root directory is `apps/asset-factory`, Vercel installs this app's own
 `package.json` and ignores the main app entirely. The two deployments are
 independent.
+
+For shared review from phone + laptop, set the password **and** the three Supabase
+vars, and apply `supabase/schema.sql` once. Without the Supabase vars the deploy
+still works in Local (per-browser) mode.
 
 ---
 
@@ -76,10 +99,76 @@ independent.
 
 | Variable | Required | Effect |
 |---|---|---|
-| `ASSET_FACTORY_PASSWORD` | optional | If **set**, the whole app is gated behind a password (`/login`, cookie-checked in `middleware.ts`). If **unset**, the app runs **open** (intended for local use). |
+| `ASSET_FACTORY_PASSWORD` | optional | If **set**, the whole app is gated behind a password (`/login`, cookie-checked in `middleware.ts` + every API route). If **unset**, the app runs **open** (intended for local use). |
+| `NEXT_PUBLIC_SUPABASE_URL` | optional | Supabase project URL. Part of the **Shared mode** signal (client-visible). |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | optional | Supabase anon key. Part of the Shared-mode signal (client-visible). **Not** used for DB access. |
+| `SUPABASE_SERVICE_ROLE_KEY` | optional | **Server-only.** Used by the API routes to read/write the factory tables + storage bucket. Never `NEXT_PUBLIC`, never sent to the client. |
 
-There is **no public user auth** here — this is an internal tool. The password is
-server-only and never sent to the client.
+Leave the three Supabase vars blank to run in **Local** (localStorage) mode. Set all
+three to enable **Shared** mode. There is **no public user auth** — this is an
+internal tool; the password is the access control and is server-only.
+
+---
+
+## Shared backend (V2)
+
+When the Supabase env is set the factory runs in **Shared** mode (a "Shared" badge
+shows in the header; "Local" otherwise):
+
+- **Candidates, status, reviewer, reviewedAt, notes** persist in the
+  `asset_candidates` table; the **review activity log** in `asset_review_actions`.
+- **Uploaded/imported images** go to the public `asset-candidates` Storage bucket;
+  the stored public URL is what the catalog export references.
+- **All access is server-side** through password-gated API routes
+  (`/api/candidates`, `/api/candidates/transition`, `/api/actions`, `/api/upload`)
+  using the **service role**. RLS denies anon, so the public anon key cannot touch
+  the tables — the password gate is the real access control.
+- **Cross-device:** approve on desktop → open on phone → it shows approved, because
+  both read the same backend. (Local mode is per-browser only.)
+- **Reset samples** is disabled in Shared mode (avoids wiping shared data); a fresh
+  empty DB is auto-seeded with the sample assets + the five starter packs on first load.
+
+### Database setup
+
+In your Supabase project (it can be the main app's project or a dedicated one —
+the tables are independent):
+
+1. Run [`supabase/schema.sql`](supabase/schema.sql) (fresh DB) **or** the ordered
+   files in [`supabase/migrations/`](supabase/migrations/) (existing DB). This
+   creates `asset_candidates`, `asset_review_actions`, `asset_packs` (RLS enabled,
+   anon denied), and the public `asset-candidates` Storage bucket.
+2. Copy the project URL + anon key + **service role** key into the env vars above.
+
+---
+
+## Catalog pipeline (V2.5)
+
+The top navigation has four tabs; all read the same repository (Local or Shared).
+
+- **Review** — the dashboard (import, quality checks, approve/reject, activity log).
+- **Packs** — **asset packs** are first-class curated bundles
+  (`id, slug, name, description, theme, status, assetIds, createdAt`). Create, edit,
+  set status (`draft`/`validating`/`ready`), assign/unassign approved assets, delete,
+  and **export** `approved-assets.json` + `asset-packs.json`. Five starter packs
+  seed on first run (Cozy Creator, Photographer Studio, Podcaster, Cafe, Startup
+  Workspace).
+- **Sandbox** — the **Room Designer Sandbox** runs the same select-and-place logic
+  as the main app's AI Room Designer on **approved** assets (a chosen pack or all),
+  for a creator type + style. It shows placed assets (zone + action + reason),
+  **unplaced** assets (the key "not room-ready" signal), zone usage vs capacity, and
+  explanations. Selection only — no image generation.
+- **Reports** — the **Catalog Quality Score** (0–100: metadata completeness, tag
+  quality, zone coverage, category balance, approved ratio), catalog summary,
+  coverage by group, room-readiness, per-pack scores, and the **Nestudio import
+  validation** report (errors block; warnings inform).
+
+The complete workflow + the **readiness criteria before V3** are in
+[docs/catalog-validation.md](docs/catalog-validation.md).
+
+> **Placeability invariant:** a category's Nestudio category must be accepted by one
+> of its compatible zones under the nine-zone template (`lib/zones.ts`).
+> `CATEGORY_META` encodes valid mappings and a unit test guards it; the validation
+> report flags any asset that can't be placed.
 
 ---
 
@@ -96,16 +185,20 @@ builder.
 
 ## Review workflow
 
-1. Open the dashboard (the home page). It seeds **30 sample candidates** on first
-   run (stored in `localStorage`).
-2. Filter by **status** or **category group**, or **search** by name/tag/category.
-3. Tap a card for the large preview, **quality checks**, and editable metadata.
-4. Decide: **Approve / Reject / Needs edit / Back to review**. Edit the name,
-   category, tags, and review notes; **Save metadata**.
-5. **Quality checks** run automatically (missing image/category/tags, non-transparent,
+1. (If a password is set) sign in at `/login`, then **enter your reviewer name** —
+   it's attached to your approvals in the shared activity log. Change it anytime
+   via the "change" link in the header.
+2. The dashboard seeds **30 sample candidates** on first run. A **Review activity**
+   panel shows recent approve/reject/needs-edit decisions and who made them.
+4. Filter by **status** or **category group**, or **search** by name/tag/category.
+5. Tap a card for the large preview, **quality checks**, and editable metadata.
+6. Decide: **Approve / Reject / Needs edit / Back to review**. Edit the name,
+   category, tags, and review notes; **Save metadata**. In Shared mode each
+   decision persists to the backend and appears for other reviewers.
+7. **Quality checks** run automatically (missing image/category/tags, non-transparent,
    too small/large, duplicate slug/image, forbidden category, missing zones).
    Warnings never block; **critical** issues block approval.
-6. **Keyboard shortcuts** (desktop): `A` approve · `R` reject · `E` needs edit ·
+8. **Keyboard shortcuts** (desktop): `A` approve · `R` reject · `E` needs edit ·
    `N` next · `Esc` close. Mobile uses big tap targets.
 
 ### Import / upload
@@ -136,8 +229,8 @@ matches the main app's `CatalogAsset` shape.
 
 ### How approved assets enter Nestudio
 
-V1 **never overwrites** the main app's `lib/assets.ts`. Import is **manual and
-reviewed**:
+The factory **never overwrites** the main app's `lib/assets.ts`. Import is
+**manual and reviewed**:
 
 1. Export the approved assets (above).
 2. In the main repo, copy the records into `lib/assets.ts`'s `catalogAssets`
@@ -152,9 +245,9 @@ production app.
 
 ---
 
-## Future V2 — image generation plan (not built)
+## Future — image generation plan (not built)
 
-V2 will add, behind a disabled flag until ready:
+A later sprint will add, behind a disabled flag until ready:
 
 - an **AI generation API provider** and a **batch generation queue**
 - **rate limits**, **cost tracking**, and **provider comparison**
@@ -162,8 +255,22 @@ V2 will add, behind a disabled flag until ready:
 - **CLIP / vision tagging** and **duplicate image similarity**
 - **reviewer accounts**, **asset packs**, and **scheduled overnight generation**
 
-None of this is implemented in V1. The prompt system and data model are shaped so
-V2 can consume them without a rewrite.
+None of this is implemented yet. The prompt system and data model are shaped so it
+can be consumed without a rewrite.
+
+## Limitations
+
+- **Live Supabase persistence is unverified in this environment** (no project
+  provisioned here). The shared-backend path is covered by unit tests (mappers,
+  repository, mode detection) and a green build; demo/Local mode is verified
+  end-to-end in the browser. Apply `supabase/schema.sql` and set the env to use it.
+- The **anon key is a mode signal only** — DB access is service-role + server-side,
+  gated by the password. The password is therefore the real access control; treat
+  it as a shared secret among trusted reviewers.
+- **Reset samples** and the auto-seed exist for convenience; in a real shared
+  environment, seed once and then manage real assets.
+- Storage bucket is **public-read** (asset art is non-sensitive) for simple image
+  URLs; switch to signed URLs if that changes.
 
 ---
 
@@ -171,13 +278,21 @@ V2 can consume them without a rewrite.
 
 ```
 apps/asset-factory/
-  app/            layout, globals.css, page (dashboard), login, api/login, api/logout
-  components/     review-dashboard, asset-card, asset-detail, asset-thumb,
-                  import-panel, quality-badges
-  lib/            types, prompts, validation, quality, transitions, export,
-                  sample-data, store, auth, slug
-  docs/           asset-bible.md
-  exports/        approved-assets.json, approved-assets.ts (generated examples)
-  test/           prompts · validation · quality · transitions · export
-  middleware.ts   password gate (active only when ASSET_FACTORY_PASSWORD is set)
+  app/            layout, globals.css, page (gate→dashboard), login, packs, sandbox, reports,
+                  api/{login,logout,candidates,candidates/transition,actions,upload,packs}
+  components/     review-dashboard, reviewer-gate, activity-panel, asset-card, asset-detail,
+                  asset-thumb, import-panel, quality-badges, factory-nav,
+                  packs-client, sandbox-client, reports-client
+  lib/            types, prompts, validation, quality, transitions, export, activity,
+                  sample-data, sample-packs, store, auth, slug, reviewer, runtime-mode,
+                  zones, import-validation, quality-score, reports, sandbox,
+                  api-auth, supabase-server, server-candidates, server-storage,
+                  mappers, repo/{types,local,remote,index}
+  docs/           asset-bible.md, catalog-validation.md
+  exports/        approved-assets.json, approved-assets.ts, asset-packs.json (generated examples)
+  supabase/       schema.sql, migrations/{0001_asset_factory,0002_asset_packs}.sql
+  test/           prompts · validation · quality · transitions · export · repo-local ·
+                  mappers · mode · activity · packs · import-validation · quality-score ·
+                  reports · sandbox
+  middleware.ts   password gate (pages); API routes self-guard
 ```

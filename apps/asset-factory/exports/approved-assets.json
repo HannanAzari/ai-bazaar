@@ -1,5 +1,183 @@
 [
   {
+    "id": "ast-abstract-canvas",
+    "name": "Abstract Canvas",
+    "category": "decor",
+    "villageTheme": "any",
+    "placement": "wall",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "abstract",
+      "canvas"
+    ],
+    "imageUrl": "/samples/abstract-canvas.png",
+    "status": "published",
+    "compatibleZones": [
+      "back_wall",
+      "left_wall",
+      "right_wall"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "gallery"
+  },
+  {
+    "id": "ast-acoustic-guitar-stand",
+    "name": "Acoustic Guitar Stand",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "acoustic",
+      "guitar",
+      "stand"
+    ],
+    "imageUrl": "/samples/acoustic-guitar-stand.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-arc-floor-lamp",
+    "name": "Arc Floor Lamp",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "arc",
+      "floor",
+      "lamp"
+    ],
+    "imageUrl": "/samples/arc-floor-lamp.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_right"
+    ],
+    "defaultScale": 0.95,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-arched-garden-gate",
+    "name": "Arched Garden Gate",
+    "category": "door",
+    "villageTheme": "any",
+    "placement": "exterior",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "arched",
+      "garden",
+      "gate"
+    ],
+    "imageUrl": "/samples/arched-garden-gate.png",
+    "status": "published",
+    "compatibleZones": [
+      "door",
+      "floor_left",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "room_link"
+  },
+  {
+    "id": "ast-bay-window",
+    "name": "Bay Window",
+    "category": "decor",
+    "villageTheme": "any",
+    "placement": "wall",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [],
+    "imageUrl": "/samples/bay-window.png",
+    "status": "published",
+    "compatibleZones": [
+      "window",
+      "back_wall",
+      "left_wall",
+      "right_wall"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-bistro-two-top",
+    "name": "Bistro Two-Top",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "bistro",
+      "two",
+      "top"
+    ],
+    "imageUrl": "/samples/bistro-two-top.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.1,
+    "defaultActionType": "booking"
+  },
+  {
+    "id": "ast-boom-arm-mic",
+    "name": "Boom Arm Mic",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "boom",
+      "arm",
+      "mic"
+    ],
+    "imageUrl": "/samples/boom-arm-mic.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 0.8,
+    "defaultActionType": "video"
+  },
+  {
+    "id": "ast-botanical-print-set",
+    "name": "Botanical Print Set",
+    "category": "decor",
+    "villageTheme": "any",
+    "placement": "wall",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "botanical",
+      "print",
+      "set"
+    ],
+    "imageUrl": "/samples/botanical-print-set.png",
+    "status": "published",
+    "compatibleZones": [
+      "back_wall",
+      "left_wall",
+      "right_wall"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "gallery"
+  },
+  {
     "id": "ast-cafe-counter",
     "name": "Cafe Counter",
     "category": "furniture",
@@ -7,12 +185,64 @@
     "placement": "floor",
     "ownerType": "system",
     "rarity": "common",
-    "tags": ["cafe", "counter", "coffee"],
+    "tags": [
+      "cafe",
+      "counter",
+      "coffee"
+    ],
     "imageUrl": "/samples/cafe-counter.png",
     "status": "published",
-    "compatibleZones": ["floor_left", "floor_center", "floor_right"],
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
     "defaultScale": 1.2,
     "defaultActionType": "product"
+  },
+  {
+    "id": "ast-casual-avatar-body",
+    "name": "Casual Avatar Body",
+    "category": "structure",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "casual",
+      "avatar",
+      "body"
+    ],
+    "imageUrl": "/samples/casual-avatar-body.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "profile"
+  },
+  {
+    "id": "ast-corgi-companion",
+    "name": "Corgi Companion",
+    "category": "structure",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "corgi",
+      "companion"
+    ],
+    "imageUrl": "/samples/corgi-companion.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_right"
+    ],
+    "defaultScale": 0.7,
+    "defaultActionType": "none"
   },
   {
     "id": "ast-cozy-reading-chair",
@@ -22,12 +252,156 @@
     "placement": "floor",
     "ownerType": "system",
     "rarity": "common",
-    "tags": ["chair", "cozy", "reading"],
+    "tags": [
+      "chair",
+      "cozy",
+      "reading"
+    ],
     "imageUrl": "/samples/cozy-reading-chair.png",
     "status": "published",
-    "compatibleZones": ["floor_left", "floor_center", "floor_right"],
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
     "defaultScale": 1,
     "defaultActionType": "none"
+  },
+  {
+    "id": "ast-cube-storage-shelf",
+    "name": "Cube Storage Shelf",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "cube",
+      "storage",
+      "shelf"
+    ],
+    "imageUrl": "/samples/cube-storage-shelf.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.1,
+    "defaultActionType": "link"
+  },
+  {
+    "id": "ast-espresso-bar-counter",
+    "name": "Espresso Bar Counter",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "espresso",
+      "bar",
+      "counter"
+    ],
+    "imageUrl": "/samples/espresso-bar-counter.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "product"
+  },
+  {
+    "id": "ast-fiddle-leaf-fig",
+    "name": "Fiddle Leaf Fig",
+    "category": "plant",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "fiddle",
+      "leaf",
+      "fig"
+    ],
+    "imageUrl": "/samples/fiddle-leaf-fig.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_right",
+      "shelf"
+    ],
+    "defaultScale": 0.9,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-hanging-cafe-sign",
+    "name": "Hanging Cafe Sign",
+    "category": "decor",
+    "villageTheme": "any",
+    "placement": "wall",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "hanging",
+      "cafe",
+      "sign"
+    ],
+    "imageUrl": "/samples/hanging-cafe-sign.png",
+    "status": "published",
+    "compatibleZones": [
+      "back_wall",
+      "left_wall",
+      "right_wall"
+    ],
+    "defaultScale": 0.95,
+    "defaultActionType": "link"
+  },
+  {
+    "id": "ast-hanging-pothos",
+    "name": "Hanging Pothos",
+    "category": "plant",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "hanging",
+      "pothos"
+    ],
+    "imageUrl": "/samples/hanging-pothos.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_right",
+      "shelf"
+    ],
+    "defaultScale": 0.9,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-ladder-bookshelf",
+    "name": "Ladder Bookshelf",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "ladder",
+      "bookshelf"
+    ],
+    "imageUrl": "/samples/ladder-bookshelf.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.1,
+    "defaultActionType": "link"
   },
   {
     "id": "ast-leafy-corner-plant",
@@ -37,12 +411,247 @@
     "placement": "floor",
     "ownerType": "system",
     "rarity": "common",
-    "tags": ["plant", "green", "corner"],
+    "tags": [
+      "plant",
+      "green",
+      "corner"
+    ],
     "imageUrl": "/samples/leafy-corner-plant.png",
     "status": "published",
-    "compatibleZones": ["floor_left", "floor_right", "shelf"],
+    "compatibleZones": [
+      "floor_left",
+      "floor_right",
+      "shelf"
+    ],
     "defaultScale": 0.9,
     "defaultActionType": "none"
+  },
+  {
+    "id": "ast-modular-corner-sofa",
+    "name": "Modular Corner Sofa",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "modular",
+      "corner",
+      "sofa"
+    ],
+    "imageUrl": "/samples/modular-corner-sofa.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-nesting-side-tables",
+    "name": "Nesting Side Tables",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "nesting",
+      "side",
+      "tables"
+    ],
+    "imageUrl": "/samples/nesting-side-tables.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-oak-coffee-table",
+    "name": "Oak Coffee Table",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "oak",
+      "coffee",
+      "table"
+    ],
+    "imageUrl": "/samples/oak-coffee-table.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-paper-table-lamp",
+    "name": "Paper Table Lamp",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "paper",
+      "table",
+      "lamp"
+    ],
+    "imageUrl": "/samples/paper-table-lamp.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_right"
+    ],
+    "defaultScale": 0.95,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-path-lantern",
+    "name": "Path Lantern",
+    "category": "decor",
+    "villageTheme": "any",
+    "placement": "wall",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "path",
+      "lantern"
+    ],
+    "imageUrl": "/samples/path-lantern.png",
+    "status": "published",
+    "compatibleZones": [
+      "shelf",
+      "back_wall",
+      "left_wall",
+      "right_wall"
+    ],
+    "defaultScale": 0.8,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-podcast-booth-desk",
+    "name": "Podcast Booth Desk",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "podcast",
+      "booth",
+      "desk"
+    ],
+    "imageUrl": "/samples/podcast-booth-desk.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.1,
+    "defaultActionType": "video"
+  },
+  {
+    "id": "ast-potted-olive-tree",
+    "name": "Potted Olive Tree",
+    "category": "plant",
+    "villageTheme": "any",
+    "placement": "exterior",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "potted",
+      "olive",
+      "tree"
+    ],
+    "imageUrl": "/samples/potted-olive-tree.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_right"
+    ],
+    "defaultScale": 1.4,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-rattan-bistro-chair",
+    "name": "Rattan Bistro Chair",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "rattan",
+      "bistro",
+      "chair"
+    ],
+    "imageUrl": "/samples/rattan-bistro-chair.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-reading-park-bench",
+    "name": "Reading Park Bench",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "exterior",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "reading",
+      "park",
+      "bench"
+    ],
+    "imageUrl": "/samples/reading-park-bench.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.1,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-retro-monitor",
+    "name": "Retro Monitor",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "retro",
+      "monitor"
+    ],
+    "imageUrl": "/samples/retro-monitor.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 0.9,
+    "defaultActionType": "link"
   },
   {
     "id": "ast-round-jute-rug",
@@ -52,11 +661,308 @@
     "placement": "floor",
     "ownerType": "system",
     "rarity": "common",
-    "tags": ["rug", "jute", "round"],
+    "tags": [
+      "rug",
+      "jute",
+      "round"
+    ],
     "imageUrl": "/samples/round-jute-rug.png",
     "status": "published",
-    "compatibleZones": ["floor_center"],
+    "compatibleZones": [
+      "floor_center"
+    ],
     "defaultScale": 1.3,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-snake-plant",
+    "name": "Snake Plant",
+    "category": "plant",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [],
+    "imageUrl": "/samples/snake-plant.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_right",
+      "shelf"
+    ],
+    "defaultScale": 0.9,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-stacked-hardcovers",
+    "name": "Stacked Hardcovers",
+    "category": "decor",
+    "villageTheme": "any",
+    "placement": "wall",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "stacked",
+      "hardcovers"
+    ],
+    "imageUrl": "/samples/stacked-hardcovers.png",
+    "status": "published",
+    "compatibleZones": [
+      "shelf",
+      "back_wall",
+      "left_wall",
+      "right_wall"
+    ],
+    "defaultScale": 0.7,
+    "defaultActionType": "link"
+  },
+  {
+    "id": "ast-standing-desk",
+    "name": "Standing Desk",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "standing",
+      "desk"
+    ],
+    "imageUrl": "/samples/standing-desk.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "contact"
+  },
+  {
+    "id": "ast-striped-market-stall",
+    "name": "Striped Market Stall",
+    "category": "structure",
+    "villageTheme": "any",
+    "placement": "exterior",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "striped",
+      "market",
+      "stall"
+    ],
+    "imageUrl": "/samples/striped-market-stall.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "product"
+  },
+  {
+    "id": "ast-striped-wool-rug",
+    "name": "Striped Wool Rug",
+    "category": "floor",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "striped",
+      "wool",
+      "rug"
+    ],
+    "imageUrl": "/samples/striped-wool-rug.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_center"
+    ],
+    "defaultScale": 1.3,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-tiered-display-stand",
+    "name": "Tiered Display Stand",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "tiered",
+      "display",
+      "stand"
+    ],
+    "imageUrl": "/samples/tiered-display-stand.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.1,
+    "defaultActionType": "product"
+  },
+  {
+    "id": "ast-tripod-camera",
+    "name": "Tripod Camera",
+    "category": "decor",
+    "villageTheme": "any",
+    "placement": "wall",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "tripod",
+      "camera"
+    ],
+    "imageUrl": "/samples/tripod-camera.png",
+    "status": "published",
+    "compatibleZones": [
+      "shelf",
+      "back_wall",
+      "left_wall",
+      "right_wall"
+    ],
+    "defaultScale": 0.8,
+    "defaultActionType": "gallery"
+  },
+  {
+    "id": "ast-tufted-loveseat",
+    "name": "Tufted Loveseat",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "tufted",
+      "loveseat"
+    ],
+    "imageUrl": "/samples/tufted-loveseat.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-velvet-accent-chair",
+    "name": "Velvet Accent Chair",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "velvet",
+      "accent",
+      "chair"
+    ],
+    "imageUrl": "/samples/velvet-accent-chair.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-vintage-ribbon-mic",
+    "name": "Vintage Ribbon Mic",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "vintage",
+      "ribbon",
+      "mic"
+    ],
+    "imageUrl": "/samples/vintage-ribbon-mic.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 0.8,
+    "defaultActionType": "video"
+  },
+  {
+    "id": "ast-white-picket-fence",
+    "name": "White Picket Fence",
+    "category": "structure",
+    "villageTheme": "any",
+    "placement": "exterior",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "white",
+      "picket",
+      "fence"
+    ],
+    "imageUrl": "/samples/white-picket-fence.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.1,
+    "defaultActionType": "none"
+  },
+  {
+    "id": "ast-wide-wall-screen",
+    "name": "Wide Wall Screen",
+    "category": "decor",
+    "villageTheme": "any",
+    "placement": "wall",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "wide",
+      "wall",
+      "screen"
+    ],
+    "imageUrl": "/samples/wide-wall-screen.png",
+    "status": "published",
+    "compatibleZones": [
+      "back_wall",
+      "left_wall",
+      "right_wall"
+    ],
+    "defaultScale": 1.1,
+    "defaultActionType": "video"
+  },
+  {
+    "id": "ast-window-flower-box",
+    "name": "Window Flower Box",
+    "category": "plant",
+    "villageTheme": "any",
+    "placement": "exterior",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "window",
+      "flower",
+      "box"
+    ],
+    "imageUrl": "/samples/window-flower-box.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_right",
+      "shelf"
+    ],
+    "defaultScale": 0.7,
     "defaultActionType": "none"
   },
   {
@@ -67,10 +973,18 @@
     "placement": "exterior",
     "ownerType": "system",
     "rarity": "common",
-    "tags": ["market", "stall", "shop"],
+    "tags": [
+      "market",
+      "stall",
+      "shop"
+    ],
     "imageUrl": "/samples/wooden-market-stall.png",
     "status": "published",
-    "compatibleZones": ["floor_left", "floor_center", "floor_right"],
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
     "defaultScale": 1.2,
     "defaultActionType": "product"
   }

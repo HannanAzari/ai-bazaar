@@ -1,6 +1,7 @@
 import {
   CATEGORY_META,
   type AssetCandidate,
+  type AssetPack,
   type NestudioCatalogAsset,
 } from "@/lib/types";
 
@@ -52,4 +53,48 @@ export function exportTs(candidates: AssetCandidate[]): string {
     `export const approvedAssets = ${body} as const;\n\n` +
     `export default approvedAssets;\n`
   );
+}
+
+// ── Pack export (V2.5) ───────────────────────────────────────────────────────
+
+/** A pack as exported: its approved members resolved to catalog asset ids. */
+export type ExportedPack = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  theme: string;
+  status: string;
+  assetCount: number;
+  /** `ast-<slug>` ids of the pack's APPROVED members (so the export is import-ready). */
+  assets: string[];
+  createdAt: string;
+};
+
+/** Resolve packs to their approved members in Nestudio id form. */
+export function packsForExport(packs: AssetPack[], candidates: AssetCandidate[]): ExportedPack[] {
+  const approvedById = new Map(candidates.filter((c) => c.status === "approved").map((c) => [c.id, c]));
+  return packs.map((pack) => {
+    const assets = pack.assetIds
+      .map((id) => approvedById.get(id))
+      .filter((c): c is AssetCandidate => !!c)
+      .map((c) => `ast-${c.slug}`)
+      .sort((a, b) => a.localeCompare(b));
+    return {
+      id: pack.id,
+      slug: pack.slug,
+      name: pack.name,
+      description: pack.description,
+      theme: pack.theme,
+      status: pack.status,
+      assetCount: assets.length,
+      assets,
+      createdAt: pack.createdAt,
+    };
+  });
+}
+
+/** Pretty JSON export of the packs (with resolved approved members). */
+export function exportPacksJson(packs: AssetPack[], candidates: AssetCandidate[]): string {
+  return JSON.stringify(packsForExport(packs, candidates), null, 2) + "\n";
 }

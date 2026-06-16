@@ -7,23 +7,22 @@ import {
   type AssetCandidate,
   type AssetStatus,
   type CategoryGroup,
+  type ReviewAction,
+  type ReviewActionType,
 } from "@/lib/types";
 import { runQualityChecks } from "@/lib/quality";
 import { applyTransition } from "@/lib/transitions";
+import { makeReviewAction } from "@/lib/activity";
 import { exportJson, exportTs, approvedCatalog } from "@/lib/export";
-import {
-  CHANGE_EVENT,
-  addCandidates,
-  loadCandidates,
-  resetStore,
-  updateCandidate,
-} from "@/lib/store";
+import { CHANGE_EVENT } from "@/lib/store";
+import { getCandidateRepository } from "@/lib/repo";
 import { AssetCard } from "@/components/asset-card";
 import { AssetDetail } from "@/components/asset-detail";
 import { ImportPanel } from "@/components/import-panel";
+import { ActivityPanel } from "@/components/activity-panel";
+import { FactoryNav } from "@/components/factory-nav";
 
 const GROUPS: CategoryGroup[] = ["interior", "exterior", "avatar", "business"];
-const REVIEWER = "hannan";
 
 function download(filename: string, contents: string, type: string) {
   const blob = new Blob([contents], { type });
@@ -35,20 +34,43 @@ function download(filename: string, contents: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
-export function ReviewDashboard() {
+export function ReviewDashboard({
+  reviewer,
+  onChangeReviewer,
+}: {
+  reviewer: string;
+  onChangeReviewer: () => void;
+}) {
+  const repo = useMemo(() => getCandidateRepository(), []);
+
   const [candidates, setCandidates] = useState<AssetCandidate[]>([]);
+  const [actions, setActions] = useState<ReviewAction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState<AssetStatus | "all">("all");
   const [groupFilter, setGroupFilter] = useState<CategoryGroup | "all">("all");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Load + subscribe to store changes (e.g. from other tabs / imports).
+  const refresh = useCallback(async () => {
+    try {
+      const [cands, acts] = await Promise.all([repo.list(), repo.listActions()]);
+      setCandidates(cands);
+      setActions(acts);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load.");
+    }
+  }, [repo]);
+
+  // Initial load + (local mode) cross-tab change subscription.
   useEffect(() => {
-    setCandidates(loadCandidates());
-    const onChange = () => setCandidates(loadCandidates());
+    setLoading(true);
+    refresh().finally(() => setLoading(false));
+    const onChange = () => void refresh();
     window.addEventListener(CHANGE_EVENT, onChange);
     return () => window.removeEventListener(CHANGE_EVENT, onChange);
-  }, []);
+  }, [refresh]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -66,16 +88,62 @@ export function ReviewDashboard() {
   const selected = candidates.find((c) => c.id === selectedId) ?? null;
 
   const transition = useCallback(
-    (candidate: AssetCandidate, to: AssetStatus) => {
-      const next = applyTransition(candidate, to, REVIEWER, candidates);
-      setCandidates((prev) => updateCandidate(prev, next));
+    async (candidate: AssetCandidate, to: AssetStatus) => {
+      const next = applyTransition(candidate, to, reviewer, candidates);
+      if (next === candidate) return; // no-op (e.g. blocked approve)
+      const action = makeReviewAction(next, to as ReviewActionType, reviewer);
+      // Optimistic update, then persist (revert via refresh on failure).
+      setCandidates((prev) => prev.map((c) => (c.id === next.id ? next : c)));
+      setActions((prev) => [action, ...prev]);
+      try {
+        await repo.applyAction(next, action);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Save failed.");
+        void refresh();
+      }
     },
-    [candidates],
+    [candidates, reviewer, repo, refresh],
   );
 
-  const saveMeta = useCallback((next: AssetCandidate) => {
-    setCandidates((prev) => updateCandidate(prev, next));
-  }, []);
+  const saveMeta = useCallback(
+    async (next: AssetCandidate) => {
+      setCandidates((prev) => prev.map((c) => (c.id === next.id ? next : c)));
+      try {
+        await repo.saveCandidate(next);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Save failed.");
+        void refresh();
+      }
+    },
+    [repo, refresh],
+  );
+
+  const addAssets = useCallback(
+    async (incoming: AssetCandidate[]) => {
+      try {
+        const full = await repo.addCandidates(incoming);
+        setCandidates(full);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Import failed.");
+      }
+    },
+    [repo],
+  );
+
+  const uploadImage = useMemo(() => {
+    if (repo.mode !== "supabase") return undefined;
+    return async (file: File): Promise<string> => {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("name", file.name);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Upload failed.");
+      }
+      return (await res.json()).url as string;
+    };
+  }, [repo]);
 
   const selectNext = useCallback(() => {
     if (filtered.length === 0) return;
@@ -96,13 +164,13 @@ export function ReviewDashboard() {
         selectNext();
       } else if (cur && key === "a") {
         e.preventDefault();
-        transition(cur, "approved");
+        void transition(cur, "approved");
       } else if (cur && key === "r") {
         e.preventDefault();
-        transition(cur, "rejected");
+        void transition(cur, "rejected");
       } else if (cur && key === "e") {
         e.preventDefault();
-        transition(cur, "needs_edit");
+        void transition(cur, "needs_edit");
       } else if (e.key === "Escape") {
         setSelectedId(null);
       }
@@ -124,13 +192,27 @@ export function ReviewDashboard() {
       <div className="topbar">
         <h1>🏭 Nestudio Asset Factory</h1>
         <span className="spacer" />
+        <span className={`pill ${repo.mode === "supabase" ? "approved" : "queued"}`}>
+          {repo.mode === "supabase" ? "Shared" : "Local"}
+        </span>
         <span className="muted">
-          {candidates.length} candidates · {approvedCount} approved
+          {reviewer} ·{" "}
+          <a href="#" onClick={(e) => { e.preventDefault(); onChangeReviewer(); }}>
+            change
+          </a>
         </span>
       </div>
 
+      <p className="muted" style={{ marginTop: -4, marginBottom: 10 }}>
+        {candidates.length} candidates · {approvedCount} approved
+      </p>
+
+      <FactoryNav />
+
+      {error && <p className="error">⚠ {error}</p>}
+
       <div className="toolbar">
-        <ImportPanel onAdd={(incoming) => setCandidates((prev) => addCandidates(prev, incoming))} />
+        <ImportPanel onAdd={addAssets} uploadImage={uploadImage} />
         <button
           className="btn"
           disabled={approvedCount === 0}
@@ -145,17 +227,22 @@ export function ReviewDashboard() {
         >
           ⬇ Export .ts
         </button>
-        <button
-          className="btn"
-          onClick={() => {
-            if (confirm("Reset the factory to the 30 sample candidates? This clears local changes.")) {
-              setCandidates(resetStore());
-              setSelectedId(null);
-            }
-          }}
-        >
-          ↺ Reset samples
-        </button>
+        {repo.canReset && (
+          <button
+            className="btn"
+            onClick={() => {
+              if (confirm("Reset the factory to the 30 sample candidates? This clears local changes.")) {
+                repo.reset().then((seeded) => {
+                  setCandidates(seeded);
+                  setActions([]);
+                  setSelectedId(null);
+                });
+              }
+            }}
+          >
+            ↺ Reset samples
+          </button>
+        )}
       </div>
 
       <div className="toolbar">
@@ -190,12 +277,16 @@ export function ReviewDashboard() {
         ))}
       </div>
 
+      <ActivityPanel actions={actions} />
+
       <p className="muted" style={{ marginBottom: 8 }}>
         Shortcuts: <span className="kbd">A</span> approve · <span className="kbd">R</span> reject ·{" "}
         <span className="kbd">E</span> needs edit · <span className="kbd">N</span> next · <span className="kbd">Esc</span> close
       </p>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <p className="muted">Loading…</p>
+      ) : filtered.length === 0 ? (
         <p className="muted">No candidates match these filters.</p>
       ) : (
         <div className="grid">
@@ -215,7 +306,7 @@ export function ReviewDashboard() {
         <AssetDetail
           candidate={selected}
           all={candidates}
-          onTransition={(to) => transition(selected, to)}
+          onTransition={(to) => void transition(selected, to)}
           onSave={saveMeta}
           onClose={() => setSelectedId(null)}
         />

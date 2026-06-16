@@ -14,6 +14,7 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Protect everything except the login page, the login API, and static assets.
-  matcher: ["/((?!login|api/login|_next/static|_next/image|favicon.ico|samples).*)"],
+  // Protect pages. API routes are excluded here and self-guard with isAuthorized()
+  // so unauthenticated fetches get a JSON 401 instead of an HTML redirect.
+  matcher: ["/((?!login|api|_next/static|_next/image|favicon.ico|samples).*)"],
 };

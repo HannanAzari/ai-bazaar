@@ -16,7 +16,15 @@ import {
 
 type Mode = "single" | "json";
 
-export function ImportPanel({ onAdd }: { onAdd: (candidates: AssetCandidate[]) => void }) {
+export function ImportPanel({
+  onAdd,
+  uploadImage,
+}: {
+  onAdd: (candidates: AssetCandidate[]) => void;
+  /** When provided (shared mode), file uploads are sent here and the returned
+   * public URL is used instead of an inline data URL. */
+  uploadImage?: (file: File) => Promise<string>;
+}) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("single");
 
@@ -24,10 +32,12 @@ export function ImportPanel({ onAdd }: { onAdd: (candidates: AssetCandidate[]) =
   const [name, setName] = useState("");
   const [category, setCategory] = useState<FactoryCategory>("chair");
   const [imageUrl, setImageUrl] = useState("");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [width, setWidth] = useState(1024);
   const [height, setHeight] = useState(1024);
   const [transparent, setTransparent] = useState(true);
   const [tags, setTags] = useState("");
+  const [busy, setBusy] = useState(false);
 
   // JSON import
   const [json, setJson] = useState("");
@@ -37,6 +47,7 @@ export function ImportPanel({ onAdd }: { onAdd: (candidates: AssetCandidate[]) =
   function reset() {
     setName("");
     setImageUrl("");
+    setPendingFile(null);
     setTags("");
     setWidth(1024);
     setHeight(1024);
@@ -44,13 +55,13 @@ export function ImportPanel({ onAdd }: { onAdd: (candidates: AssetCandidate[]) =
   }
 
   async function onFile(file: File) {
+    setPendingFile(file);
     const dataUrl = await new Promise<string>((resolve) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result));
       reader.readAsDataURL(file);
     });
     setImageUrl(dataUrl);
-    // Try to read natural dimensions.
     const img = new Image();
     img.onload = () => {
       if (img.naturalWidth) setWidth(img.naturalWidth);
@@ -59,24 +70,37 @@ export function ImportPanel({ onAdd }: { onAdd: (candidates: AssetCandidate[]) =
     img.src = dataUrl;
   }
 
-  function addSingle() {
-    const input: ImportInput = {
-      name,
-      category,
-      imageUrl,
-      width,
-      height,
-      transparent,
-      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-    };
-    const result = validateImport(input);
-    if (!result.ok) {
-      setFeedback("✕ " + result.errors.join(" "));
-      return;
+  async function addSingle() {
+    setBusy(true);
+    setFeedback("");
+    try {
+      // In shared mode, upload the picked file to the bucket and use its URL.
+      let finalUrl = imageUrl;
+      if (pendingFile && uploadImage) {
+        finalUrl = await uploadImage(pendingFile);
+      }
+      const input: ImportInput = {
+        name,
+        category,
+        imageUrl: finalUrl,
+        width,
+        height,
+        transparent,
+        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+      };
+      const result = validateImport(input);
+      if (!result.ok) {
+        setFeedback("✕ " + result.errors.join(" "));
+        return;
+      }
+      onAdd([candidateFromImport(input)]);
+      setFeedback(`✓ Added "${name}".` + (result.warnings.length ? ` (${result.warnings.length} warning(s))` : ""));
+      reset();
+    } catch (err) {
+      setFeedback("✕ " + (err instanceof Error ? err.message : "Upload failed."));
+    } finally {
+      setBusy(false);
     }
-    onAdd([candidateFromImport(input)]);
-    setFeedback(`✓ Added "${name}".` + (result.warnings.length ? ` (${result.warnings.length} warning(s))` : ""));
-    reset();
   }
 
   function addJson() {
@@ -138,7 +162,13 @@ export function ImportPanel({ onAdd }: { onAdd: (candidates: AssetCandidate[]) =
           </div>
           <div className="field">
             <label>…or paste image URL (.png / .webp)</label>
-            <input type="text" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…/asset.png" />
+            <input
+              type="text"
+              value={pendingFile ? "" : imageUrl}
+              disabled={!!pendingFile}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="https://…/asset.png"
+            />
           </div>
           <div className="field">
             <label>Name</label>
@@ -173,8 +203,8 @@ export function ImportPanel({ onAdd }: { onAdd: (candidates: AssetCandidate[]) =
             <label>Tags (comma-separated)</label>
             <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} />
           </div>
-          <button className="btn btn-primary" onClick={addSingle}>
-            Add to review queue
+          <button className="btn btn-primary" onClick={addSingle} disabled={busy}>
+            {busy ? "Adding…" : "Add to review queue"}
           </button>
         </>
       ) : (

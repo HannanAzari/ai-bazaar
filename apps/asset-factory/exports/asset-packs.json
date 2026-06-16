@@ -1,0 +1,103 @@
+[
+  {
+    "id": "pack-cozy-creator",
+    "slug": "cozy-creator",
+    "name": "Cozy Creator Pack",
+    "description": "Warm, lived-in essentials for a personal creator room.",
+    "theme": "cozy",
+    "status": "ready",
+    "assetCount": 9,
+    "assets": [
+      "ast-cozy-reading-chair",
+      "ast-fiddle-leaf-fig",
+      "ast-leafy-corner-plant",
+      "ast-modular-corner-sofa",
+      "ast-rattan-bistro-chair",
+      "ast-round-jute-rug",
+      "ast-striped-wool-rug",
+      "ast-tufted-loveseat",
+      "ast-velvet-accent-chair"
+    ],
+    "createdAt": "2026-06-17T09:00:00.000Z"
+  },
+  {
+    "id": "pack-photographer-studio",
+    "slug": "photographer-studio",
+    "name": "Photographer Studio Pack",
+    "description": "Gallery walls, screens, and displays for a photography studio.",
+    "theme": "photography",
+    "status": "ready",
+    "assetCount": 8,
+    "assets": [
+      "ast-abstract-canvas",
+      "ast-botanical-print-set",
+      "ast-fiddle-leaf-fig",
+      "ast-hanging-pothos",
+      "ast-leafy-corner-plant",
+      "ast-tiered-display-stand",
+      "ast-tripod-camera",
+      "ast-wide-wall-screen"
+    ],
+    "createdAt": "2026-06-17T09:01:00.000Z"
+  },
+  {
+    "id": "pack-podcaster",
+    "slug": "podcaster",
+    "name": "Podcaster Pack",
+    "description": "Mics, seating, and screens for a cozy podcast lounge.",
+    "theme": "podcast",
+    "status": "ready",
+    "assetCount": 8,
+    "assets": [
+      "ast-boom-arm-mic",
+      "ast-cube-storage-shelf",
+      "ast-ladder-bookshelf",
+      "ast-leafy-corner-plant",
+      "ast-modular-corner-sofa",
+      "ast-podcast-booth-desk",
+      "ast-tufted-loveseat",
+      "ast-vintage-ribbon-mic"
+    ],
+    "createdAt": "2026-06-17T09:02:00.000Z"
+  },
+  {
+    "id": "pack-cafe",
+    "slug": "cafe",
+    "name": "Cafe Pack",
+    "description": "Counters, tables, and signage for a welcoming cafe.",
+    "theme": "cafe",
+    "status": "ready",
+    "assetCount": 8,
+    "assets": [
+      "ast-bistro-two-top",
+      "ast-cafe-counter",
+      "ast-espresso-bar-counter",
+      "ast-fiddle-leaf-fig",
+      "ast-hanging-cafe-sign",
+      "ast-hanging-pothos",
+      "ast-leafy-corner-plant",
+      "ast-snake-plant"
+    ],
+    "createdAt": "2026-06-17T09:03:00.000Z"
+  },
+  {
+    "id": "pack-startup-workspace",
+    "slug": "startup-workspace",
+    "name": "Startup Workspace Pack",
+    "description": "Desks, screens, and storage for a focused startup workspace.",
+    "theme": "workspace",
+    "status": "ready",
+    "assetCount": 8,
+    "assets": [
+      "ast-arc-floor-lamp",
+      "ast-cube-storage-shelf",
+      "ast-hanging-cafe-sign",
+      "ast-ladder-bookshelf",
+      "ast-oak-coffee-table",
+      "ast-paper-table-lamp",
+      "ast-retro-monitor",
+      "ast-standing-desk"
+    ],
+    "createdAt": "2026-06-17T09:04:00.000Z"
+  }
+]

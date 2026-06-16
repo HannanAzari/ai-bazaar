@@ -167,6 +167,16 @@ export type CategoryMeta = {
 
 const wallZones: RoomZoneType[] = ["back_wall", "left_wall", "right_wall"];
 const floorZones: RoomZoneType[] = ["floor_left", "floor_center", "floor_right"];
+// Decor lives on the shelf or any wall (the zones whose allowed categories include `decor`).
+const shelfWall: RoomZoneType[] = ["shelf", "back_wall", "left_wall", "right_wall"];
+
+// IMPORTANT: every category's `nestudioCategory` must be accepted by its
+// `compatibleZones` under the nine-zone template (lib/zones.ts), or the asset can
+// never be placed. Nestudio's zones accept: walls→decor/wall · shelf→decor/plant ·
+// window→decor · floor→furniture/plant/structure/floor/stairs/door · door→
+// structure/door/stairs. There is NO zone for `lighting`, and floor zones do NOT
+// accept `decor` — so floor-standing items map to furniture/structure, and small
+// props map to decor on shelves/walls. (V2.5 validation enforces this.)
 
 /** The single source of truth mapping a factory category to its Nestudio shape. */
 export const CATEGORY_META: Record<FactoryCategory, CategoryMeta> = {
@@ -174,49 +184,49 @@ export const CATEGORY_META: Record<FactoryCategory, CategoryMeta> = {
   chair: { group: "interior", label: "Chair", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "none", defaultScale: 1 },
   table: { group: "interior", label: "Table", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "none", defaultScale: 1 },
   desk: { group: "interior", label: "Desk", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "contact", defaultScale: 1 },
-  shelf: { group: "interior", label: "Shelf", nestudioCategory: "furniture", placement: "floor", compatibleZones: ["floor_left", "floor_right", "shelf"], defaultActionType: "link", defaultScale: 1.1 },
+  shelf: { group: "interior", label: "Shelf", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "link", defaultScale: 1.1 },
   sofa: { group: "interior", label: "Sofa", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "none", defaultScale: 1.2 },
   rug: { group: "interior", label: "Rug", nestudioCategory: "floor", placement: "floor", compatibleZones: ["floor_center"], defaultActionType: "none", defaultScale: 1.3 },
   plant: { group: "interior", label: "Plant", nestudioCategory: "plant", placement: "floor", compatibleZones: ["floor_left", "floor_right", "shelf"], defaultActionType: "none", defaultScale: 0.9 },
-  lamp: { group: "interior", label: "Lamp", nestudioCategory: "lighting", placement: "floor", compatibleZones: ["floor_left", "floor_right"], defaultActionType: "none", defaultScale: 0.95 },
-  book: { group: "interior", label: "Book", nestudioCategory: "decor", placement: "wall", compatibleZones: ["shelf", ...wallZones], defaultActionType: "link", defaultScale: 0.7 },
-  computer: { group: "interior", label: "Computer", nestudioCategory: "decor", placement: "floor", compatibleZones: floorZones, defaultActionType: "link", defaultScale: 0.9 },
-  microphone: { group: "interior", label: "Microphone", nestudioCategory: "decor", placement: "floor", compatibleZones: floorZones, defaultActionType: "video", defaultScale: 0.8 },
-  camera: { group: "interior", label: "Camera", nestudioCategory: "decor", placement: "floor", compatibleZones: ["shelf", ...floorZones], defaultActionType: "gallery", defaultScale: 0.8 },
-  guitar: { group: "interior", label: "Guitar", nestudioCategory: "decor", placement: "floor", compatibleZones: ["floor_left", "floor_right"], defaultActionType: "none", defaultScale: 1 },
-  product_display: { group: "interior", label: "Product Display", nestudioCategory: "furniture", placement: "floor", compatibleZones: ["floor_left", "floor_right", "shelf"], defaultActionType: "product", defaultScale: 1.1 },
+  lamp: { group: "interior", label: "Lamp", nestudioCategory: "furniture", placement: "floor", compatibleZones: ["floor_left", "floor_right"], defaultActionType: "none", defaultScale: 0.95 },
+  book: { group: "interior", label: "Book", nestudioCategory: "decor", placement: "wall", compatibleZones: shelfWall, defaultActionType: "link", defaultScale: 0.7 },
+  computer: { group: "interior", label: "Computer", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "link", defaultScale: 0.9 },
+  microphone: { group: "interior", label: "Microphone", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "video", defaultScale: 0.8 },
+  camera: { group: "interior", label: "Camera", nestudioCategory: "decor", placement: "wall", compatibleZones: shelfWall, defaultActionType: "gallery", defaultScale: 0.8 },
+  guitar: { group: "interior", label: "Guitar", nestudioCategory: "furniture", placement: "floor", compatibleZones: ["floor_left", "floor_right"], defaultActionType: "none", defaultScale: 1 },
+  product_display: { group: "interior", label: "Product Display", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "product", defaultScale: 1.1 },
   wall_art: { group: "interior", label: "Wall Art", nestudioCategory: "decor", placement: "wall", compatibleZones: wallZones, defaultActionType: "gallery", defaultScale: 1 },
   tv_screen: { group: "interior", label: "TV / Screen", nestudioCategory: "decor", placement: "wall", compatibleZones: wallZones, defaultActionType: "video", defaultScale: 1.1 },
 
   // ── Exterior ──
   door: { group: "exterior", label: "Door", nestudioCategory: "door", placement: "exterior", compatibleZones: ["door", "floor_left", "floor_right"], defaultActionType: "room_link", defaultScale: 1 },
-  window: { group: "exterior", label: "Window", nestudioCategory: "wall", placement: "wall", compatibleZones: ["window", ...wallZones], defaultActionType: "none", defaultScale: 1 },
+  window: { group: "exterior", label: "Window", nestudioCategory: "decor", placement: "wall", compatibleZones: ["window", ...wallZones], defaultActionType: "none", defaultScale: 1 },
   tree: { group: "exterior", label: "Tree", nestudioCategory: "plant", placement: "exterior", compatibleZones: ["floor_left", "floor_right"], defaultActionType: "none", defaultScale: 1.4 },
   flower: { group: "exterior", label: "Flower", nestudioCategory: "plant", placement: "exterior", compatibleZones: ["floor_left", "floor_right", "shelf"], defaultActionType: "none", defaultScale: 0.7 },
   fence: { group: "exterior", label: "Fence", nestudioCategory: "structure", placement: "exterior", compatibleZones: floorZones, defaultActionType: "none", defaultScale: 1.1 },
   sign: { group: "exterior", label: "Sign", nestudioCategory: "decor", placement: "wall", compatibleZones: wallZones, defaultActionType: "link", defaultScale: 0.95 },
-  lantern: { group: "exterior", label: "Lantern", nestudioCategory: "lighting", placement: "exterior", compatibleZones: ["floor_left", "floor_right", "shelf"], defaultActionType: "none", defaultScale: 0.8 },
+  lantern: { group: "exterior", label: "Lantern", nestudioCategory: "decor", placement: "wall", compatibleZones: shelfWall, defaultActionType: "none", defaultScale: 0.8 },
   mailbox: { group: "exterior", label: "Mailbox", nestudioCategory: "structure", placement: "exterior", compatibleZones: ["floor_left", "floor_right"], defaultActionType: "contact", defaultScale: 0.85 },
   bench: { group: "exterior", label: "Bench", nestudioCategory: "furniture", placement: "exterior", compatibleZones: floorZones, defaultActionType: "none", defaultScale: 1.1 },
   market_stall: { group: "exterior", label: "Market Stall", nestudioCategory: "structure", placement: "exterior", compatibleZones: floorZones, defaultActionType: "product", defaultScale: 1.2 },
 
   // ── Avatar / support ──
-  avatar_body: { group: "avatar", label: "Avatar Body", nestudioCategory: "decor", placement: "floor", compatibleZones: floorZones, defaultActionType: "profile", defaultScale: 1 },
-  hairstyle: { group: "avatar", label: "Hairstyle", nestudioCategory: "decor", placement: "any", compatibleZones: floorZones, defaultActionType: "none", defaultScale: 0.6 },
-  clothing: { group: "avatar", label: "Clothing", nestudioCategory: "decor", placement: "any", compatibleZones: floorZones, defaultActionType: "none", defaultScale: 0.8 },
-  accessory: { group: "avatar", label: "Accessory", nestudioCategory: "decor", placement: "any", compatibleZones: ["shelf", ...floorZones], defaultActionType: "none", defaultScale: 0.5 },
-  pet: { group: "avatar", label: "Pet", nestudioCategory: "decor", placement: "floor", compatibleZones: ["floor_left", "floor_right"], defaultActionType: "none", defaultScale: 0.7 },
-  instrument: { group: "avatar", label: "Instrument", nestudioCategory: "decor", placement: "floor", compatibleZones: ["floor_left", "floor_right"], defaultActionType: "none", defaultScale: 0.9 },
-  tool: { group: "avatar", label: "Tool", nestudioCategory: "decor", placement: "any", compatibleZones: ["shelf", ...floorZones], defaultActionType: "none", defaultScale: 0.6 },
+  avatar_body: { group: "avatar", label: "Avatar Body", nestudioCategory: "structure", placement: "floor", compatibleZones: floorZones, defaultActionType: "profile", defaultScale: 1 },
+  hairstyle: { group: "avatar", label: "Hairstyle", nestudioCategory: "decor", placement: "any", compatibleZones: shelfWall, defaultActionType: "none", defaultScale: 0.6 },
+  clothing: { group: "avatar", label: "Clothing", nestudioCategory: "decor", placement: "any", compatibleZones: shelfWall, defaultActionType: "none", defaultScale: 0.8 },
+  accessory: { group: "avatar", label: "Accessory", nestudioCategory: "decor", placement: "any", compatibleZones: shelfWall, defaultActionType: "none", defaultScale: 0.5 },
+  pet: { group: "avatar", label: "Pet", nestudioCategory: "structure", placement: "floor", compatibleZones: ["floor_left", "floor_right"], defaultActionType: "none", defaultScale: 0.7 },
+  instrument: { group: "avatar", label: "Instrument", nestudioCategory: "furniture", placement: "floor", compatibleZones: ["floor_left", "floor_right"], defaultActionType: "none", defaultScale: 0.9 },
+  tool: { group: "avatar", label: "Tool", nestudioCategory: "decor", placement: "any", compatibleZones: shelfWall, defaultActionType: "none", defaultScale: 0.6 },
 
   // ── Business ──
   cafe_counter: { group: "business", label: "Cafe Counter", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "product", defaultScale: 1.2 },
   restaurant_table: { group: "business", label: "Restaurant Table", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "booking", defaultScale: 1.1 },
   gym_equipment: { group: "business", label: "Gym Equipment", nestudioCategory: "furniture", placement: "floor", compatibleZones: ["floor_left", "floor_right"], defaultActionType: "booking", defaultScale: 1.1 },
   medical_desk: { group: "business", label: "Medical Desk", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "booking", defaultScale: 1 },
-  workshop_tool: { group: "business", label: "Workshop Tool", nestudioCategory: "decor", placement: "wall", compatibleZones: ["shelf", ...wallZones], defaultActionType: "none", defaultScale: 0.8 },
+  workshop_tool: { group: "business", label: "Workshop Tool", nestudioCategory: "decor", placement: "wall", compatibleZones: shelfWall, defaultActionType: "none", defaultScale: 0.8 },
   podcast_setup: { group: "business", label: "Podcast Setup", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "video", defaultScale: 1.1 },
-  shop_shelf: { group: "business", label: "Shop Shelf", nestudioCategory: "furniture", placement: "floor", compatibleZones: ["floor_left", "floor_right", "shelf"], defaultActionType: "product", defaultScale: 1.1 },
+  shop_shelf: { group: "business", label: "Shop Shelf", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "product", defaultScale: 1.1 },
 };
 
 export const ALL_CATEGORIES = Object.keys(CATEGORY_META) as FactoryCategory[];
@@ -233,3 +243,48 @@ export const ALL_STATUSES: AssetStatus[] = [
   "rejected",
   "needs_edit",
 ];
+
+// ── Review activity log (V2) ─────────────────────────────────────────────────
+
+/** What kind of review event a log entry records. */
+export type ReviewActionType =
+  | "approved"
+  | "rejected"
+  | "needs_edit"
+  | "needs_review"
+  | "imported"
+  | "metadata_edited";
+
+/** One entry in the shared review activity log. */
+export type ReviewAction = {
+  id: string;
+  candidateId: string;
+  candidateName: string;
+  action: ReviewActionType;
+  reviewer: string;
+  note?: string;
+  createdAt: string;
+};
+
+// ── Asset packs (V2.5) ───────────────────────────────────────────────────────
+
+/** A pack's lifecycle: draft → validating → ready (for export). */
+export type AssetPackStatus = "draft" | "validating" | "ready";
+
+export const ALL_PACK_STATUSES: AssetPackStatus[] = ["draft", "validating", "ready"];
+
+/** A first-class, curated bundle of asset candidates used to validate the
+ * catalog pipeline (review → export → designer). */
+export type AssetPack = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  /** Free-form theme label, e.g. "cozy", "cafe", "workspace". */
+  theme: string;
+  status: AssetPackStatus;
+  /** Candidate ids in this pack. */
+  assetIds: string[];
+  createdAt: string;
+};
+

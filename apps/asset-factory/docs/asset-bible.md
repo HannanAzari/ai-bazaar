@@ -103,6 +103,12 @@ Every approved asset must carry:
 - correct **dimensions** and a **transparency** flag.
 - a **pack** name to group a batch (e.g. `interior-starter`).
 - on approval, a **reviewer** and **reviewedAt** are stamped automatically.
+- **placeability (V2.5):** the category's Nestudio category must be accepted by at
+  least one of its compatible zones. Floor-standing items are `furniture`/
+  `structure`/`plant`/`floor`; wall/shelf props are `decor`. There is **no room
+  zone for `lighting`**, and floor zones do **not** accept `decor` — `CATEGORY_META`
+  encodes valid mappings, and the **Reports → import validation** surface flags any
+  asset that can't be placed. See [catalog-validation.md](catalog-validation.md).
 
 ## 11. Prompt template rules
 
