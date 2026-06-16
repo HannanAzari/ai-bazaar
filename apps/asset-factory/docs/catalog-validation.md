@@ -101,3 +101,12 @@ Treat V3 as **gated** on all of the following, measured here:
 
 If a future generated batch fails any of these, fix the metadata pipeline before
 scaling generation — that is the whole point of V2.5.
+
+## V3 generation runs through this same gate
+
+The **Generate** tab (V3) does not bypass any of the above. Every generated
+candidate — placeholder (dry-run) or real (Replicate) — enters `needs_review` and is
+auto-run through quality checks + Nestudio import validation + a pack-compatibility
+check (`lib/generation-validate.ts`). Nothing is auto-approved. Raw AI output is not
+transparent, so it surfaces a `non_transparent` warning until a background-removal
+pass (V4) is applied. Operating + cost-control details: [generation-ops.md](generation-ops.md).

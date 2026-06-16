@@ -1,7 +1,7 @@
 // Server-only module (imported solely by API route handlers). The service-role
 // client lives in lib/supabase-server.ts; its key is a non-public env var, so it
 // is never inlined into client bundles even if this module were imported there.
-import { type AssetCandidate, type AssetPack, type ReviewAction } from "@/lib/types";
+import { type AssetCandidate, type AssetPack, type GenerationJob, type ReviewAction } from "@/lib/types";
 import { getServerSupabase } from "@/lib/supabase-server";
 import {
   candidateToRow,
@@ -10,9 +10,12 @@ import {
   rowToAction,
   packToRow,
   rowToPack,
+  jobToRow,
+  rowToJob,
   type CandidateRow,
   type ReviewActionRow,
   type AssetPackRow,
+  type GenerationJobRow,
 } from "@/lib/mappers";
 import { sampleCandidates } from "@/lib/sample-data";
 import { buildSamplePacks } from "@/lib/sample-packs";
@@ -24,6 +27,7 @@ import { buildSamplePacks } from "@/lib/sample-packs";
 const CANDIDATES = "asset_candidates";
 const ACTIONS = "asset_review_actions";
 const PACKS = "asset_packs";
+const JOBS = "asset_generation_jobs";
 
 /** List all candidates (newest first). Seeds the 30 samples on a fresh, empty DB. */
 export async function listCandidates(): Promise<AssetCandidate[]> {
@@ -120,5 +124,24 @@ export async function savePack(pack: AssetPack): Promise<void> {
 export async function deletePack(id: string): Promise<void> {
   const supabase = getServerSupabase();
   const { error } = await supabase.from(PACKS).delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+// ── Generation jobs (V3) ─────────────────────────────────────────────────────
+
+export async function listJobs(): Promise<GenerationJob[]> {
+  const supabase = getServerSupabase();
+  const { data, error } = await supabase
+    .from(JOBS)
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) throw new Error(error.message);
+  return ((data as GenerationJobRow[]) ?? []).map(rowToJob);
+}
+
+export async function saveJob(job: GenerationJob): Promise<void> {
+  const supabase = getServerSupabase();
+  const { error } = await supabase.from(JOBS).upsert(jobToRow(job), { onConflict: "id" });
   if (error) throw new Error(error.message);
 }

@@ -34,6 +34,16 @@ export async function uploadCandidateImage(
   return data.publicUrl;
 }
 
+/** Fetch a provider image URL and re-host it in the candidate bucket (V3). */
+export async function uploadImageFromUrl(sourceUrl: string, name: string): Promise<string> {
+  const res = await fetch(sourceUrl);
+  if (!res.ok) throw new Error(`Failed to fetch generated image (${res.status}).`);
+  const contentType = (res.headers.get("content-type") || "image/png").split(";")[0].trim();
+  const type = contentType in EXT_FOR_TYPE ? contentType : "image/png";
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  return uploadCandidateImage(bytes, type, name);
+}
+
 /** Decode a `data:image/...;base64,...` URL into bytes + content type. */
 export function decodeDataUrl(dataUrl: string): { bytes: Uint8Array; contentType: string } {
   const match = /^data:(image\/(?:png|webp));base64,(.*)$/i.exec(dataUrl);

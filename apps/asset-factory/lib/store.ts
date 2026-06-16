@@ -1,4 +1,4 @@
-import { type AssetCandidate, type AssetPack, type ReviewAction } from "@/lib/types";
+import { type AssetCandidate, type AssetPack, type GenerationJob, type ReviewAction } from "@/lib/types";
 import { sampleCandidates } from "@/lib/sample-data";
 import { buildSamplePacks } from "@/lib/sample-packs";
 
@@ -12,6 +12,7 @@ const SEED_KEY = "nestudio-asset-factory-seeded";
 const ACTIONS_KEY = "nestudio-asset-factory-actions";
 const PACKS_KEY = "nestudio-asset-factory-packs";
 const PACKS_SEED_KEY = "nestudio-asset-factory-packs-seeded";
+const JOBS_KEY = "nestudio-asset-factory-jobs";
 export const CHANGE_EVENT = "nestudio-asset-factory-changed";
 
 function canUseStorage(): boolean {
@@ -87,12 +88,44 @@ export function resetStore(): AssetCandidate[] {
     window.localStorage.removeItem(ACTIONS_KEY);
     window.localStorage.removeItem(PACKS_KEY);
     window.localStorage.removeItem(PACKS_SEED_KEY);
+    window.localStorage.removeItem(JOBS_KEY);
   } catch {
     // ignore
   }
   const seeded = sampleCandidates();
   saveCandidates(seeded);
   return seeded;
+}
+
+// ── Generation jobs (V3, local layer) ────────────────────────────────────────
+
+export function loadJobs(): GenerationJob[] {
+  if (!canUseStorage()) return [];
+  try {
+    const raw = window.localStorage.getItem(JOBS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as GenerationJob[]) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveJobs(jobs: GenerationJob[]): void {
+  if (!canUseStorage()) return;
+  try {
+    window.localStorage.setItem(JOBS_KEY, JSON.stringify(jobs.slice(0, 200)));
+    emitChange();
+  } catch {
+    // ignore
+  }
+}
+
+/** Upsert one job (newest first) and persist. */
+export function upsertJob(jobs: GenerationJob[], next: GenerationJob): GenerationJob[] {
+  const exists = jobs.some((j) => j.id === next.id);
+  const updated = exists ? jobs.map((j) => (j.id === next.id ? next : j)) : [next, ...jobs];
+  saveJobs(updated);
+  return updated;
 }
 
 // ── Asset packs (V2.5, local layer) ──────────────────────────────────────────

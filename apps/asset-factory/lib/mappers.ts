@@ -4,6 +4,8 @@ import {
   type AssetPackStatus,
   type AssetStatus,
   type FactoryCategory,
+  type GenerationJob,
+  type GenerationJobStatus,
   type ReviewAction,
   type ReviewActionType,
   type RoomActionType,
@@ -174,5 +176,75 @@ export function rowToPack(r: AssetPackRow): AssetPack {
     status: r.status as AssetPackStatus,
     assetIds: r.asset_ids ?? [],
     createdAt: r.created_at,
+  };
+}
+
+export type GenerationJobRow = {
+  id: string;
+  status: string;
+  category: string;
+  pack: string;
+  count: number;
+  subject: string;
+  prompt: string;
+  negative_prompt: string;
+  model_provider: string;
+  model_name: string;
+  requested_by: string;
+  estimated_cost: number;
+  actual_cost: number | null;
+  dry_run: boolean;
+  generated_candidate_ids: string[];
+  error: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+export function jobToRow(j: GenerationJob): GenerationJobRow {
+  return {
+    id: j.id,
+    status: j.status,
+    category: j.category,
+    pack: j.pack,
+    count: j.count,
+    subject: j.subject,
+    prompt: j.prompt,
+    negative_prompt: j.negativePrompt,
+    model_provider: j.modelProvider,
+    model_name: j.modelName,
+    requested_by: j.requestedBy,
+    estimated_cost: j.estimatedCost,
+    actual_cost: j.actualCost ?? null,
+    dry_run: j.dryRun,
+    generated_candidate_ids: j.generatedCandidateIds,
+    error: j.error ?? null,
+    created_at: j.createdAt,
+    started_at: j.startedAt ?? null,
+    completed_at: j.completedAt ?? null,
+  };
+}
+
+export function rowToJob(r: GenerationJobRow): GenerationJob {
+  return {
+    id: r.id,
+    status: r.status as GenerationJobStatus,
+    category: r.category as FactoryCategory,
+    pack: r.pack,
+    count: r.count,
+    subject: r.subject,
+    prompt: r.prompt,
+    negativePrompt: r.negative_prompt,
+    modelProvider: r.model_provider,
+    modelName: r.model_name,
+    requestedBy: r.requested_by,
+    estimatedCost: r.estimated_cost,
+    actualCost: r.actual_cost ?? undefined,
+    dryRun: r.dry_run,
+    generatedCandidateIds: r.generated_candidate_ids ?? [],
+    error: r.error ?? undefined,
+    createdAt: r.created_at,
+    startedAt: r.started_at ?? undefined,
+    completedAt: r.completed_at ?? undefined,
   };
 }

@@ -117,8 +117,13 @@ Every approved asset must carry:
 - Don't drop the style spine — it is what keeps the catalog visually consistent.
 - Per-asset tweaks go in the *subject* / *extra* slots, never by rewriting the
   master prompt.
-- V1 does **not** call any generation API; these prompts are copied into an
-  external tool by the operator (V2 will consume them directly).
+- **Generation (V3):** the **Generate** tab feeds exactly this prompt system to
+  Replicate (`black-forest-labs/flux-schnell` by default). Generation is OFF by
+  default; dry-run is free. **AI output is never auto-approved** — it enters
+  `needs_review` and is auto-validated. Raw model output is **not transparent**, so
+  every generated asset carries a `non_transparent` warning and needs a
+  background-removal pass before it can meet §5. See
+  [generation-ops.md](generation-ops.md).
 
 ## 12. Quality checklist (before Approve)
 

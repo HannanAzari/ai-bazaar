@@ -229,6 +229,47 @@ export const CATEGORY_META: Record<FactoryCategory, CategoryMeta> = {
   shop_shelf: { group: "business", label: "Shop Shelf", nestudioCategory: "furniture", placement: "floor", compatibleZones: floorZones, defaultActionType: "product", defaultScale: 1.1 },
 };
 
+// ── Generation jobs (V3) ─────────────────────────────────────────────────────
+
+export type GenerationJobStatus =
+  | "draft"
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export const ALL_JOB_STATUSES: GenerationJobStatus[] = [
+  "draft", "queued", "running", "completed", "failed", "cancelled",
+];
+
+/** A batch image-generation job (V3). Dry-run jobs build prompts + placeholder
+ * candidates with NO provider call; real jobs call Replicate server-side. Every
+ * produced candidate enters `needs_review` — never auto-approved. */
+export type GenerationJob = {
+  id: string;
+  status: GenerationJobStatus;
+  category: FactoryCategory;
+  pack: string;
+  count: number;
+  /** The asset idea / subject the operator typed (drives the prompt). */
+  subject: string;
+  prompt: string;
+  negativePrompt: string;
+  modelProvider: string;
+  modelName: string;
+  requestedBy: string;
+  estimatedCost: number;
+  actualCost?: number;
+  /** True when no provider was called (prompts + placeholder candidates only). */
+  dryRun: boolean;
+  generatedCandidateIds: string[];
+  error?: string;
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+};
+
 export const ALL_CATEGORIES = Object.keys(CATEGORY_META) as FactoryCategory[];
 
 export function categoriesInGroup(group: CategoryGroup): FactoryCategory[] {

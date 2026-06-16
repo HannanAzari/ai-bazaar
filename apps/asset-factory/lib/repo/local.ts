@@ -1,4 +1,4 @@
-import { type AssetCandidate, type AssetPack, type ReviewAction } from "@/lib/types";
+import { type AssetCandidate, type AssetPack, type GenerationJob, type ReviewAction } from "@/lib/types";
 import {
   loadCandidates,
   addCandidates as addToStore,
@@ -9,6 +9,8 @@ import {
   loadPacks,
   upsertPack,
   deletePack as deletePackInStore,
+  loadJobs,
+  upsertJob,
 } from "@/lib/store";
 import { type CandidateRepository } from "@/lib/repo/types";
 
@@ -54,6 +56,14 @@ export function createLocalRepository(): CandidateRepository {
 
     async deletePack(id: string) {
       deletePackInStore(loadPacks(), id);
+    },
+
+    async listJobs() {
+      return loadJobs();
+    },
+
+    async saveJob(job: GenerationJob) {
+      upsertJob(loadJobs(), job);
     },
   };
 }

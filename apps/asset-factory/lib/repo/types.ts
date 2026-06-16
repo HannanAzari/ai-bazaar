@@ -1,4 +1,4 @@
-import { type AssetCandidate, type AssetPack, type ReviewAction } from "@/lib/types";
+import { type AssetCandidate, type AssetPack, type GenerationJob, type ReviewAction } from "@/lib/types";
 import { type FactoryMode } from "@/lib/runtime-mode";
 
 // The async repository contract shared by the local (localStorage) and remote
@@ -26,4 +26,8 @@ export interface CandidateRepository {
   /** Create or update a pack. */
   savePack(pack: AssetPack): Promise<void>;
   deletePack(id: string): Promise<void>;
+
+  // ── Generation jobs (V3) ──
+  listJobs(): Promise<GenerationJob[]>;
+  saveJob(job: GenerationJob): Promise<void>;
 }

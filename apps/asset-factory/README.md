@@ -21,13 +21,21 @@ room engine, not production auth, not user-facing routes.
 > Supabase **service role**; the browser never touches the database directly. See
 > "Shared backend (V2)" below.
 
-> **V2.5 — Catalog pipeline validation.** Four tabs across the top: **Review**
-> (the dashboard), **Packs** (curate first-class asset packs + export), **Sandbox**
-> (run the room-designer logic on approved assets to prove they compose into valid
-> rooms), and **Reports** (Catalog Quality Score, coverage, room-readiness, and
-> Nestudio import validation). The goal is to prove the full pipeline
-> (asset → review → approve → export → import → designer → room) **before** any
-> large-scale AI generation. Full guide: [docs/catalog-validation.md](docs/catalog-validation.md).
+> **V2.5 — Catalog pipeline validation.** Five tabs across the top: **Review**
+> (the dashboard), **Packs** (curate first-class asset packs + export), **Generate**
+> (V3, below), **Sandbox** (run the room-designer logic on approved assets to prove
+> they compose into valid rooms), and **Reports** (Catalog Quality Score, coverage,
+> room-readiness, and Nestudio import validation). The goal is to prove the full
+> pipeline (asset → review → approve → export → import → designer → room).
+> Full guide: [docs/catalog-validation.md](docs/catalog-validation.md).
+
+> **V3 — AI generation queue.** Controlled image generation via **Replicate**,
+> **OFF by default**. Dry-run (zero cost) builds prompts + placeholder candidates
+> entirely client-side; real generation is hard-gated behind
+> `ASSET_GENERATION_ENABLED=true` + a **server-only** `REPLICATE_API_TOKEN`, with
+> per-request **batch caps** and **daily limits**. Every output lands in
+> `needs_review` and is auto-validated — **never auto-approved**. The token is never
+> exposed to the browser. Full guide: [docs/generation-ops.md](docs/generation-ops.md).
 
 ---
 
@@ -103,6 +111,9 @@ still works in Local (per-browser) mode.
 | `NEXT_PUBLIC_SUPABASE_URL` | optional | Supabase project URL. Part of the **Shared mode** signal (client-visible). |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | optional | Supabase anon key. Part of the Shared-mode signal (client-visible). **Not** used for DB access. |
 | `SUPABASE_SERVICE_ROLE_KEY` | optional | **Server-only.** Used by the API routes to read/write the factory tables + storage bucket. Never `NEXT_PUBLIC`, never sent to the client. |
+| `ASSET_GENERATION_ENABLED` | optional | Must be `true` to allow **real** generation (V3). Default off; dry-run always works. |
+| `REPLICATE_API_TOKEN` | optional | **Server-only** Replicate token. Required for real generation. Never sent to the client. |
+| `GENERATION_MODEL` / `GENERATION_COST_PER_IMAGE` / `ASSET_GENERATION_MAX_BATCH` / `ASSET_GENERATION_DAILY_LIMIT` | optional | Generation tuning (defaults: flux-schnell / 0.003 / 5 / 50). See [docs/generation-ops.md](docs/generation-ops.md). |
 
 Leave the three Supabase vars blank to run in **Local** (localStorage) mode. Set all
 three to enable **Shared** mode. There is **no public user auth** — this is an
@@ -135,8 +146,9 @@ the tables are independent):
 
 1. Run [`supabase/schema.sql`](supabase/schema.sql) (fresh DB) **or** the ordered
    files in [`supabase/migrations/`](supabase/migrations/) (existing DB). This
-   creates `asset_candidates`, `asset_review_actions`, `asset_packs` (RLS enabled,
-   anon denied), and the public `asset-candidates` Storage bucket.
+   creates `asset_candidates`, `asset_review_actions`, `asset_packs`,
+   `asset_generation_jobs` (RLS enabled, anon denied), and the public
+   `asset-candidates` Storage bucket.
 2. Copy the project URL + anon key + **service role** key into the env vars above.
 
 ---
@@ -152,6 +164,11 @@ The top navigation has four tabs; all read the same repository (Local or Shared)
   and **export** `approved-assets.json` + `asset-packs.json`. Five starter packs
   seed on first run (Cozy Creator, Photographer Studio, Podcaster, Cafe, Startup
   Workspace).
+- **Generate** — the **AI generation queue** (V3). Choose a category/pack, type an
+  idea, preview the master + negative prompt and estimated cost, then **Dry run**
+  (zero cost, client-side placeholders) or **Generate (real)** when enabled. A cost
+  panel and job list (with cancel) track spend. Outputs enter `needs_review` and are
+  auto-validated. See [docs/generation-ops.md](docs/generation-ops.md).
 - **Sandbox** — the **Room Designer Sandbox** runs the same select-and-place logic
   as the main app's AI Room Designer on **approved** assets (a chosen pack or all),
   for a creator type + style. It shows placed assets (zone + action + reason),
@@ -278,21 +295,23 @@ can be consumed without a rewrite.
 
 ```
 apps/asset-factory/
-  app/            layout, globals.css, page (gate→dashboard), login, packs, sandbox, reports,
-                  api/{login,logout,candidates,candidates/transition,actions,upload,packs}
+  app/            layout, globals.css, page (gate→dashboard), login, packs, generate, sandbox, reports,
+                  api/{login,logout,candidates,candidates/transition,actions,upload,packs,jobs,
+                       generate,generate/config}
   components/     review-dashboard, reviewer-gate, activity-panel, asset-card, asset-detail,
                   asset-thumb, import-panel, quality-badges, factory-nav,
-                  packs-client, sandbox-client, reports-client
+                  packs-client, sandbox-client, reports-client, generate-client
   lib/            types, prompts, validation, quality, transitions, export, activity,
                   sample-data, sample-packs, store, auth, slug, reviewer, runtime-mode,
                   zones, import-validation, quality-score, reports, sandbox,
-                  api-auth, supabase-server, server-candidates, server-storage,
+                  generation-config, generation-job, generation-validate, replicate-server,
+                  server-generate, api-auth, supabase-server, server-candidates, server-storage,
                   mappers, repo/{types,local,remote,index}
-  docs/           asset-bible.md, catalog-validation.md
+  docs/           asset-bible.md, catalog-validation.md, generation-ops.md
   exports/        approved-assets.json, approved-assets.ts, asset-packs.json (generated examples)
-  supabase/       schema.sql, migrations/{0001_asset_factory,0002_asset_packs}.sql
-  test/           prompts · validation · quality · transitions · export · repo-local ·
-                  mappers · mode · activity · packs · import-validation · quality-score ·
-                  reports · sandbox
+  supabase/       schema.sql, migrations/{0001_asset_factory,0002_asset_packs,0003_generation_jobs}.sql
+  test/           prompts · validation · quality · transitions · export · repo-local · mappers ·
+                  mode · activity · packs · import-validation · quality-score · reports · sandbox ·
+                  generation-config · generation-job · generation-validate · replicate-server · server-generate
   middleware.ts   password gate (pages); API routes self-guard
 ```

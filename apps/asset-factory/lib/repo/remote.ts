@@ -1,4 +1,4 @@
-import { type AssetCandidate, type AssetPack, type ReviewAction } from "@/lib/types";
+import { type AssetCandidate, type AssetPack, type GenerationJob, type ReviewAction } from "@/lib/types";
 import { type CandidateRepository } from "@/lib/repo/types";
 
 // Remote repository — talks to the password-gated server API routes, which use the
@@ -75,6 +75,15 @@ export function createRemoteRepository(): CandidateRepository {
 
     async deletePack(id: string) {
       await jsonFetch(`/api/packs?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    },
+
+    async listJobs() {
+      const data = await jsonFetch<{ jobs: GenerationJob[] }>("/api/jobs");
+      return data.jobs;
+    },
+
+    async saveJob(job: GenerationJob) {
+      await jsonFetch("/api/jobs", { method: "POST", body: JSON.stringify({ job }) });
     },
   };
 }

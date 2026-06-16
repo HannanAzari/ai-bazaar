@@ -66,10 +66,38 @@ create table if not exists public.asset_packs (
 
 create index if not exists asset_packs_created_idx on public.asset_packs (created_at);
 
+-- ── Generation jobs (V3) ─────────────────────────────────────────────────────
+create table if not exists public.asset_generation_jobs (
+  id                       text primary key,
+  status                   text not null default 'draft',
+  category                 text not null,
+  pack                     text not null default '',
+  count                    integer not null default 1,
+  subject                  text not null default '',
+  prompt                   text not null default '',
+  negative_prompt          text not null default '',
+  model_provider           text not null default 'replicate',
+  model_name               text not null default '',
+  requested_by             text not null default '',
+  estimated_cost           numeric not null default 0,
+  actual_cost              numeric,
+  dry_run                  boolean not null default true,
+  generated_candidate_ids  jsonb not null default '[]'::jsonb,
+  error                    text,
+  created_at               text not null,
+  started_at               text,
+  completed_at             text,
+  updated_at               timestamptz not null default now()
+);
+
+create index if not exists asset_generation_jobs_created_idx on public.asset_generation_jobs (created_at desc);
+create index if not exists asset_generation_jobs_status_idx on public.asset_generation_jobs (status);
+
 -- ── RLS: deny all to anon; the service role bypasses RLS ─────────────────────
 alter table public.asset_candidates enable row level security;
 alter table public.asset_review_actions enable row level security;
 alter table public.asset_packs enable row level security;
+alter table public.asset_generation_jobs enable row level security;
 
 -- ── Storage bucket for uploaded/imported images ─────────────────────────────
 insert into storage.buckets (id, name, public)
