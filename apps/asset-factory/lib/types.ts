@@ -254,6 +254,8 @@ export type GenerationJob = {
   count: number;
   /** The asset idea / subject the operator typed (drives the prompt). */
   subject: string;
+  /** The chosen style family (V3.2), e.g. "royal_match". */
+  styleId: string;
   prompt: string;
   negativePrompt: string;
   modelProvider: string;

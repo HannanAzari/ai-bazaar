@@ -186,6 +186,7 @@ export type GenerationJobRow = {
   pack: string;
   count: number;
   subject: string;
+  style_id: string;
   prompt: string;
   negative_prompt: string;
   model_provider: string;
@@ -209,6 +210,7 @@ export function jobToRow(j: GenerationJob): GenerationJobRow {
     pack: j.pack,
     count: j.count,
     subject: j.subject,
+    style_id: j.styleId,
     prompt: j.prompt,
     negative_prompt: j.negativePrompt,
     model_provider: j.modelProvider,
@@ -233,6 +235,7 @@ export function rowToJob(r: GenerationJobRow): GenerationJob {
     pack: r.pack,
     count: r.count,
     subject: r.subject,
+    styleId: r.style_id ?? "premium_game_v1",
     prompt: r.prompt,
     negativePrompt: r.negative_prompt,
     modelProvider: r.model_provider,

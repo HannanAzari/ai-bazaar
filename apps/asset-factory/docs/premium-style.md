@@ -14,6 +14,20 @@ This is the source of truth for the generation prompt system
 governs the village/room art in the main app; this document governs **what we
 generate into the catalog**.
 
+> **V3.2 — Multi-style calibration.** Before locking ONE identity we now compare
+> **three style families** ([`../lib/styles.ts`](../lib/styles.ts)), all sharing
+> the hard rules below (single object, transparent PNG, 30° isometric, no props)
+> and the same universal negative prompt — differing only in rendering:
+> - **Royal Match Inspired** (`royal_match`) — glossy, colorful, rounded, playful (premium casual).
+> - **Modern Designer** (`modern_designer`) — Apple-like, minimalist, clean materials (furniture catalog).
+> - **Clash Inspired** (`clash`) — chunky, toy-like, bold silhouettes, highly readable (collectible).
+>
+> The chosen style is selectable on **/generate** and **/style-lab**, stored on each
+> generation job (`styleId`). The Style Lab generates **5 variations per style** for
+> each golden item (side-by-side), and the **Style Report** (`/style-report`) tallies
+> approvals + closest picks per style and names a **winning style**. The references
+> above remain quality references only — never mimic copyrighted art.
+
 ---
 
 ## Core principles

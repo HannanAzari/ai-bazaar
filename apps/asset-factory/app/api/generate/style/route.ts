@@ -3,7 +3,7 @@ import { isAuthorized, unauthorized, serverError } from "@/lib/api-auth";
 import { getGenerationConfig, checkGenerationAllowed, clampBatch, estimateCost } from "@/lib/generation-config";
 import { generatedToday as countGeneratedToday, createGenerationJob } from "@/lib/generation-job";
 import { runReplicate } from "@/lib/replicate-server";
-import { buildPrompt } from "@/lib/prompts";
+import { buildStyledPrompt, DEFAULT_STYLE_FAMILY } from "@/lib/styles";
 import { isServerSupabaseReady } from "@/lib/supabase-server";
 import { uploadImageFromUrl } from "@/lib/server-storage";
 import { listJobs, saveJob } from "@/lib/server-candidates";
@@ -23,8 +23,10 @@ export async function POST(req: NextRequest) {
       subject?: string;
       count?: number;
       generatedToday?: number;
+      styleId?: string;
     };
     if (!body.category) return NextResponse.json({ error: "Category is required." }, { status: 400 });
+    const styleId = body.styleId ?? DEFAULT_STYLE_FAMILY;
 
     const config = getGenerationConfig();
     const shared = isServerSupabaseReady();
@@ -38,14 +40,14 @@ export async function POST(req: NextRequest) {
 
     let job = createGenerationJob({
       category: body.category, pack: "style-lab", count, subject: body.subject ?? "",
-      requestedBy: "style-lab", dryRun: false, config,
+      requestedBy: "style-lab", dryRun: false, config, styleId,
     });
     job = { ...job, status: "running", startedAt: new Date().toISOString() };
 
     let imageUrls: string[] = [];
     try {
       const result = await runReplicate(
-        { prompt: buildPrompt(body.category, { subject: body.subject }), negativePrompt: job.negativePrompt, count, model: job.modelName },
+        { prompt: buildStyledPrompt(body.category, styleId, { subject: body.subject }), negativePrompt: job.negativePrompt, count, model: job.modelName },
         { dryRun: false, config },
       );
       imageUrls = result.imageUrls;

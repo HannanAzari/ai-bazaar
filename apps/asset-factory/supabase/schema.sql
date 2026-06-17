@@ -74,6 +74,7 @@ create table if not exists public.asset_generation_jobs (
   pack                     text not null default '',
   count                    integer not null default 1,
   subject                  text not null default '',
+  style_id                 text not null default 'royal_match',
   prompt                   text not null default '',
   negative_prompt          text not null default '',
   model_provider           text not null default 'replicate',

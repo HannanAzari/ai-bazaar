@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { type StyleSample } from "@/lib/types";
-import { MASTER_PROMPT, NEGATIVE_PROMPT, STYLE_NAME } from "@/lib/prompts";
 import { type GenerationConfig } from "@/lib/generation-config";
+import { NEGATIVE_PROMPT } from "@/lib/prompts";
+import { STYLE_FAMILIES, styleMasterPreview, type StyleFamilyId } from "@/lib/styles";
 import {
   GOLDEN_ITEMS,
   VARIATIONS_PER_ITEM,
@@ -11,15 +13,10 @@ import {
   decideSample,
   markClosest,
   scoreStyleLab,
+  compareStyles,
   type GoldenItem,
 } from "@/lib/style-lab";
-import {
-  loadStyleSamples,
-  saveStyleSamples,
-  replaceItemSamples,
-  resetStyleLab,
-  STYLE_LAB_CHANGE_EVENT,
-} from "@/lib/style-lab-store";
+import { loadStyleSamples, saveStyleSamples, resetStyleLab, STYLE_LAB_CHANGE_EVENT } from "@/lib/style-lab-store";
 import { AssetThumb } from "@/components/asset-thumb";
 import { FactoryNav } from "@/components/factory-nav";
 
@@ -28,6 +25,7 @@ export function StyleLabClient() {
   const [config, setConfig] = useState<GenerationConfig | null>(null);
   const [busy, setBusy] = useState<string>("");
   const [error, setError] = useState("");
+  const [previewStyle, setPreviewStyle] = useState<StyleFamilyId>("royal_match");
 
   useEffect(() => {
     setSamples(loadStyleSamples());
@@ -41,50 +39,24 @@ export function StyleLabClient() {
   }, []);
 
   const score = useMemo(() => scoreStyleLab(samples), [samples]);
+  const comparison = useMemo(() => compareStyles(samples), [samples]);
   const enabled = !!config?.enabled && !!config?.tokenConfigured;
 
   const samplesFor = useCallback(
-    (key: string) => samples.filter((s) => s.itemKey === key).sort((a, b) => a.variation - b.variation),
+    (itemKey: string, styleId: string) =>
+      samples.filter((s) => s.itemKey === itemKey && s.styleId === styleId).sort((a, b) => a.variation - b.variation),
     [samples],
   );
 
-  function dryRun(item: GoldenItem) {
-    const fresh = buildStyleSamples(item);
-    setSamples((prev) => replaceItemSamples(prev, item.key, fresh));
-  }
-
-  async function realRun(item: GoldenItem) {
-    setBusy(item.key);
-    setError("");
-    try {
-      const res = await fetch("/api/generate/style", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: item.category, subject: item.subject, count: VARIATIONS_PER_ITEM, generatedToday: 0 }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Generation failed.");
-        return;
-      }
-      const fresh = buildStyleSamples(item, { imageUrls: data.imageUrls, count: data.imageUrls.length || VARIATIONS_PER_ITEM });
-      setSamples((prev) => replaceItemSamples(prev, item.key, fresh));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Generation failed.");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  function decide(id: string, decision: StyleSample["decision"]) {
+  // Functional updates so rapid clicks don't overwrite each other (no stale closure).
+  function applyDecision(id: string, decision: StyleSample["decision"]) {
     setSamples((prev) => {
       const next = decideSample(prev, id, decision);
       saveStyleSamples(next);
       return next;
     });
   }
-
-  function closest(id: string) {
+  function applyClosest(id: string) {
     setSamples((prev) => {
       const next = markClosest(prev, id);
       saveStyleSamples(next);
@@ -92,99 +64,128 @@ export function StyleLabClient() {
     });
   }
 
+  function replaceItemStyle(itemKey: string, styleId: StyleFamilyId, fresh: StyleSample[]) {
+    setSamples((prev) => {
+      const next = [...prev.filter((s) => !(s.itemKey === itemKey && s.styleId === styleId)), ...fresh];
+      saveStyleSamples(next);
+      return next;
+    });
+  }
+
+  function dryRun(item: GoldenItem, styleId: StyleFamilyId) {
+    replaceItemStyle(item.key, styleId, buildStyleSamples(item, styleId));
+  }
+
+  async function realRun(item: GoldenItem, styleId: StyleFamilyId) {
+    setBusy(`${item.key}:${styleId}`);
+    setError("");
+    try {
+      const res = await fetch("/api/generate/style", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: item.category, subject: item.subject, styleId, count: VARIATIONS_PER_ITEM, generatedToday: 0 }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Generation failed.");
+        return;
+      }
+      replaceItemStyle(item.key, styleId, buildStyleSamples(item, styleId, { imageUrls: data.imageUrls, count: data.imageUrls.length || VARIATIONS_PER_ITEM }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Generation failed.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   return (
     <div className="app">
       <div className="topbar">
         <h1>🏭 Style Lab</h1>
         <span className="spacer" />
-        <span className={`pill ${score.overall >= 100 ? "approved" : "queued"}`}>
-          {score.itemsCalibrated}/{score.itemsTotal} calibrated
-        </span>
+        <Link href="/style-report" className="chip">Style Report →</Link>
       </div>
       <FactoryNav />
       {error && <p className="error">⚠ {error}</p>}
 
       <div className="panel">
         <div className="topbar" style={{ paddingTop: 0 }}>
-          <h3>{STYLE_NAME}</h3>
+          <h3>Multi-style calibration</h3>
           <span className="spacer" />
-          <span style={{ fontSize: "1.6rem", fontWeight: 800 }}>{score.overall}</span>
-          <span className="muted">/100 calibrated</span>
+          <span className="muted">{score.itemsCalibrated}/{score.itemsTotal} items calibrated</span>
         </div>
         <p className="muted" style={{ marginTop: 0 }}>
-          Generate 5 variations per golden item, approve/reject, and mark the one closest to the Nestudio
-          identity. Choose ONE identity before scaling. {enabled ? "Real generation is ON." : "Generation is OFF — dry-run placeholders (zero cost)."}
+          Compare the same asset across three identities, approve / reject, and mark the closest per style.
+          {enabled ? " Real generation is ON." : " Generation is OFF — dry-run placeholders (zero cost)."}
         </p>
+        <div className="chips" style={{ marginBottom: 8 }}>
+          {comparison.families.map((f) => (
+            <span key={f.styleId} className={`chip ${comparison.winningStyle === f.styleId ? "active" : ""}`}>
+              {STYLE_FAMILIES.find((s) => s.id === f.styleId)!.shortLabel}: {f.approved}✓ · {f.closestSelections}★
+              {comparison.winningStyle === f.styleId ? " · leading" : ""}
+            </span>
+          ))}
+        </div>
         <details>
-          <summary className="muted">Master + negative prompt</summary>
-          <div className="field" style={{ marginTop: 8 }}>
-            <label>Master prompt</label>
-            <textarea readOnly value={MASTER_PROMPT} style={{ minHeight: 70 }} />
+          <summary className="muted">Preview a style&apos;s master prompt</summary>
+          <div className="chips" style={{ margin: "8px 0" }}>
+            {STYLE_FAMILIES.map((s) => (
+              <button key={s.id} className={`chip ${previewStyle === s.id ? "active" : ""}`} onClick={() => setPreviewStyle(s.id)}>{s.shortLabel}</button>
+            ))}
           </div>
-          <div className="field">
-            <label>Negative prompt</label>
-            <textarea readOnly value={NEGATIVE_PROMPT} style={{ minHeight: 60 }} />
-          </div>
+          <div className="field"><label>Master prompt</label><textarea readOnly value={styleMasterPreview(previewStyle)} style={{ minHeight: 70 }} /></div>
+          <div className="field"><label>Negative prompt (shared)</label><textarea readOnly value={NEGATIVE_PROMPT} style={{ minHeight: 50 }} /></div>
         </details>
-        <button className="btn" onClick={() => { if (confirm("Clear all Style Lab samples?")) setSamples(resetStyleLab()); }}>
-          ↺ Reset Style Lab
-        </button>
+        <button className="btn" onClick={() => { if (confirm("Clear all Style Lab samples?")) setSamples(resetStyleLab()); }}>↺ Reset Style Lab</button>
       </div>
 
-      {GOLDEN_ITEMS.map((item) => {
-        const mine = samplesFor(item.key);
-        const itemScore = score.items.find((i) => i.key === item.key)!;
-        return (
-          <div key={item.key} className="panel">
-            <div className="topbar" style={{ paddingTop: 0 }}>
-              <h3>{item.label}</h3>
-              {itemScore.calibrated && <span className="pill approved">golden ✓</span>}
-              <span className="spacer" />
-              <span className="muted">{itemScore.generated} variations · {itemScore.approved} approved</span>
-            </div>
-
-            <div className="toolbar">
-              <button className="btn btn-primary" disabled={busy === item.key} onClick={() => dryRun(item)}>
-                Dry run 5 (no cost)
-              </button>
-              <button
-                className="btn btn-green"
-                disabled={!enabled || busy === item.key}
-                title={enabled ? "" : "Set ASSET_GENERATION_ENABLED=true"}
-                onClick={() => realRun(item)}
-              >
-                {busy === item.key ? "Generating…" : "Generate 5 (real)"}
-              </button>
-            </div>
-
-            {mine.length === 0 ? (
-              <p className="muted">No variations yet — generate to compare.</p>
-            ) : (
-              <div className="grid">
-                {mine.map((s) => (
-                  <div key={s.id} className={`card ${s.closest ? "selected" : ""}`} style={{ cursor: "default", opacity: s.decision === "rejected" ? 0.5 : 1 }}>
-                    <div className="thumb" title={s.prompt}>
-                      <AssetThumb src={s.imageUrl} alt={`${item.label} v${s.variation + 1}`} />
-                    </div>
-                    <div className="card-body">
-                      <div className="card-meta">
-                        <span className="muted">v{s.variation + 1}</span>
-                        {s.decision === "approved" && <span className="pill approved">approved</span>}
-                        {s.decision === "rejected" && <span className="pill rejected">rejected</span>}
+      {GOLDEN_ITEMS.map((item) => (
+        <div key={item.key} className="panel">
+          <h3 style={{ marginTop: 0 }}>{item.label}</h3>
+          {STYLE_FAMILIES.map((fam) => {
+            const mine = samplesFor(item.key, fam.id);
+            const approved = mine.filter((s) => s.decision === "approved").length;
+            return (
+              <div key={fam.id} style={{ borderTop: "1px solid var(--line)", paddingTop: 10, marginTop: 10 }}>
+                <div className="topbar" style={{ paddingTop: 0 }}>
+                  <strong>{fam.shortLabel}</strong>
+                  <span className="spacer" />
+                  <span className="muted">{mine.length} · {approved}✓</span>
+                </div>
+                <div className="toolbar">
+                  <button className="btn btn-primary" disabled={busy === `${item.key}:${fam.id}`} onClick={() => dryRun(item, fam.id)}>Dry run 5</button>
+                  <button className="btn btn-green" disabled={!enabled || busy === `${item.key}:${fam.id}`} title={enabled ? "" : "Set ASSET_GENERATION_ENABLED=true"} onClick={() => realRun(item, fam.id)}>
+                    {busy === `${item.key}:${fam.id}` ? "…" : "Generate 5 (real)"}
+                  </button>
+                </div>
+                {mine.length === 0 ? (
+                  <p className="muted" style={{ fontSize: "0.82rem" }}>No variations yet.</p>
+                ) : (
+                  <div className="grid">
+                    {mine.map((s) => (
+                      <div key={s.id} className={`card ${s.closest ? "selected" : ""}`} style={{ cursor: "default", opacity: s.decision === "rejected" ? 0.5 : 1 }}>
+                        <div className="thumb" title={s.prompt}><AssetThumb src={s.imageUrl} alt={`${item.label} ${fam.shortLabel} v${s.variation + 1}`} /></div>
+                        <div className="card-body">
+                          <div className="card-meta">
+                            <span className="muted">v{s.variation + 1}</span>
+                            {s.decision === "approved" && <span className="pill approved">✓</span>}
+                            {s.closest && <span className="pill approved">★</span>}
+                          </div>
+                          <div className="chips" style={{ marginTop: 6 }}>
+                            <button className={`chip ${s.decision === "approved" ? "active" : ""}`} onClick={() => applyDecision(s.id, s.decision === "approved" ? "pending" : "approved")}>✓</button>
+                            <button className={`chip ${s.decision === "rejected" ? "active" : ""}`} onClick={() => applyDecision(s.id, s.decision === "rejected" ? "pending" : "rejected")}>✕</button>
+                            <button className={`chip ${s.closest ? "active" : ""}`} onClick={() => applyClosest(s.id)} title="Closest to Nestudio">★</button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="chips" style={{ marginTop: 6 }}>
-                        <button className={`chip ${s.decision === "approved" ? "active" : ""}`} onClick={() => decide(s.id, s.decision === "approved" ? "pending" : "approved")}>✓</button>
-                        <button className={`chip ${s.decision === "rejected" ? "active" : ""}`} onClick={() => decide(s.id, s.decision === "rejected" ? "pending" : "rejected")}>✕</button>
-                        <button className={`chip ${s.closest ? "active" : ""}`} onClick={() => closest(s.id)} title="Mark closest to Nestudio">★</button>
-                      </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }

@@ -10,7 +10,8 @@ import {
   type GenerationJob,
 } from "@/lib/types";
 import { getCandidateRepository } from "@/lib/repo";
-import { buildPrompt, NEGATIVE_PROMPT } from "@/lib/prompts";
+import { NEGATIVE_PROMPT } from "@/lib/prompts";
+import { STYLE_FAMILIES, DEFAULT_STYLE_FAMILY, buildStyledPrompt, styleLabel, type StyleFamilyId } from "@/lib/styles";
 import {
   GENERATION_DEFAULTS,
   estimateCost,
@@ -30,6 +31,7 @@ export function GenerateClient() {
   const [jobs, setJobs] = useState<GenerationJob[]>([]);
 
   const [category, setCategory] = useState<FactoryCategory>("chair");
+  const [styleId, setStyleId] = useState<StyleFamilyId>(DEFAULT_STYLE_FAMILY);
   const [packId, setPackId] = useState<string>("");
   const [subject, setSubject] = useState("");
   const [count, setCount] = useState(2);
@@ -73,7 +75,7 @@ export function GenerateClient() {
   };
 
   const safeCount = Math.max(1, Math.min(Math.floor(count) || 1, effConfig.maxBatchSize));
-  const prompt = buildPrompt(category, { subject });
+  const prompt = buildStyledPrompt(category, styleId, { subject });
   const usage = usageStats(jobs);
   const estCost = estimateCost(safeCount, effConfig);
 
@@ -93,7 +95,7 @@ export function GenerateClient() {
     setNotice("");
     let job = createGenerationJob({
       category, pack: packId || "generated", count: safeCount, subject,
-      requestedBy: reviewer, dryRun: true, config: effConfig,
+      requestedBy: reviewer, dryRun: true, config: effConfig, styleId,
     });
     const built = dryRunCandidates(job, candidates);
     job = { ...job, status: "completed", completedAt: new Date().toISOString(), actualCost: 0, generatedCandidateIds: built.map((c) => c.id) };
@@ -122,7 +124,7 @@ export function GenerateClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           category, pack: packId || "generated", count: safeCount, subject,
-          requestedBy: reviewer, generatedToday: usage.generatedToday,
+          requestedBy: reviewer, generatedToday: usage.generatedToday, styleId,
         }),
       });
       const data = await res.json();
@@ -188,6 +190,14 @@ export function GenerateClient() {
               {packs.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
             </select>
           </div>
+        </div>
+        <div className="field">
+          <label>Style</label>
+          <select value={styleId} onChange={(e) => setStyleId(e.target.value as StyleFamilyId)}>
+            {STYLE_FAMILIES.map((s) => (
+              <option key={s.id} value={s.id}>{s.name} — {s.description}</option>
+            ))}
+          </select>
         </div>
         <div className="field">
           <label>Asset idea</label>
@@ -278,6 +288,7 @@ export function GenerateClient() {
                 <span>
                   <span className={`pill ${j.status === "completed" ? "approved" : j.status === "failed" ? "rejected" : "queued"}`}>{j.status}</span>{" "}
                   <strong>{CATEGORY_META[j.category]?.label ?? j.category}</strong> ×{j.count}
+                  <span className="muted"> · {styleLabel(j.styleId)}</span>
                   {j.dryRun ? <span className="muted"> · dry-run</span> : <span className="muted"> · ${ (j.actualCost ?? j.estimatedCost).toFixed(3) }</span>}
                 </span>
                 {(j.status === "queued" || j.status === "running" || j.status === "draft") && (

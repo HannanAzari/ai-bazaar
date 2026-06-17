@@ -5,7 +5,7 @@ import {
   type GenerationJob,
 } from "@/lib/types";
 import { slugify } from "@/lib/slug";
-import { buildPromptPair } from "@/lib/prompts";
+import { buildStyledPromptPair, DEFAULT_STYLE_FAMILY, getStyleFamily } from "@/lib/styles";
 import { estimateCost, type GenerationConfig } from "@/lib/generation-config";
 
 // Pure generation-job builders (V3). No I/O, no provider calls — fully testable.
@@ -20,11 +20,14 @@ export type CreateJobInput = {
   requestedBy: string;
   dryRun: boolean;
   config: GenerationConfig;
+  /** Style family (V3.2). Defaults to the default family when omitted. */
+  styleId?: string;
 };
 
-/** Build a job (status "draft") with its prompt + estimated cost. */
+/** Build a job (status "draft") with its style-specific prompt + estimated cost. */
 export function createGenerationJob(input: CreateJobInput): GenerationJob {
-  const { prompt, negativePrompt } = buildPromptPair(input.category, { subject: input.subject });
+  const styleId = getStyleFamily(input.styleId ?? DEFAULT_STYLE_FAMILY).id;
+  const { prompt, negativePrompt } = buildStyledPromptPair(input.category, styleId, { subject: input.subject });
   const now = new Date().toISOString();
   return {
     id: `job-${input.category}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
@@ -33,6 +36,7 @@ export function createGenerationJob(input: CreateJobInput): GenerationJob {
     pack: input.pack,
     count: Math.max(1, Math.floor(input.count)),
     subject: input.subject.trim(),
+    styleId,
     prompt,
     negativePrompt,
     modelProvider: input.config.provider,

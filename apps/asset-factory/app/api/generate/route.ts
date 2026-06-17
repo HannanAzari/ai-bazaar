@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
       subject?: string;
       requestedBy?: string;
       generatedToday?: number;
+      styleId?: string;
     };
     const config = getGenerationConfig();
     const count = Number(body.count ?? 1);
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
         requestedBy: body.requestedBy ?? "anonymous",
         dryRun: false,
         config,
+        styleId: body.styleId,
       },
       existing,
       pack,

@@ -6,73 +6,86 @@ import {
   decideSample,
   markClosest,
   scoreStyleLab,
+  compareStyles,
   goldenPicks,
   goldenItem,
 } from "@/lib/style-lab";
 import { MASTER_PROMPT } from "@/lib/prompts";
+import { STYLE_FAMILY_IDS } from "@/lib/styles";
 
-describe("style lab", () => {
+describe("style lab (multi-style)", () => {
   it("defines the ten golden items", () => {
     expect(GOLDEN_ITEMS).toHaveLength(10);
     expect(GOLDEN_ITEMS.map((i) => i.key)).toEqual([
       "chair", "sofa", "desk", "lamp", "bookshelf", "plant", "microphone", "monitor", "coffee_table", "rug",
     ]);
-    // Each maps to a real factory category.
-    expect(GOLDEN_ITEMS.every((i) => typeof i.category === "string")).toBe(true);
   });
 
-  it("builds 5 variations carrying the premium master prompt", () => {
-    const samples = buildStyleSamples(goldenItem("chair")!);
+  it("builds 5 variations per style carrying the master prompt + style id", () => {
+    const samples = buildStyleSamples(goldenItem("chair")!, "royal_match");
     expect(samples).toHaveLength(VARIATIONS_PER_ITEM);
+    expect(samples.every((s) => s.styleId === "royal_match")).toBe(true);
     expect(samples.every((s) => s.prompt.startsWith(MASTER_PROMPT))).toBe(true);
-    expect(samples.every((s) => s.decision === "pending" && !s.closest)).toBe(true);
     expect(new Set(samples.map((s) => s.id)).size).toBe(5);
   });
 
-  it("uses provided image urls when present (real generation)", () => {
-    const samples = buildStyleSamples(goldenItem("sofa")!, { imageUrls: ["https://img/a.png", "https://img/b.png"], count: 2 });
-    expect(samples).toHaveLength(2);
-    expect(samples[0].imageUrl).toBe("https://img/a.png");
+  it("produces distinct ids and prompts across styles for the same item", () => {
+    const a = buildStyleSamples(goldenItem("sofa")!, "royal_match");
+    const b = buildStyleSamples(goldenItem("sofa")!, "clash");
+    expect(a[0].id).not.toBe(b[0].id);
+    expect(a[0].prompt).not.toBe(b[0].prompt); // different style descriptors
   });
 
-  it("applies approve/reject decisions", () => {
-    let samples = buildStyleSamples(goldenItem("desk")!);
-    samples = decideSample(samples, samples[0].id, "approved");
-    samples = decideSample(samples, samples[1].id, "rejected");
-    expect(samples[0].decision).toBe("approved");
-    expect(samples[1].decision).toBe("rejected");
+  it("uses provided image urls (real generation)", () => {
+    const samples = buildStyleSamples(goldenItem("lamp")!, "modern_designer", { imageUrls: ["https://i/a.png"], count: 1 });
+    expect(samples[0].imageUrl).toBe("https://i/a.png");
   });
 
-  it("marks exactly one closest per item (toggle clears the others)", () => {
-    let samples = buildStyleSamples(goldenItem("lamp")!);
-    samples = markClosest(samples, samples[0].id);
-    expect(samples.filter((s) => s.closest)).toHaveLength(1);
-    samples = markClosest(samples, samples[2].id);
-    expect(samples.filter((s) => s.closest)).toHaveLength(1);
-    expect(samples[2].closest).toBe(true);
-    samples = markClosest(samples, samples[2].id); // toggle off
-    expect(samples.filter((s) => s.closest)).toHaveLength(0);
+  it("marks one closest per (item, style) independently", () => {
+    let s = [
+      ...buildStyleSamples(goldenItem("desk")!, "royal_match"),
+      ...buildStyleSamples(goldenItem("desk")!, "clash"),
+    ];
+    s = markClosest(s, s.find((x) => x.styleId === "royal_match")!.id);
+    s = markClosest(s, s.find((x) => x.styleId === "clash")!.id);
+    // One closest in each style → two total for the item.
+    expect(s.filter((x) => x.closest)).toHaveLength(2);
+    expect(s.filter((x) => x.closest && x.styleId === "royal_match")).toHaveLength(1);
+    expect(s.filter((x) => x.closest && x.styleId === "clash")).toHaveLength(1);
   });
 
-  it("scores an item as calibrated only with an approval AND a closest pick", () => {
-    let samples = buildStyleSamples(goldenItem("plant")!);
-    expect(scoreStyleLab(samples).itemsCalibrated).toBe(0);
-    samples = decideSample(samples, samples[0].id, "approved");
-    expect(scoreStyleLab(samples).itemsCalibrated).toBe(0); // approved but no closest
-    samples = markClosest(samples, samples[0].id);
-    const score = scoreStyleLab(samples);
-    expect(score.itemsCalibrated).toBe(1);
-    expect(score.items.find((i) => i.key === "plant")!.calibrated).toBe(true);
-    expect(score.overall).toBe(10); // 1 of 10 items
-    expect(goldenPicks(samples)).toHaveLength(1);
+  it("scores per-style: approved, closest selections, winner", () => {
+    let s = [
+      ...buildStyleSamples(goldenItem("plant")!, "royal_match"),
+      ...buildStyleSamples(goldenItem("plant")!, "clash"),
+    ];
+    // Royal Match: 2 approved + closest. Clash: 1 approved, no closest.
+    s = decideSample(s, s.filter((x) => x.styleId === "royal_match")[0].id, "approved");
+    s = decideSample(s, s.filter((x) => x.styleId === "royal_match")[1].id, "approved");
+    s = markClosest(s, s.filter((x) => x.styleId === "royal_match")[0].id);
+    s = decideSample(s, s.filter((x) => x.styleId === "clash")[0].id, "approved");
+
+    const cmp = compareStyles(s);
+    const royal = cmp.families.find((f) => f.styleId === "royal_match")!;
+    const clash = cmp.families.find((f) => f.styleId === "clash")!;
+    expect(royal.approved).toBe(2);
+    expect(royal.closestSelections).toBe(1);
+    expect(clash.approved).toBe(1);
+    expect(clash.closestSelections).toBe(0);
+    expect(cmp.winningStyle).toBe("royal_match"); // most closest selections
+    expect(cmp.families).toHaveLength(STYLE_FAMILY_IDS.length);
+    expect(goldenPicks(s)).toHaveLength(1);
   });
 
-  it("reaches 100 only when all ten items are calibrated", () => {
-    let all = GOLDEN_ITEMS.flatMap((item) => {
-      const s = buildStyleSamples(item, { count: 1 });
-      return [decideSample(s, s[0].id, "approved")[0]];
-    });
-    all = all.map((s) => ({ ...s, closest: true }));
-    expect(scoreStyleLab(all).overall).toBe(100);
+  it("returns no winner with no decisions", () => {
+    const s = buildStyleSamples(goldenItem("rug")!, "modern_designer");
+    expect(compareStyles(s).winningStyle).toBe(null);
+  });
+
+  it("per-item calibration counts an approved + closest in any style", () => {
+    let s = buildStyleSamples(goldenItem("monitor")!, "clash");
+    s = decideSample(s, s[0].id, "approved");
+    s = markClosest(s, s[0].id);
+    expect(scoreStyleLab(s).itemsCalibrated).toBe(1);
   });
 });

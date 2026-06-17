@@ -1,11 +1,11 @@
 import { type FactoryCategory, type StyleSample } from "@/lib/types";
-import { buildPrompt, STYLE_ID } from "@/lib/prompts";
+import { buildStyledPrompt, STYLE_FAMILIES, STYLE_FAMILY_IDS, type StyleFamilyId } from "@/lib/styles";
 import { slugify } from "@/lib/slug";
 
-// Style Lab (V3.1, Golden Style Pack). Pure helpers to generate, score, and decide
-// among style-calibration variations. The goal is to choose ONE visual identity
-// (Nestudio Premium Game Style V1) before scaling generation — quality over
-// quantity. No catalog writes; samples live in their own local store.
+// Style Lab (V3.1 → V3.2 multi-style). Pure helpers to generate, score, and decide
+// among style-calibration variations across THREE style families. The goal is to
+// compare the same asset across visual identities and choose ONE before scaling.
+// No catalog writes; samples live in their own local store.
 
 export type GoldenItem = {
   key: string;
@@ -14,7 +14,7 @@ export type GoldenItem = {
   subject: string;
 };
 
-/** The ten golden items to calibrate the style against. */
+/** The ten golden items to calibrate the styles against. */
 export const GOLDEN_ITEMS: GoldenItem[] = [
   { key: "chair", label: "Chair", category: "chair", subject: "accent chair" },
   { key: "sofa", label: "Sofa", category: "sofa", subject: "two-seat sofa" },
@@ -35,29 +35,29 @@ export function goldenItem(key: string): GoldenItem | undefined {
 }
 
 /**
- * Build N variation samples for a golden item. `imageUrls` supplies real generated
- * images; when omitted (dry-run) placeholders are used so the workflow runs at zero
- * cost. Deterministic id per (item, variation, batch).
+ * Build N variation samples for a golden item IN A GIVEN STYLE. `imageUrls`
+ * supplies real generated images; omitted (dry-run) → placeholders at zero cost.
  */
 export function buildStyleSamples(
   item: GoldenItem,
+  styleId: StyleFamilyId,
   options: { count?: number; imageUrls?: (string | null | undefined)[]; batch?: string } = {},
 ): StyleSample[] {
   const count = options.count ?? VARIATIONS_PER_ITEM;
   const batch = options.batch ?? Date.now().toString(36);
-  const prompt = buildPrompt(item.category, { subject: item.subject });
+  const prompt = buildStyledPrompt(item.category, styleId, { subject: item.subject });
   const out: StyleSample[] = [];
   for (let i = 0; i < count; i += 1) {
     const url = options.imageUrls?.[i];
     out.push({
-      id: `style-${slugify(item.key)}-${batch}-${i}`,
+      id: `style-${slugify(item.key)}-${styleId}-${batch}-${i}`,
       itemKey: item.key,
       category: item.category,
       subject: item.subject,
-      styleId: STYLE_ID,
+      styleId,
       variation: i,
       prompt,
-      imageUrl: url ?? `/samples/style-${item.key}-${i}.png`,
+      imageUrl: url ?? `/samples/style-${item.key}-${styleId}-${i}.png`,
       seed: i + 1,
       decision: "pending",
       closest: false,
@@ -72,15 +72,17 @@ export function decideSample(samples: StyleSample[], id: string, decision: Style
   return samples.map((s) => (s.id === id ? { ...s, decision } : s));
 }
 
-/** Mark a sample as the closest to Nestudio — exactly one per item (pure). */
+/** Mark a sample as closest — exactly one per (item, style), toggled (pure). */
 export function markClosest(samples: StyleSample[], id: string): StyleSample[] {
   const target = samples.find((s) => s.id === id);
   if (!target) return samples;
   return samples.map((s) => {
-    if (s.itemKey !== target.itemKey) return s;
+    if (s.itemKey !== target.itemKey || s.styleId !== target.styleId) return s;
     return { ...s, closest: s.id === id ? !s.closest : false };
   });
 }
+
+// ── Per-item scoring (any style) ─────────────────────────────────────────────
 
 export type ItemScore = {
   key: string;
@@ -89,7 +91,7 @@ export type ItemScore = {
   approved: number;
   rejected: number;
   hasClosest: boolean;
-  /** Calibrated = has at least one approved variation AND a chosen closest pick. */
+  /** Calibrated = at least one approved variation AND a chosen closest pick. */
   calibrated: boolean;
 };
 
@@ -97,7 +99,6 @@ export type StyleLabScore = {
   items: ItemScore[];
   itemsCalibrated: number;
   itemsTotal: number;
-  /** 0–100: share of golden items that are calibrated. */
   overall: number;
 };
 
@@ -125,9 +126,72 @@ export function scoreStyleLab(samples: StyleSample[]): StyleLabScore {
   };
 }
 
-/** The chosen golden reference (closest sample) per item, where one exists. */
-export function goldenPicks(samples: StyleSample[]): StyleSample[] {
-  return GOLDEN_ITEMS.map((item) => samples.find((s) => s.itemKey === item.key && s.closest)).filter(
-    (s): s is StyleSample => !!s,
-  );
+// ── Per-style scoring (V3.2 multi-style comparison) ──────────────────────────
+
+export type StyleFamilyScore = {
+  styleId: StyleFamilyId;
+  generated: number;
+  approved: number;
+  rejected: number;
+  /** Items with at least one approved variation in this style. */
+  itemsApproved: number;
+  /** Items where this style has a chosen closest pick. */
+  closestSelections: number;
+  /** Approval rate 0–100 (approved / generated). */
+  score: number;
+};
+
+export type StyleComparison = {
+  families: StyleFamilyScore[];
+  /** Average approval-rate score across families that have output. */
+  averageScore: number;
+  /** Style with the most closest selections (tiebreak: approved, then score). */
+  winningStyle: StyleFamilyId | null;
+};
+
+function scoreFamily(samples: StyleSample[], styleId: StyleFamilyId): StyleFamilyScore {
+  const mine = samples.filter((s) => s.styleId === styleId);
+  const approved = mine.filter((s) => s.decision === "approved").length;
+  const itemsApproved = new Set(mine.filter((s) => s.decision === "approved").map((s) => s.itemKey)).size;
+  const closestSelections = new Set(mine.filter((s) => s.closest).map((s) => s.itemKey)).size;
+  return {
+    styleId,
+    generated: mine.length,
+    approved,
+    rejected: mine.filter((s) => s.decision === "rejected").length,
+    itemsApproved,
+    closestSelections,
+    score: mine.length > 0 ? Math.round((approved / mine.length) * 100) : 0,
+  };
 }
+
+export function compareStyles(samples: StyleSample[]): StyleComparison {
+  const families = STYLE_FAMILY_IDS.map((id) => scoreFamily(samples, id));
+  const withOutput = families.filter((f) => f.generated > 0);
+  const averageScore = withOutput.length
+    ? Math.round(withOutput.reduce((s, f) => s + f.score, 0) / withOutput.length)
+    : 0;
+
+  let winningStyle: StyleFamilyId | null = null;
+  let best: StyleFamilyScore | null = null;
+  for (const f of families) {
+    if (f.closestSelections === 0 && f.approved === 0) continue;
+    if (
+      !best ||
+      f.closestSelections > best.closestSelections ||
+      (f.closestSelections === best.closestSelections && f.approved > best.approved) ||
+      (f.closestSelections === best.closestSelections && f.approved === best.approved && f.score > best.score)
+    ) {
+      best = f;
+      winningStyle = f.styleId;
+    }
+  }
+  return { families, averageScore, winningStyle };
+}
+
+/** The chosen closest sample per (item, style). */
+export function goldenPicks(samples: StyleSample[]): StyleSample[] {
+  return samples.filter((s) => s.closest);
+}
+
+export { STYLE_FAMILIES };
