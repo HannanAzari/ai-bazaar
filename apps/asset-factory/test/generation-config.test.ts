@@ -11,6 +11,7 @@ import {
 const ENV_KEYS = [
   "ASSET_GENERATION_ENABLED", "REPLICATE_API_TOKEN", "GENERATION_MODEL",
   "GENERATION_COST_PER_IMAGE", "ASSET_GENERATION_MAX_BATCH", "ASSET_GENERATION_DAILY_LIMIT",
+  "GENERATION_REQUEST_DELAY_MS",
 ];
 const ORIGINAL = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
 afterEach(() => {
@@ -24,7 +25,7 @@ function cfg(over: Partial<GenerationConfig> = {}): GenerationConfig {
   return {
     provider: "replicate", model: "m", maxBatchSize: 5, maxDailyGenerations: 50,
     estimatedCostPerImage: 0.003, enabled: true, tokenConfigured: true,
-    timeoutMs: 60000, retryLimit: 1, ...over,
+    timeoutMs: 60000, retryLimit: 1, requestDelayMs: 12000, ...over,
   };
 }
 
@@ -64,6 +65,15 @@ describe("generation config", () => {
     expect(c.maxBatchSize).toBe(3);
     expect(c.maxDailyGenerations).toBe(20);
     expect(c.estimatedCostPerImage).toBe(0.01);
+  });
+
+  it("defaults the request delay to 12000ms and honours overrides (incl. 0)", () => {
+    delete process.env.GENERATION_REQUEST_DELAY_MS;
+    expect(getGenerationConfig().requestDelayMs).toBe(12000);
+    process.env.GENERATION_REQUEST_DELAY_MS = "5000";
+    expect(getGenerationConfig().requestDelayMs).toBe(5000);
+    process.env.GENERATION_REQUEST_DELAY_MS = "0";
+    expect(getGenerationConfig().requestDelayMs).toBe(0); // 0 allowed (fast tests)
   });
 
   it("estimates cost and clamps batch size", () => {

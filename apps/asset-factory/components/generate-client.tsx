@@ -72,6 +72,7 @@ export function GenerateClient() {
     tokenConfigured: false,
     timeoutMs: GENERATION_DEFAULTS.timeoutMs,
     retryLimit: GENERATION_DEFAULTS.retryLimit,
+    requestDelayMs: GENERATION_DEFAULTS.requestDelayMs,
   };
 
   const safeCount = Math.max(1, Math.min(Math.floor(count) || 1, effConfig.maxBatchSize));

@@ -3,6 +3,7 @@ import {
   extractImageUrls,
   runReplicate,
   isReplicateConfigured,
+  friendlyProviderError,
   type ReplicateTransport,
 } from "@/lib/replicate-server";
 import { getGenerationConfig } from "@/lib/generation-config";
@@ -26,6 +27,19 @@ describe("replicate output parsing", () => {
     expect(extractImageUrls([["https://a.png"], "https://b.png"])).toEqual(["https://a.png", "https://b.png"]);
     expect(extractImageUrls(null)).toEqual([]);
     expect(extractImageUrls(42)).toEqual([]);
+  });
+});
+
+describe("friendlyProviderError", () => {
+  it("maps 429 / rate-limit errors to a friendly retry message", () => {
+    const friendly = "Replicate rate limit hit. Wait a minute or add credit, then retry.";
+    expect(friendlyProviderError("Replicate request failed (429): rate limit reduced to 6 requests per minute")).toBe(friendly);
+    expect(friendlyProviderError("429 Too Many Requests")).toBe(friendly);
+    expect(friendlyProviderError("rate limit exceeded")).toBe(friendly);
+  });
+
+  it("passes other provider errors through unchanged (does not hide them)", () => {
+    expect(friendlyProviderError("Replicate request failed (422): invalid input")).toBe("Replicate request failed (422): invalid input");
   });
 });
 

@@ -114,4 +114,13 @@ describe("executeStyleGeneration (Style Lab real generation)", () => {
     expect(out.job.status).toBe("failed");
     expect(out.job.error).toMatch(/replicate 422/);
   });
+
+  it("maps a provider 429 to the friendly rate-limit message on the job", async () => {
+    const runner: ReplicateRunner = async () => {
+      throw new Error("Replicate request failed (429): rate limit reduced to 6 requests per minute with a burst of 1");
+    };
+    const out = await executeStyleGeneration({ ...styleArgs, replicate: runner });
+    expect(out.ok).toBe(false);
+    expect(out.job.error).toBe("Replicate rate limit hit. Wait a minute or add credit, then retry.");
+  });
 });

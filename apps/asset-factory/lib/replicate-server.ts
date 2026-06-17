@@ -21,6 +21,19 @@ export function replicateConfigError(): string {
   return "Replicate is not configured. Set REPLICATE_API_TOKEN (server-only).";
 }
 
+/**
+ * Map a raw provider error to a friendly, user-facing message WITHOUT hiding it:
+ * rate-limit (429) errors get clear guidance; everything else is returned as-is so
+ * the real provider error still surfaces.
+ */
+export function friendlyProviderError(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes("429") || m.includes("rate limit") || m.includes("too many requests")) {
+    return "Replicate rate limit hit. Wait a minute or add credit, then retry.";
+  }
+  return message;
+}
+
 export type ReplicateRunInput = {
   prompt: string;
   negativePrompt: string;

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { type StyleSample } from "@/lib/types";
-import { type GenerationConfig } from "@/lib/generation-config";
+import { GENERATION_DEFAULTS, type GenerationConfig } from "@/lib/generation-config";
 import { NEGATIVE_PROMPT } from "@/lib/prompts";
 import { STYLE_FAMILIES, styleMasterPreview, type StyleFamilyId } from "@/lib/styles";
 import {
@@ -18,6 +18,7 @@ import {
   compareStyles,
   type GoldenItem,
 } from "@/lib/style-lab";
+import { runStyleBatch, summarizeBatchErrors, type OneResult } from "@/lib/style-generate-runner";
 import { loadStyleSamples, saveStyleSamples, resetStyleLab, STYLE_LAB_CHANGE_EVENT } from "@/lib/style-lab-store";
 import { AssetThumb } from "@/components/asset-thumb";
 import { FactoryNav } from "@/components/factory-nav";
@@ -26,6 +27,7 @@ export function StyleLabClient() {
   const [samples, setSamples] = useState<StyleSample[]>([]);
   const [config, setConfig] = useState<GenerationConfig | null>(null);
   const [busy, setBusy] = useState<string>("");
+  const [progress, setProgress] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [previewStyle, setPreviewStyle] = useState<StyleFamilyId>("royal_match");
 
@@ -78,28 +80,44 @@ export function StyleLabClient() {
     replaceItemStyle(item.key, styleId, buildStyleSamples(item, styleId));
   }
 
-  async function realRun(item: GoldenItem, styleId: StyleFamilyId) {
-    setBusy(`${item.key}:${styleId}`);
-    setError("");
+  // One single-image provider call (count: 1) → a normalized result.
+  async function generateOneImage(item: GoldenItem, styleId: StyleFamilyId): Promise<OneResult> {
     try {
       const res = await fetch("/api/generate/style", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: item.category, subject: item.subject, styleId, count: VARIATIONS_PER_ITEM, generatedToday: 0 }),
+        body: JSON.stringify({ category: item.category, subject: item.subject, styleId, count: 1, generatedToday: 0 }),
       });
       const data = await res.json().catch(() => ({}));
       const result = parseStyleResult(res.ok, data);
-      if (!result.ok) {
-        // Real generation failed — show a visible error, never placeholder images.
-        setError(`${item.label} · ${styleId}: ${result.error}`);
-        return;
-      }
-      // Real mode uses ONLY the provider's image URLs (no placeholder padding).
-      replaceItemStyle(item.key, styleId, realStyleSamples(item, styleId, result.imageUrls));
+      return result.ok ? { ok: true, url: result.imageUrls[0] } : { ok: false, error: result.error };
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Generation failed.");
+      return { ok: false, error: err instanceof Error ? err.message : "Generation failed." };
+    }
+  }
+
+  // Real generation: SEQUENTIAL single-image calls with a delay between them
+  // (rate-limit safe). Preserves partial successes; never shows placeholders.
+  async function realRun(item: GoldenItem, styleId: StyleFamilyId, total: number) {
+    const key = `${item.key}:${styleId}`;
+    setBusy(key);
+    setError("");
+    const delayMs = config?.requestDelayMs ?? GENERATION_DEFAULTS.requestDelayMs;
+    try {
+      const batch = await runStyleBatch(total, {
+        generateOne: () => generateOneImage(item, styleId),
+        delayMs,
+        onProgress: (done, t) => setProgress((p) => ({ ...p, [key]: `Generating ${done}/${t}…` })),
+      });
+      // Show whatever succeeded (partial), even if some failed.
+      if (batch.urls.length > 0) {
+        replaceItemStyle(item.key, styleId, realStyleSamples(item, styleId, batch.urls));
+      }
+      const summary = summarizeBatchErrors(total, batch);
+      if (summary) setError(`${item.label} · ${STYLE_FAMILIES.find((s) => s.id === styleId)!.shortLabel}: ${summary}`);
     } finally {
       setBusy("");
+      setProgress((p) => { const next = { ...p }; delete next[key]; return next; });
     }
   }
 
@@ -159,10 +177,16 @@ export function StyleLabClient() {
                 </div>
                 <div className="toolbar">
                   <button className="btn btn-primary" disabled={busy === `${item.key}:${fam.id}`} onClick={() => dryRun(item, fam.id)}>Dry run 5</button>
-                  <button className="btn btn-green" disabled={!enabled || busy === `${item.key}:${fam.id}`} title={enabled ? "" : "Set ASSET_GENERATION_ENABLED=true"} onClick={() => realRun(item, fam.id)}>
-                    {busy === `${item.key}:${fam.id}` ? "…" : "Generate 5 (real)"}
+                  <button className="btn btn-green" disabled={!enabled || !!busy} title={enabled ? "" : "Set ASSET_GENERATION_ENABLED=true"} onClick={() => realRun(item, fam.id, 1)}>
+                    Generate 1 (real)
+                  </button>
+                  <button className="btn btn-green" disabled={!enabled || !!busy} title={enabled ? "" : "Set ASSET_GENERATION_ENABLED=true"} onClick={() => realRun(item, fam.id, VARIATIONS_PER_ITEM)}>
+                    Generate 5 (real)
                   </button>
                 </div>
+                {busy === `${item.key}:${fam.id}` && progress[`${item.key}:${fam.id}`] && (
+                  <p className="muted" style={{ fontSize: "0.82rem" }}>⏳ {progress[`${item.key}:${fam.id}`]} (sequential, rate-limit safe)</p>
+                )}
                 {mine.length === 0 ? (
                   <p className="muted" style={{ fontSize: "0.82rem" }}>No variations yet.</p>
                 ) : (

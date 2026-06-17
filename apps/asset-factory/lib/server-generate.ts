@@ -10,7 +10,7 @@ import {
   generatedCandidates,
   type CreateJobInput,
 } from "@/lib/generation-job";
-import { runReplicate, type ReplicateResult, type ReplicateRunInput, type RunOptions } from "@/lib/replicate-server";
+import { runReplicate, friendlyProviderError, type ReplicateResult, type ReplicateRunInput, type RunOptions } from "@/lib/replicate-server";
 import { type GenerationConfig } from "@/lib/generation-config";
 import { type FactoryCategory } from "@/lib/types";
 import {
@@ -181,8 +181,10 @@ export async function executeStyleGeneration(params: StyleGenerateParams): Promi
       error: imageUrls.length === 0 ? "The provider returned no images." : undefined,
     };
   } catch (err) {
+    // Log the RAW provider error; surface a friendly (but not hidden) message.
     console.error("[asset-factory style-gen] provider error", err);
-    job = { ...job, status: "failed", error: err instanceof Error ? err.message : "Generation failed.", completedAt: new Date().toISOString() };
+    const raw = err instanceof Error ? err.message : "Generation failed.";
+    job = { ...job, status: "failed", error: friendlyProviderError(raw), completedAt: new Date().toISOString() };
     imageUrls = [];
   }
 

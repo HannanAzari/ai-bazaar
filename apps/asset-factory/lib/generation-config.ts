@@ -14,6 +14,8 @@ export type GenerationConfig = {
   tokenConfigured: boolean;
   timeoutMs: number;
   retryLimit: number;
+  /** Delay between sequential provider calls (ms) to respect rate limits. */
+  requestDelayMs: number;
 };
 
 export const GENERATION_DEFAULTS = {
@@ -24,11 +26,20 @@ export const GENERATION_DEFAULTS = {
   estimatedCostPerImage: 0.003, // USD, flux-schnell ballpark
   timeoutMs: 60_000,
   retryLimit: 1,
+  // Replicate free tier is ~6 req/min, burst 1 → ~12s between calls is safe.
+  requestDelayMs: 12_000,
 };
 
 function num(value: string | undefined, fallback: number): number {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/** Like `num` but allows 0 (e.g. a zero request delay in tests). */
+function numAllowZero(value: string | undefined, fallback: number): number {
+  if (value === undefined || value === "") return fallback;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
 }
 
 /** Read the current generation config from env. Server + client safe (no secret). */
@@ -43,6 +54,7 @@ export function getGenerationConfig(): GenerationConfig {
     tokenConfigured: !!process.env.REPLICATE_API_TOKEN,
     timeoutMs: num(process.env.GENERATION_TIMEOUT_MS, GENERATION_DEFAULTS.timeoutMs),
     retryLimit: num(process.env.GENERATION_RETRY_LIMIT, GENERATION_DEFAULTS.retryLimit),
+    requestDelayMs: numAllowZero(process.env.GENERATION_REQUEST_DELAY_MS, GENERATION_DEFAULTS.requestDelayMs),
   };
 }
 
