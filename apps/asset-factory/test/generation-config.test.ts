@@ -4,6 +4,9 @@ import {
   estimateCost,
   clampBatch,
   checkGenerationAllowed,
+  checkProviderAllowed,
+  modelForProvider,
+  maxBatchForProvider,
   GENERATION_DEFAULTS,
   type GenerationConfig,
 } from "@/lib/generation-config";
@@ -11,7 +14,8 @@ import {
 const ENV_KEYS = [
   "ASSET_GENERATION_ENABLED", "REPLICATE_API_TOKEN", "GENERATION_MODEL",
   "GENERATION_COST_PER_IMAGE", "ASSET_GENERATION_MAX_BATCH", "ASSET_GENERATION_DAILY_LIMIT",
-  "GENERATION_REQUEST_DELAY_MS",
+  "GENERATION_REQUEST_DELAY_MS", "GENERATION_PROVIDER", "OPENAI_API_KEY",
+  "OPENAI_IMAGE_MODEL", "OPENAI_GENERATION_ENABLED",
 ];
 const ORIGINAL = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
 afterEach(() => {
@@ -25,7 +29,9 @@ function cfg(over: Partial<GenerationConfig> = {}): GenerationConfig {
   return {
     provider: "replicate", model: "m", maxBatchSize: 5, maxDailyGenerations: 50,
     estimatedCostPerImage: 0.003, enabled: true, tokenConfigured: true,
-    timeoutMs: 60000, retryLimit: 1, requestDelayMs: 12000, ...over,
+    timeoutMs: 60000, retryLimit: 1, requestDelayMs: 12000,
+    openaiModel: "gpt-image-1", openaiTokenConfigured: true, openaiEnabled: true,
+    openaiCostPerImage: 0.04, maxBatchOpenai: 3, ...over,
   };
 }
 
@@ -101,5 +107,56 @@ describe("generation guard", () => {
   });
   it("allows a valid request within limits", () => {
     expect(checkGenerationAllowed(cfg(), 2, 10)).toEqual({ ok: true });
+  });
+});
+
+describe("provider config + selection (V3.3)", () => {
+  it("selects the provider from GENERATION_PROVIDER (default replicate)", () => {
+    delete process.env.GENERATION_PROVIDER;
+    expect(getGenerationConfig().provider).toBe("replicate");
+    process.env.GENERATION_PROVIDER = "openai";
+    expect(getGenerationConfig().provider).toBe("openai");
+    process.env.GENERATION_PROVIDER = "bogus";
+    expect(getGenerationConfig().provider).toBe("replicate"); // unknown → replicate
+  });
+
+  it("reads OpenAI config (model + token + enable flag) and defaults", () => {
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_GENERATION_ENABLED;
+    delete process.env.OPENAI_IMAGE_MODEL;
+    const c = getGenerationConfig();
+    expect(c.openaiModel).toBe(GENERATION_DEFAULTS.openaiModel);
+    expect(c.openaiTokenConfigured).toBe(false);
+    expect(c.openaiEnabled).toBe(false);
+    expect(c.maxBatchOpenai).toBe(3);
+    process.env.OPENAI_API_KEY = "sk-secret";
+    process.env.OPENAI_GENERATION_ENABLED = "true";
+    process.env.OPENAI_IMAGE_MODEL = "gpt-image-1";
+    const c2 = getGenerationConfig();
+    expect(c2.openaiTokenConfigured).toBe(true);
+    expect(c2.openaiEnabled).toBe(true);
+  });
+
+  it("NEVER exposes API keys in the config object (boolean flags only)", () => {
+    process.env.REPLICATE_API_TOKEN = "r8_secret";
+    process.env.OPENAI_API_KEY = "sk-secret";
+    const json = JSON.stringify(getGenerationConfig());
+    expect(json).not.toContain("r8_secret");
+    expect(json).not.toContain("sk-secret");
+  });
+
+  it("resolves model + batch cap per provider", () => {
+    expect(modelForProvider(cfg(), "replicate")).toBe("m");
+    expect(modelForProvider(cfg({ openaiModel: "gpt-image-1" }), "openai")).toBe("gpt-image-1");
+    expect(maxBatchForProvider(cfg({ maxBatchSize: 5, maxBatchOpenai: 3 }), "openai")).toBe(3);
+  });
+
+  it("OpenAI guard: own enable flag + key + small batch cap", () => {
+    expect(checkProviderAllowed(cfg({ openaiEnabled: false }), "openai", 1, 0)).toMatchObject({ ok: false, status: 403 });
+    expect(checkProviderAllowed(cfg({ openaiTokenConfigured: false }), "openai", 1, 0)).toMatchObject({ ok: false, status: 500 });
+    expect(checkProviderAllowed(cfg({ maxBatchOpenai: 3 }), "openai", 4, 0)).toMatchObject({ ok: false, status: 400 });
+    expect(checkProviderAllowed(cfg(), "openai", 2, 0)).toEqual({ ok: true });
+    // Replicate is unaffected by OpenAI flags.
+    expect(checkProviderAllowed(cfg({ openaiEnabled: false }), "replicate", 2, 0)).toEqual({ ok: true });
   });
 });

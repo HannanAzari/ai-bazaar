@@ -12,9 +12,13 @@ import {
 import { getCandidateRepository } from "@/lib/repo";
 import { NEGATIVE_PROMPT } from "@/lib/prompts";
 import { STYLE_FAMILIES, DEFAULT_STYLE_FAMILY, buildStyledPrompt, styleLabel, type StyleFamilyId } from "@/lib/styles";
+import { PROVIDERS, providerLabel, type ProviderId } from "@/lib/providers";
 import {
   GENERATION_DEFAULTS,
-  estimateCost,
+  estimateCostForProvider,
+  modelForProvider,
+  providerEnabled,
+  providerTokenConfigured,
   type GenerationConfig,
 } from "@/lib/generation-config";
 import { createGenerationJob, dryRunCandidates, usageStats } from "@/lib/generation-job";
@@ -32,6 +36,7 @@ export function GenerateClient() {
 
   const [category, setCategory] = useState<FactoryCategory>("chair");
   const [styleId, setStyleId] = useState<StyleFamilyId>(DEFAULT_STYLE_FAMILY);
+  const [provider, setProvider] = useState<ProviderId>("replicate");
   const [packId, setPackId] = useState<string>("");
   const [subject, setSubject] = useState("");
   const [count, setCount] = useState(2);
@@ -73,12 +78,20 @@ export function GenerateClient() {
     timeoutMs: GENERATION_DEFAULTS.timeoutMs,
     retryLimit: GENERATION_DEFAULTS.retryLimit,
     requestDelayMs: GENERATION_DEFAULTS.requestDelayMs,
+    openaiModel: GENERATION_DEFAULTS.openaiModel,
+    openaiTokenConfigured: false,
+    openaiEnabled: false,
+    openaiCostPerImage: GENERATION_DEFAULTS.openaiCostPerImage,
+    maxBatchOpenai: GENERATION_DEFAULTS.maxBatchOpenai,
   };
 
-  const safeCount = Math.max(1, Math.min(Math.floor(count) || 1, effConfig.maxBatchSize));
+  const providerMax = provider === "openai" ? effConfig.maxBatchOpenai : effConfig.maxBatchSize;
+  const safeCount = Math.max(1, Math.min(Math.floor(count) || 1, providerMax));
   const prompt = buildStyledPrompt(category, styleId, { subject });
   const usage = usageStats(jobs);
-  const estCost = estimateCost(safeCount, effConfig);
+  const model = modelForProvider(effConfig, provider);
+  const estCost = estimateCostForProvider(safeCount, effConfig, provider);
+  const realReady = providerEnabled(effConfig, provider) && providerTokenConfigured(effConfig, provider);
 
   function persistOutput(out: RunOutput, persisted: boolean) {
     setOutput(out);
@@ -96,7 +109,7 @@ export function GenerateClient() {
     setNotice("");
     let job = createGenerationJob({
       category, pack: packId || "generated", count: safeCount, subject,
-      requestedBy: reviewer, dryRun: true, config: effConfig, styleId,
+      requestedBy: reviewer, dryRun: true, config: effConfig, styleId, provider,
     });
     const built = dryRunCandidates(job, candidates);
     job = { ...job, status: "completed", completedAt: new Date().toISOString(), actualCost: 0, generatedCandidateIds: built.map((c) => c.id) };
@@ -125,7 +138,7 @@ export function GenerateClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           category, pack: packId || "generated", count: safeCount, subject,
-          requestedBy: reviewer, generatedToday: usage.generatedToday, styleId,
+          requestedBy: reviewer, generatedToday: usage.generatedToday, styleId, provider,
         }),
       });
       const data = await res.json();
@@ -165,22 +178,40 @@ export function GenerateClient() {
 
       <div className="panel">
         <p className="muted" style={{ marginTop: 0 }}>
-          Provider <strong>{effConfig.provider}</strong> · model <strong>{effConfig.model}</strong> ·
-          max batch {effConfig.maxBatchSize} · daily limit {effConfig.maxDailyGenerations} ·
-          token {effConfig.tokenConfigured ? "configured" : "missing"}.
+          Provider <strong>{providerLabel(provider)}</strong> · model <strong>{model}</strong> ·
+          max batch {providerMax} · daily limit {effConfig.maxDailyGenerations} ·
+          key {realReady ? "configured" : "missing/disabled"}.
         </p>
-        {!effConfig.enabled && (
+        {!realReady && (
           <p className="muted">
-            Real generation is <strong>disabled</strong> (ASSET_GENERATION_ENABLED=false). Dry run works with zero cost.
+            Real generation for <strong>{providerLabel(provider)}</strong> is <strong>disabled</strong>
+            {provider === "openai" ? " (needs ASSET_GENERATION_ENABLED + OPENAI_GENERATION_ENABLED + OPENAI_API_KEY)" : " (needs ASSET_GENERATION_ENABLED + REPLICATE_API_TOKEN)"}.
+            Dry run works with zero cost.
           </p>
         )}
 
         <div className="row">
           <div className="field">
+            <label>Provider</label>
+            <select value={provider} onChange={(e) => setProvider(e.target.value as ProviderId)}>
+              {PROVIDERS.map((p) => (<option key={p.id} value={p.id}>{p.label}</option>))}
+            </select>
+          </div>
+          <div className="field">
             <label>Category</label>
             <select value={category} onChange={(e) => setCategory(e.target.value as FactoryCategory)}>
               {ALL_CATEGORIES.map((c) => (
                 <option key={c} value={c}>{CATEGORY_META[c].label} ({CATEGORY_META[c].group})</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="row">
+          <div className="field">
+            <label>Style</label>
+            <select value={styleId} onChange={(e) => setStyleId(e.target.value as StyleFamilyId)}>
+              {STYLE_FAMILIES.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
           </div>
@@ -193,21 +224,13 @@ export function GenerateClient() {
           </div>
         </div>
         <div className="field">
-          <label>Style</label>
-          <select value={styleId} onChange={(e) => setStyleId(e.target.value as StyleFamilyId)}>
-            {STYLE_FAMILIES.map((s) => (
-              <option key={s.id} value={s.id}>{s.name} — {s.description}</option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
           <label>Asset idea</label>
           <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. a mid-century walnut armchair" />
         </div>
         <div className="row">
           <div className="field">
-            <label>Count (max {effConfig.maxBatchSize})</label>
-            <input type="number" min={1} max={effConfig.maxBatchSize} value={count} onChange={(e) => setCount(Number(e.target.value))} />
+            <label>Count (max {providerMax})</label>
+            <input type="number" min={1} max={providerMax} value={count} onChange={(e) => setCount(Number(e.target.value))} />
           </div>
           <div className="field">
             <label>Requested by</label>
@@ -224,17 +247,20 @@ export function GenerateClient() {
           <textarea readOnly value={NEGATIVE_PROMPT} style={{ minHeight: 50 }} />
         </div>
 
-        <p className="muted">Estimated cost for {safeCount} image(s): <strong>${estCost.toFixed(3)}</strong></p>
+        <p className="muted">
+          Estimated cost ({providerLabel(provider)}) for {safeCount} image(s): <strong>${estCost.toFixed(3)}</strong>{" "}
+          <span style={{ opacity: 0.7 }}>· Replicate ${ (safeCount * effConfig.estimatedCostPerImage).toFixed(3) } · OpenAI ${ (safeCount * effConfig.openaiCostPerImage).toFixed(3) }</span>
+        </p>
 
         <div className="toolbar">
           <button className="btn btn-primary" onClick={runDryRun}>Dry run (no cost)</button>
           <button
             className="btn btn-green"
-            disabled={!effConfig.enabled || !effConfig.tokenConfigured || busy}
-            title={effConfig.enabled ? "" : "Set ASSET_GENERATION_ENABLED=true"}
+            disabled={!realReady || busy}
+            title={realReady ? "" : "Enable generation + configure this provider's key"}
             onClick={runReal}
           >
-            {busy ? "Generating…" : "Generate (real)"}
+            {busy ? "Generating…" : `Generate (real, ${providerLabel(provider)})`}
           </button>
         </div>
       </div>
@@ -289,7 +315,7 @@ export function GenerateClient() {
                 <span>
                   <span className={`pill ${j.status === "completed" ? "approved" : j.status === "failed" ? "rejected" : "queued"}`}>{j.status}</span>{" "}
                   <strong>{CATEGORY_META[j.category]?.label ?? j.category}</strong> ×{j.count}
-                  <span className="muted"> · {styleLabel(j.styleId)}</span>
+                  <span className="muted"> · {styleLabel(j.styleId)} · {providerLabel(j.modelProvider)}</span>
                   {j.dryRun ? <span className="muted"> · dry-run</span> : <span className="muted"> · ${ (j.actualCost ?? j.estimatedCost).toFixed(3) }</span>}
                 </span>
                 {(j.status === "queued" || j.status === "running" || j.status === "draft") && (

@@ -6,7 +6,8 @@ import {
 } from "@/lib/types";
 import { slugify } from "@/lib/slug";
 import { buildStyledPromptPair, DEFAULT_STYLE_FAMILY, getStyleFamily } from "@/lib/styles";
-import { estimateCost, type GenerationConfig } from "@/lib/generation-config";
+import { estimateCostForProvider, modelForProvider, type GenerationConfig } from "@/lib/generation-config";
+import { type ProviderId } from "@/lib/providers";
 
 // Pure generation-job builders (V3). No I/O, no provider calls — fully testable.
 // Candidate builders produce `needs_review` candidates (placeholder for dry-run,
@@ -22,27 +23,31 @@ export type CreateJobInput = {
   config: GenerationConfig;
   /** Style family (V3.2). Defaults to the default family when omitted. */
   styleId?: string;
+  /** Provider (V3.3). Defaults to the config's provider when omitted. */
+  provider?: ProviderId;
 };
 
 /** Build a job (status "draft") with its style-specific prompt + estimated cost. */
 export function createGenerationJob(input: CreateJobInput): GenerationJob {
   const styleId = getStyleFamily(input.styleId ?? DEFAULT_STYLE_FAMILY).id;
+  const provider: ProviderId = input.provider ?? input.config.provider;
   const { prompt, negativePrompt } = buildStyledPromptPair(input.category, styleId, { subject: input.subject });
+  const count = Math.max(1, Math.floor(input.count));
   const now = new Date().toISOString();
   return {
     id: `job-${input.category}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
     status: "draft",
     category: input.category,
     pack: input.pack,
-    count: Math.max(1, Math.floor(input.count)),
+    count,
     subject: input.subject.trim(),
     styleId,
     prompt,
     negativePrompt,
-    modelProvider: input.config.provider,
-    modelName: input.config.model,
+    modelProvider: provider,
+    modelName: modelForProvider(input.config, provider),
     requestedBy: input.requestedBy.trim() || "anonymous",
-    estimatedCost: estimateCost(Math.max(1, Math.floor(input.count)), input.config),
+    estimatedCost: estimateCostForProvider(count, input.config, provider),
     dryRun: input.dryRun,
     generatedCandidateIds: [],
     createdAt: now,

@@ -60,6 +60,24 @@ describe("style lab (multi-style)", () => {
     expect(realStyleSamples(goldenItem("lamp")!, "clash", [])).toHaveLength(0);
   });
 
+  it("stores provider + model metadata on samples (V3.3)", () => {
+    const dry = buildStyleSamples(goldenItem("chair")!, "royal_match", { provider: "openai", model: "gpt-image-1" });
+    expect(dry.every((s) => s.provider === "openai" && s.model === "gpt-image-1")).toBe(true);
+    const real = realStyleSamples(goldenItem("chair")!, "royal_match", ["https://x/a.png"], { provider: "replicate", model: "flux" });
+    expect(real[0].provider).toBe("replicate");
+    expect(real[0].model).toBe("flux");
+  });
+
+  it("shootout: two provider results coexist for the same item + style", () => {
+    const item = goldenItem("chair")!;
+    const replicate = realStyleSamples(item, "modern_designer", ["https://r/1.png"], { provider: "replicate", model: "flux" });
+    const openai = realStyleSamples(item, "modern_designer", ["https://o/1.png"], { provider: "openai", model: "gpt-image-1" });
+    const both = [...replicate, ...openai];
+    expect(both).toHaveLength(2);
+    expect(new Set(both.map((s) => s.provider))).toEqual(new Set(["replicate", "openai"]));
+    expect(new Set(both.map((s) => s.id)).size).toBe(2); // distinct ids (provider in id)
+  });
+
   it("parseStyleResult: ok+urls → ok, ok+empty → error, !ok → error", () => {
     expect(parseStyleResult(true, { imageUrls: ["https://x/a.png"] })).toEqual({ ok: true, imageUrls: ["https://x/a.png"] });
     expect(parseStyleResult(true, { imageUrls: [] }).ok).toBe(false);

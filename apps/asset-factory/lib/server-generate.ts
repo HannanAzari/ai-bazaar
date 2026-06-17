@@ -2,17 +2,27 @@ import {
   type AssetCandidate,
   type AssetPack,
   type GenerationJob,
+  type FactoryCategory,
 } from "@/lib/types";
-import { clampBatch, estimateCost } from "@/lib/generation-config";
+import {
+  clampBatchForProvider,
+  estimateCostForProvider,
+  type GenerationConfig,
+} from "@/lib/generation-config";
+import { type ProviderId } from "@/lib/providers";
 import {
   createGenerationJob,
   dryRunCandidates,
   generatedCandidates,
   type CreateJobInput,
 } from "@/lib/generation-job";
-import { runReplicate, friendlyProviderError, type ReplicateResult, type ReplicateRunInput, type RunOptions } from "@/lib/replicate-server";
-import { type GenerationConfig } from "@/lib/generation-config";
-import { type FactoryCategory } from "@/lib/types";
+import {
+  getProviderRunner,
+  friendlyProviderError,
+  localImageStore,
+  type ProviderRunner,
+  type ImageStore,
+} from "@/lib/image-provider";
 import {
   validateGenerated,
   summarizeValidations,
@@ -20,22 +30,22 @@ import {
   type GeneratedValidationSummary,
 } from "@/lib/generation-validate";
 
-// Orchestrates one generation job (V3). Pure control flow with INJECTED provider +
-// uploader so it is fully unit-testable without the network. Real generation is the
-// only place Replicate is called; dry-run never touches it. Errors are captured on
-// the job (status "failed") rather than thrown, so a provider hiccup can't crash.
-
-export type ReplicateRunner = (input: ReplicateRunInput, options: RunOptions) => Promise<ReplicateResult>;
-export type Uploader = (sourceUrl: string, name: string) => Promise<string>;
+// Orchestrates one generation job (V3 → V3.3 multi-provider). Pure control flow
+// with an INJECTED provider runner + image store so it is fully unit-testable
+// without the network. Real generation is the only place a provider is called;
+// dry-run never touches it. Errors are captured on the job (status "failed") rather
+// than thrown, so a provider hiccup can't crash. The image store materializes a
+// final URL: hosted URLs pass through (or re-host in shared mode); base64 bytes
+// (OpenAI) become a data URL locally or a bucket upload in shared mode.
 
 export type GenerateParams = {
   input: CreateJobInput;
   existing: AssetCandidate[];
   pack?: AssetPack;
-  /** Defaults to the real Replicate client; tests inject a mock. */
-  replicate?: ReplicateRunner;
-  /** Shared mode: re-host the provider image into the candidate bucket. */
-  uploader?: Uploader;
+  /** Defaults to the real runner for the job's provider; tests inject a mock. */
+  runner?: ProviderRunner;
+  /** Defaults to localImageStore; the route passes bucketImageStore in shared mode. */
+  storeImage?: ImageStore;
 };
 
 export type GenerateResult = {
@@ -45,13 +55,32 @@ export type GenerateResult = {
   summary: GeneratedValidationSummary;
 };
 
+async function materialize(
+  images: { url?: string; b64?: string; contentType?: string }[],
+  store: ImageStore,
+  baseName: string,
+): Promise<string[]> {
+  const urls = await Promise.all(
+    images.map(async (img, i) => {
+      try {
+        return await store(img, `${baseName}-${i + 1}`);
+      } catch (err) {
+        console.error("[asset-factory gen] store failed", err);
+        return null;
+      }
+    }),
+  );
+  return urls.filter((u): u is string => typeof u === "string" && u.length > 0);
+}
+
 export async function executeGeneration(params: GenerateParams): Promise<GenerateResult> {
   const { input, existing, pack } = params;
   const config = input.config;
+  const provider: ProviderId = input.provider ?? config.provider;
   // Safety: clamp the count regardless of caller (dry-run bypasses the route guard).
-  const count = clampBatch(input.count, config);
+  const count = clampBatchForProvider(input.count, config, provider);
 
-  let job = createGenerationJob({ ...input, count });
+  let job = createGenerationJob({ ...input, count, provider });
   job = { ...job, status: "running", startedAt: new Date().toISOString() };
 
   let candidates: AssetCandidate[] = [];
@@ -67,25 +96,13 @@ export async function executeGeneration(params: GenerateParams): Promise<Generat
     };
   } else {
     try {
-      const runner = params.replicate ?? runReplicate;
+      const runner = params.runner ?? getProviderRunner(provider);
+      const store = params.storeImage ?? localImageStore;
       const result = await runner(
-        { prompt: job.prompt, negativePrompt: job.negativePrompt, count, model: job.modelName },
+        { prompt: job.prompt, negativePrompt: job.negativePrompt, count, model: job.modelName, transparent: true },
         { dryRun: false, config },
       );
-
-      // Re-host images into our storage when an uploader is provided (shared mode).
-      let urls: (string | null)[] = result.imageUrls;
-      if (params.uploader) {
-        urls = await Promise.all(
-          result.imageUrls.map(async (u, i) => {
-            try {
-              return await params.uploader!(u, `${job.subject || job.category}-${i + 1}`);
-            } catch {
-              return null; // upload failed → treat as missing image, don't crash
-            }
-          }),
-        );
-      }
+      const urls = await materialize(result.images, store, job.subject || job.category);
 
       candidates = generatedCandidates(job, urls, existing);
       if (candidates.length === 0) {
@@ -94,18 +111,15 @@ export async function executeGeneration(params: GenerateParams): Promise<Generat
         job = {
           ...job,
           status: "completed",
-          actualCost: estimateCost(candidates.length, config),
+          actualCost: estimateCostForProvider(candidates.length, config, provider),
           generatedCandidateIds: candidates.map((c) => c.id),
           completedAt: new Date().toISOString(),
         };
       }
     } catch (err) {
-      job = {
-        ...job,
-        status: "failed",
-        error: err instanceof Error ? err.message : "Generation failed.",
-        completedAt: new Date().toISOString(),
-      };
+      console.error("[asset-factory gen] provider error", err);
+      const raw = err instanceof Error ? err.message : "Generation failed.";
+      job = { ...job, status: "failed", error: friendlyProviderError(provider, raw), completedAt: new Date().toISOString() };
       candidates = [];
     }
   }
@@ -117,11 +131,10 @@ export async function executeGeneration(params: GenerateParams): Promise<Generat
   return { job, candidates, validations, summary: summarizeValidations(validations) };
 }
 
-// ── Style Lab generation (V3.2) ──────────────────────────────────────────────
-// Produces variation images for ONE golden item + style — for calibration only,
-// never catalog candidates. Like executeGeneration: injected provider/uploader,
-// errors captured on the job (never thrown). Returns ONLY real image URLs — it
-// never fabricates placeholders, so an empty result means "failed" to the caller.
+// ── Style Lab generation (V3.2 → V3.3 multi-provider) ────────────────────────
+// Produces variation images for ONE golden item + style + provider — calibration
+// only, never catalog candidates. Returns ONLY real image URLs (never placeholders),
+// so an empty result means "failed" to the caller.
 
 export type StyleGenerateParams = {
   category: FactoryCategory;
@@ -129,8 +142,9 @@ export type StyleGenerateParams = {
   styleId: string;
   count: number;
   config: GenerationConfig;
-  replicate?: ReplicateRunner;
-  uploader?: Uploader;
+  provider?: ProviderId;
+  runner?: ProviderRunner;
+  storeImage?: ImageStore;
 };
 
 export type StyleGenerateResult = {
@@ -141,42 +155,29 @@ export type StyleGenerateResult = {
 
 export async function executeStyleGeneration(params: StyleGenerateParams): Promise<StyleGenerateResult> {
   const { config } = params;
-  const count = clampBatch(params.count, config);
+  const provider: ProviderId = params.provider ?? config.provider;
+  const count = clampBatchForProvider(params.count, config, provider);
 
   let job = createGenerationJob({
     category: params.category, pack: "style-lab", count, subject: params.subject,
-    requestedBy: "style-lab", dryRun: false, config, styleId: params.styleId,
+    requestedBy: "style-lab", dryRun: false, config, styleId: params.styleId, provider,
   });
   job = { ...job, status: "running", startedAt: new Date().toISOString() };
 
   let imageUrls: string[] = [];
   try {
-    const runner = params.replicate ?? runReplicate;
+    const runner = params.runner ?? getProviderRunner(provider);
+    const store = params.storeImage ?? localImageStore;
     const result = await runner(
-      { prompt: job.prompt, negativePrompt: job.negativePrompt, count, model: job.modelName },
+      { prompt: job.prompt, negativePrompt: job.negativePrompt, count, model: job.modelName, transparent: true },
       { dryRun: false, config },
     );
-    imageUrls = result.imageUrls.filter((u): u is string => typeof u === "string" && u.length > 0);
-
-    if (params.uploader && imageUrls.length > 0) {
-      imageUrls = (
-        await Promise.all(
-          imageUrls.map(async (u, i) => {
-            try {
-              return await params.uploader!(u, `style-${params.category}-${params.styleId}-${i + 1}`);
-            } catch (err) {
-              console.error("[asset-factory style-gen] upload failed", err);
-              return null;
-            }
-          }),
-        )
-      ).filter((u): u is string => !!u);
-    }
+    imageUrls = await materialize(result.images, store, `style-${params.category}-${params.styleId}-${provider}`);
 
     job = {
       ...job,
       status: imageUrls.length > 0 ? "completed" : "failed",
-      actualCost: estimateCost(imageUrls.length, config),
+      actualCost: estimateCostForProvider(imageUrls.length, config, provider),
       completedAt: new Date().toISOString(),
       error: imageUrls.length === 0 ? "The provider returned no images." : undefined,
     };
@@ -184,7 +185,7 @@ export async function executeStyleGeneration(params: StyleGenerateParams): Promi
     // Log the RAW provider error; surface a friendly (but not hidden) message.
     console.error("[asset-factory style-gen] provider error", err);
     const raw = err instanceof Error ? err.message : "Generation failed.";
-    job = { ...job, status: "failed", error: friendlyProviderError(raw), completedAt: new Date().toISOString() };
+    job = { ...job, status: "failed", error: friendlyProviderError(provider, raw), completedAt: new Date().toISOString() };
     imageUrls = [];
   }
 

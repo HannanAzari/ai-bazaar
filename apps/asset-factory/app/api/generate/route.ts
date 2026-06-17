@@ -1,10 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { isAuthorized, unauthorized, serverError } from "@/lib/api-auth";
-import { getGenerationConfig, checkGenerationAllowed } from "@/lib/generation-config";
+import { getGenerationConfig, checkProviderAllowed } from "@/lib/generation-config";
 import { generatedToday as countGeneratedToday } from "@/lib/generation-job";
 import { executeGeneration } from "@/lib/server-generate";
 import { isServerSupabaseReady } from "@/lib/supabase-server";
-import { uploadImageFromUrl } from "@/lib/server-storage";
+import { bucketImageStore } from "@/lib/server-storage";
+import { isProvider, type ProviderId } from "@/lib/providers";
 import {
   listCandidates,
   listPacks,
@@ -31,9 +32,11 @@ export async function POST(req: NextRequest) {
       requestedBy?: string;
       generatedToday?: number;
       styleId?: string;
+      provider?: string;
     };
     const config = getGenerationConfig();
     const count = Number(body.count ?? 1);
+    const provider: ProviderId = isProvider(body.provider ?? "") ? (body.provider as ProviderId) : config.provider;
     const shared = isServerSupabaseReady();
 
     if (!body.category) {
@@ -46,7 +49,7 @@ export async function POST(req: NextRequest) {
       ? countGeneratedToday(await listJobs())
       : Math.max(0, Math.floor(Number(body.generatedToday ?? 0)));
 
-    const guard = checkGenerationAllowed(config, count, generatedToday);
+    const guard = checkProviderAllowed(config, provider, count, generatedToday);
     if (!guard.ok) {
       return NextResponse.json({ error: guard.error }, { status: guard.status });
     }
@@ -64,10 +67,11 @@ export async function POST(req: NextRequest) {
         dryRun: false,
         config,
         styleId: body.styleId,
+        provider,
       },
       existing,
       pack,
-      uploader: shared ? uploadImageFromUrl : undefined,
+      storeImage: shared ? bucketImageStore : undefined,
     });
 
     // Persist server-side in shared mode; otherwise the client persists locally.

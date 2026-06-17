@@ -1,11 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { isAuthorized, unauthorized, serverError } from "@/lib/api-auth";
-import { getGenerationConfig, checkGenerationAllowed, clampBatch } from "@/lib/generation-config";
+import { getGenerationConfig, checkProviderAllowed, clampBatchForProvider } from "@/lib/generation-config";
 import { generatedToday as countGeneratedToday } from "@/lib/generation-job";
 import { executeStyleGeneration } from "@/lib/server-generate";
 import { DEFAULT_STYLE_FAMILY } from "@/lib/styles";
+import { isProvider, type ProviderId } from "@/lib/providers";
 import { isServerSupabaseReady } from "@/lib/supabase-server";
-import { uploadImageFromUrl } from "@/lib/server-storage";
+import { bucketImageStore } from "@/lib/server-storage";
 import { listJobs, saveJob } from "@/lib/server-candidates";
 import { type FactoryCategory } from "@/lib/types";
 
@@ -25,18 +26,20 @@ export async function POST(req: NextRequest) {
       count?: number;
       generatedToday?: number;
       styleId?: string;
+      provider?: string;
     };
     if (!body.category) return NextResponse.json({ error: "Category is required." }, { status: 400 });
     const styleId = body.styleId ?? DEFAULT_STYLE_FAMILY;
 
     const config = getGenerationConfig();
+    const provider: ProviderId = isProvider(body.provider ?? "") ? (body.provider as ProviderId) : config.provider;
     const shared = isServerSupabaseReady();
-    const count = clampBatch(Number(body.count ?? 5), config);
+    const count = clampBatchForProvider(Number(body.count ?? 1), config, provider);
     const generatedToday = shared
       ? countGeneratedToday(await listJobs())
       : Math.max(0, Math.floor(Number(body.generatedToday ?? 0)));
 
-    const guard = checkGenerationAllowed(config, count, generatedToday);
+    const guard = checkProviderAllowed(config, provider, count, generatedToday);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
     const result = await executeStyleGeneration({
@@ -45,7 +48,8 @@ export async function POST(req: NextRequest) {
       styleId,
       count,
       config,
-      uploader: shared ? uploadImageFromUrl : undefined,
+      provider,
+      storeImage: shared ? bucketImageStore : undefined,
     });
 
     if (shared) await saveJob(result.job);
@@ -53,7 +57,7 @@ export async function POST(req: NextRequest) {
     // Failure / no images → surface a visible error, NOT a 200 with empty urls.
     if (!result.ok) {
       const error = result.job.error ?? "The provider returned no images.";
-      console.error("[asset-factory] style generation failed:", { styleId, category: body.category, error });
+      console.error("[asset-factory] style generation failed:", { provider, styleId, category: body.category, error });
       return NextResponse.json(
         { error, imageUrls: [], job: result.job, status: result.job.status },
         { status: 502 },

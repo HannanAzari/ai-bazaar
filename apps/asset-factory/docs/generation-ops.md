@@ -1,9 +1,12 @@
-# Generation Ops (V3)
+# Generation Ops (V3 → V3.3)
 
 How to run the **AI generation queue** safely. Generation is **OFF by default**;
 dry-run (zero cost) is the everyday path. Real generation requires an explicit flag
-**and** a Replicate token, and is hard-capped by batch + daily limits. Nothing is
-ever auto-approved — every output lands in `needs_review`.
+**and** a provider key, and is hard-capped by batch + daily limits. Nothing is ever
+auto-approved — every output lands in `needs_review`.
+
+Two providers are supported for a **model shootout** (V3.3): **Replicate** (FLUX)
+and **OpenAI** (GPT Image). Both are server-side only; keys never reach the browser.
 
 ---
 
@@ -15,21 +18,63 @@ ever auto-approved — every output lands in `needs_review`.
 3. The default model is `black-forest-labs/flux-schnell` (fast, cheap). Override
    with `GENERATION_MODEL` if needed.
 
+## OpenAI setup (V3.3)
+
+1. Create an OpenAI API key with image-generation access.
+2. Set `OPENAI_API_KEY` (**server-only** — never `NEXT_PUBLIC`, never sent to the
+   browser; the client sees only an `openaiTokenConfigured` boolean).
+3. Set `OPENAI_GENERATION_ENABLED=true` to allow real OpenAI calls (in addition to
+   the global `ASSET_GENERATION_ENABLED=true`).
+4. Default model is **`gpt-image-1`** (the current recommended GPT Image model in
+   the OpenAI API docs); override with `OPENAI_IMAGE_MODEL`. Images are 1024×1024,
+   transparent background requested; GPT Image returns base64 → stored via the
+   existing upload/storage flow (bucket in shared mode, data URL locally).
+5. OpenAI batch is capped at **3** (`OPENAI_MAX_BATCH`) until quality/cost is known.
+
 ## Environment variables
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `ASSET_GENERATION_ENABLED` | `false` | Must be exactly `true` to allow REAL generation. |
-| `REPLICATE_API_TOKEN` | — | **Server-only** Replicate token. Real generation needs it. |
+| `ASSET_GENERATION_ENABLED` | `false` | Global gate — must be `true` for ANY real generation. |
+| `GENERATION_PROVIDER` | `replicate` | Default provider (`replicate` or `openai`); UI overrides per-generation. |
+| `REPLICATE_API_TOKEN` | — | **Server-only** Replicate token. |
 | `GENERATION_MODEL` | `black-forest-labs/flux-schnell` | Replicate model id. |
-| `GENERATION_COST_PER_IMAGE` | `0.003` | Estimated USD/image (for the cost panel). |
-| `ASSET_GENERATION_MAX_BATCH` | `5` | Hard per-request image cap (always enforced). |
-| `ASSET_GENERATION_DAILY_LIMIT` | `50` | Daily image cap. |
-| `GENERATION_TIMEOUT_MS` | `60000` | Per-call timeout. |
-| `GENERATION_RETRY_LIMIT` | `1` | Retries on a transport error. |
+| `GENERATION_COST_PER_IMAGE` | `0.003` | Replicate est. USD/image (cost panel). |
+| `ASSET_GENERATION_MAX_BATCH` | `5` | Replicate per-request image cap. |
+| `OPENAI_GENERATION_ENABLED` | `false` | Per-provider gate for real OpenAI generation. |
+| `OPENAI_API_KEY` | — | **Server-only** OpenAI key. |
+| `OPENAI_IMAGE_MODEL` | `gpt-image-1` | OpenAI image model. |
+| `OPENAI_COST_PER_IMAGE` | `0.04` | OpenAI est. USD/image — **confirm on your plan**. |
+| `OPENAI_MAX_BATCH` | `3` | OpenAI per-request image cap (kept small). |
+| `ASSET_GENERATION_DAILY_LIMIT` | `50` | Daily image cap (all providers). |
+| `GENERATION_REQUEST_DELAY_MS` | `12000` | Delay between sequential calls (rate-limit safe). |
+| `GENERATION_TIMEOUT_MS` / `GENERATION_RETRY_LIMIT` | `60000` / `1` | Per-call timeout / retries. |
 
 Generation also requires the factory's **password gate** (`ASSET_FACTORY_PASSWORD`)
 and, for server-side persistence of real outputs, the Supabase env (shared mode).
+
+## Model shootout process (V3.3)
+
+Goal: compare the SAME asset across providers/styles before committing.
+
+1. In **Style Lab**, pick a golden item (e.g. Chair) and a style (e.g. Modern).
+2. Click **Shootout (Replicate + OpenAI)** — it generates **1 image from each
+   provider**, sequentially (rate-limit safe), tagged by provider, shown
+   side-by-side. (Or use the **Provider** selector + **Generate 1/5** for one engine.)
+3. Compare readability / object-only framing / transparency. Approve / reject and
+   mark the **closest** per style; the **Style Report** tallies per-style scores.
+4. On `/generate`, the **Provider** selector + per-provider **cost estimate** let you
+   spot-generate single assets into the review queue from either engine.
+
+## Cost caution (V3.3)
+
+- **OpenAI image generation is materially more expensive than Replicate FLUX**
+  (ballpark ~$0.04 vs ~$0.003 per image — confirm current pricing on your plan).
+  The cost panel shows **per-provider** estimates; treat them as estimates, and
+  reconcile real spend on each provider's dashboard.
+- Keep shootouts to **1 image per provider**; OpenAI batch is capped at 3.
+- Disable a provider between runs (`OPENAI_GENERATION_ENABLED=false`) to prevent
+  accidental spend.
 
 ## Cost controls
 

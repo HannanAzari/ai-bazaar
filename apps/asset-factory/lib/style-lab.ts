@@ -34,6 +34,8 @@ export function goldenItem(key: string): GoldenItem | undefined {
   return GOLDEN_ITEMS.find((i) => i.key === key);
 }
 
+export type SampleMeta = { provider?: string; model?: string };
+
 function makeStyleSample(
   item: GoldenItem,
   styleId: StyleFamilyId,
@@ -41,13 +43,17 @@ function makeStyleSample(
   imageUrl: string,
   prompt: string,
   batch: string,
+  meta: SampleMeta,
 ): StyleSample {
+  const provider = meta.provider ?? "replicate";
   return {
-    id: `style-${slugify(item.key)}-${styleId}-${batch}-${variation}`,
+    id: `style-${slugify(item.key)}-${styleId}-${provider}-${batch}-${variation}`,
     itemKey: item.key,
     category: item.category,
     subject: item.subject,
     styleId,
+    provider,
+    model: meta.model ?? "",
     variation,
     prompt,
     imageUrl,
@@ -66,13 +72,14 @@ function makeStyleSample(
 export function buildStyleSamples(
   item: GoldenItem,
   styleId: StyleFamilyId,
-  options: { count?: number; batch?: string } = {},
+  options: { count?: number; batch?: string } & SampleMeta = {},
 ): StyleSample[] {
   const count = options.count ?? VARIATIONS_PER_ITEM;
   const batch = options.batch ?? Date.now().toString(36);
   const prompt = buildStyledPrompt(item.category, styleId, { subject: item.subject });
+  const provider = options.provider ?? "replicate";
   return Array.from({ length: count }, (_, i) =>
-    makeStyleSample(item, styleId, i, `/samples/style-${item.key}-${styleId}-${i}.png`, prompt, batch),
+    makeStyleSample(item, styleId, i, `/samples/style-${item.key}-${styleId}-${provider}-${i}.png`, prompt, batch, options),
   );
 }
 
@@ -85,12 +92,12 @@ export function realStyleSamples(
   item: GoldenItem,
   styleId: StyleFamilyId,
   imageUrls: (string | null | undefined)[],
-  options: { batch?: string } = {},
+  options: { batch?: string } & SampleMeta = {},
 ): StyleSample[] {
   const batch = options.batch ?? Date.now().toString(36);
   const prompt = buildStyledPrompt(item.category, styleId, { subject: item.subject });
   const urls = imageUrls.filter((u): u is string => typeof u === "string" && u.length > 0);
-  return urls.map((url, i) => makeStyleSample(item, styleId, i, url, prompt, batch));
+  return urls.map((url, i) => makeStyleSample(item, styleId, i, url, prompt, batch, options));
 }
 
 export type StyleGenerationResult =

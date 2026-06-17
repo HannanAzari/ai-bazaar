@@ -1,5 +1,6 @@
 import { getServerSupabase, CANDIDATE_BUCKET } from "@/lib/supabase-server";
 import { slugify } from "@/lib/slug";
+import { type ImageStore } from "@/lib/image-provider";
 
 // Upload an imported/uploaded image into the Supabase Storage bucket (V2) and
 // return its public URL. Server-only — runs behind the password gate.
@@ -52,3 +53,17 @@ export function decodeDataUrl(dataUrl: string): { bytes: Uint8Array; contentType
   const bytes = Uint8Array.from(Buffer.from(match[2], "base64"));
   return { bytes, contentType };
 }
+
+/**
+ * Shared-mode image store (V3.3): re-host provider URLs and upload base64 bytes
+ * into the candidate bucket, returning a public URL. Used for both Replicate
+ * (URL) and OpenAI (base64) outputs.
+ */
+export const bucketImageStore: ImageStore = async (image, name) => {
+  if (image.url) return uploadImageFromUrl(image.url, name);
+  if (image.b64) {
+    const bytes = Uint8Array.from(Buffer.from(image.b64, "base64"));
+    return uploadCandidateImage(bytes, image.contentType ?? "image/png", name);
+  }
+  return null;
+};

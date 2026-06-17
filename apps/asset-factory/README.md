@@ -53,6 +53,17 @@ room engine, not production auth, not user-facing routes.
 > **Style Report** (`/style-report`) tallies approvals + closest picks per style and
 > names a **winning style**. Generation stays OFF by default; no main-app changes.
 
+> **V3.3 — Provider shootout (OpenAI).** A second image provider — **OpenAI GPT
+> Image** — alongside Replicate ([`lib/providers.ts`](lib/providers.ts),
+> [`lib/openai-server.ts`](lib/openai-server.ts)). A **Provider** selector on
+> `/generate` and `/style-lab` chooses the engine (stored on jobs as `modelProvider`
+> + on style samples as `provider`/`model`); the Style Lab has a **Shootout** button
+> that generates 1 image from *each* provider for the same asset + style,
+> side-by-side. OpenAI returns base64 → stored via the existing upload flow (bucket
+> in shared mode, data URL locally). Keys are **server-only**; OpenAI batch is capped
+> at 3; both `ASSET_GENERATION_ENABLED` and `OPENAI_GENERATION_ENABLED` gate it.
+> See [docs/generation-ops.md](docs/generation-ops.md).
+
 ---
 
 ## How it relates to the main app
@@ -129,7 +140,11 @@ still works in Local (per-browser) mode.
 | `SUPABASE_SERVICE_ROLE_KEY` | optional | **Server-only.** Used by the API routes to read/write the factory tables + storage bucket. Never `NEXT_PUBLIC`, never sent to the client. |
 | `ASSET_GENERATION_ENABLED` | optional | Must be `true` to allow **real** generation (V3). Default off; dry-run always works. |
 | `REPLICATE_API_TOKEN` | optional | **Server-only** Replicate token. Required for real generation. Never sent to the client. |
-| `GENERATION_MODEL` / `GENERATION_COST_PER_IMAGE` / `ASSET_GENERATION_MAX_BATCH` / `ASSET_GENERATION_DAILY_LIMIT` | optional | Generation tuning (defaults: flux-schnell / 0.003 / 5 / 50). See [docs/generation-ops.md](docs/generation-ops.md). |
+| `GENERATION_MODEL` / `GENERATION_COST_PER_IMAGE` / `ASSET_GENERATION_MAX_BATCH` / `ASSET_GENERATION_DAILY_LIMIT` / `GENERATION_REQUEST_DELAY_MS` | optional | Replicate tuning (defaults: flux-schnell / 0.003 / 5 / 50 / 12000). |
+| `GENERATION_PROVIDER` | optional | Default provider: `replicate` (default) or `openai`. The UI overrides per-generation. |
+| `OPENAI_GENERATION_ENABLED` | optional | Must be `true` (with `ASSET_GENERATION_ENABLED`) to allow **real OpenAI** generation. Default off. |
+| `OPENAI_API_KEY` | optional | **Server-only** OpenAI key (GPT Image). Never sent to the client. |
+| `OPENAI_IMAGE_MODEL` / `OPENAI_COST_PER_IMAGE` / `OPENAI_MAX_BATCH` | optional | OpenAI tuning (defaults: `gpt-image-1` / 0.04 / 3). ⚠ confirm image pricing on your plan. |
 
 Leave the three Supabase vars blank to run in **Local** (localStorage) mode. Set all
 three to enable **Shared** mode. There is **no public user auth** — this is an
@@ -180,15 +195,16 @@ The top navigation has four tabs; all read the same repository (Local or Shared)
   and **export** `approved-assets.json` + `asset-packs.json`. Five starter packs
   seed on first run (Cozy Creator, Photographer Studio, Podcaster, Cafe, Startup
   Workspace).
-- **Generate** — the **AI generation queue** (V3). Choose a category/pack, type an
-  idea, preview the master + negative prompt and estimated cost, then **Dry run**
-  (zero cost, client-side placeholders) or **Generate (real)** when enabled. A cost
-  panel and job list (with cancel) track spend. Outputs enter `needs_review` and are
-  auto-validated. See [docs/generation-ops.md](docs/generation-ops.md).
-- **Style Lab** — the **Golden Style Pack** calibration (V3.1 → V3.2). Generate +
+- **Generate** — the **AI generation queue** (V3 → V3.3). Choose a **provider**
+  (Replicate / OpenAI), category/style/pack, type an idea, preview the prompt and
+  per-provider cost, then **Dry run** (zero cost) or **Generate (real)** when enabled.
+  A cost panel and job list (with cancel) track spend. Outputs enter `needs_review`
+  and are auto-validated. See [docs/generation-ops.md](docs/generation-ops.md).
+- **Style Lab** — the **Golden Style Pack** calibration (V3.1 → V3.3). Generate +
   compare 5 variations **per style family** (Royal Match / Modern Designer / Clash)
-  for 10 golden items side-by-side, approve / reject / mark-closest, and track a
-  calibration score. Pick ONE identity before scaling.
+  for 10 golden items side-by-side, approve / reject / mark-closest. A **Provider**
+  selector + a **Shootout** button (1 image from each provider, side-by-side) compare
+  engines. Pick ONE identity + provider before scaling.
 - **Style Report** — per-style approvals, closest picks, average scores, and the
   **winning style** across the Style Lab samples (V3.2).
 - **Sandbox** — the **Room Designer Sandbox** runs the same select-and-place logic
@@ -325,20 +341,20 @@ apps/asset-factory/
                   asset-thumb, import-panel, quality-badges, factory-nav,
                   packs-client, sandbox-client, reports-client, generate-client,
                   style-lab-client, style-report-client
-  lib/            types, prompts, styles, validation, quality, transitions, export, activity,
-                  sample-data, sample-packs, store, auth, slug, reviewer, runtime-mode,
+  lib/            types, prompts, styles, providers, validation, quality, transitions, export,
+                  activity, sample-data, sample-packs, store, auth, slug, reviewer, runtime-mode,
                   zones, import-validation, quality-score, reports, sandbox,
-                  generation-config, generation-job, generation-validate, replicate-server,
-                  server-generate, style-lab, style-lab-store,
-                  api-auth, supabase-server, server-candidates, server-storage,
+                  generation-config, generation-job, generation-validate, style-generate-runner,
+                  image-provider, replicate-server, openai-server, server-generate, style-lab,
+                  style-lab-store, api-auth, supabase-server, server-candidates, server-storage,
                   mappers, repo/{types,local,remote,index}
   docs/           asset-bible.md, catalog-validation.md, generation-ops.md, premium-style.md
   exports/        approved-assets.json, approved-assets.ts, asset-packs.json (generated examples)
   supabase/       schema.sql, migrations/{0001_asset_factory,0002_asset_packs,0003_generation_jobs,
                   0004_job_style}.sql
-  test/           prompts · styles · validation · quality · transitions · export · repo-local ·
-                  mappers · mode · activity · packs · import-validation · quality-score · reports ·
-                  sandbox · generation-config · generation-job · generation-validate ·
-                  replicate-server · server-generate · style-lab
+  test/           prompts · styles · providers · validation · quality · transitions · export ·
+                  repo-local · mappers · mode · activity · packs · import-validation · quality-score ·
+                  reports · sandbox · generation-config · generation-job · generation-validate ·
+                  style-generate-runner · replicate-server · openai-server · server-generate · style-lab
   middleware.ts   password gate (pages); API routes self-guard
 ```

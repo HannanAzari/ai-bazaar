@@ -285,12 +285,16 @@ export type StyleSample = {
   category: FactoryCategory;
   subject: string;
   styleId: string;
+  /** Provider that produced this variation (V3.3), e.g. "replicate" | "openai". */
+  provider: string;
+  /** Provider model id (V3.3), e.g. "gpt-image-1". */
+  model: string;
   variation: number;
   prompt: string;
   imageUrl: string;
   seed: number;
   decision: StyleDecision;
-  /** Marked as the closest variation to the Nestudio identity (one per item). */
+  /** Marked as the closest variation to the Nestudio identity (one per item+style). */
   closest: boolean;
   createdAt: string;
 };
