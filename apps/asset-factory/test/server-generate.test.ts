@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { executeGeneration, type ReplicateRunner } from "@/lib/server-generate";
+import { executeGeneration, executeStyleGeneration, type ReplicateRunner } from "@/lib/server-generate";
 import { getGenerationConfig, type GenerationConfig } from "@/lib/generation-config";
 import { type CreateJobInput } from "@/lib/generation-job";
 
@@ -69,5 +69,49 @@ describe("executeGeneration", () => {
     // Real outputs are non-transparent → a non_transparent quality warning.
     expect(out.validations.every((v) => v.quality.some((q) => q.code === "non_transparent"))).toBe(true);
     expect(out.summary.total).toBe(2);
+  });
+});
+
+describe("executeStyleGeneration (Style Lab real generation)", () => {
+  const styleArgs = { category: "chair" as const, subject: "accent chair", styleId: "royal_match", count: 5, config };
+
+  it("returns the provider's real image URLs (no placeholders)", async () => {
+    const runner: ReplicateRunner = async () => ({ imageUrls: ["https://cdn/r/1.png", "https://cdn/r/2.png"] });
+    const out = await executeStyleGeneration({ ...styleArgs, replicate: runner });
+    expect(out.ok).toBe(true);
+    expect(out.imageUrls).toEqual(["https://cdn/r/1.png", "https://cdn/r/2.png"]);
+    expect(out.imageUrls.some((u) => u.startsWith("/samples/"))).toBe(false);
+    expect(out.job.status).toBe("completed");
+    expect(out.job.styleId).toBe("royal_match");
+    expect(out.job.pack).toBe("style-lab");
+  });
+
+  it("re-hosts images via the uploader when provided (shared mode)", async () => {
+    const runner: ReplicateRunner = async () => ({ imageUrls: ["https://provider/x.png"] });
+    const uploader = vi.fn(async (_u: string, name: string) => `https://bucket/${name}.png`);
+    const out = await executeStyleGeneration({ ...styleArgs, replicate: runner, uploader });
+    expect(uploader).toHaveBeenCalledTimes(1);
+    expect(out.imageUrls[0]).toMatch(/^https:\/\/bucket\//);
+    expect(out.ok).toBe(true);
+  });
+
+  it("fails (ok:false, empty urls, job error) when the provider returns nothing", async () => {
+    const runner: ReplicateRunner = async () => ({ imageUrls: [] });
+    const out = await executeStyleGeneration({ ...styleArgs, replicate: runner });
+    expect(out.ok).toBe(false);
+    expect(out.imageUrls).toEqual([]);
+    expect(out.job.status).toBe("failed");
+    expect(out.job.error).toMatch(/no images/i);
+  });
+
+  it("captures a provider error on the job instead of throwing", async () => {
+    const runner: ReplicateRunner = async () => {
+      throw new Error("replicate 422 invalid input");
+    };
+    const out = await executeStyleGeneration({ ...styleArgs, replicate: runner });
+    expect(out.ok).toBe(false);
+    expect(out.imageUrls).toEqual([]);
+    expect(out.job.status).toBe("failed");
+    expect(out.job.error).toMatch(/replicate 422/);
   });
 });

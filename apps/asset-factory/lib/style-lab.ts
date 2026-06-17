@@ -34,37 +34,85 @@ export function goldenItem(key: string): GoldenItem | undefined {
   return GOLDEN_ITEMS.find((i) => i.key === key);
 }
 
+function makeStyleSample(
+  item: GoldenItem,
+  styleId: StyleFamilyId,
+  variation: number,
+  imageUrl: string,
+  prompt: string,
+  batch: string,
+): StyleSample {
+  return {
+    id: `style-${slugify(item.key)}-${styleId}-${batch}-${variation}`,
+    itemKey: item.key,
+    category: item.category,
+    subject: item.subject,
+    styleId,
+    variation,
+    prompt,
+    imageUrl,
+    seed: variation + 1,
+    decision: "pending",
+    closest: false,
+    createdAt: new Date().toISOString(),
+  };
+}
+
 /**
- * Build N variation samples for a golden item IN A GIVEN STYLE. `imageUrls`
- * supplies real generated images; omitted (dry-run) → placeholders at zero cost.
+ * Build N **dry-run placeholder** variations for a golden item in a style. These
+ * use `/samples/...` placeholder paths and cost nothing — used ONLY for dry runs.
+ * Real generation must use {@link realStyleSamples}.
  */
 export function buildStyleSamples(
   item: GoldenItem,
   styleId: StyleFamilyId,
-  options: { count?: number; imageUrls?: (string | null | undefined)[]; batch?: string } = {},
+  options: { count?: number; batch?: string } = {},
 ): StyleSample[] {
   const count = options.count ?? VARIATIONS_PER_ITEM;
   const batch = options.batch ?? Date.now().toString(36);
   const prompt = buildStyledPrompt(item.category, styleId, { subject: item.subject });
-  const out: StyleSample[] = [];
-  for (let i = 0; i < count; i += 1) {
-    const url = options.imageUrls?.[i];
-    out.push({
-      id: `style-${slugify(item.key)}-${styleId}-${batch}-${i}`,
-      itemKey: item.key,
-      category: item.category,
-      subject: item.subject,
-      styleId,
-      variation: i,
-      prompt,
-      imageUrl: url ?? `/samples/style-${item.key}-${styleId}-${i}.png`,
-      seed: i + 1,
-      decision: "pending",
-      closest: false,
-      createdAt: new Date().toISOString(),
-    });
+  return Array.from({ length: count }, (_, i) =>
+    makeStyleSample(item, styleId, i, `/samples/style-${item.key}-${styleId}-${i}.png`, prompt, batch),
+  );
+}
+
+/**
+ * Build variations from REAL generated image URLs. One sample per non-empty URL —
+ * placeholders are NEVER fabricated here, so a failed/empty real generation yields
+ * an empty array (the caller surfaces an error instead of showing placeholders).
+ */
+export function realStyleSamples(
+  item: GoldenItem,
+  styleId: StyleFamilyId,
+  imageUrls: (string | null | undefined)[],
+  options: { batch?: string } = {},
+): StyleSample[] {
+  const batch = options.batch ?? Date.now().toString(36);
+  const prompt = buildStyledPrompt(item.category, styleId, { subject: item.subject });
+  const urls = imageUrls.filter((u): u is string => typeof u === "string" && u.length > 0);
+  return urls.map((url, i) => makeStyleSample(item, styleId, i, url, prompt, batch));
+}
+
+export type StyleGenerationResult =
+  | { ok: true; imageUrls: string[] }
+  | { ok: false; error: string };
+
+/**
+ * Interpret a `/api/generate/style` response for the client (pure + testable).
+ * A non-OK response, or an OK response with no real image URLs, is an ERROR —
+ * never a reason to show placeholder images in real mode.
+ */
+export function parseStyleResult(ok: boolean, data: { imageUrls?: unknown; error?: unknown }): StyleGenerationResult {
+  if (!ok) {
+    return { ok: false, error: typeof data?.error === "string" ? data.error : "Generation failed." };
   }
-  return out;
+  const urls = Array.isArray(data?.imageUrls)
+    ? data.imageUrls.filter((u): u is string => typeof u === "string" && u.length > 0)
+    : [];
+  if (urls.length === 0) {
+    return { ok: false, error: typeof data?.error === "string" ? data.error : "No images were returned by the provider." };
+  }
+  return { ok: true, imageUrls: urls };
 }
 
 /** Apply an approve/reject decision to a sample (pure). */

@@ -10,6 +10,8 @@ import {
   GOLDEN_ITEMS,
   VARIATIONS_PER_ITEM,
   buildStyleSamples,
+  realStyleSamples,
+  parseStyleResult,
   decideSample,
   markClosest,
   scoreStyleLab,
@@ -85,12 +87,15 @@ export function StyleLabClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ category: item.category, subject: item.subject, styleId, count: VARIATIONS_PER_ITEM, generatedToday: 0 }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Generation failed.");
+      const data = await res.json().catch(() => ({}));
+      const result = parseStyleResult(res.ok, data);
+      if (!result.ok) {
+        // Real generation failed — show a visible error, never placeholder images.
+        setError(`${item.label} · ${styleId}: ${result.error}`);
         return;
       }
-      replaceItemStyle(item.key, styleId, buildStyleSamples(item, styleId, { imageUrls: data.imageUrls, count: data.imageUrls.length || VARIATIONS_PER_ITEM }));
+      // Real mode uses ONLY the provider's image URLs (no placeholder padding).
+      replaceItemStyle(item.key, styleId, realStyleSamples(item, styleId, result.imageUrls));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Generation failed.");
     } finally {

@@ -11,6 +11,8 @@ import {
   type CreateJobInput,
 } from "@/lib/generation-job";
 import { runReplicate, type ReplicateResult, type ReplicateRunInput, type RunOptions } from "@/lib/replicate-server";
+import { type GenerationConfig } from "@/lib/generation-config";
+import { type FactoryCategory } from "@/lib/types";
 import {
   validateGenerated,
   summarizeValidations,
@@ -113,4 +115,76 @@ export async function executeGeneration(params: GenerateParams): Promise<Generat
   const validations = candidates.map((c) => validateGenerated(c, all, pack, packMembers));
 
   return { job, candidates, validations, summary: summarizeValidations(validations) };
+}
+
+// ── Style Lab generation (V3.2) ──────────────────────────────────────────────
+// Produces variation images for ONE golden item + style — for calibration only,
+// never catalog candidates. Like executeGeneration: injected provider/uploader,
+// errors captured on the job (never thrown). Returns ONLY real image URLs — it
+// never fabricates placeholders, so an empty result means "failed" to the caller.
+
+export type StyleGenerateParams = {
+  category: FactoryCategory;
+  subject: string;
+  styleId: string;
+  count: number;
+  config: GenerationConfig;
+  replicate?: ReplicateRunner;
+  uploader?: Uploader;
+};
+
+export type StyleGenerateResult = {
+  job: GenerationJob;
+  imageUrls: string[];
+  ok: boolean;
+};
+
+export async function executeStyleGeneration(params: StyleGenerateParams): Promise<StyleGenerateResult> {
+  const { config } = params;
+  const count = clampBatch(params.count, config);
+
+  let job = createGenerationJob({
+    category: params.category, pack: "style-lab", count, subject: params.subject,
+    requestedBy: "style-lab", dryRun: false, config, styleId: params.styleId,
+  });
+  job = { ...job, status: "running", startedAt: new Date().toISOString() };
+
+  let imageUrls: string[] = [];
+  try {
+    const runner = params.replicate ?? runReplicate;
+    const result = await runner(
+      { prompt: job.prompt, negativePrompt: job.negativePrompt, count, model: job.modelName },
+      { dryRun: false, config },
+    );
+    imageUrls = result.imageUrls.filter((u): u is string => typeof u === "string" && u.length > 0);
+
+    if (params.uploader && imageUrls.length > 0) {
+      imageUrls = (
+        await Promise.all(
+          imageUrls.map(async (u, i) => {
+            try {
+              return await params.uploader!(u, `style-${params.category}-${params.styleId}-${i + 1}`);
+            } catch (err) {
+              console.error("[asset-factory style-gen] upload failed", err);
+              return null;
+            }
+          }),
+        )
+      ).filter((u): u is string => !!u);
+    }
+
+    job = {
+      ...job,
+      status: imageUrls.length > 0 ? "completed" : "failed",
+      actualCost: estimateCost(imageUrls.length, config),
+      completedAt: new Date().toISOString(),
+      error: imageUrls.length === 0 ? "The provider returned no images." : undefined,
+    };
+  } catch (err) {
+    console.error("[asset-factory style-gen] provider error", err);
+    job = { ...job, status: "failed", error: err instanceof Error ? err.message : "Generation failed.", completedAt: new Date().toISOString() };
+    imageUrls = [];
+  }
+
+  return { job, imageUrls, ok: imageUrls.length > 0 };
 }

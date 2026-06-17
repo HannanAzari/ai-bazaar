@@ -3,6 +3,8 @@ import {
   GOLDEN_ITEMS,
   VARIATIONS_PER_ITEM,
   buildStyleSamples,
+  realStyleSamples,
+  parseStyleResult,
   decideSample,
   markClosest,
   scoreStyleLab,
@@ -36,9 +38,34 @@ describe("style lab (multi-style)", () => {
     expect(a[0].prompt).not.toBe(b[0].prompt); // different style descriptors
   });
 
-  it("uses provided image urls (real generation)", () => {
-    const samples = buildStyleSamples(goldenItem("lamp")!, "modern_designer", { imageUrls: ["https://i/a.png"], count: 1 });
-    expect(samples[0].imageUrl).toBe("https://i/a.png");
+  it("dry-run samples use placeholder /samples/ paths", () => {
+    const samples = buildStyleSamples(goldenItem("lamp")!, "modern_designer");
+    expect(samples.every((s) => s.imageUrl.startsWith("/samples/"))).toBe(true);
+  });
+
+  it("real samples use ONLY provider urls and never placeholders", () => {
+    const samples = realStyleSamples(goldenItem("lamp")!, "modern_designer", [
+      "https://cdn/replicate/a.png",
+      "",
+      null,
+      "https://cdn/replicate/b.png",
+    ]);
+    // Empty / null urls are skipped — no placeholder padding.
+    expect(samples).toHaveLength(2);
+    expect(samples.map((s) => s.imageUrl)).toEqual(["https://cdn/replicate/a.png", "https://cdn/replicate/b.png"]);
+    expect(samples.some((s) => s.imageUrl.startsWith("/samples/"))).toBe(false);
+  });
+
+  it("real samples are empty when the provider returned nothing", () => {
+    expect(realStyleSamples(goldenItem("lamp")!, "clash", [])).toHaveLength(0);
+  });
+
+  it("parseStyleResult: ok+urls → ok, ok+empty → error, !ok → error", () => {
+    expect(parseStyleResult(true, { imageUrls: ["https://x/a.png"] })).toEqual({ ok: true, imageUrls: ["https://x/a.png"] });
+    expect(parseStyleResult(true, { imageUrls: [] }).ok).toBe(false);
+    expect(parseStyleResult(true, { imageUrls: ["", null] }).ok).toBe(false);
+    const fail = parseStyleResult(false, { error: "Generation is disabled." });
+    expect(fail).toEqual({ ok: false, error: "Generation is disabled." });
   });
 
   it("marks one closest per (item, style) independently", () => {

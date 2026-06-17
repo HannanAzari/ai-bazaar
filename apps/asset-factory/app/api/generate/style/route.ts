@@ -1,20 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { isAuthorized, unauthorized, serverError } from "@/lib/api-auth";
-import { getGenerationConfig, checkGenerationAllowed, clampBatch, estimateCost } from "@/lib/generation-config";
-import { generatedToday as countGeneratedToday, createGenerationJob } from "@/lib/generation-job";
-import { runReplicate } from "@/lib/replicate-server";
-import { buildStyledPrompt, DEFAULT_STYLE_FAMILY } from "@/lib/styles";
+import { getGenerationConfig, checkGenerationAllowed, clampBatch } from "@/lib/generation-config";
+import { generatedToday as countGeneratedToday } from "@/lib/generation-job";
+import { executeStyleGeneration } from "@/lib/server-generate";
+import { DEFAULT_STYLE_FAMILY } from "@/lib/styles";
 import { isServerSupabaseReady } from "@/lib/supabase-server";
 import { uploadImageFromUrl } from "@/lib/server-storage";
 import { listJobs, saveJob } from "@/lib/server-candidates";
-import { type FactoryCategory, type GenerationJob } from "@/lib/types";
+import { type FactoryCategory } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-// Style Lab generation (V3.1). Produces N variation images for a single golden
-// item — for visual calibration only. It does NOT create catalog candidates. Same
-// safety gate as /api/generate (enabled + token + batch + daily). A job record is
-// kept purely for cost tracking.
+// Style Lab generation (V3.1 → V3.2). Produces N variation images for one golden
+// item + style — calibration only, never catalog candidates. Same safety gate as
+// /api/generate (enabled + token + batch + daily). On success returns 200 with real
+// image URLs; on failure/empty returns a non-2xx with a visible error (so the client
+// never silently shows placeholders).
 export async function POST(req: NextRequest) {
   if (!isAuthorized(req)) return unauthorized();
   try {
@@ -38,46 +39,28 @@ export async function POST(req: NextRequest) {
     const guard = checkGenerationAllowed(config, count, generatedToday);
     if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
-    let job = createGenerationJob({
-      category: body.category, pack: "style-lab", count, subject: body.subject ?? "",
-      requestedBy: "style-lab", dryRun: false, config, styleId,
+    const result = await executeStyleGeneration({
+      category: body.category,
+      subject: body.subject ?? "",
+      styleId,
+      count,
+      config,
+      uploader: shared ? uploadImageFromUrl : undefined,
     });
-    job = { ...job, status: "running", startedAt: new Date().toISOString() };
 
-    let imageUrls: string[] = [];
-    try {
-      const result = await runReplicate(
-        { prompt: buildStyledPrompt(body.category, styleId, { subject: body.subject }), negativePrompt: job.negativePrompt, count, model: job.modelName },
-        { dryRun: false, config },
+    if (shared) await saveJob(result.job);
+
+    // Failure / no images → surface a visible error, NOT a 200 with empty urls.
+    if (!result.ok) {
+      const error = result.job.error ?? "The provider returned no images.";
+      console.error("[asset-factory] style generation failed:", { styleId, category: body.category, error });
+      return NextResponse.json(
+        { error, imageUrls: [], job: result.job, status: result.job.status },
+        { status: 502 },
       );
-      imageUrls = result.imageUrls;
-      if (shared) {
-        imageUrls = (
-          await Promise.all(
-            result.imageUrls.map(async (u, i) => {
-              try {
-                return await uploadImageFromUrl(u, `style-${body.category}-${i + 1}`);
-              } catch {
-                return null;
-              }
-            }),
-          )
-        ).filter((u): u is string => !!u);
-      }
-      job = {
-        ...job,
-        status: imageUrls.length > 0 ? "completed" : "failed",
-        actualCost: estimateCost(imageUrls.length, config),
-        completedAt: new Date().toISOString(),
-        error: imageUrls.length === 0 ? "No images returned." : undefined,
-      };
-    } catch (err) {
-      job = { ...job, status: "failed", error: err instanceof Error ? err.message : "Generation failed.", completedAt: new Date().toISOString() };
     }
 
-    if (shared) await saveJob(job);
-
-    return NextResponse.json({ imageUrls, job: job as GenerationJob, persisted: shared });
+    return NextResponse.json({ imageUrls: result.imageUrls, job: result.job, persisted: shared });
   } catch (err) {
     return serverError(err);
   }
