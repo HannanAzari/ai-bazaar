@@ -37,6 +37,14 @@ room engine, not production auth, not user-facing routes.
 > `needs_review` and is auto-validated — **never auto-approved**. The token is never
 > exposed to the browser. Full guide: [docs/generation-ops.md](docs/generation-ops.md).
 
+> **V3.1 — Premium game style + Style Lab.** The generation prompt identity is now
+> **Nestudio Premium Game Style V1** (polished mobile-game collectibles: single
+> isolated object, transparent PNG, no platform/props, 30° isometric) — replacing
+> the storybook direction. The **Style Lab** (`/style-lab`) generates and compares
+> **5 variations** for 10 golden items, with approve / reject / mark-closest scoring,
+> to **choose ONE identity before scaling generation**. Full guide:
+> [docs/premium-style.md](docs/premium-style.md).
+
 ---
 
 ## How it relates to the main app
@@ -169,6 +177,10 @@ The top navigation has four tabs; all read the same repository (Local or Shared)
   (zero cost, client-side placeholders) or **Generate (real)** when enabled. A cost
   panel and job list (with cancel) track spend. Outputs enter `needs_review` and are
   auto-validated. See [docs/generation-ops.md](docs/generation-ops.md).
+- **Style Lab** — the **Golden Style Pack** calibration (V3.1). Generate + compare
+  5 variations for 10 golden items under **Nestudio Premium Game Style V1**, approve
+  / reject / mark-closest, and track a calibration score. Pick ONE identity before
+  scaling. See [docs/premium-style.md](docs/premium-style.md).
 - **Sandbox** — the **Room Designer Sandbox** runs the same select-and-place logic
   as the main app's AI Room Designer on **approved** assets (a chosen pack or all),
   for a creator type + style. It shows placed assets (zone + action + reason),
@@ -295,23 +307,26 @@ can be consumed without a rewrite.
 
 ```
 apps/asset-factory/
-  app/            layout, globals.css, page (gate→dashboard), login, packs, generate, sandbox, reports,
+  app/            layout, globals.css, page (gate→dashboard), login, packs, generate, style-lab,
+                  sandbox, reports,
                   api/{login,logout,candidates,candidates/transition,actions,upload,packs,jobs,
-                       generate,generate/config}
+                       generate,generate/config,generate/style}
   components/     review-dashboard, reviewer-gate, activity-panel, asset-card, asset-detail,
                   asset-thumb, import-panel, quality-badges, factory-nav,
-                  packs-client, sandbox-client, reports-client, generate-client
+                  packs-client, sandbox-client, reports-client, generate-client, style-lab-client
   lib/            types, prompts, validation, quality, transitions, export, activity,
                   sample-data, sample-packs, store, auth, slug, reviewer, runtime-mode,
                   zones, import-validation, quality-score, reports, sandbox,
                   generation-config, generation-job, generation-validate, replicate-server,
-                  server-generate, api-auth, supabase-server, server-candidates, server-storage,
+                  server-generate, style-lab, style-lab-store,
+                  api-auth, supabase-server, server-candidates, server-storage,
                   mappers, repo/{types,local,remote,index}
-  docs/           asset-bible.md, catalog-validation.md, generation-ops.md
+  docs/           asset-bible.md, catalog-validation.md, generation-ops.md, premium-style.md
   exports/        approved-assets.json, approved-assets.ts, asset-packs.json (generated examples)
   supabase/       schema.sql, migrations/{0001_asset_factory,0002_asset_packs,0003_generation_jobs}.sql
   test/           prompts · validation · quality · transitions · export · repo-local · mappers ·
                   mode · activity · packs · import-validation · quality-score · reports · sandbox ·
-                  generation-config · generation-job · generation-validate · replicate-server · server-generate
+                  generation-config · generation-job · generation-validate · replicate-server ·
+                  server-generate · style-lab
   middleware.ts   password gate (pages); API routes self-guard
 ```

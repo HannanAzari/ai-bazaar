@@ -270,6 +270,29 @@ export type GenerationJob = {
   completedAt?: string;
 };
 
+// ── Style Lab (V3.1) ─────────────────────────────────────────────────────────
+
+export type StyleDecision = "pending" | "approved" | "rejected";
+
+/** One generated style-calibration variation. Style Lab samples are SEPARATE from
+ * catalog candidates — they exist only to choose the golden visual identity and are
+ * never exported. */
+export type StyleSample = {
+  id: string;
+  itemKey: string;
+  category: FactoryCategory;
+  subject: string;
+  styleId: string;
+  variation: number;
+  prompt: string;
+  imageUrl: string;
+  seed: number;
+  decision: StyleDecision;
+  /** Marked as the closest variation to the Nestudio identity (one per item). */
+  closest: boolean;
+  createdAt: string;
+};
+
 export const ALL_CATEGORIES = Object.keys(CATEGORY_META) as FactoryCategory[];
 
 export function categoriesInGroup(group: CategoryGroup): FactoryCategory[] {

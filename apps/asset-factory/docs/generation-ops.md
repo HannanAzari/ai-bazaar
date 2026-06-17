@@ -93,6 +93,10 @@ warnings (especially transparency), edit metadata/tags, then approve or reject.
 
 Only scale up once a small real run clears all of these:
 
+0. **Golden Style Pack approved (V3.1):** the **Style Lab** reaches **10/10
+   calibrated** under *Nestudio Premium Game Style V1* — each golden item has an
+   approved variation and a chosen "closest" pick. Do not mass-generate before the
+   visual identity is locked. See [premium-style.md](premium-style.md).
 1. A **count 1–2 real batch** completes, images saved, candidates created in
    `needs_review`, approve/reject + export all work.
 2. **Validation after generation** is clean apart from the expected

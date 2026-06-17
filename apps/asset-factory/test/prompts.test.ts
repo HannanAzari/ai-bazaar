@@ -4,6 +4,8 @@ import {
   NEGATIVE_PROMPT,
   STYLE_TOKENS,
   CATEGORY_PROMPTS,
+  STYLE_NAME,
+  STYLE_ID,
   buildPrompt,
   buildPromptPair,
   buildBatchPrompts,
@@ -38,15 +40,29 @@ describe("prompt system", () => {
     expect(new Set(batch.map((b) => b.category)).size).toBe(ALL_CATEGORIES.length);
   });
 
-  it("negative prompt forbids the banned styles", () => {
-    for (const banned of ["photorealistic", "white background", "harsh neon", "random perspective"]) {
+  it("negative prompt forbids scenes, props, and bad rendering", () => {
+    for (const banned of ["platform", "pedestal", "multiple objects", "photorealism", "random perspective", "white background", "extra decorations"]) {
       expect(NEGATIVE_PROMPT).toContain(banned);
     }
   });
 
-  it("has a category prompt for every category", () => {
+  it("is the premium game identity — single isolated object, transparent, no props", () => {
+    expect(STYLE_NAME).toBe("Nestudio Premium Game Style V1");
+    expect(STYLE_ID).toBe("premium_game_v1");
+    expect(MASTER_PROMPT).toContain("Single isolated object");
+    expect(MASTER_PROMPT).toContain("Transparent PNG background");
+    expect(MASTER_PROMPT).toContain("No platform");
+    expect(MASTER_PROMPT).toContain("No environment");
+    expect(MASTER_PROMPT).toContain("30-degree isometric");
+    // The storybook identity must be gone.
+    expect(MASTER_PROMPT.toLowerCase()).not.toContain("storybook");
+    expect(MASTER_PROMPT.toLowerCase()).not.toContain("golden-hour");
+  });
+
+  it("every category descriptor is a single object (no extra props)", () => {
     for (const c of ALL_CATEGORIES) {
       expect(CATEGORY_PROMPTS[c]).toBeTruthy();
+      expect(CATEGORY_PROMPTS[c].startsWith("a single ")).toBe(true);
     }
   });
 });

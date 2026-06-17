@@ -117,13 +117,19 @@ Every approved asset must carry:
 - Don't drop the style spine — it is what keeps the catalog visually consistent.
 - Per-asset tweaks go in the *subject* / *extra* slots, never by rewriting the
   master prompt.
-- **Generation (V3):** the **Generate** tab feeds exactly this prompt system to
-  Replicate (`black-forest-labs/flux-schnell` by default). Generation is OFF by
-  default; dry-run is free. **AI output is never auto-approved** — it enters
-  `needs_review` and is auto-validated. Raw model output is **not transparent**, so
-  every generated asset carries a `non_transparent` warning and needs a
-  background-removal pass before it can meet §5. See
-  [generation-ops.md](generation-ops.md).
+- **Generation style (V3.1):** the generation prompt system is now
+  **Nestudio Premium Game Style V1** — polished mobile-game collectibles
+  (single isolated object, transparent PNG, no platform/pedestal/props, 30°
+  isometric, soft studio lighting, readable at 64–128px). It replaces the earlier
+  storybook generation direction. The full identity + the master/negative prompts
+  live in [premium-style.md](premium-style.md); calibrate it in the **Style Lab**
+  before scaling.
+- **Generation (V3):** the **Generate** tab feeds this prompt system to Replicate
+  (`black-forest-labs/flux-schnell` by default). Generation is OFF by default;
+  dry-run is free. **AI output is never auto-approved** — it enters `needs_review`
+  and is auto-validated. Raw model output is **not transparent**, so every generated
+  asset carries a `non_transparent` warning and needs a background-removal pass
+  before it can meet §5. See [generation-ops.md](generation-ops.md).
 
 ## 12. Quality checklist (before Approve)
 

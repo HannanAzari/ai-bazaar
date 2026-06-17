@@ -1,82 +1,93 @@
 import { ALL_CATEGORIES, CATEGORY_META, type FactoryCategory } from "@/lib/types";
 
-// Master prompt system for the Nestudio Asset Factory.
+// ── Nestudio Premium Game Style V1 (V3.1) ────────────────────────────────────
 //
-// V1 does NOT call any image-generation API. These strings are the canonical,
-// versioned prompt templates a reviewer copies into an external tool (or that a
-// future V2 generation queue will consume). Keeping them here makes the visual
-// style reproducible and testable. See docs/asset-bible.md for the rationale.
+// The generation prompt identity. Targets POLISHED MOBILE GAME COLLECTIBLE quality
+// (Clash of Clans / Royal Match / Hay Day are *quality references only* — never
+// mimic their art). The hard rules: ONE isolated object, transparent PNG, no
+// environment / platform / pedestal / extra props, soft glossy materials, rounded
+// shapes, clean silhouette, consistent 30° isometric, readable at 64–128px.
+//
+// This replaces the earlier storybook prompt system. See docs/premium-style.md.
 
-/** The shared style spine every asset prompt is built from. */
+export const STYLE_ID = "premium_game_v1";
+export const STYLE_NAME = "Nestudio Premium Game Style V1";
+export const STYLE_VERSION = 1;
+
+/** The master prompt — the shared spine of every generated asset. */
 export const MASTER_PROMPT =
-  "cozy 2.5D isometric game asset, soft rounded shapes, warm golden-hour lighting, " +
-  "gentle long shadows fully contained within the frame, clean transparent PNG background, " +
-  "hand-illustrated storybook style, readable at small size, single centered object, " +
-  "consistent 30-degree isometric camera angle, muted warm parchment palette";
+  "Premium mobile game asset. Single isolated object. High readability. Soft glossy materials. " +
+  "Rounded shapes. Clean silhouette. Consistent 30-degree isometric camera. Transparent PNG background. " +
+  "No platform. No pedestal. No floor. No environment. No extra props. Mobile game collectible quality. " +
+  "Optimized for game inventory and room decoration systems.";
 
-/** The shared negative prompt — the forbidden styles from the asset bible. */
+/** The negative prompt — strongly discourages scenes, props, and bad rendering. */
 export const NEGATIVE_PROMPT =
-  "photorealistic, photograph, 3D render, harsh neon, oversaturated, random perspective, " +
-  "front view, flat 2D, text, watermark, logo, signature, white background, opaque background, " +
-  "drop shadow cut off, cropped, blurry, low quality, multiple objects, busy scene, dark gritty";
+  "room scene, furniture set, multiple objects, base, platform, pedestal, floor plane, rug, books, lamp, " +
+  "plant, extra decorations, text, watermark, logo, signature, photorealism, realistic photography, " +
+  "painterly illustration, storybook rendering, flat vector, random perspective, front view, side view, " +
+  "cropped object, dramatic shadows, sunset lighting, golden hour, white background, scene background";
 
-/** Reusable style tokens appended to every prompt for consistency. */
+/** Reusable premium style tokens appended to every prompt for consistency. */
 export const STYLE_TOKENS: string[] = [
-  "2.5D isometric",
-  "cozy",
-  "soft rounded shapes",
-  "golden-hour lighting",
+  "premium mobile game asset",
+  "single isolated object",
+  "soft glossy materials",
+  "rounded shapes",
+  "clean silhouette",
+  "30-degree isometric",
+  "soft studio lighting",
   "transparent background",
-  "storybook illustration",
-  "nestudio style",
+  "high readability",
 ];
 
-/** A short, category-specific descriptor injected into the master prompt. */
+/** A short, single-object descriptor per category. Object ONLY — never props,
+ * platforms, or scenes (the master/negative prompts enforce the rest). */
 export const CATEGORY_PROMPTS: Record<FactoryCategory, string> = {
   // Interior
-  chair: "a single cozy accent chair with soft cushioning",
-  table: "a small wooden side table with rounded edges",
-  desk: "a tidy writing desk with a warm wood finish",
-  shelf: "a freestanding bookshelf with a few cozy objects",
-  sofa: "a plush two-seat sofa with soft pillows",
-  rug: "a round woven rug seen from a gentle isometric angle",
-  plant: "a potted leafy houseplant in a ceramic pot",
-  lamp: "a warm glowing floor lamp with a soft shade",
-  book: "a small stack of hardcover books",
-  computer: "a compact desktop computer with a soft-glow screen",
-  microphone: "a studio microphone on a small stand",
-  camera: "a friendly retro camera on a tripod",
-  guitar: "an acoustic guitar resting upright",
-  product_display: "a small retail product display stand with items",
-  wall_art: "a single framed piece of wall art",
-  tv_screen: "a wall-mounted flat screen with a soft glow",
+  chair: "a single accent chair",
+  table: "a single small table",
+  desk: "a single writing desk",
+  shelf: "a single bookshelf",
+  sofa: "a single two-seat sofa",
+  rug: "a single round rug, flat",
+  plant: "a single potted plant in a simple pot",
+  lamp: "a single floor lamp",
+  book: "a single closed hardcover book",
+  computer: "a single computer monitor",
+  microphone: "a single studio microphone",
+  camera: "a single camera",
+  guitar: "a single acoustic guitar",
+  product_display: "a single product display stand",
+  wall_art: "a single framed artwork",
+  tv_screen: "a single flat-screen tv",
   // Exterior
-  door: "a charming front door set in a small frame",
-  window: "a cozy cottage window with shutters",
-  tree: "a small rounded storybook tree",
-  flower: "a cluster of cheerful potted flowers",
-  fence: "a short wooden picket fence section",
-  sign: "a hanging shop sign on a small post",
-  lantern: "a warm glowing hanging lantern",
-  mailbox: "a small standing mailbox",
-  bench: "a cozy wooden park bench",
-  market_stall: "a small covered market stall with an awning",
+  door: "a single door",
+  window: "a single window",
+  tree: "a single small tree",
+  flower: "a single flower in a pot",
+  fence: "a single fence segment",
+  sign: "a single hanging sign",
+  lantern: "a single lantern",
+  mailbox: "a single mailbox",
+  bench: "a single bench",
+  market_stall: "a single market stall",
   // Avatar / support
-  avatar_body: "a friendly rounded avatar character body, neutral pose",
-  hairstyle: "a single hairstyle asset on a transparent head guide",
-  clothing: "a single folded clothing item",
-  accessory: "a small wearable accessory",
-  pet: "a small cute companion pet",
-  instrument: "a small handheld musical instrument",
-  tool: "a single handheld craft tool",
+  avatar_body: "a single character figure",
+  hairstyle: "a single hairstyle",
+  clothing: "a single clothing item",
+  accessory: "a single accessory",
+  pet: "a single cute pet",
+  instrument: "a single musical instrument",
+  tool: "a single tool",
   // Business
-  cafe_counter: "a cozy cafe service counter with a small espresso machine",
-  restaurant_table: "a set restaurant table for two",
-  gym_equipment: "a friendly piece of gym equipment",
-  medical_desk: "a tidy medical reception desk",
-  workshop_tool: "a wall-mounted workshop tool",
-  podcast_setup: "a cozy podcast desk with mic and headphones",
-  shop_shelf: "a retail shop shelf stocked with goods",
+  cafe_counter: "a single cafe counter",
+  restaurant_table: "a single restaurant table",
+  gym_equipment: "a single piece of gym equipment",
+  medical_desk: "a single reception desk",
+  workshop_tool: "a single workshop tool",
+  podcast_setup: "a single podcast microphone setup",
+  shop_shelf: "a single shop shelf",
 };
 
 export type BuiltPrompt = {
@@ -86,10 +97,9 @@ export type BuiltPrompt = {
 };
 
 /**
- * Compose the full positive prompt for a category. An optional `subject`
- * overrides the canned descriptor; `extra` appends free-form detail. The output
- * always begins with the master prompt and ends with the style tokens so every
- * asset shares the same visual spine.
+ * Compose the full positive prompt for a category. An optional `subject` overrides
+ * the canned descriptor; `extra` appends free-form detail. Always begins with the
+ * master prompt and ends with the style tokens so every asset shares one spine.
  */
 export function buildPrompt(
   category: FactoryCategory,
