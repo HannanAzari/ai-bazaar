@@ -9,8 +9,11 @@ import { NESTUDIO_V2, styleMasterPreview } from "@/lib/styles";
 import {
   SOFA_VARIATIONS,
   SOFA_DNA_PROVIDER,
+  safeVariations,
+  boldVariations,
   dryRunSofaDnaSamples,
   sofaDnaSample,
+  type SofaVariation,
 } from "@/lib/sofa-dna";
 import { PROVIDERS, providerLabel, type ProviderId } from "@/lib/providers";
 import {
@@ -326,18 +329,28 @@ export function StyleLabClient() {
 
       <div className="panel" style={{ borderLeft: "3px solid var(--accent, #c98a3a)" }}>
         <div className="topbar" style={{ paddingTop: 0 }}>
-          <h3 style={{ margin: 0 }}>🧬 Sofa DNA Discovery (V3.5)</h3>
+          <h3 style={{ margin: 0 }}>🧬 Sofa DNA Discovery (V3.6)</h3>
           <span className="spacer" />
           <span className="muted">OpenAI only · {SOFA_VARIATIONS.length} personalities</span>
         </div>
         <p className="muted" style={{ marginTop: 0 }}>
-          Discover the Nestudio visual DNA on sofas alone. Ten sofa personalities share one identity
-          (Scandinavian, soft rounded geometry, warm cohesive palette, one lighting signature) but differ in
-          silhouette, material, colour, and character — <em>same world, different personality</em>. Results land in
-          the <strong>Sofa</strong> panel below and feed the calibration score.
+          Strengthen the Nestudio DNA on sofas alone. Ten lifestyle personalities share one identity
+          (Scandinavian foundation, signature shape language, warm cohesive palette, one lighting signature) but each
+          has a <strong>silhouette readable from shape alone</strong> — <em>same world, different personality</em>.
+          A DNA stress test pairs 5 safe + 5 bold. Results land in the <strong>Sofa</strong> panel below and feed the
+          calibration score.
         </p>
+        <p className="muted" style={{ margin: "0 0 4px", fontSize: "0.8rem" }}>✅ Safe ({safeVariations().length})</p>
         <div className="chips" style={{ marginBottom: 8 }}>
-          {SOFA_VARIATIONS.map((v) => (<span key={v.key} className="chip" title={`${v.silhouette} · ${v.material} · ${v.color}`}>{v.name}</span>))}
+          {safeVariations().map((v: SofaVariation) => (
+            <span key={v.key} className="chip" title={`${v.silhouette} · ${v.material} · ${v.accent}`}>{v.name} · {v.personality}</span>
+          ))}
+        </div>
+        <p className="muted" style={{ margin: "0 0 4px", fontSize: "0.8rem" }}>🔥 Bold ({boldVariations().length})</p>
+        <div className="chips" style={{ marginBottom: 8 }}>
+          {boldVariations().map((v: SofaVariation) => (
+            <span key={v.key} className="chip active" title={`${v.silhouette} · ${v.material} · ${v.accent}`}>{v.name} · {v.personality}</span>
+          ))}
         </div>
         <details>
           <summary className="muted">Preview the shared Nestudio DNA</summary>

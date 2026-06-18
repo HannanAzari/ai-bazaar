@@ -41,7 +41,10 @@ export const NESTUDIO_DNA =
   "wool, boucle, felt, soft leather, and matte ceramic, in a warm cozy palette of muted earthy tones " +
   "with a single confident accent color. Cohesive stylized 3D render with a soft matte finish, a gentle " +
   "warm key light from the upper-left, soft ambient fill, and smooth subtle gradients — the same " +
-  "lighting and rendering signature shared across every object in the world.";
+  "lighting and rendering signature shared across every object in the world. " +
+  // V3.6 — the signature shape language that ties even bold pieces to the family.
+  "Signature Nestudio shape language: gentle rounded corners, soft geometric forms, elegant curves, " +
+  "confident silhouettes, and slightly exaggerated, characterful proportions.";
 
 /** The master prompt — the shared spine of every generated asset. */
 export const MASTER_PROMPT =

@@ -71,11 +71,25 @@ transparency, or object isolation.
 - **One locked lighting/rendering signature**: cohesive stylized 3D render, soft matte
   finish, gentle warm key light from the upper-left, soft ambient fill, smooth
   subtle gradients — the *same* on every object.
+- **Signature shape language (V3.6):** gentle rounded corners, soft geometric forms,
+  elegant curves, confident silhouettes, slightly exaggerated characterful proportions —
+  the trait that ties even bold pieces to the family.
 
 **Personality varies per object via the subject, never by changing the DNA** — the
-goal is *"same world, different personality."* Discovered on the sofa-only experiment
-([`lib/sofa-dna.ts`](../lib/sofa-dna.ts), ten sofa personalities); apply category by
-category afterwards.
+goal is *"same world, different personality."*
+
+### Personality DNA + silhouette diversity (V3.6)
+
+Discovered + strengthened on the sofa-only experiment
+([`lib/sofa-dna.ts`](../lib/sofa-dna.ts)). Ten **lifestyle personality groups**
+(Creator, Musician, Gamer, Artist, Explorer, Reader, Minimalist, Collector, Dreamer,
+Adventurer) drive shape language, materials, accent colours, and details — never props,
+scenes, or extra objects. Silhouettes are deliberately diverse (low-profile lounge,
+wrapped cocoon, cloud, retro loft, chunky camp, floating modular, asymmetrical gallery,
+S-curve conversation, reclined gamer pod, organic pebble) so the personality is
+**readable from silhouette alone**. A **DNA stress test** pairs **5 safe + 5 bold**
+personalities; the bold ones push uniqueness while staying recognizably Nestudio. Apply
+the DNA category by category afterwards.
 
 ## Master prompt
 

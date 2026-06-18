@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   SOFA_VARIATIONS,
   SOFA_DNA_PROVIDER,
+  PERSONALITY_GROUPS,
+  safeVariations,
+  boldVariations,
   sofaVariationPrompt,
   buildSofaDnaPrompts,
   dryRunSofaDnaSamples,
@@ -11,26 +14,38 @@ import {
 import { MASTER_PROMPT, NESTUDIO_DNA } from "@/lib/prompts";
 import { obeysNestudioSpecs } from "@/lib/nestudio-spec";
 
-describe("sofa DNA discovery (V3.5)", () => {
+describe("sofa DNA discovery (V3.6)", () => {
   it("defines ten distinct sofa personalities", () => {
     expect(SOFA_VARIATIONS).toHaveLength(10);
     expect(new Set(SOFA_VARIATIONS.map((v) => v.key)).size).toBe(10);
     expect(new Set(SOFA_VARIATIONS.map((v) => v.name)).size).toBe(10);
-    // Different silhouettes / materials / colours — not clones.
+    // Silhouette + personality + accent are all distinct — not clones.
     expect(new Set(SOFA_VARIATIONS.map((v) => v.silhouette)).size).toBe(10);
-    expect(new Set(SOFA_VARIATIONS.map((v) => v.material)).size).toBe(10);
-    expect(new Set(SOFA_VARIATIONS.map((v) => v.color)).size).toBe(10);
+    expect(new Set(SOFA_VARIATIONS.map((v) => v.personality)).size).toBe(10);
+    expect(new Set(SOFA_VARIATIONS.map((v) => v.accent)).size).toBe(10);
+  });
+
+  it("covers all ten Nestudio personality groups", () => {
+    expect(PERSONALITY_GROUPS).toHaveLength(10);
+    expect(new Set(SOFA_VARIATIONS.map((v) => v.personality))).toEqual(new Set(PERSONALITY_GROUPS));
+  });
+
+  it("is a DNA stress test of 5 safe + 5 bold", () => {
+    expect(safeVariations()).toHaveLength(5);
+    expect(boldVariations()).toHaveLength(5);
+    expect(safeVariations().every((v) => v.tier === "safe")).toBe(true);
+    expect(boldVariations().every((v) => v.tier === "bold")).toBe(true);
   });
 
   it("every prompt shares the DNA + master spine but differs in personality", () => {
     const prompts = buildSofaDnaPrompts().map((p) => p.prompt);
     expect(prompts.every((p) => p.startsWith(MASTER_PROMPT))).toBe(true);
-    // Same world: the DNA identity is present in every prompt.
+    // Same world: the DNA identity + signature shape language are present in every prompt.
     expect(prompts.every((p) => p.includes("Scandinavian"))).toBe(true);
     expect(prompts.every((p) => p.includes("warm cozy palette"))).toBe(true);
+    expect(prompts.every((p) => p.includes("shape language"))).toBe(true);
     // Different personality: every prompt is unique.
     expect(new Set(prompts).size).toBe(10);
-    // Each is a sofa.
     expect(prompts.every((p) => p.toLowerCase().includes("sofa"))).toBe(true);
   });
 
@@ -50,11 +65,12 @@ describe("sofa DNA discovery (V3.5)", () => {
     expect(new Set(samples.map((s) => s.id)).size).toBe(10);
   });
 
-  it("each sample carries its personality name + variation prompt", () => {
+  it("each sample label carries name + personality + tier and the variation prompt", () => {
     const samples = dryRunSofaDnaSamples();
     samples.forEach((s, i) => {
-      expect(s.subject.startsWith(SOFA_VARIATIONS[i].name)).toBe(true);
-      expect(s.prompt).toBe(sofaVariationPrompt(SOFA_VARIATIONS[i]));
+      const v = SOFA_VARIATIONS[i];
+      expect(s.subject.startsWith(`${v.name} · ${v.personality} · ${v.tier}`)).toBe(true);
+      expect(s.prompt).toBe(sofaVariationPrompt(v));
     });
   });
 
@@ -73,11 +89,10 @@ describe("sofa DNA discovery (V3.5)", () => {
     expect(s.itemKey).toBe("sofa");
   });
 
-  it("the DNA identity layer is non-trivial and on-direction", () => {
+  it("the DNA carries the signature shape language (V3.6) and stays on-direction", () => {
     expect(NESTUDIO_DNA).toContain("Scandinavian");
-    expect(NESTUDIO_DNA).toContain("soft rounded geometry");
-    expect(NESTUDIO_DNA.toLowerCase()).toContain("warm");
-    // The generic culprit is gone.
+    expect(NESTUDIO_DNA).toContain("shape language");
+    expect(NESTUDIO_DNA).toContain("elegant curves");
     expect(NESTUDIO_DNA.toLowerCase()).not.toContain("neutral premium palette");
   });
 });

@@ -2,6 +2,27 @@
 
 Newest first. Versions before V3.4 are summarized from the README/commit history.
 
+## V3.6 — Nestudio DNA Strengthening (sofa experiment)
+
+- **Signature shape language** added to the shared DNA ([`lib/prompts.ts`](../lib/prompts.ts)
+  `NESTUDIO_DNA`): gentle rounded corners, soft geometric forms, elegant curves,
+  confident silhouettes, slightly exaggerated characterful proportions. Identity only —
+  camera, transparency, isolation, and the lighting signature are unchanged.
+- **Personality DNA**: ten lifestyle groups (Creator, Musician, Gamer, Artist, Explorer,
+  Reader, Minimalist, Collector, Dreamer, Adventurer) that influence shape language,
+  materials, accent colours, and details — never props, scenes, or extra objects.
+- **Silhouette diversity** sharply increased ([`lib/sofa-dna.ts`](../lib/sofa-dna.ts)):
+  the ten sofas now have meaningfully different forms — low-profile lounge, wrapped
+  cocoon, cloud, retro loft, chunky camp, floating modular, asymmetrical gallery,
+  S-curve conversation, reclined gamer pod, organic pebble — readable from silhouette
+  alone before colour/material.
+- **DNA stress test**: 5 safe + 5 bold personalities; bold pieces push uniqueness while
+  staying recognizably Nestudio. The Sofa DNA panel now groups Safe vs Bold; sample
+  labels carry name · personality · tier.
+- Tests: **200 passing** (sofa-dna suite updated for personality groups + tiers +
+  silhouette/accent distinctness; DNA shape-language assertions). Typecheck · lint ·
+  build green. OpenAI-only; no new pages.
+
 ## V3.5 — Nestudio DNA Discovery (sofa experiment)
 
 - **Diagnosis:** the V3.4 prompt defined identity by *negation* and used a generic
