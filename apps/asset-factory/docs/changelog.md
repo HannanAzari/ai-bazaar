@@ -2,6 +2,28 @@
 
 Newest first. Versions before V3.4 are summarized from the README/commit history.
 
+## V3.7 — Nestudio DNA Final Refinement (manufacturer collection)
+
+- **Signature Design Language** ([`lib/prompts.ts`](../lib/prompts.ts)
+  `NESTUDIO_SIGNATURE`, folded into the shared DNA): the manufacturer-consistency
+  layer applied to every category — gentle rounded corners + softened edges, soft
+  geometric forms, elegant curves, thick readable silhouettes, slightly exaggerated
+  friendly-premium proportions, consistent warm-oak wood detailing, consistent edge
+  treatment, consistent material transitions, consistent soft matte render finish.
+  Recognizable even with colour/material stripped. Camera, transparency, isolation,
+  lighting signature, and the safe/bold personality system are all unchanged.
+- **Manufacturer collection** ([`lib/sofa-dna.ts`](../lib/sofa-dna.ts)): the sofa
+  experiment generalized across **sofa + chair + coffee table**. The ten lifestyle
+  personalities (5 safe + 5 bold) are now a shared **line** — each keeps the **same
+  accent + character + tier across every category**, expressed as a category-
+  appropriate form. Samples land under each category's golden itemKey and feed
+  calibration. The Style Lab panel is now "🧬 Manufacturer Collection" with a
+  category selector. OpenAI-only; no new pages.
+- **Negative prompt** also pushes away from the generic-catalog / marketplace look
+  (stock furniture photo, marketplace listing, interior design render, catalogue spread).
+- Tests: **200 passing** (sofa-dna suite rewritten for the multi-category collection +
+  cross-category line-consistency checks). Typecheck · lint · build green.
+
 ## V3.6 — Nestudio DNA Strengthening (sofa experiment)
 
 - **Signature shape language** added to the shared DNA ([`lib/prompts.ts`](../lib/prompts.ts)

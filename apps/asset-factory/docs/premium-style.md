@@ -71,9 +71,13 @@ transparency, or object isolation.
 - **One locked lighting/rendering signature**: cohesive stylized 3D render, soft matte
   finish, gentle warm key light from the upper-left, soft ambient fill, smooth
   subtle gradients — the *same* on every object.
-- **Signature shape language (V3.6):** gentle rounded corners, soft geometric forms,
-  elegant curves, confident silhouettes, slightly exaggerated characterful proportions —
-  the trait that ties even bold pieces to the family.
+- **Signature Design Language (V3.7)** ([`NESTUDIO_SIGNATURE`](../lib/prompts.ts)): the
+  manufacturer-consistency layer applied to *every* category — gentle rounded corners +
+  softened edges, soft geometric forms, elegant curves, thick readable silhouettes,
+  slightly exaggerated friendly-premium proportions, consistent warm-oak wood detailing,
+  consistent edge treatment, consistent material transitions, and a consistent soft matte
+  render finish. The goal: any two products read as one furniture manufacturer,
+  recognizable even with colour and material stripped away.
 
 **Personality varies per object via the subject, never by changing the DNA** — the
 goal is *"same world, different personality."*
@@ -88,8 +92,16 @@ scenes, or extra objects. Silhouettes are deliberately diverse (low-profile loun
 wrapped cocoon, cloud, retro loft, chunky camp, floating modular, asymmetrical gallery,
 S-curve conversation, reclined gamer pod, organic pebble) so the personality is
 **readable from silhouette alone**. A **DNA stress test** pairs **5 safe + 5 bold**
-personalities; the bold ones push uniqueness while staying recognizably Nestudio. Apply
-the DNA category by category afterwards.
+personalities; the bold ones push uniqueness while staying recognizably Nestudio.
+
+### Manufacturer collection (V3.7)
+
+The personality line is now a shared **collection** across categories (sofa, chair,
+coffee table — extensible). Each personality keeps the **same accent, character, and
+tier across every category**, expressed as a category-appropriate form, so the line
+reads as one manufacturer. The Style Lab "🧬 Manufacturer Collection" panel has a
+category selector; generating a category drops its 10 variants into that category's
+golden panel for a side-by-side comparison grid that also feeds calibration.
 
 ## Master prompt
 

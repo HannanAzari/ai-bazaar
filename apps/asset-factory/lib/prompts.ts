@@ -34,6 +34,17 @@ export const STYLE_VERSION = 2;
 //
 // IMPORTANT: this is style language ONLY. It does not touch the camera, the
 // transparency, or the single-object isolation (those live in nestudio-spec.ts).
+// V3.7 — the Nestudio Signature Design Language. The manufacturer-consistency layer:
+// the traits that make every product (sofa, chair, desk, bookshelf, lamp, coffee
+// table, TV stand …) read as ONE furniture collection, recognizable even with colour
+// and material stripped away. Shared by every category via the DNA below.
+export const NESTUDIO_SIGNATURE =
+  "Signature Nestudio design language, identical across every product as if made by one furniture " +
+  "manufacturer: gentle rounded corners and softened edges, soft geometric forms, elegant curves, " +
+  "thick readable silhouettes, slightly exaggerated friendly-premium proportions, consistent warm-oak " +
+  "wood detailing, consistent edge treatment, consistent smooth material transitions, and a consistent " +
+  "soft matte render finish.";
+
 export const NESTUDIO_DNA =
   "Nestudio world identity: a cohesive family of premium collectible room objects with a modern " +
   "Scandinavian influence — soft rounded geometry, gently chamfered edges, designer-furniture " +
@@ -42,9 +53,7 @@ export const NESTUDIO_DNA =
   "with a single confident accent color. Cohesive stylized 3D render with a soft matte finish, a gentle " +
   "warm key light from the upper-left, soft ambient fill, and smooth subtle gradients — the same " +
   "lighting and rendering signature shared across every object in the world. " +
-  // V3.6 — the signature shape language that ties even bold pieces to the family.
-  "Signature Nestudio shape language: gentle rounded corners, soft geometric forms, elegant curves, " +
-  "confident silhouettes, and slightly exaggerated, characterful proportions.";
+  NESTUDIO_SIGNATURE;
 
 /** The master prompt — the shared spine of every generated asset. */
 export const MASTER_PROMPT =
@@ -65,7 +74,9 @@ export const NEGATIVE_PROMPT =
   // V3.5 — ban the generic-identity failure modes (style language only).
   "generic furniture catalog, furniture showroom, icon pack, app icon, clipart, sticker, " +
   "realistic furniture photography, product photograph, luxury mansion furniture, ornate, " +
-  "baroque carving, children's furniture, kids furniture";
+  "baroque carving, children's furniture, kids furniture, " +
+  // V3.7 — push away from the generic-catalog/marketplace look toward branded assets.
+  "stock furniture photo, furniture marketplace listing, interior design render, catalogue spread";
 
 /** Reusable Nestudio V2 style tokens appended to every prompt for consistency. */
 export const STYLE_TOKENS: string[] = [

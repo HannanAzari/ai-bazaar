@@ -7,13 +7,15 @@ import { GENERATION_DEFAULTS, modelForProvider, providerEnabled, providerTokenCo
 import { NEGATIVE_PROMPT, NESTUDIO_DNA } from "@/lib/prompts";
 import { NESTUDIO_V2, styleMasterPreview } from "@/lib/styles";
 import {
-  SOFA_VARIATIONS,
-  SOFA_DNA_PROVIDER,
-  safeVariations,
-  boldVariations,
-  dryRunSofaDnaSamples,
-  sofaDnaSample,
-  type SofaVariation,
+  COLLECTION,
+  DNA_PROVIDER,
+  variantsForCategory,
+  safeVariants,
+  boldVariants,
+  collectionCategory,
+  dryRunDnaSamples,
+  dnaSample,
+  type Variant,
 } from "@/lib/sofa-dna";
 import { PROVIDERS, providerLabel, type ProviderId } from "@/lib/providers";
 import {
@@ -53,6 +55,7 @@ export function StyleLabClient() {
   const [progress, setProgress] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [provider, setProvider] = useState<ProviderId>(CALIBRATION_PROVIDER);
+  const [collectionKey, setCollectionKey] = useState<string>("sofa");
 
   useEffect(() => {
     setSamples(loadStyleSamples());
@@ -201,17 +204,18 @@ export function StyleLabClient() {
     });
   }
 
-  // ── Sofa DNA Discovery (V3.5) — OpenAI only, sofa only ─────────────────────
-  // Generate one image per sofa personality, sequentially. Each call sends a
-  // variation-specific subject; the shared DNA + camera + isolation come from the
-  // master prompt. Results are StyleSamples under itemKey "sofa", so they flow
-  // through the same calibration scoring + report.
-  async function generateSofaSubject(subject: string): Promise<OneResult> {
+  // ── Manufacturer Collection (V3.7) — OpenAI only ───────────────────────────
+  // Generate one image per personality for the SELECTED collection category (sofa /
+  // chair / coffee table), sequentially. Each call sends a variant-specific subject;
+  // the shared DNA + Signature Design Language + camera + isolation come from the
+  // master prompt. Results are StyleSamples under the category's golden itemKey, so
+  // they flow through the same calibration scoring + report and appear in that panel.
+  async function generateVariantSubject(category: string, subject: string): Promise<OneResult> {
     try {
       const res = await fetch("/api/generate/style", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: "sofa", subject, styleId: STYLE_ID, count: 1, generatedToday: 0, provider: SOFA_DNA_PROVIDER }),
+        body: JSON.stringify({ category, subject, styleId: STYLE_ID, count: 1, generatedToday: 0, provider: DNA_PROVIDER }),
       });
       const data = await res.json().catch(() => ({}));
       const result = parseStyleResult(res.ok, data);
@@ -221,35 +225,38 @@ export function StyleLabClient() {
     }
   }
 
-  function dryRunSofaDna() {
-    replaceItem("sofa", dryRunSofaDnaSamples({ provider: SOFA_DNA_PROVIDER, model: modelFor(SOFA_DNA_PROVIDER) }));
+  function dryRunCollection(goldenKey: string) {
+    replaceItem(goldenKey, dryRunDnaSamples(goldenKey, { provider: DNA_PROVIDER, model: modelFor(DNA_PROVIDER) }));
   }
 
-  async function generateSofaDna() {
-    setBusy("__sofa_dna__");
+  async function generateCollection(goldenKey: string) {
+    setBusy("__collection__");
     setError("");
     const delayMs = config?.requestDelayMs ?? GENERATION_DEFAULTS.requestDelayMs;
-    const model = modelFor(SOFA_DNA_PROVIDER);
+    const model = modelFor(DNA_PROVIDER);
+    const variants = variantsForCategory(goldenKey);
+    const label = collectionCategory(goldenKey).label;
     const collected: StyleSample[] = [];
     const errors: string[] = [];
     try {
-      for (let i = 0; i < SOFA_VARIATIONS.length; i += 1) {
-        const v = SOFA_VARIATIONS[i];
-        setProgress((pr) => ({ ...pr, __sofa_dna__: `Sofa DNA: ${v.name} (${i + 1}/${SOFA_VARIATIONS.length})…` }));
-        const r = await generateSofaSubject(v.subject);
-        if (r.ok) { collected.push(sofaDnaSample(v, i, r.url, { provider: SOFA_DNA_PROVIDER, model })); replaceItem("sofa", [...collected]); }
+      for (let i = 0; i < variants.length; i += 1) {
+        const v = variants[i];
+        setProgress((pr) => ({ ...pr, __collection__: `${label} DNA: ${v.personality} (${i + 1}/${variants.length})…` }));
+        const r = await generateVariantSubject(v.category, v.subject);
+        if (r.ok) { collected.push(dnaSample(v, i, r.url, { provider: DNA_PROVIDER, model })); replaceItem(goldenKey, [...collected]); }
         else errors.push(`${v.name}: ${r.error}`);
-        if (i < SOFA_VARIATIONS.length - 1 && delayMs > 0) await new Promise((res) => setTimeout(res, delayMs));
+        if (i < variants.length - 1 && delayMs > 0) await new Promise((res) => setTimeout(res, delayMs));
       }
-      if (errors.length) setError(`Sofa DNA: ${errors.join(" · ")}`);
+      if (errors.length) setError(`${label} DNA: ${errors.join(" · ")}`);
     } finally {
       setBusy("");
-      setProgress((pr) => { const next = { ...pr }; delete next.__sofa_dna__; return next; });
+      setProgress((pr) => { const next = { ...pr }; delete next.__collection__; return next; });
     }
   }
 
-  const sofaDnaReady = readyFor(SOFA_DNA_PROVIDER);
-  const sofaDnaBusy = busy === "__sofa_dna__";
+  const collectionReady = readyFor(DNA_PROVIDER);
+  const collectionBusy = busy === "__collection__";
+  const activeLabel = collectionCategory(collectionKey).label;
 
   const settingBusy = busy === "__set__";
 
@@ -329,41 +336,46 @@ export function StyleLabClient() {
 
       <div className="panel" style={{ borderLeft: "3px solid var(--accent, #c98a3a)" }}>
         <div className="topbar" style={{ paddingTop: 0 }}>
-          <h3 style={{ margin: 0 }}>🧬 Sofa DNA Discovery (V3.6)</h3>
+          <h3 style={{ margin: 0 }}>🧬 Manufacturer Collection (V3.7)</h3>
           <span className="spacer" />
-          <span className="muted">OpenAI only · {SOFA_VARIATIONS.length} personalities</span>
+          <span className="muted">OpenAI only · {COLLECTION.length} categories × 10</span>
         </div>
         <p className="muted" style={{ marginTop: 0 }}>
-          Strengthen the Nestudio DNA on sofas alone. Ten lifestyle personalities share one identity
-          (Scandinavian foundation, signature shape language, warm cohesive palette, one lighting signature) but each
-          has a <strong>silhouette readable from shape alone</strong> — <em>same world, different personality</em>.
-          A DNA stress test pairs 5 safe + 5 bold. Results land in the <strong>Sofa</strong> panel below and feed the
-          calibration score.
+          The manufacturer test: ten lifestyle personalities (5 safe + 5 bold) expressed across sofa, chair, and
+          coffee table. They share one <strong>Signature Design Language</strong> (rounded corners, oak detailing,
+          edge treatment, render finish) so everything reads as <em>one furniture collection</em> — recognizable even
+          with colour and material stripped. Each category&apos;s 10 land in its golden panel below for a comparison grid.
         </p>
-        <p className="muted" style={{ margin: "0 0 4px", fontSize: "0.8rem" }}>✅ Safe ({safeVariations().length})</p>
+        <div className="field" style={{ maxWidth: 280 }}>
+          <label>Collection category</label>
+          <select value={collectionKey} onChange={(e) => setCollectionKey(e.target.value)}>
+            {COLLECTION.map((c) => (<option key={c.goldenKey} value={c.goldenKey}>{c.label}</option>))}
+          </select>
+        </div>
+        <p className="muted" style={{ margin: "0 0 4px", fontSize: "0.8rem" }}>✅ Safe ({safeVariants(collectionKey).length})</p>
         <div className="chips" style={{ marginBottom: 8 }}>
-          {safeVariations().map((v: SofaVariation) => (
-            <span key={v.key} className="chip" title={`${v.silhouette} · ${v.material} · ${v.accent}`}>{v.name} · {v.personality}</span>
+          {safeVariants(collectionKey).map((v: Variant) => (
+            <span key={v.key} className="chip" title={`${v.silhouette} · ${v.material} · ${v.accent}`}>{v.personality}</span>
           ))}
         </div>
-        <p className="muted" style={{ margin: "0 0 4px", fontSize: "0.8rem" }}>🔥 Bold ({boldVariations().length})</p>
+        <p className="muted" style={{ margin: "0 0 4px", fontSize: "0.8rem" }}>🔥 Bold ({boldVariants(collectionKey).length})</p>
         <div className="chips" style={{ marginBottom: 8 }}>
-          {boldVariations().map((v: SofaVariation) => (
-            <span key={v.key} className="chip active" title={`${v.silhouette} · ${v.material} · ${v.accent}`}>{v.name} · {v.personality}</span>
+          {boldVariants(collectionKey).map((v: Variant) => (
+            <span key={v.key} className="chip active" title={`${v.silhouette} · ${v.material} · ${v.accent}`}>{v.personality}</span>
           ))}
         </div>
         <details>
-          <summary className="muted">Preview the shared Nestudio DNA</summary>
-          <div className="field"><label>Nestudio DNA (identity layer)</label><textarea readOnly value={NESTUDIO_DNA} style={{ minHeight: 110 }} /></div>
+          <summary className="muted">Preview the shared Nestudio DNA + Signature Design Language</summary>
+          <div className="field"><label>Nestudio DNA (identity + signature design language)</label><textarea readOnly value={NESTUDIO_DNA} style={{ minHeight: 130 }} /></div>
         </details>
         <div className="toolbar">
-          <button className="btn btn-primary" disabled={!!busy} onClick={dryRunSofaDna}>Dry run 10 (no cost)</button>
-          <button className="btn btn-green" disabled={!sofaDnaReady || !!busy} title={sofaDnaReady ? "Generate 10 sofa personalities via OpenAI" : "Enable generation + configure OpenAI"} onClick={generateSofaDna}>
-            Generate 10 sofas (OpenAI)
+          <button className="btn btn-primary" disabled={!!busy} onClick={() => dryRunCollection(collectionKey)}>Dry run {activeLabel} 10 (no cost)</button>
+          <button className="btn btn-green" disabled={!collectionReady || !!busy} title={collectionReady ? `Generate 10 ${activeLabel} personalities via OpenAI` : "Enable generation + configure OpenAI"} onClick={() => generateCollection(collectionKey)}>
+            Generate 10 {activeLabel} (OpenAI)
           </button>
         </div>
-        {sofaDnaBusy && progress.__sofa_dna__ && (
-          <p className="muted" style={{ fontSize: "0.82rem" }}>⏳ {progress.__sofa_dna__} (sequential, rate-limit safe)</p>
+        {collectionBusy && progress.__collection__ && (
+          <p className="muted" style={{ fontSize: "0.82rem" }}>⏳ {progress.__collection__} (sequential, rate-limit safe)</p>
         )}
       </div>
 
