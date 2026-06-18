@@ -1,4 +1,4 @@
-import { MASTER_PROMPT, NEGATIVE_PROMPT, CATEGORY_PROMPTS, STYLE_TOKENS } from "@/lib/prompts";
+import { MASTER_PROMPT, NEGATIVE_PROMPT, CATEGORY_PROMPTS, STYLE_TOKENS, NESTUDIO_DNA } from "@/lib/prompts";
 import { type FactoryCategory } from "@/lib/types";
 
 // Nestudio Master Style V2 (V3.4). The multi-style experiments (royal_match /
@@ -26,12 +26,12 @@ export const NESTUDIO_V2: StyleFamily = {
   name: "Nestudio Master Style V2",
   shortLabel: "Nestudio V2",
   description:
-    "Premium collectible game asset — slightly stylized, highly readable at 64/128px, " +
-    "clean Pixar-inspired forms. Not toy-like, not puffy, not realistic, not storybook.",
-  descriptors:
-    "premium collectible game asset, slightly stylized with clean Pixar-inspired readability, " +
-    "smooth confident forms, refined matte materials with restrained sheen, bold readable silhouette, " +
-    "neutral premium palette — never toy-like, puffy, plastic, painterly, or cluttered",
+    "Premium collectible room objects with a modern Scandinavian DNA — soft rounded geometry, " +
+    "tactile natural materials, warm cohesive palette, one shared lighting signature. " +
+    "Same world, different personality. Not toy-like, not puffy, not realistic, not icon-pack.",
+  // V3.5 — the identity layer is the Nestudio DNA itself (not a generic "neutral
+  // premium palette"). Personality varies per-object via the subject, never here.
+  descriptors: NESTUDIO_DNA,
   tokens: STYLE_TOKENS,
 };
 

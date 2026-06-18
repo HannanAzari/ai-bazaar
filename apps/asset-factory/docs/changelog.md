@@ -2,6 +2,28 @@
 
 Newest first. Versions before V3.4 are summarized from the README/commit history.
 
+## V3.5 — Nestudio DNA Discovery (sofa experiment)
+
+- **Diagnosis:** the V3.4 prompt defined identity by *negation* and used a generic
+  style layer ("neutral premium palette", "game inventory item") → outputs read as
+  generic furniture icons that don't belong to one world.
+- **Nestudio Visual DNA** ([`lib/prompts.ts`](../lib/prompts.ts) `NESTUDIO_DNA`): the
+  positive identity signature — modern Scandinavian influence, soft rounded geometry,
+  tactile natural materials, a warm cohesive palette with one confident accent, and a
+  single locked warm lighting/rendering signature. Wired into the `nestudio_v2` style
+  descriptors. **Style language only** — camera, transparency, and object isolation
+  untouched.
+- **Negative prompt** now bans the generic-identity failure modes (generic furniture
+  catalog, icon pack, clipart, realistic furniture photography, luxury mansion,
+  children's furniture).
+- **Sofa DNA Discovery** ([`lib/sofa-dna.ts`](../lib/sofa-dna.ts)): ten sofa
+  personalities (Scandi Oak … Accent Mustard) that share the DNA but differ in
+  silhouette / material / colour / character — *same world, different personality*.
+  Runs through the existing calibration workflow (OpenAI only, itemKey `sofa`); new
+  "🧬 Sofa DNA Discovery" panel in the Style Lab.
+- Tests: **198 passing** (added the `sofa-dna` suite; updated `styles` / `prompts` /
+  `generation-job` for the DNA layer). Typecheck · lint · build green.
+
 ## V3.4 — Nestudio Master Style V2 + OpenAI-first calibration
 
 - **Retired** the three style experiments (`royal_match` / `modern_designer` /

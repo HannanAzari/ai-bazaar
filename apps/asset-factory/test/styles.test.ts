@@ -34,7 +34,7 @@ describe("nestudio master style v2", () => {
     const p = buildStyledPrompt("chair", "nestudio_v2", { subject: "accent chair" });
     expect(p.startsWith(MASTER_PROMPT)).toBe(true);
     expect(p).toContain("accent chair");
-    expect(p).toContain("premium collectible game asset");
+    expect(p).toContain("Scandinavian"); // the DNA identity layer
   });
 
   it("never re-opens a banned door (obeys camera + object specs)", () => {
@@ -48,9 +48,17 @@ describe("nestudio master style v2", () => {
     expect(pair.negativePrompt).toBe(NEGATIVE_PROMPT);
   });
 
-  it("master preview is subject-less and carries the V2 descriptors", () => {
+  it("master preview is subject-less and carries the Nestudio DNA (V3.5)", () => {
     const preview = styleMasterPreview("nestudio_v2");
     expect(preview.startsWith(MASTER_PROMPT)).toBe(true);
-    expect(preview).toContain("slightly stylized");
+    expect(preview).toContain("Scandinavian");
+    expect(preview).toContain("warm cozy palette");
+  });
+
+  it("the style descriptors no longer steer toward generic catalog furniture (V3.5)", () => {
+    const p = buildStyledPrompt("sofa", "nestudio_v2");
+    expect(p).toContain("Scandinavian");
+    expect(p).toContain("soft rounded geometry");
+    expect(p.toLowerCase()).not.toContain("neutral premium palette");
   });
 });

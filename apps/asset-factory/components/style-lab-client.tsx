@@ -4,8 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { type StyleSample, type SampleScores } from "@/lib/types";
 import { GENERATION_DEFAULTS, modelForProvider, providerEnabled, providerTokenConfigured, type GenerationConfig } from "@/lib/generation-config";
-import { NEGATIVE_PROMPT } from "@/lib/prompts";
+import { NEGATIVE_PROMPT, NESTUDIO_DNA } from "@/lib/prompts";
 import { NESTUDIO_V2, styleMasterPreview } from "@/lib/styles";
+import {
+  SOFA_VARIATIONS,
+  SOFA_DNA_PROVIDER,
+  dryRunSofaDnaSamples,
+  sofaDnaSample,
+} from "@/lib/sofa-dna";
 import { PROVIDERS, providerLabel, type ProviderId } from "@/lib/providers";
 import {
   GOLDEN_ITEMS,
@@ -192,6 +198,56 @@ export function StyleLabClient() {
     });
   }
 
+  // ── Sofa DNA Discovery (V3.5) — OpenAI only, sofa only ─────────────────────
+  // Generate one image per sofa personality, sequentially. Each call sends a
+  // variation-specific subject; the shared DNA + camera + isolation come from the
+  // master prompt. Results are StyleSamples under itemKey "sofa", so they flow
+  // through the same calibration scoring + report.
+  async function generateSofaSubject(subject: string): Promise<OneResult> {
+    try {
+      const res = await fetch("/api/generate/style", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: "sofa", subject, styleId: STYLE_ID, count: 1, generatedToday: 0, provider: SOFA_DNA_PROVIDER }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const result = parseStyleResult(res.ok, data);
+      return result.ok ? { ok: true, url: result.imageUrls[0] } : { ok: false, error: result.error };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Generation failed." };
+    }
+  }
+
+  function dryRunSofaDna() {
+    replaceItem("sofa", dryRunSofaDnaSamples({ provider: SOFA_DNA_PROVIDER, model: modelFor(SOFA_DNA_PROVIDER) }));
+  }
+
+  async function generateSofaDna() {
+    setBusy("__sofa_dna__");
+    setError("");
+    const delayMs = config?.requestDelayMs ?? GENERATION_DEFAULTS.requestDelayMs;
+    const model = modelFor(SOFA_DNA_PROVIDER);
+    const collected: StyleSample[] = [];
+    const errors: string[] = [];
+    try {
+      for (let i = 0; i < SOFA_VARIATIONS.length; i += 1) {
+        const v = SOFA_VARIATIONS[i];
+        setProgress((pr) => ({ ...pr, __sofa_dna__: `Sofa DNA: ${v.name} (${i + 1}/${SOFA_VARIATIONS.length})…` }));
+        const r = await generateSofaSubject(v.subject);
+        if (r.ok) { collected.push(sofaDnaSample(v, i, r.url, { provider: SOFA_DNA_PROVIDER, model })); replaceItem("sofa", [...collected]); }
+        else errors.push(`${v.name}: ${r.error}`);
+        if (i < SOFA_VARIATIONS.length - 1 && delayMs > 0) await new Promise((res) => setTimeout(res, delayMs));
+      }
+      if (errors.length) setError(`Sofa DNA: ${errors.join(" · ")}`);
+    } finally {
+      setBusy("");
+      setProgress((pr) => { const next = { ...pr }; delete next.__sofa_dna__; return next; });
+    }
+  }
+
+  const sofaDnaReady = readyFor(SOFA_DNA_PROVIDER);
+  const sofaDnaBusy = busy === "__sofa_dna__";
+
   const settingBusy = busy === "__set__";
 
   return (
@@ -268,6 +324,36 @@ export function StyleLabClient() {
         </details>
       </div>
 
+      <div className="panel" style={{ borderLeft: "3px solid var(--accent, #c98a3a)" }}>
+        <div className="topbar" style={{ paddingTop: 0 }}>
+          <h3 style={{ margin: 0 }}>🧬 Sofa DNA Discovery (V3.5)</h3>
+          <span className="spacer" />
+          <span className="muted">OpenAI only · {SOFA_VARIATIONS.length} personalities</span>
+        </div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Discover the Nestudio visual DNA on sofas alone. Ten sofa personalities share one identity
+          (Scandinavian, soft rounded geometry, warm cohesive palette, one lighting signature) but differ in
+          silhouette, material, colour, and character — <em>same world, different personality</em>. Results land in
+          the <strong>Sofa</strong> panel below and feed the calibration score.
+        </p>
+        <div className="chips" style={{ marginBottom: 8 }}>
+          {SOFA_VARIATIONS.map((v) => (<span key={v.key} className="chip" title={`${v.silhouette} · ${v.material} · ${v.color}`}>{v.name}</span>))}
+        </div>
+        <details>
+          <summary className="muted">Preview the shared Nestudio DNA</summary>
+          <div className="field"><label>Nestudio DNA (identity layer)</label><textarea readOnly value={NESTUDIO_DNA} style={{ minHeight: 110 }} /></div>
+        </details>
+        <div className="toolbar">
+          <button className="btn btn-primary" disabled={!!busy} onClick={dryRunSofaDna}>Dry run 10 (no cost)</button>
+          <button className="btn btn-green" disabled={!sofaDnaReady || !!busy} title={sofaDnaReady ? "Generate 10 sofa personalities via OpenAI" : "Enable generation + configure OpenAI"} onClick={generateSofaDna}>
+            Generate 10 sofas (OpenAI)
+          </button>
+        </div>
+        {sofaDnaBusy && progress.__sofa_dna__ && (
+          <p className="muted" style={{ fontSize: "0.82rem" }}>⏳ {progress.__sofa_dna__} (sequential, rate-limit safe)</p>
+        )}
+      </div>
+
       {GOLDEN_ITEMS.map((item) => {
         const mine = samplesFor(item.key);
         const approved = mine.filter((s) => s.decision === "approved").length;
@@ -332,6 +418,8 @@ function SampleCard({
   const scores = s.scores ?? emptyScores();
   const overall = s.scores ? sampleOverall(s.scores) : 0;
   const isCalibrationSample = s.provider === CALIBRATION_PROVIDER && s.styleId === NESTUDIO_V2.id;
+  // Sofa DNA samples encode the personality name as "Name — subject".
+  const personality = s.subject && s.subject.includes("—") ? s.subject.split("—")[0].trim() : "";
 
   function setDim(key: keyof SampleScores, value: number) {
     onScore(s.id, { ...scores, [key]: value });
@@ -342,7 +430,7 @@ function SampleCard({
       <div className="thumb" title={s.prompt}><AssetThumb src={s.imageUrl} alt={`${label} ${providerLabel(s.provider)} v${s.variation + 1}`} /></div>
       <div className="card-body">
         <div className="card-meta">
-          <span className="muted">v{s.variation + 1} · {providerLabel(s.provider)}</span>
+          <span className="muted">{personality || `v${s.variation + 1}`} · {providerLabel(s.provider)}</span>
           {s.decision === "approved" && <span className="pill approved">✓</span>}
           {s.closest && <span className="pill approved">★</span>}
           {s.scores && <span className="pill queued">{overall}/100</span>}

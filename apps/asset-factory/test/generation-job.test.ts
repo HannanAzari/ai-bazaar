@@ -34,7 +34,7 @@ describe("generation job builder", () => {
   it("resolves any styleId to the locked nestudio_v2 identity", () => {
     const j = job({ styleId: "anything" });
     expect(j.styleId).toBe("nestudio_v2");
-    expect(j.prompt).toContain("premium collectible game asset");
+    expect(j.prompt).toContain("Scandinavian"); // the DNA identity layer
   });
 
   it("dry-run candidates are needs_review placeholders with unique slugs", () => {

@@ -55,18 +55,43 @@ all "no X" language lives in the negative prompt).
 
 ---
 
+## Nestudio Visual DNA (V3.5 — the identity layer)
+
+V3.4 locked the camera + object rules but left the **style language** generic
+("neutral premium palette", "game inventory item"), so outputs read as generic
+furniture icons that don't belong to one world. V3.5 adds the **Nestudio DNA**
+([`NESTUDIO_DNA`](../lib/prompts.ts)) — the positive signature that makes every object
+recognizably Nestudio. It is **style language only**: it does not touch the camera,
+transparency, or object isolation.
+
+- **Modern Scandinavian influence**, soft rounded geometry, gently chamfered edges,
+  designer-furniture craftsmanship, friendly and approachable.
+- **Tactile natural materials** (oiled oak, wool, bouclé, felt, soft leather, matte
+  ceramic) in a **warm cozy palette of muted earthy tones with ONE confident accent**.
+- **One locked lighting/rendering signature**: cohesive stylized 3D render, soft matte
+  finish, gentle warm key light from the upper-left, soft ambient fill, smooth
+  subtle gradients — the *same* on every object.
+
+**Personality varies per object via the subject, never by changing the DNA** — the
+goal is *"same world, different personality."* Discovered on the sofa-only experiment
+([`lib/sofa-dna.ts`](../lib/sofa-dna.ts), ten sofa personalities); apply category by
+category afterwards.
+
 ## Master prompt
 
 ```
-Premium collectible game asset, a polished game-economy item. Slightly stylized with
-clean, Pixar-inspired readability, optimized to stay crisp and recognizable at 64px
-and 128px. Exactly one isolated object and nothing else, presented alone on a
-transparent background as a transparent PNG. Consistent 3/4 isometric camera at
-roughly a 30-degree downward angle, the object centered and filling most of the
-frame, fully in view. Identical camera, scale, and framing for every asset. Soft,
-even studio lighting with subtle ambient occlusion and a clean, bold silhouette.
-Designed for a game inventory and room-decoration system.
+Premium collectible game asset, a polished, characterful room object. Slightly
+stylized with clean, Pixar-inspired readability, optimized to stay crisp and
+recognizable at 64px and 128px. Exactly one isolated object and nothing else,
+presented alone on a transparent background as a transparent PNG. Consistent 3/4
+isometric camera at roughly a 30-degree downward angle, the object centered and
+filling most of the frame, fully in view. Identical camera, scale, and framing for
+every asset. Soft studio lighting with subtle ambient occlusion and a clean, bold
+silhouette. Part of one cohesive, recognizable Nestudio world.
 ```
+
+The **DNA** above is appended as the style-descriptor layer, followed by the style
+tokens, so every prompt = master spine + subject + DNA + tokens.
 
 ## Negative prompt
 
@@ -77,7 +102,10 @@ cluttered, busy composition, text, watermark, logo, signature, photorealism,
 realistic photography, painterly illustration, storybook rendering, flat vector,
 toy-like, puffy, inflated, plastic toy, glossy plastic, random perspective,
 front view, side view, top-down, cropped object, dramatic shadows, sunset lighting,
-golden hour, white background, scene background
+golden hour, white background, scene background, generic furniture catalog,
+furniture showroom, icon pack, app icon, clipart, sticker, realistic furniture
+photography, product photograph, luxury mansion furniture, ornate, baroque carving,
+children's furniture, kids furniture
 ```
 
 Per-category descriptors stay single-object (`"a single accent chair"`, …) so the
