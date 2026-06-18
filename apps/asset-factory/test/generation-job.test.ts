@@ -28,13 +28,13 @@ describe("generation job builder", () => {
     expect(j.negativePrompt).toBe(NEGATIVE_PROMPT);
     expect(j.estimatedCost).toBeCloseTo(0.03, 5);
     expect(j.modelProvider).toBe("replicate");
-    expect(j.styleId).toBe("royal_match"); // default style family
+    expect(j.styleId).toBe("nestudio_v2"); // the single locked identity
   });
 
-  it("carries and applies the chosen style family", () => {
-    const j = job({ styleId: "clash" });
-    expect(j.styleId).toBe("clash");
-    expect(j.prompt).toContain("chunky");
+  it("resolves any styleId to the locked nestudio_v2 identity", () => {
+    const j = job({ styleId: "anything" });
+    expect(j.styleId).toBe("nestudio_v2");
+    expect(j.prompt).toContain("premium collectible game asset");
   });
 
   it("dry-run candidates are needs_review placeholders with unique slugs", () => {

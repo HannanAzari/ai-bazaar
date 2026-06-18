@@ -46,17 +46,19 @@ describe("prompt system", () => {
     }
   });
 
-  it("is the premium game identity — single isolated object, transparent, no props", () => {
-    expect(STYLE_NAME).toBe("Nestudio Premium Game Style V1");
-    expect(STYLE_ID).toBe("premium_game_v1");
-    expect(MASTER_PROMPT).toContain("Single isolated object");
-    expect(MASTER_PROMPT).toContain("Transparent PNG background");
-    expect(MASTER_PROMPT).toContain("No platform");
-    expect(MASTER_PROMPT).toContain("No environment");
-    expect(MASTER_PROMPT).toContain("30-degree isometric");
-    // The storybook identity must be gone.
-    expect(MASTER_PROMPT.toLowerCase()).not.toContain("storybook");
-    expect(MASTER_PROMPT.toLowerCase()).not.toContain("golden-hour");
+  it("is the Nestudio Master Style V2 identity — single isolated object, transparent, locked camera", () => {
+    expect(STYLE_NAME).toBe("Nestudio Master Style V2");
+    expect(STYLE_ID).toBe("nestudio_v2");
+    const lower = MASTER_PROMPT.toLowerCase();
+    expect(lower).toContain("one isolated object");
+    expect(lower).toContain("transparent");
+    expect(lower).toContain("isometric");
+    expect(lower).toContain("64px");
+    expect(lower).toContain("128px");
+    // The retired identities + storybook direction must be gone.
+    expect(lower).not.toContain("storybook");
+    expect(lower).not.toContain("golden-hour");
+    expect(lower).not.toContain("premium mobile game asset");
   });
 
   it("every category descriptor is a single object (no extra props)", () => {

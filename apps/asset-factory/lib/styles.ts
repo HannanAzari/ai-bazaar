@@ -1,14 +1,15 @@
-import { MASTER_PROMPT, NEGATIVE_PROMPT, CATEGORY_PROMPTS } from "@/lib/prompts";
+import { MASTER_PROMPT, NEGATIVE_PROMPT, CATEGORY_PROMPTS, STYLE_TOKENS } from "@/lib/prompts";
 import { type FactoryCategory } from "@/lib/types";
 
-// Multi-style calibration (V3.2). Three candidate visual identities to compare
-// before mass generation. Every family shares the SAME hard rules (the master
-// spine: single isolated object, transparent PNG, 30° isometric, no props) and the
-// SAME universal negative prompt — they differ only in rendering *descriptors* and
-// style tokens. References (Royal Match / Clash) are QUALITY references only; we
-// never mimic copyrighted art.
+// Nestudio Master Style V2 (V3.4). The multi-style experiments (royal_match /
+// modern_designer / clash) are RETIRED — we now calibrate ONE locked identity:
+// `nestudio_v2`. The "family" surface is kept (as a single entry) so generation
+// plumbing, jobs, and the UI keep working unchanged while there is exactly one
+// style to pick. The hard camera + object rules live in lib/nestudio-spec.ts and
+// are folded into MASTER_PROMPT; this module just carries the style descriptors +
+// tokens and composes per-category prompts.
 
-export type StyleFamilyId = "royal_match" | "modern_designer" | "clash";
+export type StyleFamilyId = "nestudio_v2";
 
 export type StyleFamily = {
   id: StyleFamilyId;
@@ -20,48 +21,31 @@ export type StyleFamily = {
   tokens: string[];
 };
 
-export const STYLE_FAMILIES: StyleFamily[] = [
-  {
-    id: "royal_match",
-    name: "Royal Match Inspired",
-    shortLabel: "Royal Match",
-    description: "Glossy, colorful, rounded, playful — premium casual game art.",
-    descriptors:
-      "glossy colorful premium-casual game art, vibrant saturated palette, smooth rounded forms, " +
-      "soft plastic-like sheen, cheerful and inviting, playful polish",
-    tokens: ["glossy", "colorful", "playful", "rounded", "premium casual"],
-  },
-  {
-    id: "modern_designer",
-    name: "Modern Designer",
-    shortLabel: "Modern",
-    description: "Apple-like, minimalist, clean materials — premium furniture catalog.",
-    descriptors:
-      "minimalist modern designer catalog look, Apple-like clean materials, refined matte surfaces with subtle gloss, " +
-      "neutral sophisticated palette, premium furniture presentation, understated elegance",
-    tokens: ["minimalist", "clean materials", "matte finish", "modern", "designer catalog"],
-  },
-  {
-    id: "clash",
-    name: "Clash Inspired",
-    shortLabel: "Clash",
-    description: "Chunky, toy-like, bold silhouettes — highly readable game collectible.",
-    descriptors:
-      "chunky toy-like collectible, bold exaggerated silhouette, thick rounded forms, strong readable shapes, " +
-      "hand-crafted stylized game-art finish, slightly oversized proportions",
-    tokens: ["chunky", "toy-like", "bold silhouette", "highly readable", "collectible"],
-  },
-];
+export const NESTUDIO_V2: StyleFamily = {
+  id: "nestudio_v2",
+  name: "Nestudio Master Style V2",
+  shortLabel: "Nestudio V2",
+  description:
+    "Premium collectible game asset — slightly stylized, highly readable at 64/128px, " +
+    "clean Pixar-inspired forms. Not toy-like, not puffy, not realistic, not storybook.",
+  descriptors:
+    "premium collectible game asset, slightly stylized with clean Pixar-inspired readability, " +
+    "smooth confident forms, refined matte materials with restrained sheen, bold readable silhouette, " +
+    "neutral premium palette — never toy-like, puffy, plastic, painterly, or cluttered",
+  tokens: STYLE_TOKENS,
+};
+
+export const STYLE_FAMILIES: StyleFamily[] = [NESTUDIO_V2];
 
 export const STYLE_FAMILY_IDS: StyleFamilyId[] = STYLE_FAMILIES.map((s) => s.id);
-export const DEFAULT_STYLE_FAMILY: StyleFamilyId = "royal_match";
+export const DEFAULT_STYLE_FAMILY: StyleFamilyId = "nestudio_v2";
 
 export function isStyleFamily(value: string): value is StyleFamilyId {
-  return (STYLE_FAMILY_IDS as string[]).includes(value);
+  return value === "nestudio_v2";
 }
 
 export function getStyleFamily(id: string): StyleFamily {
-  return STYLE_FAMILIES.find((s) => s.id === id) ?? STYLE_FAMILIES[0];
+  return STYLE_FAMILIES.find((s) => s.id === id) ?? NESTUDIO_V2;
 }
 
 export function styleLabel(id: string): string {
@@ -69,9 +53,9 @@ export function styleLabel(id: string): string {
 }
 
 /**
- * Compose a style-specific prompt. Always begins with the shared master spine, so
- * every family keeps the hard rules; the family descriptors + tokens steer the
- * look. The negative prompt is universal (see NEGATIVE_PROMPT).
+ * Compose the Nestudio V2 prompt. Always begins with the shared master spine (which
+ * already carries the locked camera + object rules), then the style descriptors and
+ * tokens. The negative prompt is universal (see NEGATIVE_PROMPT).
  */
 export function buildStyledPrompt(
   category: FactoryCategory,

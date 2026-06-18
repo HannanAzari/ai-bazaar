@@ -83,7 +83,7 @@ describe("executeGeneration", () => {
 });
 
 describe("executeStyleGeneration (Style Lab real generation)", () => {
-  const styleArgs = { category: "chair" as const, subject: "accent chair", styleId: "royal_match", count: 1, config };
+  const styleArgs = { category: "chair" as const, subject: "accent chair", styleId: "nestudio_v2", count: 1, config };
 
   it("returns the provider's real image URLs (no placeholders)", async () => {
     const out = await executeStyleGeneration({ ...styleArgs, runner: urlRunner(["https://cdn/r/1.png"]) });

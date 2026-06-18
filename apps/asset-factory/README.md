@@ -64,6 +64,21 @@ room engine, not production auth, not user-facing routes.
 > at 3; both `ASSET_GENERATION_ENABLED` and `OPENAI_GENERATION_ENABLED` gate it.
 > See [docs/generation-ops.md](docs/generation-ops.md).
 
+> **V3.4 — Nestudio Master Style V2 + OpenAI-first calibration.** The three style
+> experiments (`royal_match` / `modern_designer` / `clash`) are **retired** for ONE
+> locked identity: **`nestudio_v2`** — a premium collectible game asset, readable at
+> 64/128px, slightly stylized (not toy-like/puffy/realistic/storybook). Two locked
+> specs ([`lib/nestudio-spec.ts`](lib/nestudio-spec.ts)) — **Camera Spec V1** (3/4
+> isometric ~30°, centered, no floor/pedestal/scene) and **Object Rules V1** (one
+> isolated object, transparent PNG, no props) — are folded into the master prompt.
+> The Style Lab is now a **Calibration Session**: generate the fixed **Golden
+> Calibration Set** (10 items) from **OpenAI** (the calibration provider; Replicate
+> is comparison-only), then approve/reject, note, and **score five dimensions**
+> (consistency, readability, silhouette, style fit, production readiness → **0–100**).
+> A **Style Lock** gate unlocks V4 only when **all 10 are approved AND the calibration
+> score ≥ 85** (OpenAI `nestudio_v2` only); the **Calibration Report** (`/style-report`)
+> summarizes it. Full guide: [docs/premium-style.md](docs/premium-style.md).
+
 ---
 
 ## How it relates to the main app
@@ -200,13 +215,14 @@ The top navigation has four tabs; all read the same repository (Local or Shared)
   per-provider cost, then **Dry run** (zero cost) or **Generate (real)** when enabled.
   A cost panel and job list (with cancel) track spend. Outputs enter `needs_review`
   and are auto-validated. See [docs/generation-ops.md](docs/generation-ops.md).
-- **Style Lab** — the **Golden Style Pack** calibration (V3.1 → V3.3). Generate +
-  compare 5 variations **per style family** (Royal Match / Modern Designer / Clash)
-  for 10 golden items side-by-side, approve / reject / mark-closest. A **Provider**
-  selector + a **Shootout** button (1 image from each provider, side-by-side) compare
-  engines. Pick ONE identity + provider before scaling.
-- **Style Report** — per-style approvals, closest picks, average scores, and the
-  **winning style** across the Style Lab samples (V3.2).
+- **Style Lab** — the **Calibration Session** (V3.4). One locked identity
+  (`nestudio_v2`). Generate the **Golden Calibration Set** (10 items) from **OpenAI**
+  (the calibration provider; Replicate is comparison-only via **Shootout**),
+  approve/reject, add notes, and **score five dimensions** (0–100). A live **Style
+  Lock** banner shows whether V4 may proceed (all 10 approved AND score ≥ 85).
+- **Calibration** (`/style-report`) — the **Calibration Report** (V3.4): approved /
+  rejected assets, average + per-dimension scores, visual-consistency notes, remaining
+  issues, and the style-lock status.
 - **Sandbox** — the **Room Designer Sandbox** runs the same select-and-place logic
   as the main app's AI Room Designer on **approved** assets (a chosen pack or all),
   for a creator type + style. It shows placed assets (zone + action + reason),
@@ -341,20 +357,22 @@ apps/asset-factory/
                   asset-thumb, import-panel, quality-badges, factory-nav,
                   packs-client, sandbox-client, reports-client, generate-client,
                   style-lab-client, style-report-client
-  lib/            types, prompts, styles, providers, validation, quality, transitions, export,
-                  activity, sample-data, sample-packs, store, auth, slug, reviewer, runtime-mode,
+  lib/            types, prompts, nestudio-spec, styles, providers, validation, quality, transitions,
+                  export, activity, sample-data, sample-packs, store, auth, slug, reviewer, runtime-mode,
                   zones, import-validation, quality-score, reports, sandbox,
                   generation-config, generation-job, generation-validate, style-generate-runner,
                   image-provider, replicate-server, openai-server, server-generate, style-lab,
-                  style-lab-store, api-auth, supabase-server, server-candidates, server-storage,
-                  mappers, repo/{types,local,remote,index}
-  docs/           asset-bible.md, catalog-validation.md, generation-ops.md, premium-style.md
+                  calibration, style-lab-store, api-auth, supabase-server, server-candidates,
+                  server-storage, mappers, repo/{types,local,remote,index}
+  docs/           asset-bible.md, catalog-validation.md, generation-ops.md, premium-style.md,
+                  changelog.md   (HANDOFF_V3_4.md lives at the app root)
   exports/        approved-assets.json, approved-assets.ts, asset-packs.json (generated examples)
   supabase/       schema.sql, migrations/{0001_asset_factory,0002_asset_packs,0003_generation_jobs,
                   0004_job_style}.sql
-  test/           prompts · styles · providers · validation · quality · transitions · export ·
-                  repo-local · mappers · mode · activity · packs · import-validation · quality-score ·
-                  reports · sandbox · generation-config · generation-job · generation-validate ·
-                  style-generate-runner · replicate-server · openai-server · server-generate · style-lab
+  test/           prompts · nestudio-spec · styles · providers · validation · quality · transitions ·
+                  export · repo-local · mappers · mode · activity · packs · import-validation ·
+                  quality-score · reports · sandbox · generation-config · generation-job ·
+                  generation-validate · style-generate-runner · replicate-server · openai-server ·
+                  server-generate · style-lab · calibration
   middleware.ts   password gate (pages); API routes self-guard
 ```

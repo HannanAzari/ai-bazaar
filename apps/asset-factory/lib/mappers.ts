@@ -235,7 +235,7 @@ export function rowToJob(r: GenerationJobRow): GenerationJob {
     pack: r.pack,
     count: r.count,
     subject: r.subject,
-    styleId: r.style_id ?? "premium_game_v1",
+    styleId: r.style_id ?? "nestudio_v2",
     prompt: r.prompt,
     negativePrompt: r.negative_prompt,
     modelProvider: r.model_provider,

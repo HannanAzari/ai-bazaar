@@ -276,9 +276,18 @@ export type GenerationJob = {
 
 export type StyleDecision = "pending" | "approved" | "rejected";
 
+/** Five-dimension calibration score for one sample (V3.4), each 0–10. */
+export type SampleScores = {
+  consistency: number;
+  readability: number;
+  silhouette: number;
+  styleFit: number;
+  productionReadiness: number;
+};
+
 /** One generated style-calibration variation. Style Lab samples are SEPARATE from
- * catalog candidates — they exist only to choose the golden visual identity and are
- * never exported. */
+ * catalog candidates — they exist only to calibrate the golden visual identity and
+ * are never exported. */
 export type StyleSample = {
   id: string;
   itemKey: string;
@@ -296,6 +305,10 @@ export type StyleSample = {
   decision: StyleDecision;
   /** Marked as the closest variation to the Nestudio identity (one per item+style). */
   closest: boolean;
+  /** Five-dimension calibration scores (V3.4), set during a Calibration Session. */
+  scores?: SampleScores;
+  /** Free-form reviewer note for this sample (V3.4). */
+  note?: string;
   createdAt: string;
 };
 

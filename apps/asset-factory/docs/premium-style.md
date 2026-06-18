@@ -1,106 +1,141 @@
-# Nestudio Premium Game Style V1 (V3.1)
+# Nestudio Master Style V2 (V3.4)
 
-The visual identity for **AI-generated** Nestudio assets. It replaces the earlier
-storybook generation direction, whose outputs read as dioramas / scenes / cozy
-illustrations with platforms and extra props. The new target is **polished mobile
-game collectibles**.
+The **single, locked** visual identity for AI-generated Nestudio assets. V3.4
+**retires the multi-style experiments** (`royal_match` / `modern_designer` /
+`clash`) and the V3.1 "Premium Game Style V1" spine in favour of ONE direction —
+`nestudio_v2` — that we calibrate, score, and lock before any mass generation.
 
-> **Quality references (do NOT mimic the art):** Clash of Clans asset quality,
-> Royal Match readability, Hay Day object presentation. We borrow their *bar for
-> craft and clarity* — never their copyrighted designs.
+> **Quality references (do NOT mimic the art):** premium-casual mobile games for the
+> bar on craft and clarity; Disney/Pixar for readability. We borrow the *standard*,
+> never copyrighted designs. This is **not** a Royal Match clone, a Clash clone, an
+> Apple product render, or photorealism.
 
 This is the source of truth for the generation prompt system
-([`../lib/prompts.ts`](../lib/prompts.ts)). The cozy storybook direction still
-governs the village/room art in the main app; this document governs **what we
+([`../lib/prompts.ts`](../lib/prompts.ts)) and the locked specs
+([`../lib/nestudio-spec.ts`](../lib/nestudio-spec.ts)). The cozy storybook direction
+still governs the village/room art in the main app; this document governs **what we
 generate into the catalog**.
-
-> **V3.2 — Multi-style calibration.** Before locking ONE identity we now compare
-> **three style families** ([`../lib/styles.ts`](../lib/styles.ts)), all sharing
-> the hard rules below (single object, transparent PNG, 30° isometric, no props)
-> and the same universal negative prompt — differing only in rendering:
-> - **Royal Match Inspired** (`royal_match`) — glossy, colorful, rounded, playful (premium casual).
-> - **Modern Designer** (`modern_designer`) — Apple-like, minimalist, clean materials (furniture catalog).
-> - **Clash Inspired** (`clash`) — chunky, toy-like, bold silhouettes, highly readable (collectible).
->
-> The chosen style is selectable on **/generate** and **/style-lab**, stored on each
-> generation job (`styleId`). The Style Lab generates **5 variations per style** for
-> each golden item (side-by-side), and the **Style Report** (`/style-report`) tallies
-> approvals + closest picks per style and names a **winning style**. The references
-> above remain quality references only — never mimic copyrighted art.
 
 ---
 
-## Core principles
+## Target visual identity
 
-**Object only.** Generate exactly ONE asset. Never rooms, corners, scenes,
-environments, backgrounds, furniture sets, platforms, pedestals, floors, rugs, or
-extra props. A chair is *just the chair* — not chair + lamp + book + plant.
+A **premium collectible game asset** — a polished game-economy / inventory item:
 
-**Rendering.** Polished mobile-game rendering: soft glossy materials, rounded
-edges, toy-like appeal, premium collectible feel. Avoid photorealism, painterly
-illustration, storybook rendering, and flat vector.
+- highly readable at **64px** and **128px**,
+- **slightly stylized** with clean, Pixar-inspired readability,
+- bold, clean silhouette; smooth confident forms; refined matte materials with
+  restrained sheen; neutral premium palette.
 
-**Camera.** Always a consistent **30° isometric**, centered, full object visible,
-consistent orientation. Never perspective / front / side / random angles.
+**Not:** toy-like · puffy · realistic · storybook · painterly · plastic · cluttered.
 
-**Background.** **Transparent PNG only.** Never a white background, scene, floor
-plane, platform, pedestal, or shadow catcher.
+---
 
-**Lighting.** Soft studio lighting, subtle ambient occlusion, controlled
-highlights. Avoid dramatic shadows, sunset / golden-hour, cinematic lighting.
+## Nestudio Camera Spec V1 (locked)
 
-**Readability.** Must stay readable at **64×64, 96×96, 128×128**. If detail
-disappears at those sizes, simplify the design.
+One camera for the entire catalog so every object reads as a single set
+([`NESTUDIO_CAMERA_SPEC_V1`](../lib/nestudio-spec.ts)):
+
+- 3/4 isometric view, approximately **30° downward** angle
+- object **centered**, **filling most of the frame**, **fully visible (no cropping)**
+- **no pedestal, no floor/ground plane, no environment, no room scene, no shadow platform**
+- **identical** camera, scale, and framing across every object
+
+## Nestudio Object Rules V1 (locked)
+
+Exactly **one** object — a chair is the chair, never chair + lamp + rug + side table
+([`NESTUDIO_OBJECT_RULES_V1`](../lib/nestudio-spec.ts)):
+
+- single subject only, isolated, transparent-PNG target
+- **no** extra props, supporting furniture, decorative scene, or secondary objects
+
+Both specs carry a **forbidden-token list**; a unit test proves the master prompt and
+each fragment never re-open a banned door (the positive prompt stays purely positive —
+all "no X" language lives in the negative prompt).
 
 ---
 
 ## Master prompt
 
 ```
-Premium mobile game asset. Single isolated object. High readability. Soft glossy
-materials. Rounded shapes. Clean silhouette. Consistent 30-degree isometric camera.
-Transparent PNG background. No platform. No pedestal. No floor. No environment.
-No extra props. Mobile game collectible quality. Optimized for game inventory and
-room decoration systems.
+Premium collectible game asset, a polished game-economy item. Slightly stylized with
+clean, Pixar-inspired readability, optimized to stay crisp and recognizable at 64px
+and 128px. Exactly one isolated object and nothing else, presented alone on a
+transparent background as a transparent PNG. Consistent 3/4 isometric camera at
+roughly a 30-degree downward angle, the object centered and filling most of the
+frame, fully in view. Identical camera, scale, and framing for every asset. Soft,
+even studio lighting with subtle ambient occlusion and a clean, bold silhouette.
+Designed for a game inventory and room-decoration system.
 ```
 
 ## Negative prompt
 
 ```
 room scene, furniture set, multiple objects, base, platform, pedestal, floor plane,
-rug, books, lamp, plant, extra decorations, text, watermark, logo, signature,
-photorealism, realistic photography, painterly illustration, storybook rendering,
-flat vector, random perspective, front view, side view, cropped object,
-dramatic shadows, sunset lighting, golden hour, white background, scene background
+ground plane, rug, books, lamp, plant, side table, extra props, extra decorations,
+cluttered, busy composition, text, watermark, logo, signature, photorealism,
+realistic photography, painterly illustration, storybook rendering, flat vector,
+toy-like, puffy, inflated, plastic toy, glossy plastic, random perspective,
+front view, side view, top-down, cropped object, dramatic shadows, sunset lighting,
+golden hour, white background, scene background
 ```
 
-Per-category descriptors are all single-object (`"a single accent chair"`,
-`"a single floor lamp"`, …) so the object-only rule holds across the catalog.
+Per-category descriptors stay single-object (`"a single accent chair"`, …) so the
+object-only rule holds across the catalog.
 
 ---
 
-## Golden Style Pack (calibration)
+## Golden Calibration Set (permanent benchmark)
 
-Before scaling generation we must pick ONE identity. The **Style Lab** (`/style-lab`)
-generates and compares **5 variations** for each of ten golden items —
-chair, sofa, desk, lamp, bookshelf, plant, microphone, monitor, coffee table, rug —
-shown side-by-side. For each variation you can **approve / reject** and **mark the
-one closest to Nestudio**. A golden item is **calibrated** once it has at least one
-approved variation and a chosen "closest" pick; the page scores
-**calibrated items / 10 → 0–100**.
+The fixed ten-item benchmark every calibration session generates and scores
+([`GOLDEN_ITEMS`](../lib/style-lab.ts)):
 
-Dry-run (placeholders) runs at zero cost for workflow testing; real variations come
-from Replicate when generation is enabled (`/api/generate/style`, which produces
-images for comparison only and **never** creates catalog candidates).
+1. Accent Chair · 2. Sofa · 3. Desk · 4. Bookshelf · 5. TV · 6. Plant ·
+7. Floor Lamp · 8. Coffee Table · 9. Guitar · 10. Computer
 
-## Success criteria (optimize for these, not quantity)
+## Calibration Session (OpenAI-first)
 
-- **Consistency** across variations and categories.
-- **Readability** at 64/96/128px.
-- **Premium game feel** (collectible, glossy, clean silhouette).
-- **Catalog scalability** (one prompt spine generalizes).
-- **Cross-category visual coherence**.
+The **Style Lab** (`/style-lab`) runs the Calibration Session. Generate the golden
+set (**1 image per item** from **OpenAI GPT Image**, the calibration provider),
+then per sample: **approve / reject**, **mark closest**, write a **note**, and
+**score five dimensions** (0–10 each). Replicate stays available for a side-by-side
+**Shootout** but is **comparison-only** — it never affects the calibration score or
+the lock.
 
-**Only after the Golden Style Pack is approved (10/10 calibrated, a chosen golden
-pick per item) should mass generation proceed.** Until then, keep generation tiny
-and the flag off between runs.
+Dry-run (placeholders) runs at zero cost for workflow testing; real images come from
+the provider when generation is enabled (`/api/generate/style`, calibration only —
+**never** creates catalog candidates).
+
+## Scoring system (Task 6)
+
+Each sample is scored on five dimensions, 0–10 → **0–50** per asset, normalized to
+**0–100** ([`../lib/calibration.ts`](../lib/calibration.ts)):
+
+| Dimension | What it measures |
+|---|---|
+| **Consistency** | Matches the rest of the set (camera, scale, palette). |
+| **Readability** | Reads clearly at 64/128px. |
+| **Silhouette** | Bold, clean, recognizable shape. |
+| **Style Fit** | On-identity (not toy/puffy/realistic/storybook). |
+| **Production Readiness** | Usable as-is (framing, isolation, transparency). |
+
+The **Overall Calibration Score (0–100)** averages each golden item's representative
+(closest, else highest-scoring approved) sample across **all ten** items — so a
+missing or unscored item drags the score down.
+
+## Style Lock (Task 7)
+
+The style is **Locked** — and V4 mass generation may proceed — **only** when:
+
+- **all 10** golden assets are **approved**, **and**
+- the **Calibration Score ≥ 85**,
+
+scoped to **OpenAI `nestudio_v2`** samples only. Until both hold, the Style Lab and
+the Calibration Report show the style as **not locked** with the specific blocking
+reasons. **Do not mass-generate before the style is locked.**
+
+## Calibration Report (Task 8)
+
+`/style-report` (the **Calibration** tab) renders the report: approved assets,
+rejected assets, average score, per-dimension averages, visual-consistency notes,
+remaining issues, and the lock status.

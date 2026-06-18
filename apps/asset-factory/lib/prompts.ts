@@ -1,44 +1,53 @@
 import { ALL_CATEGORIES, CATEGORY_META, type FactoryCategory } from "@/lib/types";
+import { NESTUDIO_CAMERA_SPEC_V1, NESTUDIO_OBJECT_RULES_V1 } from "@/lib/nestudio-spec";
 
-// ── Nestudio Premium Game Style V1 (V3.1) ────────────────────────────────────
+// ── Nestudio Master Style V2 (V3.4) ──────────────────────────────────────────
 //
-// The generation prompt identity. Targets POLISHED MOBILE GAME COLLECTIBLE quality
-// (Clash of Clans / Royal Match / Hay Day are *quality references only* — never
-// mimic their art). The hard rules: ONE isolated object, transparent PNG, no
-// environment / platform / pedestal / extra props, soft glossy materials, rounded
-// shapes, clean silhouette, consistent 30° isometric, readable at 64–128px.
+// The unified generation identity. Targets a PREMIUM COLLECTIBLE GAME ASSET: a
+// polished game-economy / inventory item that stays highly readable at 64px and
+// 128px, slightly stylized — NOT toy-like, NOT puffy, NOT realistic, NOT storybook,
+// NOT painterly, NOT plastic, NOT cluttered. Think premium-casual mobile game with
+// clean Disney/Pixar-inspired readability, never a Royal Match / Clash clone, an
+// Apple product render, or photorealism.
 //
-// This replaces the earlier storybook prompt system. See docs/premium-style.md.
+// This replaces the V3.1–V3.3 multi-style experiments (royal_match / modern_designer
+// / clash) with ONE locked direction. The hard camera + object rules live in
+// lib/nestudio-spec.ts (Camera Spec V1 + Object Rules V1) and are folded in below so
+// every asset shares one camera, one framing, and a single isolated object.
+// See docs/premium-style.md.
 
-export const STYLE_ID = "premium_game_v1";
-export const STYLE_NAME = "Nestudio Premium Game Style V1";
-export const STYLE_VERSION = 1;
+export const STYLE_ID = "nestudio_v2";
+export const STYLE_NAME = "Nestudio Master Style V2";
+export const STYLE_VERSION = 2;
 
 /** The master prompt — the shared spine of every generated asset. */
 export const MASTER_PROMPT =
-  "Premium mobile game asset. Single isolated object. High readability. Soft glossy materials. " +
-  "Rounded shapes. Clean silhouette. Consistent 30-degree isometric camera. Transparent PNG background. " +
-  "No platform. No pedestal. No floor. No environment. No extra props. Mobile game collectible quality. " +
-  "Optimized for game inventory and room decoration systems.";
+  "Premium collectible game asset, a polished game-economy item. Slightly stylized with clean, " +
+  "Pixar-inspired readability, optimized to stay crisp and recognizable at 64px and 128px. " +
+  `${NESTUDIO_OBJECT_RULES_V1.promptFragment} ${NESTUDIO_CAMERA_SPEC_V1.promptFragment} ` +
+  "Soft, even studio lighting with subtle ambient occlusion and a clean, bold silhouette. " +
+  "Designed for a game inventory and room-decoration system.";
 
-/** The negative prompt — strongly discourages scenes, props, and bad rendering. */
+/** The negative prompt — strongly discourages scenes, props, and off-style rendering. */
 export const NEGATIVE_PROMPT =
-  "room scene, furniture set, multiple objects, base, platform, pedestal, floor plane, rug, books, lamp, " +
-  "plant, extra decorations, text, watermark, logo, signature, photorealism, realistic photography, " +
-  "painterly illustration, storybook rendering, flat vector, random perspective, front view, side view, " +
-  "cropped object, dramatic shadows, sunset lighting, golden hour, white background, scene background";
+  "room scene, furniture set, multiple objects, base, platform, pedestal, floor plane, ground plane, rug, " +
+  "books, lamp, plant, side table, extra props, extra decorations, cluttered, busy composition, " +
+  "text, watermark, logo, signature, photorealism, realistic photography, painterly illustration, " +
+  "storybook rendering, flat vector, toy-like, puffy, inflated, plastic toy, glossy plastic, " +
+  "random perspective, front view, side view, top-down, cropped object, dramatic shadows, " +
+  "sunset lighting, golden hour, white background, scene background";
 
-/** Reusable premium style tokens appended to every prompt for consistency. */
+/** Reusable Nestudio V2 style tokens appended to every prompt for consistency. */
 export const STYLE_TOKENS: string[] = [
-  "premium mobile game asset",
+  "premium collectible game asset",
   "single isolated object",
-  "soft glossy materials",
-  "rounded shapes",
-  "clean silhouette",
-  "30-degree isometric",
+  "slightly stylized",
+  "clean readable shapes",
+  "bold silhouette",
+  "3/4 isometric, ~30 degrees",
   "soft studio lighting",
   "transparent background",
-  "high readability",
+  "readable at 64px and 128px",
 ];
 
 /** A short, single-object descriptor per category. Object ONLY — never props,

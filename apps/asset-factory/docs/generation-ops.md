@@ -1,4 +1,4 @@
-# Generation Ops (V3 → V3.3)
+# Generation Ops (V3 → V3.4)
 
 How to run the **AI generation queue** safely. Generation is **OFF by default**;
 dry-run (zero cost) is the everyday path. Real generation requires an explicit flag
@@ -134,14 +134,31 @@ Filter Review by **needs review**, open each, check the quality + validation
 warnings (especially transparency), edit metadata/tags, then approve or reject.
 **No AI output is auto-approved.**
 
+## V3.4 — OpenAI-first calibration + Style Lock
+
+The path to V4 now runs through a **Calibration Session** in the Style Lab on the ONE
+locked identity (`nestudio_v2`):
+
+- **Calibration provider is OpenAI.** Generate the **Golden Calibration Set** (10
+  items) at **1 image each** from OpenAI GPT Image. Replicate stays available for a
+  **Shootout** but is **comparison-only** — it never affects the score or the lock.
+- **Score five dimensions** per asset (consistency, readability, silhouette, style
+  fit, production readiness; 0–10 each) → an **Overall Calibration Score (0–100)**.
+- **Style Lock** is the gate: V4 mass generation is allowed **only** when **all 10
+  golden assets are approved AND the calibration score ≥ 85** (OpenAI `nestudio_v2`
+  only). The **Calibration Report** (`/style-report`) shows the status + blockers.
+- **Cost note:** the calibration set is 10 OpenAI images (~$0.40 at ~$0.04/image —
+  confirm on your plan). Keep generation OFF between sessions. See
+  [premium-style.md](premium-style.md).
+
 ## How to decide if V4 (batch scaling) is ready
 
 Only scale up once a small real run clears all of these:
 
-0. **Golden Style Pack approved (V3.1):** the **Style Lab** reaches **10/10
-   calibrated** under *Nestudio Premium Game Style V1* — each golden item has an
-   approved variation and a chosen "closest" pick. Do not mass-generate before the
-   visual identity is locked. See [premium-style.md](premium-style.md).
+0. **Style Locked (V3.4):** the **Style Lab** reports **Style Locked** under
+   *Nestudio Master Style V2* — all 10 golden assets approved **and** the calibration
+   score ≥ 85 (OpenAI `nestudio_v2`). Do not mass-generate before the style is locked.
+   See [premium-style.md](premium-style.md).
 1. A **count 1–2 real batch** completes, images saved, candidates created in
    `needs_review`, approve/reject + export all work.
 2. **Validation after generation** is clean apart from the expected

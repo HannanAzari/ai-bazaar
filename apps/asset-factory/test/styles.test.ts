@@ -3,51 +3,54 @@ import {
   STYLE_FAMILIES,
   STYLE_FAMILY_IDS,
   DEFAULT_STYLE_FAMILY,
+  NESTUDIO_V2,
   getStyleFamily,
   isStyleFamily,
   buildStyledPrompt,
   buildStyledPromptPair,
+  styleLabel,
   styleMasterPreview,
 } from "@/lib/styles";
 import { MASTER_PROMPT, NEGATIVE_PROMPT } from "@/lib/prompts";
+import { obeysNestudioSpecs } from "@/lib/nestudio-spec";
 
-describe("style families", () => {
-  it("defines the three comparison identities", () => {
-    expect(STYLE_FAMILY_IDS).toEqual(["royal_match", "modern_designer", "clash"]);
-    expect(STYLE_FAMILIES).toHaveLength(3);
-    expect(DEFAULT_STYLE_FAMILY).toBe("royal_match");
+describe("nestudio master style v2", () => {
+  it("defines exactly one locked identity (the experiments are retired)", () => {
+    expect(STYLE_FAMILY_IDS).toEqual(["nestudio_v2"]);
+    expect(STYLE_FAMILIES).toHaveLength(1);
+    expect(DEFAULT_STYLE_FAMILY).toBe("nestudio_v2");
+    expect(NESTUDIO_V2.id).toBe("nestudio_v2");
+    expect(styleLabel("nestudio_v2")).toBe("Nestudio V2");
   });
 
-  it("guards + resolves style ids (unknown falls back)", () => {
-    expect(isStyleFamily("clash")).toBe(true);
+  it("guards + resolves style ids (unknown falls back to nestudio_v2)", () => {
+    expect(isStyleFamily("nestudio_v2")).toBe(true);
+    expect(isStyleFamily("royal_match")).toBe(false);
     expect(isStyleFamily("nope")).toBe(false);
-    expect(getStyleFamily("nope").id).toBe("royal_match");
+    expect(getStyleFamily("nope").id).toBe("nestudio_v2");
   });
 
-  it("every family prompt keeps the shared master spine but differs by descriptors", () => {
-    const prompts = STYLE_FAMILY_IDS.map((id) => buildStyledPrompt("chair", id, { subject: "accent chair" }));
-    expect(prompts.every((p) => p.startsWith(MASTER_PROMPT))).toBe(true);
-    expect(prompts.every((p) => p.includes("accent chair"))).toBe(true);
-    // All three are distinct (different style descriptors/tokens).
-    expect(new Set(prompts).size).toBe(3);
+  it("builds a prompt that keeps the shared master spine + subject", () => {
+    const p = buildStyledPrompt("chair", "nestudio_v2", { subject: "accent chair" });
+    expect(p.startsWith(MASTER_PROMPT)).toBe(true);
+    expect(p).toContain("accent chair");
+    expect(p).toContain("premium collectible game asset");
   });
 
-  it("injects family-specific tokens", () => {
-    expect(buildStyledPrompt("sofa", "royal_match")).toContain("glossy");
-    expect(buildStyledPrompt("sofa", "modern_designer")).toContain("minimalist");
-    expect(buildStyledPrompt("sofa", "clash")).toContain("chunky");
+  it("never re-opens a banned door (obeys camera + object specs)", () => {
+    const p = buildStyledPrompt("sofa", "nestudio_v2");
+    expect(obeysNestudioSpecs(p)).toBe(true);
   });
 
   it("pairs carry the universal negative prompt + resolved style id", () => {
-    const pair = buildStyledPromptPair("lamp", "clash");
-    expect(pair.styleId).toBe("clash");
+    const pair = buildStyledPromptPair("lamp", "anything");
+    expect(pair.styleId).toBe("nestudio_v2");
     expect(pair.negativePrompt).toBe(NEGATIVE_PROMPT);
-    expect(pair.prompt).toContain("chunky");
   });
 
-  it("master preview is subject-less and style-specific", () => {
-    const preview = styleMasterPreview("modern_designer");
+  it("master preview is subject-less and carries the V2 descriptors", () => {
+    const preview = styleMasterPreview("nestudio_v2");
     expect(preview.startsWith(MASTER_PROMPT)).toBe(true);
-    expect(preview).toContain("minimalist");
+    expect(preview).toContain("slightly stylized");
   });
 });
