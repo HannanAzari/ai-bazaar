@@ -1,4 +1,4 @@
-import { type FactoryCategory, type StyleSample, type SampleScores } from "@/lib/types";
+import { type FactoryCategory, type StyleSample, type SampleScores, type AssetPlacement, CATEGORY_META } from "@/lib/types";
 import { buildStyledPrompt, STYLE_FAMILIES, DEFAULT_STYLE_FAMILY, type StyleFamilyId } from "@/lib/styles";
 import { slugify } from "@/lib/slug";
 
@@ -48,6 +48,7 @@ function makeStyleSample(
   prompt: string,
   batch: string,
   meta: SampleMeta,
+  kind: "real" | "dry_run",
 ): StyleSample {
   const provider = meta.provider ?? "openai";
   return {
@@ -64,6 +65,7 @@ function makeStyleSample(
     seed: variation + 1,
     decision: "pending",
     closest: false,
+    kind,
     createdAt: new Date().toISOString(),
   };
 }
@@ -83,7 +85,7 @@ export function buildStyleSamples(
   const prompt = buildStyledPrompt(item.category, styleId, { subject: item.subject });
   const provider = options.provider ?? "openai";
   return Array.from({ length: count }, (_, i) =>
-    makeStyleSample(item, styleId, i, `/samples/style-${item.key}-${styleId}-${provider}-${i}.png`, prompt, batch, options),
+    makeStyleSample(item, styleId, i, `/samples/style-${item.key}-${styleId}-${provider}-${i}.png`, prompt, batch, options, "dry_run"),
   );
 }
 
@@ -101,7 +103,7 @@ export function realStyleSamples(
   const batch = options.batch ?? Date.now().toString(36);
   const prompt = buildStyledPrompt(item.category, styleId, { subject: item.subject });
   const urls = imageUrls.filter((u): u is string => typeof u === "string" && u.length > 0);
-  return urls.map((url, i) => makeStyleSample(item, styleId, i, url, prompt, batch, options));
+  return urls.map((url, i) => makeStyleSample(item, styleId, i, url, prompt, batch, options, "real"));
 }
 
 export type StyleGenerationResult =
@@ -198,6 +200,101 @@ export function scoreStyleLab(samples: StyleSample[]): StyleLabScore {
 /** The chosen closest sample(s). */
 export function goldenPicks(samples: StyleSample[]): StyleSample[] {
   return samples.filter((s) => s.closest);
+}
+
+// ── Persistence helpers (V3.7) ───────────────────────────────────────────────
+// Generation must APPEND (never silently overwrite real renders). Dry-run may only
+// replace OTHER dry-run placeholders, never real samples. Explicit removal only.
+
+/** A dry-run placeholder: tagged "dry_run", or (legacy) a `/samples/` placeholder path. */
+export function isDryRunSample(s: StyleSample): boolean {
+  if (s.kind) return s.kind === "dry_run";
+  return s.imageUrl.startsWith("/samples/");
+}
+
+/** A real provider render. */
+export function isRealSample(s: StyleSample): boolean {
+  return !isDryRunSample(s);
+}
+
+/** Append fresh samples, de-duped by id — existing samples are never dropped. */
+export function appendSamples(all: StyleSample[], fresh: StyleSample[]): StyleSample[] {
+  const ids = new Set(all.map((s) => s.id));
+  return [...all, ...fresh.filter((s) => !ids.has(s.id))];
+}
+
+/**
+ * Replace ONLY the dry-run placeholders for the item(s) present in `fresh`, then add
+ * `fresh`. Real samples (for those items and all others) are preserved untouched.
+ */
+export function replaceDryRunSamples(all: StyleSample[], fresh: StyleSample[]): StyleSample[] {
+  const items = new Set(fresh.map((s) => s.itemKey));
+  const kept = all.filter((s) => !(items.has(s.itemKey) && isDryRunSample(s)));
+  return [...kept, ...fresh];
+}
+
+/** Remove a single sample by id (explicit user delete). */
+export function removeSample(all: StyleSample[], id: string): StyleSample[] {
+  return all.filter((s) => s.id !== id);
+}
+
+/** Drop dry-run placeholders (all, or just one item) — clears 404 placeholders. */
+export function clearDryRunSamples(all: StyleSample[], itemKey?: string): StyleSample[] {
+  return all.filter((s) => !(isDryRunSample(s) && (itemKey === undefined || s.itemKey === itemKey)));
+}
+
+// ── Approved library + export (V3.7) ─────────────────────────────────────────
+
+/** Real samples that are approved OR starred — the "saved candidates" library. */
+export function approvedLibrary(samples: StyleSample[]): StyleSample[] {
+  return samples.filter((s) => isRealSample(s) && (s.decision === "approved" || s.closest));
+}
+
+/** Overall 0–100 from the five-dimension scores (inlined to avoid a calibration cycle). */
+function overallScore(scores?: SampleScores): number | null {
+  if (!scores) return null;
+  const total = scores.consistency + scores.readability + scores.silhouette + scores.styleFit + scores.productionReadiness;
+  return Math.round((total / 50) * 100);
+}
+
+function sampleName(s: StyleSample): string {
+  const label = CATEGORY_META[s.category]?.label ?? s.category;
+  return s.personality ? `${s.personality} ${label}` : label;
+}
+
+export type ApprovedExportRow = {
+  id: string;
+  name: string;
+  category: FactoryCategory;
+  placement: AssetPlacement;
+  personality: string;
+  imageUrl: string;
+  prompt: string;
+  model: string;
+  provider: string;
+  score: number | null;
+  notes: string;
+  starred: boolean;
+  kind: "real";
+};
+
+/** Export rows for the library: approved/starred REAL samples ONLY (dry-runs excluded). */
+export function exportApprovedSamples(samples: StyleSample[]): ApprovedExportRow[] {
+  return approvedLibrary(samples).map((s) => ({
+    id: s.id,
+    name: sampleName(s),
+    category: s.category,
+    placement: CATEGORY_META[s.category]?.placement ?? "any",
+    personality: s.personality ?? "",
+    imageUrl: s.imageUrl,
+    prompt: s.prompt,
+    model: s.model,
+    provider: s.provider,
+    score: overallScore(s.scores),
+    notes: s.note ?? "",
+    starred: s.closest,
+    kind: "real",
+  }));
 }
 
 export { STYLE_FAMILIES };

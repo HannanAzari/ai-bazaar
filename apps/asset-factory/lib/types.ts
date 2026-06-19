@@ -309,6 +309,11 @@ export type StyleSample = {
   scores?: SampleScores;
   /** Free-form reviewer note for this sample (V3.4). */
   note?: string;
+  /** Whether this sample is a real provider render or a zero-cost dry-run placeholder
+   *  (V3.7 persistence). Absent on legacy samples → derived from the imageUrl. */
+  kind?: "real" | "dry_run";
+  /** The lifestyle personality (V3.7), e.g. "Minimalist" — set on collection samples. */
+  personality?: string;
   createdAt: string;
 };
 

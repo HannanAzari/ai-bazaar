@@ -173,7 +173,7 @@ export function buildDnaPrompts(goldenKey: string): { key: string; name: string;
 
 type Opts = SampleMeta & { batch?: string };
 
-function makeSample(v: Variant, index: number, imageUrl: string, batch: string, meta: SampleMeta): StyleSample {
+function makeSample(v: Variant, index: number, imageUrl: string, batch: string, meta: SampleMeta, kind: "real" | "dry_run"): StyleSample {
   const provider = meta.provider ?? DNA_PROVIDER;
   return {
     id: `dna-${v.key}-${provider}-${batch}-${index}`,
@@ -190,20 +190,22 @@ function makeSample(v: Variant, index: number, imageUrl: string, batch: string, 
     seed: index + 1,
     decision: "pending",
     closest: false,
+    kind,
+    personality: v.personality,
     createdAt: new Date().toISOString(),
   };
 }
 
 /** Build one real sample for a variant (used incrementally during generation). */
 export function dnaSample(v: Variant, index: number, imageUrl: string, options: Opts = {}): StyleSample {
-  return makeSample(v, index, imageUrl, options.batch ?? Date.now().toString(36), options);
+  return makeSample(v, index, imageUrl, options.batch ?? Date.now().toString(36), options, "real");
 }
 
 /** Ten dry-run placeholder samples (zero cost) for a category. */
 export function dryRunDnaSamples(goldenKey: string, options: Opts = {}): StyleSample[] {
   const batch = options.batch ?? Date.now().toString(36);
   const provider = options.provider ?? DNA_PROVIDER;
-  return variantsForCategory(goldenKey).map((v, i) => makeSample(v, i, `/samples/dna-${v.key}-${provider}.png`, batch, options));
+  return variantsForCategory(goldenKey).map((v, i) => makeSample(v, i, `/samples/dna-${v.key}-${provider}.png`, batch, options, "dry_run"));
 }
 
 /** Build real samples for a category from generated URLs (index-aligned; empties skipped). */
@@ -213,7 +215,7 @@ export function realDnaSamples(goldenKey: string, imageUrls: (string | null | un
   const out: StyleSample[] = [];
   variants.forEach((v, i) => {
     const url = imageUrls[i];
-    if (typeof url === "string" && url.length > 0) out.push(makeSample(v, i, url, batch, options));
+    if (typeof url === "string" && url.length > 0) out.push(makeSample(v, i, url, batch, options, "real"));
   });
   return out;
 }

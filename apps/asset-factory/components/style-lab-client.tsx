@@ -28,6 +28,13 @@ import {
   markClosest,
   scoreSample,
   noteSample,
+  appendSamples,
+  replaceDryRunSamples,
+  removeSample,
+  clearDryRunSamples,
+  isDryRunSample,
+  approvedLibrary,
+  exportApprovedSamples,
   type GoldenItem,
 } from "@/lib/style-lab";
 import {
@@ -47,6 +54,16 @@ import { AssetThumb } from "@/components/asset-thumb";
 import { FactoryNav } from "@/components/factory-nav";
 
 const STYLE_ID = NESTUDIO_V2.id;
+
+function downloadJson(filename: string, data: unknown) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export function StyleLabClient() {
   const [samples, setSamples] = useState<StyleSample[]>([]);
@@ -97,16 +114,27 @@ export function StyleLabClient() {
     setSamples((prev) => { const next = noteSample(prev, id, note); saveStyleSamples(next); return next; });
   }
 
-  function replaceItem(itemKey: string, fresh: StyleSample[]) {
-    setSamples((prev) => {
-      const next = [...prev.filter((s) => s.itemKey !== itemKey), ...fresh];
-      saveStyleSamples(next);
-      return next;
-    });
+  // APPEND real renders — never drop existing samples (the V3.7 persistence fix).
+  function appendReal(fresh: StyleSample[]) {
+    if (fresh.length === 0) return;
+    setSamples((prev) => { const next = appendSamples(prev, fresh); saveStyleSamples(next); return next; });
+  }
+  // Dry-run may only replace OTHER dry-run placeholders; real samples are preserved.
+  function replaceDry(fresh: StyleSample[]) {
+    setSamples((prev) => { const next = replaceDryRunSamples(prev, fresh); saveStyleSamples(next); return next; });
+  }
+  function applyRemove(id: string) {
+    setSamples((prev) => { const next = removeSample(prev, id); saveStyleSamples(next); return next; });
+  }
+  function clearDryRuns() {
+    setSamples((prev) => { const next = clearDryRunSamples(prev); saveStyleSamples(next); return next; });
   }
 
+  const library = useMemo(() => approvedLibrary(samples), [samples]);
+  const dryRunCount = useMemo(() => samples.filter(isDryRunSample).length, [samples]);
+
   function dryRun(item: GoldenItem) {
-    replaceItem(item.key, buildStyleSamples(item, STYLE_ID, { provider, model: modelFor(provider) }));
+    replaceDry(buildStyleSamples(item, STYLE_ID, { provider, model: modelFor(provider) }));
   }
 
   async function generateOneImage(item: GoldenItem, p: ProviderId): Promise<OneResult> {
@@ -137,7 +165,7 @@ export function StyleLabClient() {
         onProgress: (done, t) => setProgress((pr) => ({ ...pr, [key]: `Generating ${providerLabel(p)} ${done}/${t}…` })),
       });
       if (batch.urls.length > 0) {
-        replaceItem(item.key, realStyleSamples(item, STYLE_ID, batch.urls, { provider: p, model: modelFor(p) }));
+        appendReal(realStyleSamples(item, STYLE_ID, batch.urls, { provider: p, model: modelFor(p) }));
       }
       const summary = summarizeBatchErrors(total, batch);
       if (summary) setError(`${item.label} · ${providerLabel(p)}: ${summary}`);
@@ -165,7 +193,7 @@ export function StyleLabClient() {
         else errors.push(`${providerLabel(p)}: ${r.error}`);
         if (i < order.length - 1 && delayMs > 0) await new Promise((res) => setTimeout(res, delayMs));
       }
-      if (collected.length > 0) replaceItem(item.key, collected);
+      if (collected.length > 0) appendReal(collected);
       if (errors.length) setError(`${item.label} shootout: ${errors.join(" · ")}`);
     } finally {
       setBusy("");
@@ -185,7 +213,7 @@ export function StyleLabClient() {
         const item = GOLDEN_ITEMS[i];
         setProgress((pr) => ({ ...pr, __set__: `Calibrating ${item.label} (${i + 1}/${GOLDEN_ITEMS.length}) via ${providerLabel(provider)}…` }));
         const r = await generateOneImage(item, provider);
-        if (r.ok) replaceItem(item.key, realStyleSamples(item, STYLE_ID, [r.url], { provider, model: modelFor(provider) }));
+        if (r.ok) appendReal(realStyleSamples(item, STYLE_ID, [r.url], { provider, model: modelFor(provider) }));
         else errors.push(`${item.label}: ${r.error}`);
         if (i < GOLDEN_ITEMS.length - 1 && delayMs > 0) await new Promise((res) => setTimeout(res, delayMs));
       }
@@ -197,11 +225,8 @@ export function StyleLabClient() {
   }
 
   function dryRunSet() {
-    setSamples(() => {
-      const fresh = GOLDEN_ITEMS.flatMap((item) => buildStyleSamples(item, STYLE_ID, { count: 1, provider, model: modelFor(provider) }));
-      saveStyleSamples(fresh);
-      return fresh;
-    });
+    const fresh = GOLDEN_ITEMS.flatMap((item) => buildStyleSamples(item, STYLE_ID, { count: 1, provider, model: modelFor(provider) }));
+    replaceDry(fresh);
   }
 
   // ── Manufacturer Collection (V3.7) — OpenAI only ───────────────────────────
@@ -226,7 +251,7 @@ export function StyleLabClient() {
   }
 
   function dryRunCollection(goldenKey: string) {
-    replaceItem(goldenKey, dryRunDnaSamples(goldenKey, { provider: DNA_PROVIDER, model: modelFor(DNA_PROVIDER) }));
+    replaceDry(dryRunDnaSamples(goldenKey, { provider: DNA_PROVIDER, model: modelFor(DNA_PROVIDER) }));
   }
 
   async function generateCollection(goldenKey: string) {
@@ -236,14 +261,13 @@ export function StyleLabClient() {
     const model = modelFor(DNA_PROVIDER);
     const variants = variantsForCategory(goldenKey);
     const label = collectionCategory(goldenKey).label;
-    const collected: StyleSample[] = [];
     const errors: string[] = [];
     try {
       for (let i = 0; i < variants.length; i += 1) {
         const v = variants[i];
         setProgress((pr) => ({ ...pr, __collection__: `${label} DNA: ${v.personality} (${i + 1}/${variants.length})…` }));
         const r = await generateVariantSubject(v.category, v.subject);
-        if (r.ok) { collected.push(dnaSample(v, i, r.url, { provider: DNA_PROVIDER, model })); replaceItem(goldenKey, [...collected]); }
+        if (r.ok) appendReal([dnaSample(v, i, r.url, { provider: DNA_PROVIDER, model })]);
         else errors.push(`${v.name}: ${r.error}`);
         if (i < variants.length - 1 && delayMs > 0) await new Promise((res) => setTimeout(res, delayMs));
       }
@@ -321,7 +345,8 @@ export function StyleLabClient() {
           <button className="btn btn-green" disabled={!enabled || !!busy} title={enabled ? "Generate 1 image for each of the 10 golden items" : "Enable generation + configure the selected provider"} onClick={generateCalibrationSet}>
             Generate calibration set (10 × {providerLabel(provider)})
           </button>
-          <button className="btn" onClick={() => { if (confirm("Clear all calibration samples?")) setSamples(resetStyleLab()); }}>↺ Reset</button>
+          <button className="btn" disabled={dryRunCount === 0} title="Remove zero-cost dry-run placeholders (real renders are kept)" onClick={clearDryRuns}>🧹 Clear dry-run ({dryRunCount})</button>
+          <button className="btn" onClick={() => { if (confirm("Delete ALL samples, including real generated renders? This cannot be undone.")) setSamples(resetStyleLab()); }}>↺ Reset all</button>
         </div>
         {settingBusy && progress.__set__ && (
           <p className="muted" style={{ fontSize: "0.82rem" }}>⏳ {progress.__set__} (sequential, rate-limit safe)</p>
@@ -379,6 +404,45 @@ export function StyleLabClient() {
         )}
       </div>
 
+      <div className="panel" style={{ borderLeft: "3px solid var(--green, #28aa5a)" }}>
+        <div className="topbar" style={{ paddingTop: 0 }}>
+          <h3 style={{ margin: 0 }}>⭐ Approved for library</h3>
+          <span className="spacer" />
+          <span className="muted">{library.length} saved (real, approved or starred)</span>
+        </div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Approved or starred <strong>real</strong> renders, preserved across reloads. Dry-run placeholders are
+          excluded from the library and the export.
+        </p>
+        <div className="toolbar">
+          <button className="btn btn-primary" disabled={library.length === 0} onClick={() => downloadJson("nestudio-approved-assets.json", exportApprovedSamples(samples))}>
+            ⬇ Export approved JSON ({library.length})
+          </button>
+        </div>
+        {library.length === 0 ? (
+          <p className="muted" style={{ fontSize: "0.82rem" }}>No approved or starred real samples yet.</p>
+        ) : (
+          <div className="grid">
+            {library.map((s) => (
+              <div key={s.id} className="card" style={{ cursor: "default" }}>
+                <div className="thumb" title={s.prompt}><AssetThumb src={s.imageUrl} alt={s.subject} /></div>
+                <div className="card-body">
+                  <div className="card-meta">
+                    <span className="muted">{s.personality ? `${s.personality} · ` : ""}{s.category}</span>
+                    {s.closest && <span className="pill approved">★</span>}
+                    {s.scores && <span className="pill queued">{sampleOverall(s.scores)}/100</span>}
+                  </div>
+                  <p className="muted" style={{ fontSize: "0.68rem", margin: "2px 0 0" }}>{providerLabel(s.provider)} · {s.model || "—"}</p>
+                  <div className="chips" style={{ marginTop: 6 }}>
+                    <button className="chip" onClick={() => applyRemove(s.id)} title="Remove from library + samples">🗑 Remove</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {GOLDEN_ITEMS.map((item) => {
         const mine = samplesFor(item.key);
         const approved = mine.filter((s) => s.decision === "approved").length;
@@ -418,6 +482,7 @@ export function StyleLabClient() {
                     onClosest={applyClosest}
                     onScore={applyScore}
                     onNote={applyNote}
+                    onRemove={applyRemove}
                   />
                 ))}
               </div>
@@ -430,7 +495,7 @@ export function StyleLabClient() {
 }
 
 function SampleCard({
-  sample: s, label, onDecision, onClosest, onScore, onNote,
+  sample: s, label, onDecision, onClosest, onScore, onNote, onRemove,
 }: {
   sample: StyleSample;
   label: string;
@@ -438,12 +503,13 @@ function SampleCard({
   onClosest: (id: string) => void;
   onScore: (id: string, scores: SampleScores) => void;
   onNote: (id: string, note: string) => void;
+  onRemove: (id: string) => void;
 }) {
   const [note, setNote] = useState(s.note ?? "");
   const scores = s.scores ?? emptyScores();
   const overall = s.scores ? sampleOverall(s.scores) : 0;
-  const isCalibrationSample = s.provider === CALIBRATION_PROVIDER && s.styleId === NESTUDIO_V2.id;
-  // Sofa DNA samples encode the personality name as "Name — subject".
+  const dry = isDryRunSample(s);
+  // DNA samples encode the personality name as "Name — subject".
   const personality = s.subject && s.subject.includes("—") ? s.subject.split("—")[0].trim() : "";
 
   function setDim(key: keyof SampleScores, value: number) {
@@ -456,15 +522,17 @@ function SampleCard({
       <div className="card-body">
         <div className="card-meta">
           <span className="muted">{personality || `v${s.variation + 1}`} · {providerLabel(s.provider)}</span>
+          <span className={`pill ${dry ? "queued" : "approved"}`} title={dry ? "Zero-cost dry-run placeholder (not exported)" : "Real provider render"}>{dry ? "dry-run" : "real"}</span>
           {s.decision === "approved" && <span className="pill approved">✓</span>}
           {s.closest && <span className="pill approved">★</span>}
           {s.scores && <span className="pill queued">{overall}/100</span>}
         </div>
-        {s.model && <p className="muted" style={{ fontSize: "0.68rem", margin: "2px 0 0" }}>{s.model}{isCalibrationSample ? "" : " · comparison"}</p>}
+        {s.model && <p className="muted" style={{ fontSize: "0.68rem", margin: "2px 0 0" }}>{s.model}</p>}
         <div className="chips" style={{ marginTop: 6 }}>
           <button className={`chip ${s.decision === "approved" ? "active" : ""}`} onClick={() => onDecision(s.id, s.decision === "approved" ? "pending" : "approved")}>✓ Approve</button>
           <button className={`chip ${s.decision === "rejected" ? "active" : ""}`} onClick={() => onDecision(s.id, s.decision === "rejected" ? "pending" : "rejected")}>✕ Reject</button>
           <button className={`chip ${s.closest ? "active" : ""}`} onClick={() => onClosest(s.id)} title="Closest to Nestudio">★</button>
+          <button className="chip" onClick={() => { if (confirm("Remove this sample?")) onRemove(s.id); }} title="Delete this sample">🗑</button>
         </div>
 
         <details style={{ marginTop: 8 }}>

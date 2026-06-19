@@ -2,6 +2,26 @@
 
 Newest first. Versions before V3.4 are summarized from the README/commit history.
 
+## V3.7.1 — Style Lab persistence fix + asset library (no style change)
+
+- **Generation now APPENDS** (was: overwrote). Real renders are added to existing
+  samples; nothing is silently dropped ([`lib/style-lab.ts`](../lib/style-lab.ts)
+  `appendSamples`, de-duped by id).
+- **Dry-run can only replace other dry-run placeholders** for the same item —
+  `replaceDryRunSamples` preserves every real sample (and other items' samples).
+- **Real vs dry-run tagging** on `StyleSample` (`kind: "real" | "dry_run"`, derived for
+  legacy samples); shown as a pill on each card. Approval / reject / star / score /
+  notes persist across reloads (localStorage round-trip; preserved through append).
+- **Explicit delete only:** per-sample 🗑 Remove + a "Clear dry-run" button (drops 404
+  `/samples/*.png` placeholders, keeps real). "Reset all" now warns it deletes reals.
+- **⭐ Approved for library** section: all approved/starred **real** samples, plus
+  **Export approved JSON** (`exportApprovedSamples` → imageUrl, name, category,
+  placement, personality, prompt, model, provider, score, notes; dry-runs excluded,
+  real only).
+- Tests: **219 passing** (+10 persistence: append doesn't overwrite, dry-run doesn't
+  replace real, approval/star/score/notes preserved, export excludes dry-run, export
+  includes approved real only). Typecheck · lint · build green. DNA/prompts unchanged.
+
 ## V3.7 LOCK — DNA freeze + production plan (no style change)
 
 - **Style frozen.** V3.7 is the locked production baseline: `NESTUDIO_DNA_VERSION =
