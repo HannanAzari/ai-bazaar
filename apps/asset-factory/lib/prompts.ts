@@ -20,6 +20,15 @@ export const STYLE_ID = "nestudio_v2";
 export const STYLE_NAME = "Nestudio Master Style V2";
 export const STYLE_VERSION = 2;
 
+// ── Production lock (V3.7) ────────────────────────────────────────────────────
+// V3.7 is the FROZEN production baseline. The prompt strings below (MASTER_PROMPT,
+// NESTUDIO_DNA, NESTUDIO_SIGNATURE, NEGATIVE_PROMPT) are the locked visual language.
+// Do NOT edit them without bumping NESTUDIO_DNA_VERSION and updating the freeze test
+// (test/dna-freeze.test.ts) + docs/nestudio-dna-spec.md. The freeze test guards the
+// ten Nestudio DNA principles so an accidental edit fails the build.
+export const NESTUDIO_DNA_VERSION = "3.7.0";
+export const STYLE_FROZEN = true;
+
 // ── Nestudio Visual DNA (V3.5) ───────────────────────────────────────────────
 //
 // The IDENTITY layer. V3.4 defined the camera + object rules but left the *style

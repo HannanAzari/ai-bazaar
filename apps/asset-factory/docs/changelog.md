@@ -2,6 +2,23 @@
 
 Newest first. Versions before V3.4 are summarized from the README/commit history.
 
+## V3.7 LOCK — DNA freeze + production plan (no style change)
+
+- **Style frozen.** V3.7 is the locked production baseline: `NESTUDIO_DNA_VERSION =
+  "3.7.0"`, `STYLE_FROZEN = true` ([`lib/prompts.ts`](../lib/prompts.ts)), guarded by a
+  freeze test ([`test/dna-freeze.test.ts`](../test/dna-freeze.test.ts)) that fails the
+  build if the ten DNA principles drift. No redesign, no new style/personality system.
+- **Formal spec:** [docs/nestudio-dna-spec.md](nestudio-dna-spec.md) — shape language,
+  proportions, materials, color philosophy, wood/metal/fabric treatment, silhouette /
+  readability / scaling rules, asset / room / character compatibility.
+- **Production + batch plan:** [docs/production-asset-plan.md](production-asset-plan.md)
+  + [`lib/production-plan.ts`](../lib/production-plan.ts): Tier 1 (10) + Tier 2 (5)
+  categories, hero-per-personality + shared-pool minimization → **58 unique assets**
+  covering **20 rooms × 10 personalities**; ~116 images / **~$4.64** at 2 candidates/
+  asset (~$2.32 minimal). Batch order: hero seating → shared Tier 1 → Tier 2.
+- Tests: **209 passing** (added freeze guard + production-plan suites). Typecheck ·
+  lint · build green.
+
 ## V3.7 — Nestudio DNA Final Refinement (manufacturer collection)
 
 - **Signature Design Language** ([`lib/prompts.ts`](../lib/prompts.ts)
