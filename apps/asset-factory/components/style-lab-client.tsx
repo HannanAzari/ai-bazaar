@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { type StyleSample, type SampleScores } from "@/lib/types";
+import { type StyleSample, type SampleScores, type AssetCandidate } from "@/lib/types";
+import { getCandidateRepository } from "@/lib/repo";
+import { exportJson, exportCandidatesJson } from "@/lib/export";
 import { GENERATION_DEFAULTS, modelForProvider, providerEnabled, providerTokenConfigured, type GenerationConfig } from "@/lib/generation-config";
 import { NEGATIVE_PROMPT, NESTUDIO_DNA } from "@/lib/prompts";
 import { NESTUDIO_V2, styleMasterPreview } from "@/lib/styles";
@@ -35,6 +37,10 @@ import {
   isDryRunSample,
   approvedLibrary,
   exportApprovedSamples,
+  approvedSamplesToCandidates,
+  savedFromStyleLab,
+  categoryCounts,
+  isSampleSaved,
   type GoldenItem,
 } from "@/lib/style-lab";
 import {
@@ -55,14 +61,18 @@ import { FactoryNav } from "@/components/factory-nav";
 
 const STYLE_ID = NESTUDIO_V2.id;
 
-function downloadJson(filename: string, data: unknown) {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+function downloadText(filename: string, text: string) {
+  const blob = new Blob([text], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function downloadJson(filename: string, data: unknown) {
+  downloadText(filename, JSON.stringify(data, null, 2));
 }
 
 export function StyleLabClient() {
@@ -73,9 +83,17 @@ export function StyleLabClient() {
   const [error, setError] = useState("");
   const [provider, setProvider] = useState<ProviderId>(CALIBRATION_PROVIDER);
   const [collectionKey, setCollectionKey] = useState<string>("sofa");
+  const [candidates, setCandidates] = useState<AssetCandidate[]>([]);
+  const [notice, setNotice] = useState("");
+
+  const repo = useMemo(() => getCandidateRepository(), []);
+  const refreshCandidates = useCallback(async () => {
+    try { setCandidates(await repo.list()); } catch { /* ignore */ }
+  }, [repo]);
 
   useEffect(() => {
     setSamples(loadStyleSamples());
+    void refreshCandidates();
     const onChange = () => setSamples(loadStyleSamples());
     window.addEventListener(STYLE_LAB_CHANGE_EVENT, onChange);
     fetch("/api/generate/config")
@@ -83,7 +101,7 @@ export function StyleLabClient() {
       .then((d) => d?.config && setConfig(d.config as GenerationConfig))
       .catch(() => setConfig(null));
     return () => window.removeEventListener(STYLE_LAB_CHANGE_EVENT, onChange);
-  }, []);
+  }, [refreshCandidates]);
 
   const cal = useMemo(() => calibrationScore(samples), [samples]);
   const lock = useMemo(() => styleLockStatus(samples), [samples]);
@@ -132,6 +150,20 @@ export function StyleLabClient() {
 
   const library = useMemo(() => approvedLibrary(samples), [samples]);
   const dryRunCount = useMemo(() => samples.filter(isDryRunSample).length, [samples]);
+  const savedLibrary = useMemo(() => savedFromStyleLab(candidates), [candidates]);
+  const savedCounts = useMemo(() => categoryCounts(savedLibrary), [savedLibrary]);
+  const pendingSaves = useMemo(() => approvedSamplesToCandidates(samples, candidates), [samples, candidates]);
+
+  async function saveApprovedToLibrary() {
+    if (pendingSaves.length === 0) return;
+    try {
+      await repo.addCandidates(pendingSaves);
+      await refreshCandidates();
+      setNotice(`Saved ${pendingSaves.length} approved asset(s) to the library.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save to library.");
+    }
+  }
 
   function dryRun(item: GoldenItem) {
     replaceDry(buildStyleSamples(item, STYLE_ID, { provider, model: modelFor(provider) }));
@@ -406,39 +438,56 @@ export function StyleLabClient() {
 
       <div className="panel" style={{ borderLeft: "3px solid var(--green, #28aa5a)" }}>
         <div className="topbar" style={{ paddingTop: 0 }}>
-          <h3 style={{ margin: 0 }}>⭐ Approved for library</h3>
+          <h3 style={{ margin: 0 }}>⭐ Approved Library</h3>
           <span className="spacer" />
-          <span className="muted">{library.length} saved (real, approved or starred)</span>
+          <span className="muted">{savedLibrary.length} saved · {library.length} approvable</span>
         </div>
+        {notice && <p className="muted" style={{ marginTop: 0 }}>✓ {notice}</p>}
         <p className="muted" style={{ marginTop: 0 }}>
-          Approved or starred <strong>real</strong> renders, preserved across reloads. Dry-run placeholders are
-          excluded from the library and the export.
+          Approving a <strong>real</strong> sample makes it library-ready; <strong>Save</strong> mirrors it into the
+          Review/Generate candidate library as an AssetCandidate (status <em>approved</em>, source <em>style_lab</em>),
+          deduped by sample + image. Dry-run placeholders are never saved or exported.
         </p>
+        {savedLibrary.length > 0 && (
+          <p className="muted" style={{ fontSize: "0.8rem" }}>
+            Saved by category: {Object.entries(savedCounts).map(([c, n]) => `${c} ${n}`).join(" · ")}
+          </p>
+        )}
         <div className="toolbar">
-          <button className="btn btn-primary" disabled={library.length === 0} onClick={() => downloadJson("nestudio-approved-assets.json", exportApprovedSamples(samples))}>
-            ⬇ Export approved JSON ({library.length})
+          <button className="btn btn-green" disabled={pendingSaves.length === 0} title="Mirror approved/starred real samples into the candidate library" onClick={saveApprovedToLibrary}>
+            💾 Save approved to library ({pendingSaves.length})
+          </button>
+          <button className="btn btn-primary" disabled={candidates.filter((c) => c.status === "approved").length === 0} onClick={() => downloadText("approved-assets.json", exportJson(candidates))}>
+            ⬇ Export approved JSON
+          </button>
+          <button className="btn" disabled={candidates.length === 0} onClick={() => downloadText("catalog-candidates.json", exportCandidatesJson(candidates))}>
+            ⬇ Export catalog JSON
           </button>
         </div>
         {library.length === 0 ? (
           <p className="muted" style={{ fontSize: "0.82rem" }}>No approved or starred real samples yet.</p>
         ) : (
           <div className="grid">
-            {library.map((s) => (
-              <div key={s.id} className="card" style={{ cursor: "default" }}>
-                <div className="thumb" title={s.prompt}><AssetThumb src={s.imageUrl} alt={s.subject} /></div>
-                <div className="card-body">
-                  <div className="card-meta">
-                    <span className="muted">{s.personality ? `${s.personality} · ` : ""}{s.category}</span>
-                    {s.closest && <span className="pill approved">★</span>}
-                    {s.scores && <span className="pill queued">{sampleOverall(s.scores)}/100</span>}
-                  </div>
-                  <p className="muted" style={{ fontSize: "0.68rem", margin: "2px 0 0" }}>{providerLabel(s.provider)} · {s.model || "—"}</p>
-                  <div className="chips" style={{ marginTop: 6 }}>
-                    <button className="chip" onClick={() => applyRemove(s.id)} title="Remove from library + samples">🗑 Remove</button>
+            {library.map((s) => {
+              const saved = isSampleSaved(s, candidates);
+              return (
+                <div key={s.id} className="card" style={{ cursor: "default" }}>
+                  <div className="thumb" title={s.prompt}><AssetThumb src={s.imageUrl} alt={s.subject} /></div>
+                  <div className="card-body">
+                    <div className="card-meta">
+                      <span className="muted">{s.personality ? `${s.personality} · ` : ""}{s.category}</span>
+                      {saved && <span className="pill approved" title="Saved to candidate library">✓ saved</span>}
+                      {s.scores && <span className="pill queued">{sampleOverall(s.scores)}/100</span>}
+                    </div>
+                    <p className="muted" style={{ fontSize: "0.68rem", margin: "2px 0 0" }}>{providerLabel(s.provider)} · {s.model || "—"}</p>
+                    <div className="chips" style={{ marginTop: 6 }}>
+                      <button className="chip" onClick={() => downloadJson(`${s.id}.json`, exportApprovedSamples([s])[0])} title="Download this asset's JSON metadata">⬇ JSON</button>
+                      <button className="chip" onClick={() => applyRemove(s.id)} title="Remove from samples (does not delete a saved candidate)">🗑 Remove</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

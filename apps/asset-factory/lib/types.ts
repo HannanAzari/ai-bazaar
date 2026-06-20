@@ -151,6 +151,12 @@ export type AssetCandidate = {
   qualityNotes: string;
   reviewer: string;
   reviewedAt: string;
+  /** Lifestyle personality (V3.7.2), set when saved from a Style Lab collection sample. */
+  personality?: string;
+  /** Where the candidate came from, e.g. "style_lab" (V3.7.2). */
+  source?: string;
+  /** The originating Style Lab sample id (V3.7.2) — used to prevent duplicate saves. */
+  sourceSampleId?: string;
   createdAt: string;
 };
 

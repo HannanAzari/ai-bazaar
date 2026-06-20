@@ -2,6 +2,28 @@
 
 Newest first. Versions before V3.4 are summarized from the README/commit history.
 
+## V3.7.2 — Style Lab approvals → candidate library (no style change)
+
+- **Approved real Style Lab samples become AssetCandidates** in the existing
+  Review/Generate library ([`lib/style-lab.ts`](../lib/style-lab.ts)
+  `sampleToCandidate` / `approvedSamplesToCandidates`). Status `approved` (or
+  `needs_review` if only starred), `source: "style_lab"`, with id/name/slug/category/
+  imageUrl/prompt/provider/model/personality/tags/createdAt + `sourceSampleId`.
+  Samples stay for calibration; this just mirrors the good ones.
+- **Dedupe:** by sample id, candidate id, AND imageUrl — the same image is never saved
+  twice, but a different render of the same item is a new version. Dry-run placeholders
+  are never saved.
+- **Approved Library panel** (Style Lab): saved count + per-category counts,
+  **💾 Save approved to library**, **⬇ Export approved JSON** (`approved-assets.json`,
+  catalog shape), **⬇ Export catalog JSON** (`catalog-candidates.json`, all
+  candidates), per-asset **⬇ JSON** metadata, and a "saved ✓" badge.
+- **Generate tab — Manufacturer Collection presets** (Sofa / Accent Chair / Coffee
+  Table, 10 each): dry-run or real OpenAI generation straight into `needs_review`
+  candidates, reusing the locked DNA prompts. Other categories use the standard form.
+- Tests: **229 passing** (+10 library: approve→candidate, dry-run not saved, duplicate
+  ignored, rejected excluded, approved JSON includes saved, CatalogAsset mapping).
+  Typecheck · lint · build green. DNA/prompts unchanged; main app untouched.
+
 ## V3.7.1 — Style Lab persistence fix + asset library (no style change)
 
 - **Generation now APPENDS** (was: overwrote). Real renders are added to existing

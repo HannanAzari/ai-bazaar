@@ -12,6 +12,8 @@ import {
 import { getCandidateRepository } from "@/lib/repo";
 import { NEGATIVE_PROMPT } from "@/lib/prompts";
 import { STYLE_FAMILIES, DEFAULT_STYLE_FAMILY, buildStyledPrompt, styleLabel, type StyleFamilyId } from "@/lib/styles";
+import { COLLECTION, collectionCategory, variantsForCategory, dnaSample, dryRunDnaSamples, DNA_PROVIDER } from "@/lib/sofa-dna";
+import { sampleToCandidate, parseStyleResult } from "@/lib/style-lab";
 import { PROVIDERS, providerLabel, type ProviderId } from "@/lib/providers";
 import {
   GENERATION_DEFAULTS,
@@ -46,6 +48,10 @@ export function GenerateClient() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  const [presetCat, setPresetCat] = useState<string>("sofa");
+  const [presetBusy, setPresetBusy] = useState(false);
+  const [presetMsg, setPresetMsg] = useState("");
 
   const refresh = useCallback(async () => {
     try {
@@ -162,6 +168,53 @@ export function GenerateClient() {
     await repo.saveJob(next);
   }
 
+  // ── Manufacturer Collection presets (V3.7.2) ──────────────────────────────
+  // Production generation from the Generate tab: the 10 personality variants for a
+  // category become real needs_review candidates (or dry-run placeholders), reusing
+  // the locked DNA prompts. Same pipeline as Style Lab, written straight to the library.
+  const openaiReady = providerEnabled(effConfig, "openai") && providerTokenConfigured(effConfig, "openai");
+  const presetLabel = collectionCategory(presetCat).label;
+
+  async function presetGenerateOne(cat: string, subj: string): Promise<string | null> {
+    try {
+      const res = await fetch("/api/generate/style", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: cat, subject: subj, styleId: DEFAULT_STYLE_FAMILY, count: 1, generatedToday: 0, provider: DNA_PROVIDER }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const r = parseStyleResult(res.ok, data);
+      return r.ok ? r.imageUrls[0] : null;
+    } catch { return null; }
+  }
+
+  async function runPresetReal(goldenKey: string) {
+    setPresetBusy(true); setError(""); setPresetMsg("");
+    const variants = variantsForCategory(goldenKey);
+    const label = collectionCategory(goldenKey).label;
+    const delay = effConfig.requestDelayMs;
+    let made = 0;
+    try {
+      for (let i = 0; i < variants.length; i += 1) {
+        const v = variants[i];
+        setPresetMsg(`${label}: ${v.personality} (${i + 1}/${variants.length})…`);
+        const url = await presetGenerateOne(v.category, v.subject);
+        if (url) { await repo.addCandidates([sampleToCandidate(dnaSample(v, i, url, { provider: DNA_PROVIDER, model: effConfig.openaiModel }), "needs_review")]); made += 1; }
+        if (i < variants.length - 1 && delay > 0) await new Promise((r) => setTimeout(r, delay));
+      }
+      await refresh();
+      setPresetMsg(`Generated ${made}/${variants.length} ${label} → needs_review.`);
+    } finally { setPresetBusy(false); }
+  }
+
+  async function runPresetDryRun(goldenKey: string) {
+    const label = collectionCategory(goldenKey).label;
+    const cands = dryRunDnaSamples(goldenKey, { provider: DNA_PROVIDER, model: effConfig.openaiModel }).map((s) => sampleToCandidate(s, "needs_review"));
+    await repo.addCandidates(cands);
+    await refresh();
+    setPresetMsg(`Dry run added ${cands.length} ${label} placeholder candidate(s) → needs_review.`);
+  }
+
   return (
     <div className="app">
       <div className="topbar">
@@ -263,6 +316,32 @@ export function GenerateClient() {
             {busy ? "Generating…" : `Generate (real, ${providerLabel(provider)})`}
           </button>
         </div>
+      </div>
+
+      <div className="panel" style={{ borderLeft: "3px solid var(--accent, #c98a3a)" }}>
+        <div className="topbar" style={{ paddingTop: 0 }}>
+          <h3 style={{ margin: 0 }}>🧬 Manufacturer Collection presets</h3>
+          <span className="spacer" />
+          <span className="muted">10 personalities × locked DNA</span>
+        </div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Production generation from the Generate tab: the 10 personality variants for a category become
+          <strong> needs_review</strong> candidates. {openaiReady ? "OpenAI generation is ON." : " Real generation is OFF — dry-run adds placeholder candidates (zero cost)."}
+        </p>
+        <div className="field" style={{ maxWidth: 280 }}>
+          <label>Collection category</label>
+          <select value={presetCat} onChange={(e) => setPresetCat(e.target.value)}>
+            {COLLECTION.map((c) => (<option key={c.goldenKey} value={c.goldenKey}>{c.label}</option>))}
+          </select>
+        </div>
+        <div className="toolbar">
+          <button className="btn btn-primary" disabled={presetBusy} onClick={() => runPresetDryRun(presetCat)}>Dry run {presetLabel} 10</button>
+          <button className="btn btn-green" disabled={!openaiReady || presetBusy} title={openaiReady ? `Generate 10 ${presetLabel} via OpenAI` : "Needs ASSET_GENERATION_ENABLED + OPENAI_GENERATION_ENABLED + OPENAI_API_KEY"} onClick={() => runPresetReal(presetCat)}>
+            Generate {presetLabel} 10 (OpenAI)
+          </button>
+        </div>
+        {presetMsg && <p className="muted" style={{ fontSize: "0.82rem" }}>{presetBusy ? "⏳ " : "✓ "}{presetMsg} {presetBusy ? "(sequential, rate-limit safe)" : ""}</p>}
+        <p className="muted" style={{ fontSize: "0.78rem" }}>More categories (Rug / Lamp / Plant / Shelf / Wall Art) generate via the form above with the same locked DNA.</p>
       </div>
 
       {output && (

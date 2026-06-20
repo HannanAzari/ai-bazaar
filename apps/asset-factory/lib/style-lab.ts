@@ -1,4 +1,4 @@
-import { type FactoryCategory, type StyleSample, type SampleScores, type AssetPlacement, CATEGORY_META } from "@/lib/types";
+import { type FactoryCategory, type StyleSample, type SampleScores, type AssetPlacement, type AssetCandidate, type AssetStatus, CATEGORY_META } from "@/lib/types";
 import { buildStyledPrompt, STYLE_FAMILIES, DEFAULT_STYLE_FAMILY, type StyleFamilyId } from "@/lib/styles";
 import { slugify } from "@/lib/slug";
 
@@ -295,6 +295,103 @@ export function exportApprovedSamples(samples: StyleSample[]): ApprovedExportRow
     starred: s.closest,
     kind: "real",
   }));
+}
+
+// ── Save approved samples into the candidate library (V3.7.2) ─────────────────
+// Approved/starred REAL Style Lab samples become normal AssetCandidates so they flow
+// through the existing Review → export pipeline. Samples stay for calibration; this
+// just mirrors the good ones into the library. Dry-runs are never saved.
+
+function shortHash(s: string): string {
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36).slice(0, 6);
+}
+
+/** Map one Style Lab sample to an AssetCandidate (status from the sample, or overridden). */
+export function sampleToCandidate(s: StyleSample, statusOverride?: AssetStatus): AssetCandidate {
+  const meta = CATEGORY_META[s.category];
+  const name = sampleName(s);
+  const slug = `${slugify(name)}-${shortHash(s.id)}`;
+  const status: AssetStatus = statusOverride ?? (s.decision === "approved" ? "approved" : "needs_review");
+  const now = new Date().toISOString();
+  const tags = Array.from(new Set([
+    s.personality?.toLowerCase(),
+    meta.group,
+    s.category,
+  ].filter((t): t is string => !!t)));
+  return {
+    id: `sl-${s.id}`,
+    name,
+    slug,
+    category: s.category,
+    pack: "style-lab",
+    status,
+    imageUrl: s.imageUrl,
+    prompt: s.prompt,
+    negativePrompt: "",
+    modelProvider: s.provider,
+    modelName: s.model,
+    seed: s.seed,
+    width: 1024,
+    height: 1024,
+    transparent: false, // raw provider render — background removal is a later step
+    tags,
+    compatibleZones: meta.compatibleZones,
+    placementType: meta.placement,
+    defaultScale: meta.defaultScale,
+    defaultActionType: meta.defaultActionType,
+    styleScore: overallScore(s.scores) ?? 0,
+    qualityNotes: s.note || "Saved from Style Lab (real provider render).",
+    reviewer: "style-lab",
+    reviewedAt: now,
+    personality: s.personality,
+    source: "style_lab",
+    sourceSampleId: s.id,
+    createdAt: now,
+  };
+}
+
+/**
+ * The NEW candidates to add for the approved library: approved/starred REAL samples
+ * that aren't already saved. Dedupe by sample id, candidate id, AND imageUrl (so the
+ * same image is never saved twice, but a different render of the same item can be).
+ */
+export function approvedSamplesToCandidates(
+  samples: StyleSample[],
+  existing: AssetCandidate[],
+  statusOverride?: AssetStatus,
+): AssetCandidate[] {
+  const savedSampleIds = new Set(existing.map((c) => c.sourceSampleId).filter((x): x is string => !!x));
+  const ids = new Set(existing.map((c) => c.id));
+  const urls = new Set(existing.map((c) => c.imageUrl));
+  const out: AssetCandidate[] = [];
+  for (const s of approvedLibrary(samples)) {
+    const cand = sampleToCandidate(s, statusOverride);
+    if (savedSampleIds.has(s.id) || ids.has(cand.id) || urls.has(s.imageUrl)) continue;
+    out.push(cand);
+    savedSampleIds.add(s.id);
+    ids.add(cand.id);
+    urls.add(s.imageUrl);
+  }
+  return out;
+}
+
+/** True when a sample already has a saved candidate (by sample id). */
+export function isSampleSaved(s: StyleSample, candidates: AssetCandidate[]): boolean {
+  return candidates.some((c) => c.sourceSampleId === s.id);
+}
+
+/** Candidates that originated from the Style Lab. */
+export function savedFromStyleLab(candidates: AssetCandidate[]): AssetCandidate[] {
+  return candidates.filter((c) => c.source === "style_lab");
+}
+
+/** Per-category counts for a set of candidates (for the library stats). */
+export function categoryCounts(candidates: AssetCandidate[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const c of candidates) out[c.category] = (out[c.category] ?? 0) + 1;
+  return out;
 }
 
 export { STYLE_FAMILIES };

@@ -42,6 +42,12 @@ export function exportJson(candidates: AssetCandidate[]): string {
   return JSON.stringify(approvedCatalog(candidates), null, 2) + "\n";
 }
 
+/** All saved candidates in raw candidate shape (catalog-candidates.json, V3.7.2). */
+export function exportCandidatesJson(candidates: AssetCandidate[]): string {
+  const sorted = [...candidates].sort((a, b) => a.id.localeCompare(b.id));
+  return JSON.stringify(sorted, null, 2) + "\n";
+}
+
 /** A ready-to-import TypeScript module exporting the approved catalog. */
 export function exportTs(candidates: AssetCandidate[]): string {
   const assets = approvedCatalog(candidates);
