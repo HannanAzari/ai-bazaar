@@ -2,6 +2,27 @@
 
 Newest first. Versions before V3.4 are summarized from the README/commit history.
 
+## V3.7.3 — Export source-of-truth fix + room-engine catalog (no style change)
+
+- **Bug:** the Approved Library exports read from the repo `candidates` (seed/sample
+  placeholders like `/samples/cafe-counter.png`, `modelProvider: "placeholder"`), not
+  the approved Style Lab assets. **Fix:** all exports now derive from
+  `libraryCandidates` = `approvedSamplesToCandidates(samples, [])` — the approved/
+  starred **real** Style Lab samples in the Approved Library (localStorage), never the
+  repo seed.
+- **Room-engine catalog** ([`lib/export.ts`](../lib/export.ts) `roomEngineCatalog` /
+  `exportRoomEngineCatalog`): a new **🏠 Download room-engine catalog** button writes
+  `nestudio-interior-v1.catalog.json` with **approved real OpenAI assets only**, in the
+  catalog shape plus provenance (personality, source `style_lab`, modelProvider
+  `openai`, modelName `gpt-image-1`).
+- **Debug line** in the panel: saved style-lab (repo) count · exported approved ·
+  exported catalog · room-engine · source (localStorage vs repo mode).
+- Export buttons now show live counts; dry-run/placeholder assets are excluded.
+- Tests: **235 passing** (+6 export source: `/samples` placeholder excluded, real
+  OpenAI included, rejected excluded, non-OpenAI excluded from room-engine,
+  sofa/chair/table mapping, count matches visible library). Typecheck · lint · build
+  green. DNA/prompts unchanged; main app untouched.
+
 ## V3.7.2 — Style Lab approvals → candidate library (no style change)
 
 - **Approved real Style Lab samples become AssetCandidates** in the existing

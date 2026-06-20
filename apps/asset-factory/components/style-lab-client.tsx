@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { type StyleSample, type SampleScores, type AssetCandidate } from "@/lib/types";
 import { getCandidateRepository } from "@/lib/repo";
-import { exportJson, exportCandidatesJson } from "@/lib/export";
+import { exportJson, exportCandidatesJson, exportRoomEngineCatalog, roomEngineCatalog, approvedCatalog } from "@/lib/export";
 import { GENERATION_DEFAULTS, modelForProvider, providerEnabled, providerTokenConfigured, type GenerationConfig } from "@/lib/generation-config";
 import { NEGATIVE_PROMPT, NESTUDIO_DNA } from "@/lib/prompts";
 import { NESTUDIO_V2, styleMasterPreview } from "@/lib/styles";
@@ -153,6 +153,11 @@ export function StyleLabClient() {
   const savedLibrary = useMemo(() => savedFromStyleLab(candidates), [candidates]);
   const savedCounts = useMemo(() => categoryCounts(savedLibrary), [savedLibrary]);
   const pendingSaves = useMemo(() => approvedSamplesToCandidates(samples, candidates), [samples, candidates]);
+  // SOURCE OF TRUTH for ALL exports: the approved/starred REAL Style Lab samples in
+  // the Approved Library (localStorage) — NOT the repo's seed/placeholder candidates.
+  const libraryCandidates = useMemo(() => approvedSamplesToCandidates(samples, []), [samples]);
+  const exportedApprovedCount = useMemo(() => approvedCatalog(libraryCandidates).length, [libraryCandidates]);
+  const roomEngineCount = useMemo(() => roomEngineCatalog(libraryCandidates).length, [libraryCandidates]);
 
   async function saveApprovedToLibrary() {
     if (pendingSaves.length === 0) return;
@@ -453,15 +458,23 @@ export function StyleLabClient() {
             Saved by category: {Object.entries(savedCounts).map(([c, n]) => `${c} ${n}`).join(" · ")}
           </p>
         )}
+        <p className="muted" style={{ fontSize: "0.74rem", fontFamily: "monospace", opacity: 0.85 }}>
+          debug · saved style-lab (repo): {savedLibrary.length} · exported approved: {exportedApprovedCount} ·
+          exported catalog: {libraryCandidates.length} · room-engine: {roomEngineCount} ·
+          source: Style Lab localStorage (repo mode: {repo.mode})
+        </p>
         <div className="toolbar">
           <button className="btn btn-green" disabled={pendingSaves.length === 0} title="Mirror approved/starred real samples into the candidate library" onClick={saveApprovedToLibrary}>
             💾 Save approved to library ({pendingSaves.length})
           </button>
-          <button className="btn btn-primary" disabled={candidates.filter((c) => c.status === "approved").length === 0} onClick={() => downloadText("approved-assets.json", exportJson(candidates))}>
-            ⬇ Export approved JSON
+          <button className="btn btn-primary" disabled={library.length === 0} onClick={() => downloadText("approved-assets.json", exportJson(libraryCandidates))}>
+            ⬇ Export approved JSON ({exportedApprovedCount})
           </button>
-          <button className="btn" disabled={candidates.length === 0} onClick={() => downloadText("catalog-candidates.json", exportCandidatesJson(candidates))}>
-            ⬇ Export catalog JSON
+          <button className="btn" disabled={library.length === 0} onClick={() => downloadText("catalog-candidates.json", exportCandidatesJson(libraryCandidates))}>
+            ⬇ Export catalog JSON ({libraryCandidates.length})
+          </button>
+          <button className="btn btn-primary" disabled={roomEngineCount === 0} title="Approved real OpenAI assets only, in room-engine shape" onClick={() => downloadText("nestudio-interior-v1.catalog.json", exportRoomEngineCatalog(libraryCandidates))}>
+            🏠 Download room-engine catalog ({roomEngineCount})
           </button>
         </div>
         {library.length === 0 ? (

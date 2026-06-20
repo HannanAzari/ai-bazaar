@@ -48,6 +48,41 @@ export function exportCandidatesJson(candidates: AssetCandidate[]): string {
   return JSON.stringify(sorted, null, 2) + "\n";
 }
 
+// ── Room-engine catalog (V3.7.3) ─────────────────────────────────────────────
+// The room engine receives the approved REAL OpenAI assets — never seed/placeholder
+// samples. Extends the Nestudio catalog shape with provenance (personality, source,
+// model) so the engine + audits can trace each asset back to its Style Lab origin.
+
+export type RoomEngineAsset = NestudioCatalogAsset & {
+  personality?: string;
+  source: string;
+  modelProvider: string;
+  modelName: string;
+};
+
+export function toRoomEngineAsset(candidate: AssetCandidate): RoomEngineAsset {
+  return {
+    ...toNestudioAsset(candidate),
+    personality: candidate.personality,
+    source: candidate.source ?? "style_lab",
+    modelProvider: candidate.modelProvider,
+    modelName: candidate.modelName,
+  };
+}
+
+/** Approved, real OpenAI candidates mapped to the room-engine shape (sorted by id). */
+export function roomEngineCatalog(candidates: AssetCandidate[]): RoomEngineAsset[] {
+  return candidates
+    .filter((c) => c.status === "approved" && c.modelProvider === "openai")
+    .map(toRoomEngineAsset)
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** Pretty JSON for nestudio-interior-v1.catalog.json (approved real OpenAI only). */
+export function exportRoomEngineCatalog(candidates: AssetCandidate[]): string {
+  return JSON.stringify(roomEngineCatalog(candidates), null, 2) + "\n";
+}
+
 /** A ready-to-import TypeScript module exporting the approved catalog. */
 export function exportTs(candidates: AssetCandidate[]): string {
   const assets = approvedCatalog(candidates);
