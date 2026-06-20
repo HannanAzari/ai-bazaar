@@ -1,5 +1,6 @@
 import { getServerSupabase, CANDIDATE_BUCKET } from "@/lib/supabase-server";
 import { slugify } from "@/lib/slug";
+import { interiorStoragePath } from "@/lib/asset-persist";
 import { type ImageStore } from "@/lib/image-provider";
 
 // Upload an imported/uploaded image into the Supabase Storage bucket (V2) and
@@ -31,6 +32,27 @@ export async function uploadCandidateImage(
     .upload(path, body, { contentType, upsert: false });
   if (error) throw new Error(error.message);
 
+  const { data } = supabase.storage.from(CANDIDATE_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+/**
+ * Upload an approved interior asset to a STABLE, id-keyed path
+ * (asset-candidates/interior-v1/<id>.png, upsert) so re-saving the same id overwrites
+ * the same object. Returns the public URL. (V3.7.5)
+ */
+export async function uploadInteriorAsset(
+  bytes: ArrayBuffer | Uint8Array,
+  contentType: string,
+  assetId: string,
+): Promise<string> {
+  const supabase = getServerSupabase();
+  const path = interiorStoragePath(assetId);
+  const body = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const { error } = await supabase.storage
+    .from(CANDIDATE_BUCKET)
+    .upload(path, body, { contentType: contentType || "image/png", upsert: true });
+  if (error) throw new Error(error.message);
   const { data } = supabase.storage.from(CANDIDATE_BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }

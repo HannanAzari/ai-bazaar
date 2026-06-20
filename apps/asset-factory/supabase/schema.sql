@@ -30,12 +30,16 @@ create table if not exists public.asset_candidates (
   quality_notes       text not null default '',
   reviewer            text not null default '',
   reviewed_at         text not null default '',
+  personality         text,
+  source              text,
+  source_sample_id    text,
   created_at          text not null,
   updated_at          timestamptz not null default now()
 );
 
 create index if not exists asset_candidates_status_idx on public.asset_candidates (status);
 create index if not exists asset_candidates_created_idx on public.asset_candidates (created_at desc);
+create index if not exists asset_candidates_source_idx on public.asset_candidates (source);
 
 -- ── Review activity log ──────────────────────────────────────────────────────
 create table if not exists public.asset_review_actions (

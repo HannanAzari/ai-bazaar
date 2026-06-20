@@ -150,34 +150,32 @@ export function StyleLabClient() {
 
   const library = useMemo(() => approvedLibrary(samples), [samples]);
   const dryRunCount = useMemo(() => samples.filter(isDryRunSample).length, [samples]);
+  // Candidates derived from the local approved/starred real samples — this is what a
+  // Save SENDS to Supabase. Only OpenAI assets are persisted to production.
+  const localApproved = useMemo(() => approvedSamplesToCandidates(samples, []), [samples]);
+  const savableAssets = useMemo(() => localApproved.filter((c) => c.modelProvider === "openai"), [localApproved]);
+  // SOURCE OF TRUTH for EXPORTS: the assets actually persisted to Supabase (source
+  // "style_lab"), read back from the repo — NOT localStorage-only and NOT seed samples.
   const savedLibrary = useMemo(() => savedFromStyleLab(candidates), [candidates]);
   const savedCounts = useMemo(() => categoryCounts(savedLibrary), [savedLibrary]);
-  const pendingSaves = useMemo(() => approvedSamplesToCandidates(samples, candidates), [samples, candidates]);
-  // SOURCE OF TRUTH for ALL exports: the approved/starred REAL Style Lab samples in
-  // the Approved Library (localStorage) — NOT the repo's seed/placeholder candidates.
-  const libraryCandidates = useMemo(() => approvedSamplesToCandidates(samples, []), [samples]);
-  const exportedApprovedCount = useMemo(() => approvedCatalog(libraryCandidates).length, [libraryCandidates]);
-  const roomEngineCount = useMemo(() => roomEngineCatalog(libraryCandidates).length, [libraryCandidates]);
+  const exportedApprovedCount = useMemo(() => approvedCatalog(savedLibrary).length, [savedLibrary]);
+  const roomEngineCount = useMemo(() => roomEngineCatalog(savedLibrary).length, [savedLibrary]);
 
   async function saveApprovedToLibrary() {
-    if (library.length === 0) return;
+    if (savableAssets.length === 0) return;
     setError("");
     try {
-      // 1) Mirror into the candidate repo (localStorage / shared backend).
-      if (pendingSaves.length) await repo.addCandidates(pendingSaves);
-      await refreshCandidates();
-      // 2) Persist PNGs + catalog to the app filesystem for the room engine.
-      const assets = roomEngineCatalog(libraryCandidates);
       const res = await fetch("/api/style-lab/save-approved-assets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assets }),
+        body: JSON.stringify({ assets: savableAssets }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(data?.error ?? "Filesystem save failed."); return; }
-      setNotice(`Saved ${data.saved} PNGs and catalog to public/generated/interior-v1 and public/catalogs.`);
+      if (!res.ok) { setError(data?.error ?? "Save to Supabase failed."); return; }
+      await refreshCandidates(); // re-read from Supabase so the library + exports update
+      setNotice(`Saved ${data.saved} assets to Supabase Storage and library.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save to library.");
+      setError(err instanceof Error ? err.message : "Failed to save to Supabase.");
     }
   }
 
@@ -460,9 +458,10 @@ export function StyleLabClient() {
         </div>
         {notice && <p className="muted" style={{ marginTop: 0 }}>✓ {notice}</p>}
         <p className="muted" style={{ marginTop: 0 }}>
-          Approving a <strong>real</strong> sample makes it library-ready; <strong>Save</strong> mirrors it into the
-          Review/Generate candidate library as an AssetCandidate (status <em>approved</em>, source <em>style_lab</em>),
-          deduped by sample + image. Dry-run placeholders are never saved or exported.
+          Approving a <strong>real OpenAI</strong> sample makes it savable; <strong>Save</strong> uploads each PNG to
+          Supabase Storage (<em>asset-candidates/interior-v1</em>) and upserts an approved <em>style_lab</em> candidate
+          row, so the main app / room engine can read it. Exports below use the <strong>Supabase-saved</strong> assets,
+          not localStorage. Dry-run placeholders are never saved or exported.
         </p>
         {savedLibrary.length > 0 && (
           <p className="muted" style={{ fontSize: "0.8rem" }}>
@@ -470,21 +469,20 @@ export function StyleLabClient() {
           </p>
         )}
         <p className="muted" style={{ fontSize: "0.74rem", fontFamily: "monospace", opacity: 0.85 }}>
-          debug · saved style-lab (repo): {savedLibrary.length} · exported approved: {exportedApprovedCount} ·
-          exported catalog: {libraryCandidates.length} · room-engine: {roomEngineCount} ·
-          source: Style Lab localStorage (repo mode: {repo.mode})
+          debug · saved style-lab (Supabase): {savedLibrary.length} · savable (localStorage): {savableAssets.length} ·
+          exported approved: {exportedApprovedCount} · room-engine: {roomEngineCount} · repo mode: {repo.mode}
         </p>
         <div className="toolbar">
-          <button className="btn btn-green" disabled={library.length === 0} title="Mirror into the candidate library AND save PNGs + catalog to the app filesystem" onClick={saveApprovedToLibrary}>
-            💾 Save approved to library + files ({roomEngineCount})
+          <button className="btn btn-green" disabled={savableAssets.length === 0} title="Upload PNGs to Supabase Storage + upsert candidate rows" onClick={saveApprovedToLibrary}>
+            💾 Save approved to Supabase ({savableAssets.length})
           </button>
-          <button className="btn btn-primary" disabled={library.length === 0} onClick={() => downloadText("approved-assets.json", exportJson(libraryCandidates))}>
+          <button className="btn btn-primary" disabled={savedLibrary.length === 0} onClick={() => downloadText("approved-assets.json", exportJson(savedLibrary))}>
             ⬇ Export approved JSON ({exportedApprovedCount})
           </button>
-          <button className="btn" disabled={library.length === 0} onClick={() => downloadText("catalog-candidates.json", exportCandidatesJson(libraryCandidates))}>
-            ⬇ Export catalog JSON ({libraryCandidates.length})
+          <button className="btn" disabled={savedLibrary.length === 0} onClick={() => downloadText("catalog-candidates.json", exportCandidatesJson(savedLibrary))}>
+            ⬇ Export catalog JSON ({savedLibrary.length})
           </button>
-          <button className="btn btn-primary" disabled={roomEngineCount === 0} title="Approved real OpenAI assets only, in room-engine shape" onClick={() => downloadText("nestudio-interior-v1.catalog.json", exportRoomEngineCatalog(libraryCandidates))}>
+          <button className="btn btn-primary" disabled={roomEngineCount === 0} title="Supabase-saved approved real OpenAI assets, in room-engine shape" onClick={() => downloadText("nestudio-interior-v1.catalog.json", exportRoomEngineCatalog(savedLibrary))}>
             🏠 Download room-engine catalog ({roomEngineCount})
           </button>
         </div>

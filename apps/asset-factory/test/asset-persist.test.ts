@@ -1,136 +1,131 @@
-import { describe, it, expect, afterAll } from "vitest";
-import { promises as fs } from "fs";
-import os from "os";
-import path from "path";
-import { saveApprovedAssets, type FetchLike } from "@/lib/asset-persist-server";
-import {
-  mergeCatalog,
-  assetFileName,
-  isPlaceholderUrl,
-  decodeDataUrl,
-  GENERATED_DIR,
-  CATALOG_DIR,
-  CATALOG_FILE,
-} from "@/lib/asset-persist";
-import { type RoomEngineAsset } from "@/lib/export";
+import { describe, it, expect } from "vitest";
+import { saveApprovedAssetsToSupabase, type SupabaseSaveDeps, type FetchLike } from "@/lib/asset-persist-server";
+import { isPlaceholderUrl, isSupabasePublicUrl, interiorStoragePath } from "@/lib/asset-persist";
+import { decodeDataUrl } from "@/lib/server-storage";
+import { savedFromStyleLab } from "@/lib/style-lab";
+import { exportJson } from "@/lib/export";
+import { type AssetCandidate } from "@/lib/types";
 
-// 1x1 transparent PNG.
 const PNG_1x1 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+const PUBLIC = "https://proj.supabase.co/storage/v1/object/public/asset-candidates/interior-v1/x.png";
 
-function asset(over: Partial<RoomEngineAsset> = {}): RoomEngineAsset {
+function cand(over: Partial<AssetCandidate> = {}): AssetCandidate {
   return {
-    id: "ast-x", name: "X", category: "furniture", villageTheme: "any", placement: "floor",
-    ownerType: "system", rarity: "common", tags: ["x"], imageUrl: PNG_1x1, status: "published",
-    compatibleZones: ["floor_center"], defaultScale: 1, defaultActionType: "none",
-    personality: "Minimalist", source: "style_lab", modelProvider: "openai", modelName: "gpt-image-1",
-    ...over,
+    id: "sl-x", name: "X", slug: "x", category: "sofa", pack: "style-lab", status: "approved",
+    imageUrl: PNG_1x1, prompt: "p", negativePrompt: "", modelProvider: "openai", modelName: "gpt-image-1",
+    seed: 1, width: 1024, height: 1024, transparent: false, tags: ["x"], compatibleZones: ["floor_center"],
+    placementType: "floor", defaultScale: 1, defaultActionType: "none", styleScore: 90, qualityNotes: "",
+    reviewer: "style-lab", reviewedAt: "", personality: "Minimalist", source: "style_lab",
+    sourceSampleId: "dna-x", createdAt: "2026-01-01T00:00:00.000Z", ...over,
   };
 }
 
-const tmpRoots: string[] = [];
-async function tmpPublic(): Promise<string> {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "af-persist-"));
-  tmpRoots.push(root);
-  return path.join(root, "public");
+/** Capturing deps: records uploads + a fake DB keyed by id (so upsert dedupes). */
+function makeDeps(extra: Partial<SupabaseSaveDeps> = {}) {
+  const uploads: { id: string; len: number; contentType: string }[] = [];
+  const db = new Map<string, AssetCandidate>();
+  const deps: SupabaseSaveDeps = {
+    uploadImage: async (bytes, contentType, id) => {
+      uploads.push({ id, len: bytes.length, contentType });
+      return `https://proj.supabase.co/storage/v1/object/public/asset-candidates/${interiorStoragePath(id).split("/").pop()}`;
+    },
+    upsertCandidate: async (c) => { db.set(c.id, c); },
+    isSupabasePublicUrl,
+    ...extra,
+  };
+  return { deps, uploads, db };
 }
-async function readCatalog(pub: string): Promise<RoomEngineAsset[]> {
-  return JSON.parse(await fs.readFile(path.join(pub, CATALOG_DIR, CATALOG_FILE), "utf8"));
-}
-afterAll(async () => { for (const r of tmpRoots) await fs.rm(r, { recursive: true, force: true }); });
 
-describe("asset persistence pure helpers (V3.7.4)", () => {
-  it("derives a safe filename from slug or id", () => {
-    expect(assetFileName({ id: "ast-sofa", slug: "Minimalist Sofa!" })).toBe("minimalist-sofa.png");
-    expect(assetFileName({ id: "ast-sofa-123" })).toBe("ast-sofa-123.png");
-  });
-  it("flags dry-run placeholder urls", () => {
+describe("asset-persist pure helpers (V3.7.5)", () => {
+  it("classifies urls", () => {
     expect(isPlaceholderUrl("/samples/x.png")).toBe(true);
-    expect(isPlaceholderUrl("https://o/x.png")).toBe(false);
+    expect(isPlaceholderUrl(PNG_1x1)).toBe(false);
+    expect(isSupabasePublicUrl(PUBLIC)).toBe(true);
+    expect(isSupabasePublicUrl("https://cdn.example/x.png")).toBe(false);
+    expect(isSupabasePublicUrl(PNG_1x1)).toBe(false);
   });
-  it("decodes data urls", () => {
-    expect(decodeDataUrl(PNG_1x1)!.length).toBeGreaterThan(0);
-    expect(decodeDataUrl("https://o/x.png")).toBeNull();
-  });
-  it("merges + dedupes catalog by id and imageUrl", () => {
-    const a = asset({ id: "ast-a", imageUrl: "/generated/interior-v1/a.png" });
-    const b = asset({ id: "ast-b", imageUrl: "/generated/interior-v1/b.png" });
-    const aDup = asset({ id: "ast-a", name: "A2", imageUrl: "/generated/interior-v1/a.png" });
-    const merged = mergeCatalog([a], [b, aDup]);
-    expect(merged).toHaveLength(2);
-    expect(merged.find((x) => x.id === "ast-a")!.name).toBe("A2"); // incoming wins
+  it("builds an id-keyed storage path", () => {
+    expect(interiorStoragePath("sl-sofa")).toBe("interior-v1/sl-sofa.png");
+    expect(interiorStoragePath("SL Sofa!")).toBe("interior-v1/sl-sofa.png");
   });
 });
 
-describe("saveApprovedAssets — filesystem (V3.7.4)", () => {
-  it("writes a data-URL asset as a PNG and rewrites imageUrl to a local path", async () => {
-    const pub = await tmpPublic();
-    const res = await saveApprovedAssets([asset({ id: "ast-sofa", imageUrl: PNG_1x1 })], { publicDir: pub });
-    expect(res.saved).toBe(1);
-    expect(res.skipped).toBe(0);
-    const buf = await fs.readFile(path.join(pub, GENERATED_DIR, "ast-sofa.png"));
-    expect(buf.equals(decodeDataUrl(PNG_1x1)!)).toBe(true);
-    expect(res.assets[0].imageUrl).toBe("/generated/interior-v1/ast-sofa.png");
+describe("saveApprovedAssetsToSupabase (V3.7.5)", () => {
+  it("uploads a data-URL asset to storage and upserts the DB row", async () => {
+    const { deps, uploads, db } = makeDeps();
+    const res = await saveApprovedAssetsToSupabase([cand({ id: "sl-a", imageUrl: PNG_1x1 })], deps);
+    // uploaded to storage
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0].id).toBe("sl-a");
+    expect(uploads[0].len).toBe(decodeDataUrl(PNG_1x1).bytes.length);
+    // DB upsert called with a public url + normalized fields
+    expect(db.size).toBe(1);
+    const row = db.get("sl-a")!;
+    expect(isSupabasePublicUrl(row.imageUrl)).toBe(true);
+    expect(row.status).toBe("approved");
+    expect(row.source).toBe("style_lab");
+    expect(row.modelProvider).toBe("openai");
+    expect(row.modelName).toBe("gpt-image-1");
+    expect(res).toMatchObject({ saved: 1, uploaded: 1, kept: 0, skipped: 0 });
   });
 
-  it("writes the catalog JSON with local image paths", async () => {
-    const pub = await tmpPublic();
-    await saveApprovedAssets([asset({ id: "ast-sofa", imageUrl: PNG_1x1 })], { publicDir: pub });
-    const cat = await readCatalog(pub);
-    expect(cat).toHaveLength(1);
-    expect(cat[0].imageUrl).toBe("/generated/interior-v1/ast-sofa.png");
-    expect(cat[0].source).toBe("style_lab");
-    expect(cat[0].modelProvider).toBe("openai");
-    expect(cat.every((a) => a.imageUrl.startsWith("/generated/interior-v1/"))).toBe(true);
+  it("keeps an existing Supabase public url without re-uploading", async () => {
+    const { deps, uploads, db } = makeDeps();
+    const res = await saveApprovedAssetsToSupabase([cand({ id: "sl-keep", imageUrl: PUBLIC })], deps);
+    expect(uploads).toHaveLength(0);
+    expect(res.kept).toBe(1);
+    expect(db.get("sl-keep")!.imageUrl).toBe(PUBLIC);
   });
 
-  it("merges into an existing catalog and dedupes by id", async () => {
-    const pub = await tmpPublic();
-    await saveApprovedAssets([asset({ id: "ast-a", imageUrl: PNG_1x1 })], { publicDir: pub });
-    await saveApprovedAssets([asset({ id: "ast-b", imageUrl: PNG_1x1 })], { publicDir: pub });
-    let cat = await readCatalog(pub);
-    expect(cat.map((c) => c.id).sort()).toEqual(["ast-a", "ast-b"]);
-    // re-save ast-a → updates, no duplicate
-    await saveApprovedAssets([asset({ id: "ast-a", name: "A-updated", imageUrl: PNG_1x1 })], { publicDir: pub });
-    cat = await readCatalog(pub);
-    expect(cat).toHaveLength(2);
-    expect(cat.find((c) => c.id === "ast-a")!.name).toBe("A-updated");
-  });
-
-  it("never saves dry-run /samples placeholders", async () => {
-    const pub = await tmpPublic();
-    const res = await saveApprovedAssets([asset({ id: "ast-dry", imageUrl: "/samples/x.png" })], { publicDir: pub });
-    expect(res.saved).toBe(0);
-    expect(res.skipped).toBe(1);
-    expect(await readCatalog(pub)).toHaveLength(0);
-    await expect(fs.access(path.join(pub, GENERATED_DIR, "ast-dry.png"))).rejects.toBeTruthy();
-  });
-
-  it("fetches a remote image and saves it as PNG", async () => {
-    const pub = await tmpPublic();
-    const bytes = decodeDataUrl(PNG_1x1)!;
+  it("fetches a remote url and uploads it", async () => {
+    const bytes = decodeDataUrl(PNG_1x1).bytes;
     const ab = new Uint8Array(bytes).buffer as ArrayBuffer;
-    const fetchImpl: FetchLike = async () => ({ ok: true, arrayBuffer: async () => ab });
-    const res = await saveApprovedAssets([asset({ id: "ast-remote", imageUrl: "https://cdn.example/x.png" })], { publicDir: pub, fetchImpl });
-    expect(res.saved).toBe(1);
-    const buf = await fs.readFile(path.join(pub, GENERATED_DIR, "ast-remote.png"));
-    expect(buf.length).toBe(bytes.length);
+    const fetchImpl: FetchLike = async () => ({ ok: true, headers: { get: () => "image/png" }, arrayBuffer: async () => ab });
+    const { deps, uploads } = makeDeps({ fetchImpl });
+    const res = await saveApprovedAssetsToSupabase([cand({ id: "sl-remote", imageUrl: "https://cdn.example/x.png" })], deps);
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0].len).toBe(bytes.length);
+    expect(res.uploaded).toBe(1);
   });
 
-  it("keeps an already-local generated url without refetching", async () => {
-    const pub = await tmpPublic();
-    const res = await saveApprovedAssets([asset({ id: "ast-keep", imageUrl: "/generated/interior-v1/ast-keep.png" })], { publicDir: pub });
-    expect(res.saved).toBe(1);
-    expect(res.assets[0].imageUrl).toBe("/generated/interior-v1/ast-keep.png");
+  it("duplicate save updates the same row (no duplicates)", async () => {
+    const { deps, db } = makeDeps();
+    await saveApprovedAssetsToSupabase([cand({ id: "sl-dup", name: "v1", imageUrl: PNG_1x1 })], deps);
+    await saveApprovedAssetsToSupabase([cand({ id: "sl-dup", name: "v2", imageUrl: PNG_1x1 })], deps);
+    expect(db.size).toBe(1);
+    expect(db.get("sl-dup")!.name).toBe("v2");
   });
 
-  it("returns counts for a mixed batch (real + placeholder)", async () => {
-    const pub = await tmpPublic();
-    const res = await saveApprovedAssets([
-      asset({ id: "ast-real", imageUrl: PNG_1x1 }),
-      asset({ id: "ast-ph", imageUrl: "/samples/p.png" }),
-    ], { publicDir: pub });
-    expect(res.saved).toBe(1);
-    expect(res.skipped).toBe(1);
-    expect(res.catalogCount).toBe(1);
+  it("never saves dry-run placeholders or non-OpenAI assets", async () => {
+    const { deps, uploads, db } = makeDeps();
+    const res = await saveApprovedAssetsToSupabase([
+      cand({ id: "sl-ph", imageUrl: "/samples/p.png" }),
+      cand({ id: "sl-rep", modelProvider: "replicate", imageUrl: "https://cdn/r.png" }),
+    ], deps);
+    expect(uploads).toHaveLength(0);
+    expect(db.size).toBe(0);
+    expect(res).toMatchObject({ saved: 0, skipped: 2 });
+  });
+});
+
+describe("export uses Supabase-saved assets, not localStorage (V3.7.5)", () => {
+  it("excludes seed/non-style_lab candidates from the saved library", () => {
+    const seed = cand({ id: "seed-1", source: undefined, slug: "seed", imageUrl: "/samples/cafe-counter.png", modelProvider: "placeholder" });
+    const saved = cand({ id: "sl-1", source: "style_lab", slug: "minimalist-sofa", imageUrl: PUBLIC });
+    const repoCandidates = [seed, saved];
+    const lib = savedFromStyleLab(repoCandidates);
+    expect(lib.map((c) => c.id)).toEqual(["sl-1"]);
+    const parsed = JSON.parse(exportJson(lib)) as { id: string; imageUrl: string }[];
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].imageUrl).toBe(PUBLIC);
+    expect(parsed.some((a) => a.imageUrl.startsWith("/samples/"))).toBe(false);
+  });
+
+  it("treats not-yet-persisted (localStorage-only) assets as not exported", () => {
+    // Repo holds only a seed; the style_lab asset hasn't been saved to Supabase yet.
+    const repoCandidates = [cand({ id: "seed-1", source: undefined })];
+    const lib = savedFromStyleLab(repoCandidates);
+    expect(lib).toHaveLength(0);
+    expect(JSON.parse(exportJson(lib))).toHaveLength(0);
   });
 });

@@ -43,6 +43,9 @@ export type CandidateRow = {
   quality_notes: string;
   reviewer: string;
   reviewed_at: string;
+  personality: string | null;
+  source: string | null;
+  source_sample_id: string | null;
   created_at: string;
 };
 
@@ -73,6 +76,9 @@ export function candidateToRow(c: AssetCandidate): CandidateRow {
     quality_notes: c.qualityNotes,
     reviewer: c.reviewer,
     reviewed_at: c.reviewedAt,
+    personality: c.personality ?? null,
+    source: c.source ?? null,
+    source_sample_id: c.sourceSampleId ?? null,
     created_at: c.createdAt,
   };
 }
@@ -104,6 +110,9 @@ export function rowToCandidate(r: CandidateRow): AssetCandidate {
     qualityNotes: r.quality_notes,
     reviewer: r.reviewer,
     reviewedAt: r.reviewed_at,
+    personality: r.personality ?? undefined,
+    source: r.source ?? undefined,
+    sourceSampleId: r.source_sample_id ?? undefined,
     createdAt: r.created_at,
   };
 }

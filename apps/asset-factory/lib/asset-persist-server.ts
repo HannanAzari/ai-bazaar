@@ -1,92 +1,94 @@
-import { promises as fs } from "fs";
-import path from "path";
-import { type RoomEngineAsset } from "@/lib/export";
-import {
-  GENERATED_DIR,
-  CATALOG_DIR,
-  CATALOG_FILE,
-  assetFileName,
-  isPlaceholderUrl,
-  isLocalGeneratedUrl,
-  localUrlFor,
-  decodeDataUrl,
-  mergeCatalog,
-} from "@/lib/asset-persist";
+import { type AssetCandidate } from "@/lib/types";
+import { decodeDataUrl } from "@/lib/server-storage";
+import { isPlaceholderUrl } from "@/lib/asset-persist";
 
-// Server-only writer (V3.7.4): persists approved room-engine assets to the app
-// filesystem — PNGs under public/generated/interior-v1 and a merged catalog under
-// public/catalogs. NEVER import from a client component. fetch is injectable so the
-// remote-image path is testable without the network.
+// Server-side saver (V3.7.5): persists approved real OpenAI assets to Supabase —
+// uploads the PNG to Storage and upserts the candidate row. The I/O is INJECTED
+// (uploadImage / upsertCandidate / isSupabasePublicUrl / fetch) so this is fully
+// unit-testable without a live Supabase or network. The route wires the real deps.
 
-export type FetchLike = (url: string) => Promise<{ ok: boolean; status?: number; arrayBuffer: () => Promise<ArrayBuffer> }>;
+export type FetchLike = (url: string) => Promise<{
+  ok: boolean;
+  status?: number;
+  headers?: { get(name: string): string | null };
+  arrayBuffer: () => Promise<ArrayBuffer>;
+}>;
 
-export type SaveOptions = { publicDir: string; fetchImpl?: FetchLike };
-
-export type SaveResult = {
-  saved: number;
-  skipped: number;
-  catalogCount: number;
-  generatedDir: string;
-  catalogPath: string;
-  assets: RoomEngineAsset[];
+export type SupabaseSaveDeps = {
+  /** Upload bytes to Storage at interior-v1/<id>.png (upsert) → public URL. */
+  uploadImage: (bytes: Uint8Array, contentType: string, id: string) => Promise<string>;
+  /** Upsert the candidate row (by id). */
+  upsertCandidate: (c: AssetCandidate) => Promise<void>;
+  /** Whether a url is already a public Supabase Storage url. */
+  isSupabasePublicUrl: (url: string) => boolean;
+  fetchImpl?: FetchLike;
 };
 
-/** Resolve the PNG bytes for an asset, "keep" if it's already local, or null to skip. */
-async function bytesFor(asset: RoomEngineAsset, fetchImpl?: FetchLike): Promise<Buffer | "keep" | null> {
-  const url = (asset.imageUrl || "").trim();
-  if (!url || isPlaceholderUrl(url)) return null;   // never persist dry-run placeholders
-  if (isLocalGeneratedUrl(url)) return "keep";       // already saved — keep as-is
-  const data = decodeDataUrl(url);
-  if (data) return data;                             // data:image/png;base64,...
-  if (/^https?:\/\//i.test(url)) {                   // remote → fetch
+export type SupabaseSaveResult = {
+  saved: number;
+  uploaded: number;
+  kept: number;
+  skipped: number;
+  assets: AssetCandidate[];
+};
+
+async function resolveBytes(url: string, fetchImpl?: FetchLike): Promise<{ bytes: Uint8Array; contentType: string } | null> {
+  if (url.startsWith("data:")) {
+    try { return decodeDataUrl(url); } catch { return null; }
+  }
+  if (/^https?:\/\//i.test(url)) {
     const doFetch = fetchImpl ?? ((u: string) => fetch(u));
     const res = await doFetch(url);
     if (!res.ok) return null;
-    return Buffer.from(await res.arrayBuffer());
+    const raw = (res.headers?.get("content-type") || "image/png").split(";")[0].trim().toLowerCase();
+    const contentType = raw === "image/webp" ? "image/webp" : "image/png";
+    return { bytes: new Uint8Array(await res.arrayBuffer()), contentType };
   }
-  return null;                                       // unknown local path → skip
+  return null;
 }
 
 /**
- * Save approved assets to disk and merge the catalog. Each saved asset's imageUrl is
- * rewritten to its local /generated/interior-v1/<file>.png path. Returns counts.
+ * Persist approved real OpenAI candidates to Supabase. For each: upload the image to
+ * Storage (or keep an existing Supabase url), then upsert the row with status
+ * `approved`, source `style_lab`, provider/model normalized. Dedupe is by id (upsert)
+ * — and since the storage path is interior-v1/<id>.png, the same id reuses one file
+ * and one row. Non-OpenAI, placeholder, or unresolvable images are skipped.
  */
-export async function saveApprovedAssets(assets: RoomEngineAsset[], options: SaveOptions): Promise<SaveResult> {
-  const genDir = path.join(options.publicDir, GENERATED_DIR);
-  const catDir = path.join(options.publicDir, CATALOG_DIR);
-  await fs.mkdir(genDir, { recursive: true });
-  await fs.mkdir(catDir, { recursive: true });
-
-  const savedAssets: RoomEngineAsset[] = [];
-  let saved = 0;
+export async function saveApprovedAssetsToSupabase(
+  candidates: AssetCandidate[],
+  deps: SupabaseSaveDeps,
+): Promise<SupabaseSaveResult> {
+  const out: AssetCandidate[] = [];
+  let uploaded = 0;
+  let kept = 0;
   let skipped = 0;
 
-  for (const asset of assets) {
-    const bytes = await bytesFor(asset, options.fetchImpl);
-    if (bytes === null) { skipped += 1; continue; }
-    const fileName = assetFileName(asset);
-    if (bytes === "keep") {
-      // Already under generated/ — keep file, normalize the url to the canonical name.
-      savedAssets.push({ ...asset, imageUrl: localUrlFor(path.basename(asset.imageUrl)) });
-      saved += 1;
-      continue;
+  for (const c of candidates) {
+    const url = (c.imageUrl || "").trim();
+    if (c.modelProvider !== "openai" || !url || isPlaceholderUrl(url)) { skipped += 1; continue; }
+
+    let publicUrl: string;
+    if (deps.isSupabasePublicUrl(url)) {
+      publicUrl = url; // already hosted — keep it
+      kept += 1;
+    } else {
+      const got = await resolveBytes(url, deps.fetchImpl);
+      if (!got) { skipped += 1; continue; }
+      publicUrl = await deps.uploadImage(got.bytes, got.contentType, c.id);
+      uploaded += 1;
     }
-    // Overwrite ONLY this asset's own file (deterministic name per slug/id).
-    await fs.writeFile(path.join(genDir, fileName), bytes);
-    savedAssets.push({ ...asset, imageUrl: localUrlFor(fileName) });
-    saved += 1;
+
+    const row: AssetCandidate = {
+      ...c,
+      imageUrl: publicUrl,
+      status: "approved",
+      source: "style_lab",
+      modelProvider: "openai",
+      modelName: c.modelName || "gpt-image-1",
+    };
+    await deps.upsertCandidate(row);
+    out.push(row);
   }
 
-  const catalogPath = path.join(catDir, CATALOG_FILE);
-  let existing: RoomEngineAsset[] = [];
-  try {
-    const raw = JSON.parse(await fs.readFile(catalogPath, "utf8"));
-    if (Array.isArray(raw)) existing = raw as RoomEngineAsset[];
-  } catch {
-    existing = [];
-  }
-  const merged = mergeCatalog(existing, savedAssets);
-  await fs.writeFile(catalogPath, JSON.stringify(merged, null, 2) + "\n");
-
-  return { saved, skipped, catalogCount: merged.length, generatedDir: genDir, catalogPath, assets: savedAssets };
+  return { saved: out.length, uploaded, kept, skipped, assets: out };
 }

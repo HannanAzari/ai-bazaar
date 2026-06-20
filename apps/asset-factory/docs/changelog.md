@@ -2,6 +2,31 @@
 
 Newest first. Versions before V3.4 are summarized from the README/commit history.
 
+## V3.7.5 — Supabase persistence for approved assets (no style change)
+
+- **Production target is Supabase, not the local filesystem** (Vercel can't write the
+  repo). `POST /api/style-lab/save-approved-assets` now uploads each approved real
+  OpenAI PNG to **Storage** `asset-candidates/interior-v1/<id>.png` and **upserts** the
+  candidate row (status `approved`, source `style_lab`, provider `openai`, model
+  `gpt-image-1`, personality, tags, …). data-URL decoded · remote fetched · existing
+  Supabase URL kept · dry-run/non-OpenAI skipped. Reuses the existing service-role
+  client + storage + candidate helpers.
+- **Dedupe:** upsert by id (same id → same row) and id-keyed storage path (same id →
+  same object), so re-saving updates, never duplicates.
+- **Provenance columns** added to `asset_candidates` (personality, source,
+  source_sample_id) — [`supabase/migrations/0005_candidate_provenance.sql`](../supabase/migrations/0005_candidate_provenance.sql)
+  + schema.sql + mappers.
+- **UI:** "💾 Save approved to Supabase" → "Saved X assets to Supabase Storage and
+  library"; clear failure if env/schema/bucket missing (503/500). Exports now read the
+  **Supabase-saved** assets (source `style_lab`), not localStorage; the Review tab shows
+  them after refresh.
+- **Docs:** [docs/supabase-persistence.md](supabase-persistence.md) (bucket, migration,
+  dashboard verification).
+- Tests: **244 passing** (data URL → storage upload, DB upsert called, duplicate updates
+  not duplicates, remote fetch, placeholder/non-OpenAI skipped, export uses Supabase
+  saved + localStorage-only excluded). Typecheck · lint · build green. DNA/prompts
+  unchanged; main app untouched.
+
 ## V3.7.4 — Filesystem persistence for approved assets (no style change)
 
 - **New endpoint** `POST /api/style-lab/save-approved-assets`
