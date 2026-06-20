@@ -2,6 +2,28 @@
 
 Newest first. Versions before V3.4 are summarized from the README/commit history.
 
+## V3.7.4 — Filesystem persistence for approved assets (no style change)
+
+- **New endpoint** `POST /api/style-lab/save-approved-assets`
+  ([route](../app/api/style-lab/save-approved-assets/route.ts)): writes approved
+  room-engine assets to the app filesystem so the room engine can read them later.
+- **PNGs** → `public/generated/interior-v1/<id>.png`; **catalog** →
+  `public/catalogs/nestudio-interior-v1.catalog.json` (merged + deduped by id/imageUrl,
+  with local image paths). Both kept on disk.
+- **Image sources handled** ([lib/asset-persist-server.ts](../lib/asset-persist-server.ts)):
+  `data:image/png;base64,…` decoded, remote URLs fetched, existing
+  `/generated/interior-v1/…` kept as-is. **Dry-run `/samples/` placeholders are never
+  written.** Re-saving an id overwrites only that asset's file.
+- **UI:** "💾 Save approved to library + files" now mirrors to the candidate repo AND
+  calls the filesystem endpoint; success message: *"Saved X PNGs and catalog to
+  public/generated/interior-v1 and public/catalogs."* localStorage approve behavior is
+  unchanged (nothing deleted/replaced). "Download room-engine catalog" still works.
+- Pure helpers in [lib/asset-persist.ts](../lib/asset-persist.ts) (filename, placeholder
+  guard, data-URL decode, catalog merge).
+- Tests: **246 passing** (+11 persistence: data URL → PNG, catalog written, merge/dedupe,
+  placeholder excluded, local imageUrl, remote fetch, returns counts). Typecheck · lint ·
+  build green. DNA/prompts unchanged; main app untouched.
+
 ## V3.7.3 — Export source-of-truth fix + room-engine catalog (no style change)
 
 - **Bug:** the Approved Library exports read from the repo `candidates` (seed/sample

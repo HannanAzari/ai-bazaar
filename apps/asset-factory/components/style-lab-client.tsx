@@ -160,11 +160,22 @@ export function StyleLabClient() {
   const roomEngineCount = useMemo(() => roomEngineCatalog(libraryCandidates).length, [libraryCandidates]);
 
   async function saveApprovedToLibrary() {
-    if (pendingSaves.length === 0) return;
+    if (library.length === 0) return;
+    setError("");
     try {
-      await repo.addCandidates(pendingSaves);
+      // 1) Mirror into the candidate repo (localStorage / shared backend).
+      if (pendingSaves.length) await repo.addCandidates(pendingSaves);
       await refreshCandidates();
-      setNotice(`Saved ${pendingSaves.length} approved asset(s) to the library.`);
+      // 2) Persist PNGs + catalog to the app filesystem for the room engine.
+      const assets = roomEngineCatalog(libraryCandidates);
+      const res = await fetch("/api/style-lab/save-approved-assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assets }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(data?.error ?? "Filesystem save failed."); return; }
+      setNotice(`Saved ${data.saved} PNGs and catalog to public/generated/interior-v1 and public/catalogs.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save to library.");
     }
@@ -464,8 +475,8 @@ export function StyleLabClient() {
           source: Style Lab localStorage (repo mode: {repo.mode})
         </p>
         <div className="toolbar">
-          <button className="btn btn-green" disabled={pendingSaves.length === 0} title="Mirror approved/starred real samples into the candidate library" onClick={saveApprovedToLibrary}>
-            💾 Save approved to library ({pendingSaves.length})
+          <button className="btn btn-green" disabled={library.length === 0} title="Mirror into the candidate library AND save PNGs + catalog to the app filesystem" onClick={saveApprovedToLibrary}>
+            💾 Save approved to library + files ({roomEngineCount})
           </button>
           <button className="btn btn-primary" disabled={library.length === 0} onClick={() => downloadText("approved-assets.json", exportJson(libraryCandidates))}>
             ⬇ Export approved JSON ({exportedApprovedCount})
