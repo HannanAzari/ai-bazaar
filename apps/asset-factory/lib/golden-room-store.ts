@@ -1,13 +1,31 @@
 // Golden Room — server-only local persistence (filesystem).
-// Candidates survive across rounds in `.data/golden-room/` (gitignored): metadata in
-// candidates.json, real PNGs in images/<id>.png. No Supabase dependency — this is a
-// focused local art-direction tool. NEVER import from a client component.
+// Candidates survive across rounds: metadata in candidates.json, real PNGs in
+// images/<id>.png. No Supabase dependency — this is a focused art-direction tool.
+// NEVER import from a client component.
+//
+// Storage location:
+//   - local dev:            apps/asset-factory/.data/golden-room  (gitignored)
+//   - production/serverless: /tmp/nestudio-asset-factory/golden-room
+// On Vercel (and other serverless runtimes) the bundle filesystem is READ-ONLY
+// except for /tmp, so writing under the app dir throws ENOENT/EROFS.
+//
+// NOTE: /tmp is EPHEMERAL — it is wiped between cold starts and not shared across
+// serverless instances. This is acceptable for now as temporary, non-durable storage
+// for the Golden Room art-direction loop. Move to durable storage (Vercel Blob / S3 /
+// Supabase Storage) before relying on candidates persisting in production.
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { type GoldenRoomCandidate } from "@/lib/golden-room";
 
-const DATA_DIR = path.join(process.cwd(), ".data", "golden-room");
+/** Serverless runtimes (Vercel, AWS Lambda) allow writes only under /tmp. */
+function isServerless(): boolean {
+  return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+}
+
+const DATA_DIR = isServerless()
+  ? path.join("/tmp", "nestudio-asset-factory", "golden-room")
+  : path.join(process.cwd(), ".data", "golden-room");
 const IMAGES_DIR = path.join(DATA_DIR, "images");
 const CANDIDATES_FILE = path.join(DATA_DIR, "candidates.json");
 
