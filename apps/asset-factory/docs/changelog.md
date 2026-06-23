@@ -2,6 +2,26 @@
 
 Newest first. Versions before V3.4 are summarized from the README/commit history.
 
+## V3.8.0 — Golden Room generation system (art-direction console)
+
+- **Goal: discover ONE Nestudio Golden Room**, not a room library (see
+  `../../docs/golden-room-v1.md`, `golden-room-system.md`). The room shell that everything else
+  (scene packs, wall zoom, creator homes, demos) derives from.
+- **UI** `/golden-room` (`app/golden-room/page.tsx`, password-gated): generate a round (max 5) →
+  score (0–100) + critique → approve/reject → regenerate from critique → export the winner.
+  Winner bar = approved + score ≥ 85; below 80 = not good enough; NO-GO supported.
+- **API** `app/api/golden-room/*`: `GET` list+status, `POST` generate, `PATCH` update;
+  `image/[id]` serves candidate PNGs; `export` → RoomShellPack JSON (`room_shell_pack`, 4 scene
+  areas with placeholder bounds from `golden-room-v1.md`).
+- **Generation** reuses `lib/openai-server.ts` `runOpenAi` at portrait **1024x1536** (one
+  additive change: optional `size` param, default `1024x1024` — Style Lab unaffected) + existing
+  env gating (`generation-config.ts`). **Dry-run** mode exercises the full workflow with no key.
+- **Persistence** local filesystem `.data/golden-room/` (gitignored): `candidates.json` +
+  `images/<id>.png`; rounds are never lost. Pure logic in `lib/golden-room.ts`
+  (`test/golden-room.test.ts`); server I/O in `lib/golden-room-store.ts`.
+- Scope: this system only. No furniture/wall/exterior generation, no room library, no main-app
+  changes.
+
 ## V3.7.5 — Supabase persistence for approved assets (no style change)
 
 - **Production target is Supabase, not the local filesystem** (Vercel can't write the

@@ -55,6 +55,8 @@ export type OpenAiRunInput = {
   model: string;
   /** Request a transparent background when the model supports it. */
   transparent?: boolean;
+  /** Image size, e.g. "1024x1024" (default) or "1024x1536" (portrait). Additive. */
+  size?: string;
 };
 
 export type OpenAiRunOptions = {
@@ -105,7 +107,7 @@ export async function runOpenAi(input: OpenAiRunInput, options: OpenAiRunOptions
     model: input.model,
     prompt,
     n: input.count,
-    size: "1024x1024",
+    size: input.size ?? "1024x1024",
   };
   if (input.transparent) {
     body.background = "transparent";
