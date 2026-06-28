@@ -864,6 +864,457 @@ keeping demo mode byte-for-byte unchanged (ADR-003/ADR-004/ADR-014).
 
 ---
 
+## ADR-021 — Real Style Lab art via a static catalog bridge + image-first rendering
+
+**Status:** Accepted · 2026-06-25
+
+### Context
+The Asset Factory (`apps/asset-factory/`, an isolated deployable) generates,
+reviews, and approves real interior assets and persists them to **its Supabase**
+(Storage `asset-candidates/interior-v1/*.png` + the RLS-locked `asset_candidates`
+table; `roomEngineCatalog()` exports approved + OpenAI rows with public image URLs).
+The main app's room engine, however, was at V5: it renders every object as a **CSS
+sprite around a lucide icon** and **never displays an asset's own image**; its
+catalog (`lib/assets.ts`) is a hardcoded array of placeholder-SVG assets. We needed
+the **smallest slice** to render one room from the approved Style Lab PNGs —
+without building runtime Supabase asset loading, generating assets, or touching the
+Factory.
+
+### Decision
+- **Bridge via a static catalog artifact, not a runtime read (yet).** The Factory's
+  room-engine catalog is committed to the main app as
+  `lib/asset-catalogs/nestudio-interior-v1.json` (the Factory's `RoomEngineAsset`
+  shape) and merged into `catalogAssets` through a typed loader
+  (`lib/asset-catalogs/index.ts`), so `getAsset()` / `roomReadyAssets()` see the new
+  assets with **zero** change to consumers. The app isolation (root tsconfig excludes
+  `apps/`) is respected — we copy the exported artifact, never import across apps.
+- **Image-first rendering with graceful fallback.** `room-object.tsx` renders an
+  asset's real image as the object when `renderableAssetImage(asset.imageUrl)` returns
+  a URL — i.e. it's present and **not** a placeholder (`/assets/placeholder/*`) or
+  dry-run sample (`/samples/*`); on image **load error** it falls back to the existing
+  CSS sprite. The decision is a **pure, tested helper** in `lib/room-visuals.ts`. All
+  existing behavior (click, hover, selection, transforms, labels, actions, a11y, and
+  the frame/gallery `actionData` image path) is preserved.
+- **Generate the artifact with a secure service-role export, not a runtime read.**
+  The anon key is RLS-blocked from `asset_candidates`, so a one-time Node script
+  (`scripts/export-style-lab-catalog.mjs`) uses `SUPABASE_SERVICE_ROLE_KEY` to read the
+  approved `style_lab` rows and write the static JSON with their **public Supabase
+  image URLs**. It refuses to write rows without a public http(s) URL — **no
+  fabrication / no placeholders**. Runtime Supabase asset loading (a catalog repo +
+  anon-read RLS policy) is the later durability step, deliberately out of this slice.
+- **A dedicated premium stage for the slice, not a production-shell redesign.** The
+  Nestudio target look (mobile-first three-wall dollhouse cutaway, warm-wood floor,
+  deep-green/warm wall, soft lighting + contact shadows, large readable furniture) is
+  a standalone debug surface (`components/room/interior-stage.tsx` at
+  `/design/interior-v1`). It does **not** modify `RoomCanvas`/`RoomExperience`, so the
+  production room shell and existing rooms are untouched (no regression). Promoting
+  this look into the live shell is a separate, explicit visual sprint.
+
+### Alternatives Considered
+- **Runtime Supabase read now** — rejected for this slice (RLS/policy/repo work, and
+  the data wasn't reachable); it's the planned next step.
+- **Fabricate Supabase URLs in the artifact** — rejected; they would 404 and the
+  slice couldn't be verified. Honest local stand-ins render and prove the pipeline.
+- **Import from `apps/asset-factory`** — rejected; the apps are isolated by tsconfig/
+  eslint. The contract is the exported artifact.
+- **Replace the CSS sprites outright** — rejected; image-first **with sprite fallback**
+  keeps the 19 placeholder-only assets and any failed image working, no regression.
+
+### Consequences
+- (+) A room renders from the **28 real approved Style Lab PNGs** today, in a stage
+  that matches the Nestudio premium direction; `getAsset`/`roomReadyAssets`/placement/
+  validation are unchanged and existing icon-sprite rooms don't regress.
+- (+) Deterministic and tested (catalog merge + public-URL assertion, helper decision,
+  fixed test room, stage layout); internal debug surface at `/design/interior-v1`.
+- (−) The catalog is a **committed static snapshot** of the approved assets — re-run
+  the export script after the Factory approves/changes assets to refresh it. The image
+  URLs depend on the Supabase public bucket staying public.
+- (−) Real art loads as network images (the sprite path remains for placeholder/offline
+  assets); a runtime Supabase catalog read (+ anon-read RLS) is still owed.
+- (−) The current approved set is furniture-only (sofas/tables/chairs/desk) — no wall
+  art / plants yet, so the slice room is furniture on a floor; broaden the pack later.
+
+---
+
+## ADR-022 — Template-based Nestudio visual kit for pilot (curated images, not CSS-drawn scenes)
+
+**Status:** Accepted · 2026-06-25
+
+### Context
+The Interior V1 work (ADR-021) proved real Style Lab furniture renders well, but
+repeated attempts to build a believable **room shell with CSS geometry** (clip-path
+walls/floors, gradients) looked like a tunnel/box and were a dead end for pilot
+quality. Product direction for the pilot: stop drawing houses/rooms with CSS;
+**use curated, generated image templates** for exteriors, rooms, and (later) the
+village map, with interactive assets placed on top.
+
+### Decision
+- **Introduce a visual-kit template architecture.** A shared `VisualTemplate` base
+  (`id, name, imageUrl, width, height, styleFamily, personalityTags,
+  compatibleUseCases, safeArea, placementZones, version`) with `RoomShellTemplate`,
+  `ExteriorShellTemplate`, and a reserved `VillageTileTemplate` extending it
+  (`lib/types.ts`).
+- **Layered rendering.** A template is a **non-interactive background image**;
+  interactive assets (real furniture PNGs) are layered on top at the template's
+  calibrated `placementZones`. Furniture stays **image-first with fallback**
+  (ADR-021). The existing room engine (zones/validation, `RoomCanvas`,
+  `RoomExperience`) is **untouched** — classic/icon rooms don't regress.
+- **Static registries, no runtime Supabase yet.** Templates register in
+  `lib/templates/room-shells.ts` and `lib/templates/exterior-shells.ts` (village
+  tiles later). The pipeline is Asset Factory → review → export image + calibration
+  → register. The committed shell SVGs are **temporary placeholders**; swapping in a
+  generated final image is a one-line `imageUrl` change + recalibration + `version`
+  bump.
+- **Redefine the AI design engine's role** as *choose a template + place assets*
+  (by `styleFamily`/`personalityTags`/`compatibleUseCases`), not synthesize a scene.
+  This keeps it deterministic, on-brand, and curated (consistent with ADR-006).
+- **Scope:** architecture + one room shell + one exterior shell + two debug pages
+  (`/design/interior-v1`, `/design/exterior-v1`). No procedural generation, no full
+  designer, no extra shells this sprint.
+
+### Alternatives Considered
+- **Keep iterating on CSS-drawn shells** — rejected; quality ceiling too low and
+  per-scene CSS is unmaintainable. Images are the right medium for curated quality.
+- **Runtime Supabase template loading now** — deferred; a static registry unblocks
+  the pipeline without RLS/repo work. Same staged approach as the asset catalog.
+- **One monolithic template type** — rejected; room vs exterior carry different
+  calibration (floor/wall/lighting vs door/sign), so they extend a shared base.
+
+### Consequences
+- (+) A clean, typed pipeline ready for the Asset Factory to fill with generated
+  templates; the app composes images + assets instead of drawing scenes.
+- (+) Existing app flow (village, my place, studio, room/design/exterior/classic
+  interior) and icon rooms are unaffected; the kit is additive.
+- (−) Template quality now depends on Asset Factory output; the committed SVGs are
+  placeholders until real generations land.
+- (−) Calibration (`placementZones`) is hand-tuned per template — generating many
+  shells means producing calibration alongside each image.
+
+---
+
+## ADR-023 — Wall-first architecture: walls are the primary creator object; rooms are composed
+
+**Status:** Accepted · 2026-06-22 · refines (does not supersede) ADR-021/022; holds ADR-006.
+
+### Context
+The product had been optimizing for **asset-first room design** (creators arrange furniture;
+we generate + hand-calibrate a growing library of room shells). Review of product direction
+and mobile UX concluded Nestudio is a **creator identity platform**, not interior-design
+software — and our own [scene-calibration §9](nestudio-scene-calibration.md) scale finding
+showed per-shell manual calibration breaks at 100k+. The most valuable object is a **Wall**
+(the creator's story surface), not a sofa or a shell.
+
+### Decision
+- **Model:** `Creator → Walls → Room → House → Village`. **Walls** are the primary, *container-
+  independent* creator object; **rooms/houses are generated containers**; **village is discovery**.
+- **Separate CONTENT (walls) from CONTAINER (room).** A Wall = a typed content surface
+  (Portfolio/Video/Bio/Links/Product/Music/Book/Achievement/Life) reusing the existing **11
+  action types** + **`RoomActionData`** schema. Rooms are **composed** around walls.
+- **The room becomes a composition engine.** Re-point the existing deterministic, selection-only
+  **AI Room Designer** to compose a room around the creator's walls on **one canonical container**
+  (Golden Interior Shell #1) + AI-selected furniture/decor/lighting — instead of generating and
+  calibrating many shells. O(1) container calibration vs an O(shells) treadmill.
+- **Zoom is a first-class concept:** room view ↔ wall view (immersive camera move, upgrading the
+  shipped `object-action-modal`), game-like and mobile-native.
+- **Furniture is demoted to supporting cast** (AI-selected dressing), de-risking the furniture-only
+  asset gap. The free-drag room editor is **demoted to optional "customize."**
+- **Additive, flag-gated, demo-by-default, reversible.** The composer outputs ordinary
+  `Room`/`HouseRooms`, so persistence, the layered renderer, public experience, and village are
+  unchanged; flags off = today's app. Existing content-objects migrate to walls on read.
+
+### Alternatives Considered
+- **Asset-first (status quo)** — rejected: optimizes a niche, low-shareability craft and an
+  unscalable calibration treadmill.
+- **Rewrite the engine for walls** — rejected/unnecessary: walls are an *elevation* of shipped
+  primitives (action types + `RoomActionData` + the three wall zones + the AI designer).
+
+### Consequences
+- (+) Faster creation (define walls → AI composes), stronger identity, scalable (few containers +
+  many walls), mobile-native zoom, furniture gap off the critical path.
+- (+) Heavy reuse: Visual DNA, Scene Calibration, Golden Shell #1, the AI designer, action/data
+  model, house/village all kept and *more* leveraged.
+- (−) New UX work (the zoom experience). (−) Shell-library/exterior/tile generation and the 5-mood
+  golden set are **postponed**; must resist re-opening the shell treadmill out of habit.
+- Docs: [wall-first-architecture.md](wall-first-architecture.md),
+  [wall-module-system.md](wall-module-system.md),
+  [wall-zoom-experience.md](wall-zoom-experience.md), [creator-home-v2.md](creator-home-v2.md).
+
+---
+
+## ADR-024 — Object-portal model: the room is a spatial site of portals; AI builds it from connected content
+
+**Status:** Accepted · 2026-06-22 · refines ADR-023; holds ADR-006.
+
+### Context
+ADR-023 made walls the primary creator object but framed a "wall" as a content surface. Deeper
+review: a wall is a **visual interface**, not content/page/section — the content lives **behind
+interactive objects**. Nestudio should behave like Linktree + personal site + portfolio +
+digital home as one navigable space.
+
+### Decision
+- **The Portal is the atom:** `Portal = a visual interface (object OR wall surface) + a binding
+  to a destination`. "Walls" (gallery/achievement) are **wall-surface portals**; objects
+  (TV→YouTube, computer→GitHub, speaker→Spotify) are **object portals**. The room is a
+  **spatial website**.
+- **Three portal behaviors**, all reusing shipped action types: **jump** (external link —
+  `link`/`video`/`product`/`booking`/`contact`), **zoom** (in-app content view —
+  `gallery`/`profile` + the zoom UX), **room** (`room_link`). Binding reuses `RoomActionData`.
+- **Creator job = connect content + upload media + choose style.** AI owns furniture, decor,
+  layout, composition, atmosphere (the re-pointed deterministic designer). **A home in < 5
+  min**: pick type → AI suggests a portal kit → paste links (smart URL→object detection) → AI
+  composes → accept/customize.
+- **Mandatory quick-links list:** every spatial home also renders a flat, accessible,
+  crawlable, fast list from the same portal bindings — fixing SEO, accessibility, utility
+  users, and the "I just want the link" friction.
+- **Anti-treadmill restraint:** keep a small, flexible portal-object catalog (one object serves
+  many destinations via binding + label); do **not** start an object-per-service treadmill.
+- Recommendation: **B — connect content, AI builds rooms** (over A — build rooms), conditioned
+  on the quick-links floor + low taps-to-content.
+
+### Alternatives Considered
+- **A: creators build rooms** — rejected: interior-design burden, niche, slow, abandoned.
+- **A bespoke object per destination** — rejected: a smaller re-run of the shell treadmill.
+- **Spatial-only (no list)** — rejected: loses to Linktree on utility, fails SEO/accessibility.
+
+### Consequences
+- (+) Fast setup, strong identity, mobile-native spatial exploration, per-portal CTR analytics
+  (Linktree's value metric, spatial), heavy reuse (assets = surfaces, action types = bindings,
+  designer = composer, zoom = nav).
+- (−) Real risks: zoom perf on low-end mobile, in-app embeds (CSP/autoplay), URL→object
+  detection long tail, accessibility/SEO of a canvas, novelty decay, link-maximalists.
+  Mitigations are conditions of success (quick-links list, caps + multi-room, embed-or-preview,
+  small portal catalog, reduced-motion).
+- Docs: [wall-object-system.md](wall-object-system.md),
+  [creator-onboarding-v2.md](creator-onboarding-v2.md),
+  [spatial-link-system.md](spatial-link-system.md),
+  [visitor-experience-v2.md](visitor-experience-v2.md).
+
+---
+
+## ADR-025 — Room → Wall → Object: the wall is a front-facing scene, not a content page
+
+**Status:** Accepted · 2026-06-22 · refines ADR-023/024.
+
+### Context
+The V1 magical-room slice (`/design/magic-room`) validated the Portal concept but **flattened the
+wall into a content page** — tapping the TV opened a list of video cards. That reads like a
+profile page in a frame and loses the spatial magic.
+
+### Decision
+- **Three-level spatial model:** **Room (experience) → Wall (interface) → Object (action).** The
+  **room is the experience**, the **wall is a front-facing scene** (still part of the room, with
+  real objects in it — a TV is still a TV), and the **object is the action** (tap the TV → video
+  plays). The wall **never becomes a generic list/grid.**
+- **Navigation:** continuous zoom with a strict back-stack Object → Wall → Room; breadcrumb grows
+  with depth; reduced-motion + the quick-links floor (ADR-024) preserved.
+- **Object actions (Level 3)** are overlays over the wall scene: inline player, lightbox, preview-
+  card→Open (external), or detail panel — reusing the shipped action types + `RoomActionData`.
+- **Layout (room-layout-study):** **Room overview = dollhouse cutaway (C)** — keep the locked
+  Visual DNA V1.0 / Golden Interior Shell #1 / Scene Calibration; **Wall view = a dedicated
+  front-facing flat scene per wall.** Decouple the two levels so the wall can be face-on for
+  readability/tap on mobile without re-opening the locked shell. Two-wall corner (A) is the
+  strongest pure per-wall immersion but caps portals (~2–3) and conflicts with the locked shell —
+  not adopted now.
+- **No new runtime contract:** walls = wall planes, objects = placed objects with actions; the new
+  thing is the wall-scene level between room and action.
+
+### Consequences
+- (+) The corrected feeling: explore a home → approach a wall → use an object; content reads
+  clearly *and* stays spatial; strong mobile readability.
+- (+) Reuses the locked dollhouse + the shipped action/data model; the per-wall front-facing scene
+  is the only genuinely new rendering surface.
+- (−) Each wall needs a composed front-facing scene (more art direction than a list); the
+  room↔wall "turn to face" transition needs care to stay continuous.
+- Prototype: `/design/room-wall-object-v1` (internal, mock-only). Docs:
+  [room-wall-object-architecture.md](room-wall-object-architecture.md),
+  [wall-experience-v2.md](wall-experience-v2.md),
+  [object-portal-system-v2.md](object-portal-system-v2.md),
+  [spatial-navigation-v2.md](spatial-navigation-v2.md), [room-layout-study.md](room-layout-study.md).
+
+---
+
+## ADR-026 — Scene Pack System: image-backed room shells + wall packs + hotspot maps
+
+**Status:** Accepted · 2026-06-22 · **supersedes the layered-furniture path of ADR-021/022**;
+preserves ADR-024/025; holds ADR-006.
+
+### Context
+Building premium rooms by placing individual furniture PNGs on a bare shell (ADR-021/022) is too
+hard to make premium at scale (per-piece placement, lighting/shadow/scale all manual). The
+Room → Wall → Object prototype (ADR-025) is conceptually right but its SVG/CSS-drawn graphics
+aren't premium.
+
+### Decision
+Nestudio assembles premium homes from **image-backed packs**, not from many separately placed
+furniture assets:
+- **RoomShellPack** — a complete premium **isometric room image** (sofa, table, rug, lighting,
+  shadows, atmosphere baked in) with 2–4 **neutral wall slots**. Feels like a home before any
+  wall content.
+- **WallPack** — a **front-facing wall-scene image** with its objects baked in; the zoom target
+  for a wall slot.
+- **HotspotMap** — invisible, normalized clickable rects over a baked image; map baked objects →
+  **ObjectAction** (reusing the shipped action types + `RoomActionData`).
+- **Combine by navigation, not compositing:** room view (iso image) → **zoom + cross-fade** →
+  wall view (front image) → object action. **Do not** warp front-facing walls onto iso planes;
+  keep room and wall as **separate images** authored in their natural perspective, unified by one
+  light law + palette (Visual DNA) + aligned hotspots.
+
+### Why
+- **Why it replaces asset-first construction:** a generated full room image gives consistent
+  lighting, correct shadows, believable scale, and the emotional "home" feeling **for free** — a
+  far faster path to premium than placing dozens of furniture PNGs.
+- **Why it preserves Room → Wall → Object:** the three levels are unchanged; only the *rendering*
+  changes (baked images + hotspots instead of SVG shapes / layered PNGs).
+- **Why it's better for premium quality:** the artist/generator composes a whole lit scene;
+  the app never has to make individual assets sit together convincingly.
+- **Why furniture assets become secondary:** the 28 furniture PNGs (and the layered/icon engine)
+  remain for the classic/fallback path and as supporting assets, but they are **no longer the
+  premium rendering primitive** — the room image is.
+
+### Feasibility (CTO)
+Feasible. Combine by navigation (not compositing); keep room/wall as separate images; generate
+the **room shell first** and lock its prompt, then matching walls; prove the loop in the existing
+prototype before scaling. Biggest risks: shell↔wall **consistency** (one light law/palette —
+enforced by the Scene Style Lock) and **hotspot calibration drift** (needs a tool, gen-plan
+Phase 5). Full analysis: [scene-pack-architecture.md](scene-pack-architecture.md) §5.
+
+### Consequences
+- (+) Fast path to premium, cohesive, mobile-friendly homes; simpler than per-asset placement.
+- (+) Reuses Visual DNA, Scene Calibration (perspective/lock/negatives), the Room→Wall→Object
+  model, and the action/data binding.
+- (−) Hotspot calibration per pack (tool owed); heavier images (WebP/CDN/LOD); accessibility/SEO
+  rely on hotspot aria-labels + the quick-links floor; a room×wall compatibility catalog.
+- Docs: [scene-pack-architecture.md](scene-pack-architecture.md),
+  [room-shell-pack-spec.md](room-shell-pack-spec.md), [wall-pack-spec.md](wall-pack-spec.md),
+  [scene-pack-generation-plan.md](scene-pack-generation-plan.md).
+
+---
+
+## ADR-027 — V2 pivot: replace Room → Wall with House → Nest architecture
+
+**Status:** Accepted · 2026-06-22 · **supersedes ADR-021, ADR-022, ADR-025, ADR-026** (and the
+"Wall" framing of ADR-023/024). Master doc: [nestudio-production-pipeline.md](nestudio-production-pipeline.md).
+*(The sprint prompt referred to this as "ADR-031" by example; the next sequential number in this log
+is 027.)*
+
+### Context
+Multiple V1 iterations (isometric Golden Room shell + perspective-warped wall packs) validated key
+assumptions and disproved others. We now know enough to pivot the product architecture.
+
+### What we learned
+- AI-generated **concept art** is excellent.
+- **Front-facing cinematic scenes** create much stronger emotional engagement than isometric rooms.
+- **Perspective-warping wall images** into room shells does **not** produce premium quality.
+- AI-generated **room shells + wall packs cannot maintain perfect consistency**.
+- **3D asset generation** is promising for future internal production, but must **not** define the MVP.
+- The emotional goal is **"this place feels like me,"** not "this is a beautiful room."
+
+### Decision
+- Replace `Village → House → Room → Wall → Object → Content` with **`Village → House → Nest → Objects
+  → Content`**. The user-facing **"Wall" concept is removed**.
+- A **Nest** is a **front-facing cinematic scene** (full front wall + slivers of side walls + floor),
+  **composed** from a curated **Nest Template** + **Scene Slots** + **Asset Library** assets + avatar +
+  a few personal belongings — not generated per creator.
+- **Composition becomes the primary system; AI generation becomes minimal** (concept art to seed the
+  curated library; runtime generation only for avatars + truly personal belongings).
+- **Scene Slots** replace perspective wall regions/hotspot bounds as the placement abstraction.
+- Interactions become **Object → Animation → Content** (lightweight, reusable Interaction Library).
+- The **Asset Library** is the heart of the product. The **Avatar** is just an asset in an Avatar Slot.
+
+### Reasons
+Better emotional experience · better mobile UX (front-facing, no isometric gymnastics) · simpler
+interaction model · lower AI generation cost · better scalability (curate once, reuse) · stronger
+creator identity ("feels like me").
+
+### Trade-offs (honest)
+- (−) Up-front investment in a **curated Asset Library + Nest Templates + Scene Slots + Interaction
+  Library** (more curation, less "just generate it").
+- (−) Less per-creator visual novelty than infinite generation promised — mitigated by combinatorial
+  composition + personal belongings + avatar.
+- (−) The V1 prototypes (isometric Golden Room, wall packs, perspective projection, scene-pack docs)
+  are now reference history, not the build target — sunk effort, but it bought the validated learnings.
+- (+) Consistency, premium quality, cost, and mobile UX all improve; the architecture is stable enough
+  to guide years of development.
+
+### Consequences
+- Docs updated with "superseded" banners (history preserved): scene-calibration, scene-pack-architecture,
+  room-shell-pack-spec, wall-pack-spec, scene-pack-generation-plan, golden-room-v1; golden-room-exploration
+  reframed as validation history; visual-dna carried forward (terminology → Nest, front-facing).
+- New master docs: [nestudio-production-pipeline.md](nestudio-production-pipeline.md),
+  [nestudio-cto-handoff.md](nestudio-cto-handoff.md).
+- No implementation in this sprint; the next sprint rebuilds the Asset Factory around the Nest architecture.
+
+---
+
+## ADR-028 — V2 camera lock: front-facing cinematic Nest (replaces the 30° parallel-iso Perspective Contract)
+
+**Status:** Accepted · 2026-06-26 · refines **ADR-027**; **supersedes the ~30° parallel-isometric
+Perspective Contract** of the Visual DNA (`nestudio-visual-dna.md` §11) for all V2 production.
+Master doc: [nestudio-production-pipeline.md](nestudio-production-pipeline.md).
+
+### Context
+ADR-027 pivoted the architecture to **House → Nest → Objects → Content** and committed to
+**front-facing cinematic Nest scenes** (pipeline §3, production-bible §4). However the locked
+Visual DNA V1.0 still pinned a **parallel ~30° isometric "dollhouse" Perspective Contract** across
+all layers (§11), calibrated to the 28 approved isometric furniture assets. A front-facing Nest and
+a ~30°-iso asset library are **not mutually compatible** — an iso-authored asset cannot sit correctly
+in a front-facing scene. The CTO architecture review flagged this as the single biggest unresolved
+technical contradiction and a hard blocker for any Nest Template or asset authoring. This ADR
+resolves it.
+
+### Decision
+**Nestudio V2 uses one locked front-facing cinematic Nest camera** for the entire product:
+- the **full front wall** visible (fronto-parallel),
+- **small slivers of the left and right walls** visible (gentle inward rake) — accent/decor only,
+- the **floor** visible (slight up-tilt to meet the front wall),
+- **slight room depth** — a shallow "stage box," depth without isometric rendering,
+- **eye-level to slightly-elevated camera, gentle downward tilt (~5–10°)**,
+- **mobile-first** composition (portrait primary; a landscape variant may share the same angles),
+- **not isometric**, **not top-down**, **not ~30° parallel projection**, **no perspective-warping**
+  of flat images (assets are authored *to* this camera, never warped into it).
+
+This camera is **frozen** like any locked constant: changing it later invalidates the V2 Asset
+Library, so treat it as immutable without a superseding ADR.
+
+### Why
+- **Better mobile readability** — a front wall fills a phone in portrait; no isometric gymnastics or
+  corner-cropping.
+- **Better emotional experience** — you feel *inside* the room facing the person's wall ("this place
+  feels like me"), not looking down at a toy diorama.
+- **Easier interactions** — tap targets sit on a fronto-parallel plane; object actions/overlays are
+  simpler to position and read.
+- **Easier animation** — lightweight transform/opacity animations on near-fronto-parallel objects,
+  reduced-motion-safe.
+- **Easier asset generation** — authoring to a single front-facing camera is more reliable to
+  generate and approve than holding a strict ~30° parallel-iso with no vanishing point.
+- **Avoids perspective warping** — the rejected ADR-027 failure mode (warping flat wall images onto
+  iso planes) is structurally impossible here.
+- **Aligns with House → Nest → Objects → Content** — the Nest *is* a front-facing scene by
+  definition (ADR-027); the camera now matches the architecture.
+
+### Trade-offs (honest)
+- (−) The **28 approved ~30° isometric assets are no longer the production V2 standard** — they
+  become **V1 reference/history** (they may inspire style, but are not authored to the V2 camera).
+- (−) Some V1 work (the iso Golden Room, the Perspective Contract, iso calibration) becomes
+  reference/history — sunk effort, but it bought the validated learning that front-facing wins.
+- (−) The **Asset Library V2 must be authored (or re-authored) to the front-facing cinematic
+  camera** before Nest Templates can be composed — this is the near-term asset cost.
+- (+) One coherent camera across architecture + DNA + assets; no hidden iso/front-facing impedance
+  to discover during the build.
+
+### Consequences
+- `nestudio-visual-dna.md` §11 Perspective Contract is **superseded** by this front-facing camera
+  contract (the doc is updated with a banner; the iso text is kept as history). The object DNA's
+  iso framing is reference-only for V2; if/when the object DNA is re-locked for V2 it must declare
+  the front-facing camera version.
+- The source-of-truth docs (architecture.md, roadmap.md, handoff.md) are corrected to
+  **Village → House → Nest → Objects → Content** and no longer recommend wall-first (ADR-023/024)
+  or Room → Wall → Object (ADR-025).
+- No implementation, no Composer, no UI, no Supabase, no asset generation in this sprint (M0 is
+  documentation/architecture lock only). Asset Library V2 authoring is a later sprint.
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

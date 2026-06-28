@@ -1,0 +1,122 @@
+{
+  "gate": "asset-transparency",
+  "version": 2,
+  "mode": "fixture",
+  "fixture": "lib/fixtures/golden-nest.ts",
+  "generatedAt": "2026-06-27T10:21:29.614Z",
+  "directory": "public/nests/golden-nest-v1",
+  "rules": {
+    "backgroundDetection": "fixture role (template background vs assigned asset image)",
+    "minTransparentPct": 1,
+    "opaqueAlphaThreshold": 250,
+    "policy": "object assets must contain alpha transparency; background assets may be opaque"
+  },
+  "summary": {
+    "total": 9,
+    "approved": 1,
+    "rejected": 8,
+    "objects": 8,
+    "backgrounds": 1
+  },
+  "results": [
+    {
+      "file": "avatar.png",
+      "kind": "object",
+      "width": 1086,
+      "height": 1448,
+      "hasAlphaChannel": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "status": "rejected",
+      "reason": "object is opaque (no alpha channel) — re-export with a transparent background"
+    },
+    {
+      "file": "background.png",
+      "kind": "background",
+      "width": 1086,
+      "height": 1448,
+      "hasAlphaChannel": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "status": "approved",
+      "reason": "background — opaque allowed"
+    },
+    {
+      "file": "books.png",
+      "kind": "object",
+      "width": 1402,
+      "height": 1122,
+      "hasAlphaChannel": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "status": "rejected",
+      "reason": "object is opaque (no alpha channel) — re-export with a transparent background"
+    },
+    {
+      "file": "bookshelf.png",
+      "kind": "object",
+      "width": 1086,
+      "height": 1448,
+      "hasAlphaChannel": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "status": "rejected",
+      "reason": "object is opaque (no alpha channel) — re-export with a transparent background"
+    },
+    {
+      "file": "desk.png",
+      "kind": "object",
+      "width": 1448,
+      "height": 1086,
+      "hasAlphaChannel": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "status": "rejected",
+      "reason": "object is opaque (no alpha channel) — re-export with a transparent background"
+    },
+    {
+      "file": "frame.png",
+      "kind": "object",
+      "width": 1448,
+      "height": 1086,
+      "hasAlphaChannel": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "status": "rejected",
+      "reason": "object is opaque (no alpha channel) — re-export with a transparent background"
+    },
+    {
+      "file": "lamp.png",
+      "kind": "object",
+      "width": 1024,
+      "height": 1536,
+      "hasAlphaChannel": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "status": "rejected",
+      "reason": "object is opaque (no alpha channel) — re-export with a transparent background"
+    },
+    {
+      "file": "plant.png",
+      "kind": "object",
+      "width": 1149,
+      "height": 1369,
+      "hasAlphaChannel": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "status": "rejected",
+      "reason": "object is opaque (no alpha channel) — re-export with a transparent background"
+    },
+    {
+      "file": "tv.png",
+      "kind": "object",
+      "width": 1448,
+      "height": 1086,
+      "hasAlphaChannel": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "status": "rejected",
+      "reason": "object is opaque (no alpha channel) — re-export with a transparent background"
+    }
+  ]
+}

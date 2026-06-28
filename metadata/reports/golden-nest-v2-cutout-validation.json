@@ -1,0 +1,223 @@
+{
+  "gate": "golden-nest-v2-cutout-validation",
+  "phase": "Phase 2 \u2014 validate transparent cut-outs",
+  "generatedAt": "2026-06-28T10:22:34.057057+00:00",
+  "directory": "public/nests/golden-nest-v1/cutouts-v2",
+  "rules": {
+    "minTransparentPct": 10.0,
+    "opaqueAlphaThreshold": 250,
+    "policy": "objects: RGBA, min alpha 0, >10% transparent, no checkerboard, must not touch all edges; background may be opaque"
+  },
+  "summary": {
+    "total": 9,
+    "approved": 9,
+    "rejected": 0,
+    "objectsApproved": 8,
+    "objectsRejected": 0
+  },
+  "results": [
+    {
+      "file": "background-v2.png",
+      "kind": "background",
+      "width": 1086,
+      "height": 1448,
+      "mode": "RGB",
+      "hasAlpha": false,
+      "alphaMin": 255,
+      "alphaMax": 255,
+      "transparentPct": 0.0,
+      "bbox": [
+        0,
+        0,
+        1086,
+        1448
+      ],
+      "edgesTouched": [
+        "top",
+        "bottom",
+        "left",
+        "right"
+      ],
+      "touchesAllEdges": true,
+      "checkerboardSuspected": false,
+      "status": "approved",
+      "reason": "background \u2014 opaque allowed"
+    },
+    {
+      "file": "avatar-v2.png",
+      "kind": "object",
+      "width": 672,
+      "height": 1639,
+      "mode": "RGBA",
+      "hasAlpha": true,
+      "alphaMin": 0,
+      "alphaMax": 255,
+      "transparentPct": 68.25,
+      "bbox": [
+        113,
+        113,
+        559,
+        1526
+      ],
+      "edgesTouched": [],
+      "touchesAllEdges": false,
+      "checkerboardSuspected": false,
+      "status": "approved",
+      "reason": "genuine alpha cut-out (68.25% transparent, min \u03b1 0)"
+    },
+    {
+      "file": "tv-v2.png",
+      "kind": "object",
+      "width": 1489,
+      "height": 962,
+      "mode": "RGBA",
+      "hasAlpha": true,
+      "alphaMin": 0,
+      "alphaMax": 255,
+      "transparentPct": 49.72,
+      "bbox": [
+        103,
+        103,
+        1386,
+        859
+      ],
+      "edgesTouched": [],
+      "touchesAllEdges": false,
+      "checkerboardSuspected": false,
+      "status": "approved",
+      "reason": "genuine alpha cut-out (49.72% transparent, min \u03b1 0)"
+    },
+    {
+      "file": "desk-v2.png",
+      "kind": "object",
+      "width": 1149,
+      "height": 1015,
+      "mode": "RGBA",
+      "hasAlpha": true,
+      "alphaMin": 0,
+      "alphaMax": 255,
+      "transparentPct": 72.96,
+      "bbox": [
+        79,
+        79,
+        1070,
+        936
+      ],
+      "edgesTouched": [],
+      "touchesAllEdges": false,
+      "checkerboardSuspected": false,
+      "status": "approved",
+      "reason": "genuine alpha cut-out (72.96% transparent, min \u03b1 0)"
+    },
+    {
+      "file": "bookshelf-v2.png",
+      "kind": "object",
+      "width": 535,
+      "height": 1499,
+      "mode": "RGBA",
+      "hasAlpha": true,
+      "alphaMin": 0,
+      "alphaMax": 255,
+      "transparentPct": 48.38,
+      "bbox": [
+        103,
+        103,
+        432,
+        1396
+      ],
+      "edgesTouched": [],
+      "touchesAllEdges": false,
+      "checkerboardSuspected": false,
+      "status": "approved",
+      "reason": "genuine alpha cut-out (48.38% transparent, min \u03b1 0)"
+    },
+    {
+      "file": "frame-v2.png",
+      "kind": "object",
+      "width": 843,
+      "height": 814,
+      "mode": "RGBA",
+      "hasAlpha": true,
+      "alphaMin": 0,
+      "alphaMax": 255,
+      "transparentPct": 52.8,
+      "bbox": [
+        58,
+        58,
+        785,
+        756
+      ],
+      "edgesTouched": [],
+      "touchesAllEdges": false,
+      "checkerboardSuspected": false,
+      "status": "approved",
+      "reason": "genuine alpha cut-out (52.8% transparent, min \u03b1 0)"
+    },
+    {
+      "file": "lamp-v2.png",
+      "kind": "object",
+      "width": 436,
+      "height": 1510,
+      "mode": "RGBA",
+      "hasAlpha": true,
+      "alphaMin": 0,
+      "alphaMax": 255,
+      "transparentPct": 87.61,
+      "bbox": [
+        104,
+        104,
+        332,
+        1406
+      ],
+      "edgesTouched": [],
+      "touchesAllEdges": false,
+      "checkerboardSuspected": false,
+      "status": "approved",
+      "reason": "genuine alpha cut-out (87.61% transparent, min \u03b1 0)"
+    },
+    {
+      "file": "plant-v2.png",
+      "kind": "object",
+      "width": 828,
+      "height": 1155,
+      "mode": "RGBA",
+      "hasAlpha": true,
+      "alphaMin": 0,
+      "alphaMax": 255,
+      "transparentPct": 74.45,
+      "bbox": [
+        80,
+        80,
+        748,
+        1075
+      ],
+      "edgesTouched": [],
+      "touchesAllEdges": false,
+      "checkerboardSuspected": false,
+      "status": "approved",
+      "reason": "genuine alpha cut-out (74.45% transparent, min \u03b1 0)"
+    },
+    {
+      "file": "books-v2.png",
+      "kind": "object",
+      "width": 1119,
+      "height": 640,
+      "mode": "RGBA",
+      "hasAlpha": true,
+      "alphaMin": 0,
+      "alphaMax": 255,
+      "transparentPct": 47.74,
+      "bbox": [
+        77,
+        77,
+        1042,
+        563
+      ],
+      "edgesTouched": [],
+      "touchesAllEdges": false,
+      "checkerboardSuspected": false,
+      "status": "approved",
+      "reason": "genuine alpha cut-out (47.74% transparent, min \u03b1 0)"
+    }
+  ]
+}

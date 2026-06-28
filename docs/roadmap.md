@@ -8,11 +8,25 @@ For technical detail see [architecture.md](../architecture.md); for testing see
 
 ## Vision
 
-A **creator-owned virtual village**. Every creator owns one customizable **room**,
-and visitors discover creators by **exploring spaces** — wandering a village,
-stepping through doors, entering rooms — instead of scrolling a feed. The room is
-the product; the village is the navigation; AI helps creators arrange their space
-by **selecting from a curated asset library**, never by generating visuals.
+> **V2 architecture (ADR-027 + ADR-028): `Village → House → Nest → Objects → Content`.**
+> Nestudio **composes digital homes.** Each creator's surface is a **Nest** — a **front-facing
+> cinematic scene** (full front wall + side-wall slivers + floor, shallow depth; **not** isometric,
+> locked by ADR-028) that feels *like them*. A Nest is **composed** from a curated **Nest Template**
+> + **Scene Slots** + **Asset Library** assets + avatar + a few personal belongings — **composition
+> over generation.** Visitors tap objects (**Object → Animation → Content**). North star: *"this
+> place feels like me."* The user-facing **"Wall" concept is removed.** Masters:
+> [nestudio-production-pipeline.md](nestudio-production-pipeline.md),
+> [golden-nest-production-bible.md](golden-nest-production-bible.md),
+> [nestudio-cto-handoff.md](nestudio-cto-handoff.md).
+>
+> **Shipped code is V1** (the cozy-village room engine below); the V2 Nest architecture is
+> documentation-first and not yet implemented.
+
+A **creator-owned virtual village** (V1 framing, carried into V2 as the discovery layer). Every
+creator owns one customizable space, and visitors discover creators by **exploring spaces** —
+wandering a village, entering homes — instead of scrolling a feed. The Nest is the product; the
+village is the navigation; **AI helps by *selecting/composing* from a curated asset library, never
+by generating visuals per creator.**
 
 ---
 
@@ -71,7 +85,39 @@ production aggregate; richer mobile pass.
 
 ## Next Sprint
 
-### Production backend cutover (execute)
+### V2 Nest architecture (ADR-027 + ADR-028) — documentation-first, building toward the Nest Composer
+
+**Direction (current).** `Village → House → Nest → Objects → Content`. A **Nest** is a
+**front-facing cinematic scene** (ADR-028 camera lock) **composed** from a curated **Nest
+Template** + **Scene Slots** + **Asset Library** assets + avatar + a few personal belongings —
+**composition over generation.** Masters:
+[nestudio-production-pipeline.md](nestudio-production-pipeline.md),
+[golden-nest-production-bible.md](golden-nest-production-bible.md),
+[nestudio-cto-handoff.md](nestudio-cto-handoff.md).
+
+**M0 (this sprint, done): camera decision + source-of-truth cleanup** — front-facing camera
+locked (ADR-028); the 30° iso Perspective Contract superseded; the wall-first/Room→Wall docs
+demoted to history. **No code.**
+
+**Next milestones (toward a production-ready Nest Composer; documentation/spec before build):**
+1. **Lock the constants** — the single front-facing camera spec + Nest scene-box geometry + slot
+   taxonomy (Media/Desk/Shelf/Books/Plant/Window/Avatar/Frame/Lamp/Product).
+2. **Define the V2 data model** (spec, then types; SQL parity later): `Asset`, `NestTemplate`,
+   `SceneSlot`, `Interaction`, `ComposedNest`.
+3. **One Nest Template + Scene Slots** (static registry, reusing the `lib/templates/` pattern).
+4. **Minimal Nest Composer** — re-point the deterministic `lib/ai-room-designer.ts` from
+   zone-placement to slot-snapping; emit a `ComposedNest` manifest.
+5. **Mobile front-facing renderer + 3–5 Object→Animation→Content interactions** → one **Golden
+   Nest** end-to-end (the bible's Definition of Done for sprint 1).
+
+**Asset Library V2 (ADR-028 consequence):** the 28 approved ~30° iso assets are **V1 reference
+only**; V2 assets must be authored/re-authored to the front-facing camera (a later sprint).
+
+> **Superseded (do not reopen):** wall-first creator homes (ADR-023/024), Room → Wall → Object
+> (ADR-025), and the Scene-Pack/room-shell/wall-pack path (ADR-021/022/026) — all superseded by
+> ADR-027; their docs are reference history.
+
+### Production backend cutover (still owed; sequence alongside/after)
 
 The seams exist (repository layer + runtime mode + runbook). This sprint does the
 real wiring. Explicitly **not** AI, marketplace, payments, or chat.

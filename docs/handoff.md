@@ -34,6 +34,7 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 6. **Two layers, always in sync.** New feature = demo localStorage lib (SSR-guarded, try/catch, `*-changed` event) **and** schema.sql + a dated migration.
 7. **No `Math.random`/`Date.now` in render** — hydration safety. Derive variation from stable seeds.
 8. **Don't redesign village/street/house-exterior art** without an explicit visual sprint.
+9. **V2 architecture — House → Nest (ADR-027) + front-facing camera (ADR-028).** The model is `Village → House → Nest → Objects → Content`; the user-facing **"Wall" concept is removed.** A **Nest** is a **front-facing cinematic scene** (full front wall + side slivers + floor, shallow depth — **not** isometric/30° iso/top-down) that is **composed** from a curated Nest Template + Scene Slots + Asset Library assets + avatar + a few personal belongings — **composition over generation.** AI generation is minimal (concept art to seed the library; runtime only for avatar + truly personal belongings). The shipped code is still **V1** (the room engine below); **no V2 implementation has started.** **Superseded — do not reopen:** wall-first (ADR-023/024), Room → Wall → Object (ADR-025), Scene-Pack/room-shell/wall-pack (ADR-021/022/026). The 28 approved ~30° iso assets are **V1 reference only** (ADR-028). Masters: [nestudio-production-pipeline.md](nestudio-production-pipeline.md), [golden-nest-production-bible.md](golden-nest-production-bible.md), [nestudio-cto-handoff.md](nestudio-cto-handoff.md).
 
 ---
 
@@ -67,6 +68,14 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 - `components/village-world.tsx` (hex map), `components/street-walk.tsx` (street), `components/scene/house/` (seed-deterministic SVG house kit).
 
 **Demo libs (same pattern each):** `lib/{events,reports,notifications,guestbook,collections,activity}.ts`, plus `lib/{tags,creators,use-hidden}.ts`.
+
+**Nestudio visual kit — templates (2026-06-25, ADR-022 · builds on ADR-021):**
+> **⚠️ Superseded by ADR-027 (architecture) + ADR-028 (camera).** These are **V1 reference code/assets** (iso room-shell + wall-pack image templates, the 28 ~30° iso furniture assets). They are **not** the V2 production standard — V2 uses front-facing Nests composed from a camera-matched Asset Library. Kept because the code still ships in the V1 app and the export-bridge/registry *patterns* will inform the V2 pipeline.
+- **Strategy:** curated/generated **image templates** (exterior/room/village) + interactive assets layered on top — NOT CSS-drawn scenes. See `docs/visual-kit.md`.
+- **Types** (`lib/types.ts`): `VisualTemplate` base + `RoomShellTemplate` / `ExteriorShellTemplate` / reserved `VillageTileTemplate`. **Registries:** `lib/templates/room-shells.ts` (`nestudio-cozy-v1`) + `lib/templates/exterior-shells.ts` (`nestudio-cottage-v1`); static, no runtime Supabase yet. Shell images in `public/{room,exterior}-shells/*.svg` are **temporary placeholders** — swap for Factory-generated images via `imageUrl` + recalibrate `placementZones` + bump `version`.
+- **Real furniture catalog bridge:** `scripts/export-style-lab-catalog.mjs` (service-role, Node 20 + `SUPABASE_SERVICE_ROLE_KEY`) → `lib/asset-catalogs/nestudio-interior-v1.json` (**28 real assets, public Supabase URLs**); loader `lib/asset-catalogs/index.ts` merged into `lib/assets.ts`. Approved set is furniture-only so far.
+- **Layered renderer:** `components/room/room-shell-stage.tsx` (shell image background + furniture placed on calibrated zones, clickable). `furnishRoomShell()` resolves zones→assets. Image-first via `renderableAssetImage()` (`lib/room-visuals.ts`) + `components/room/room-object.tsx` keeps classic/icon rooms working (`RoomCanvas`/`RoomExperience` untouched).
+- **Debug pages:** `/design/interior-v1` (room shell + real furniture + panel), `/design/exterior-v1` (exterior shell + metadata panel). Runtime Supabase template/asset loading deferred. **AI design engine's future role:** choose a template + place assets, not draw scenes.
 
 **Analytics + Discovery V1 (2026-06-25):**
 - `lib/events.ts` — **mode-aware** `trackEvent` (demo localStorage / production Supabase `record_event`, local fallback) + `trackEventLocal` (the writer the local repo + fallback share). `lib/repos/supabase.ts` — `SupabaseEventsRepository` (`record`/`list`/`counts`, `mapEventRow`).
@@ -114,13 +123,34 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 
 ## Recommended Next Sprint
 
-**Execute the production backend cutover.** The seams now exist (repository layer +
-runtime mode + `docs/supabase-cutover.md`). Implement the Supabase repositories in
-`lib/repos/supabase.ts`, adopt `getRepositories()` in the components/libs that call
-the demo libs directly (keeping local impls as the demo fallback), stand up
-local + staging Supabase, and run the RLS smoke tests. If a from-zero migration
-build is needed, author a `20260610_00_baseline.sql`. Rollback is unsetting the
-Supabase env vars. Explicitly **not** AI/marketplace/payments/chat.
+**V2 Nest architecture (ADR-027 + ADR-028) — building toward the Nest Composer.** The model is
+`Village → House → Nest → Objects → Content`. A **Nest** is a **front-facing cinematic scene**
+(front wall + side slivers + floor, shallow depth — camera locked by ADR-028, **not** isometric)
+**composed** from a curated **Nest Template** + **Scene Slots** + **Asset Library** assets + avatar
++ a few personal belongings — **composition over generation.** Interactions are **Object →
+Animation → Content.**
+
+**M0 (just completed): camera decision + source-of-truth cleanup** — front-facing camera locked
+(ADR-028); the 30° iso Perspective Contract superseded; wall-first/Room→Wall docs demoted to
+history. Documentation only.
+
+**Following milestones (toward a production-ready Nest Composer; spec before build):** (1) lock the
+constants — front-facing camera spec + scene-box geometry + slot taxonomy; (2) define the V2 data
+model (`Asset`, `NestTemplate`, `SceneSlot`, `Interaction`, `ComposedNest`); (3) one Nest Template
++ Scene Slots (static registry); (4) a minimal **Nest Composer** (re-point the deterministic
+`lib/ai-room-designer.ts` from zone-placement to slot-snapping); (5) a mobile front-facing renderer
++ 3–5 interactions → **one Golden Nest** end-to-end (bible's Definition of Done).
+
+**Asset Library V2:** the 28 approved ~30° iso assets are **V1 reference only** (ADR-028); V2 assets
+are authored/re-authored to the front-facing camera (later sprint).
+
+**Still owed (sequence alongside/after):** the production backend cutover (Supabase repos in
+`lib/repos/supabase.ts`, adopt `getRepositories()`, staging RLS smoke tests; rollback = unset
+Supabase env). Explicitly **not** marketplace/payments/chat.
+
+> **Superseded (do not reopen):** wall-first creator homes (ADR-023/024), Room → Wall → Object
+> (ADR-025), Scene-Pack/room-shell/wall-pack (ADR-021/022/026) — all superseded by ADR-027; their
+> docs are reference history.
 
 ---
 

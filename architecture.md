@@ -23,6 +23,34 @@ catalog) wrap around that core.
 payments, a marketplace, ads, chatbots, direct messaging, a native mobile app.
 Mock/placeholder flows stand in for AI generation and asset images.
 
+### V2 architecture — House → Nest (2026-06-22 ADR-027; camera locked 2026-06-26 ADR-028)
+
+> **Current architecture.** The product model is **`Village → House → Nest → Objects →
+> Content`**. The user-facing **"Wall" concept is removed.** Master doc:
+> [docs/nestudio-production-pipeline.md](docs/nestudio-production-pipeline.md); CTO orientation:
+> [docs/nestudio-cto-handoff.md](docs/nestudio-cto-handoff.md).
+
+A **Nest** is a creator's primary surface: one **front-facing cinematic scene** (full front wall
++ slivers of the left/right walls + floor, shallow depth — **not** isometric, locked by ADR-028)
+that is **composed, not generated** — a curated **Nest Template** + **Scene Slots** + **Asset
+Library** assets + an avatar + a few personal belongings. **Composition is the primary system;
+AI generation is minimal** (concept art to seed the curated library; runtime generation only for
+avatars + truly personal belongings). Interactions are **Object → Animation → Content** via a
+reusable Interaction Library. See [docs/golden-nest-production-bible.md](docs/golden-nest-production-bible.md)
+and the locked [docs/nestudio-visual-dna.md](docs/nestudio-visual-dna.md).
+
+> **⚠️ Superseded directions (do not reopen — kept as history).** The earlier **wall-first**
+> model (`Creator → Walls → Room → House → Village`, ADR-023/024) and **Room → Wall → Object**
+> (ADR-025) and the **Scene-Pack / room-shell / wall-pack** path (ADR-021/022/026) are
+> **superseded by ADR-027** (and the camera by ADR-028). Their docs (`wall-first-architecture`,
+> `wall-module-system`, `wall-zoom-experience`, `creator-home-v2`, `scene-pack-architecture`,
+> `room-shell-pack-spec`, `wall-pack-spec`, `golden-room-v1`, …) are **reference history only.**
+>
+> **Code reality:** the running app (§2 below) is the **V1 cozy-village product** (Room Engine
+> V1–V5 + the deterministic AI Room Designer). **No V2 (Nest) implementation has started** — the
+> V2 architecture is documentation-first. §2–§10 describe the shipped V1 engine, which remains the
+> basis the V2 Nest Composer will evolve from.
+
 ### Tech stack
 - **Next.js 15** (App Router) · **React 19** · **TypeScript** (strict, `target: es5`)
 - **Tailwind CSS 3** · **lucide-react** icons · fonts via `next/font` (Fraunces + Nunito Sans)

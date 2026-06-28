@@ -1,0 +1,182 @@
+{
+  "gate": "golden-nest-v2-asset-validation",
+  "phase": "Phase 1 — validate V2 candidates",
+  "generatedAt": "2026-06-27T12:42:15.717Z",
+  "directory": "public/nests/golden-nest-v1",
+  "rules": {
+    "minTransparentPct": 1,
+    "opaqueAlphaThreshold": 250,
+    "policy": "background may be opaque; every other object must have genuine alpha transparency; a baked checkerboard is NOT transparency"
+  },
+  "summary": {
+    "total": 9,
+    "approved": 1,
+    "rejected": 8,
+    "objectsApproved": 0,
+    "objectsRejected": 8
+  },
+  "results": [
+    {
+      "file": "background-v2.png",
+      "kind": "background",
+      "width": 1086,
+      "height": 1448,
+      "hasAlpha": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "grayishPct": 0.03,
+      "dominantGrayTones": [
+        244,
+        248,
+        252
+      ],
+      "checkerboardSuspected": false,
+      "status": "approved",
+      "reason": "background — opaque allowed"
+    },
+    {
+      "file": "avatar-v2.png",
+      "kind": "object",
+      "width": 1086,
+      "height": 1448,
+      "hasAlpha": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "grayishPct": 77.03,
+      "dominantGrayTones": [
+        248,
+        256,
+        252
+      ],
+      "checkerboardSuspected": false,
+      "status": "rejected",
+      "reason": "opaque (no alpha channel) — re-export with a real transparent background"
+    },
+    {
+      "file": "tv-v2.png",
+      "kind": "object",
+      "width": 1448,
+      "height": 1086,
+      "hasAlpha": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "grayishPct": 53.41,
+      "dominantGrayTones": [
+        244,
+        256,
+        252
+      ],
+      "checkerboardSuspected": true,
+      "status": "rejected",
+      "reason": "opaque with a BAKED checkerboard (no real alpha — a checkerboard is not transparency)"
+    },
+    {
+      "file": "desk-v2.png",
+      "kind": "object",
+      "width": 1448,
+      "height": 1086,
+      "hasAlpha": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "grayishPct": 78.76,
+      "dominantGrayTones": [
+        256,
+        244,
+        248
+      ],
+      "checkerboardSuspected": true,
+      "status": "rejected",
+      "reason": "opaque with a BAKED checkerboard (no real alpha — a checkerboard is not transparency)"
+    },
+    {
+      "file": "bookshelf-v2.png",
+      "kind": "object",
+      "width": 1086,
+      "height": 1448,
+      "hasAlpha": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "grayishPct": 73.23,
+      "dominantGrayTones": [
+        244,
+        256,
+        252
+      ],
+      "checkerboardSuspected": true,
+      "status": "rejected",
+      "reason": "opaque with a BAKED checkerboard (no real alpha — a checkerboard is not transparency)"
+    },
+    {
+      "file": "frame-v2.png",
+      "kind": "object",
+      "width": 1254,
+      "height": 1254,
+      "hasAlpha": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "grayishPct": 67.73,
+      "dominantGrayTones": [
+        248,
+        256,
+        252
+      ],
+      "checkerboardSuspected": false,
+      "status": "rejected",
+      "reason": "opaque (no alpha channel) — re-export with a real transparent background"
+    },
+    {
+      "file": "lamp-v2.png",
+      "kind": "object",
+      "width": 1086,
+      "height": 1448,
+      "hasAlpha": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "grayishPct": 94.11,
+      "dominantGrayTones": [
+        248,
+        256,
+        252
+      ],
+      "checkerboardSuspected": false,
+      "status": "rejected",
+      "reason": "opaque (no alpha channel) — re-export with a real transparent background"
+    },
+    {
+      "file": "plant-v2.png",
+      "kind": "object",
+      "width": 1254,
+      "height": 1254,
+      "hasAlpha": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "grayishPct": 82.39,
+      "dominantGrayTones": [
+        244,
+        256,
+        252
+      ],
+      "checkerboardSuspected": true,
+      "status": "rejected",
+      "reason": "opaque with a BAKED checkerboard (no real alpha — a checkerboard is not transparency)"
+    },
+    {
+      "file": "books-v2.png",
+      "kind": "object",
+      "width": 1254,
+      "height": 1254,
+      "hasAlpha": false,
+      "alphaMin": 255,
+      "transparentPct": 0,
+      "grayishPct": 75.03,
+      "dominantGrayTones": [
+        256,
+        248,
+        244
+      ],
+      "checkerboardSuspected": false,
+      "status": "rejected",
+      "reason": "opaque (no alpha channel) — re-export with a real transparent background"
+    }
+  ]
+}
