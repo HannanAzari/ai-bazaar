@@ -54,6 +54,11 @@ export interface EditableNestObject {
   /** Deterministic integer paint order (higher = nearer the viewer). */
   zIndex: number;
 
+  /** Clockwise rotation in degrees (visual transform around the box centre). */
+  rotation?: number;
+  /** Mirror horizontally (visual scaleX(-1) — does not change the box bounds). */
+  flipX?: boolean;
+
   locked?: boolean;
   hidden?: boolean;
 
@@ -121,6 +126,8 @@ export function validateEditorObject(obj: EditableNestObject, index = 0): string
   }
   if (!finite(obj.zIndex)) errors.push(`${at}: zIndex must be a finite number`);
   if (!EDITOR_PLANES.includes(obj.plane)) errors.push(`${at}: invalid plane "${obj.plane}"`);
+  if (obj.rotation != null && !finite(obj.rotation)) errors.push(`${at}: rotation must be a finite number`);
+  if (obj.flipX != null && typeof obj.flipX !== "boolean") errors.push(`${at}: flipX must be a boolean`);
   return errors;
 }
 

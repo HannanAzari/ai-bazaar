@@ -21,7 +21,16 @@ export interface EditorGuardrail {
   defaultAnchor: { x: number; y: number };
   defaultZ: number;
   contactShadow: boolean;
+  /** Whether the object may be mirrored horizontally (default: true). */
+  allowFlipX?: boolean;
+  /** Whether the object may be rotated (default: false — upright objects). */
+  allowRotation?: boolean;
+  /** Permitted rotation range in degrees (when allowRotation). */
+  rotationRange?: { min: number; max: number };
 }
+
+/** Common angle snaps offered while rotating (degrees). */
+export const ROTATION_SNAPS = [0, 15, 30, 45, 90, -15, -30, -45, -90] as const;
 
 const FLOOR: EditorPlane[] = ["floor"];
 const FLOOR_SIDES: EditorPlane[] = ["floor", "left_sliver", "right_sliver"];
@@ -29,16 +38,16 @@ const WALL: EditorPlane[] = ["front_wall"];
 
 /** Guardrails keyed by living-room slot type. */
 export const EDITOR_GUARDRAILS: Partial<Record<LivingNestSlotType, EditorGuardrail>> = {
-  media: { allowedPlanes: FLOOR, minWidth: 0.3, maxWidth: 0.62, recommendedWidth: 0.482, boxAspect: 2.069, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 2, contactShadow: true },
-  frame: { allowedPlanes: WALL, minWidth: 0.08, maxWidth: 0.28, recommendedWidth: 0.157, boxAspect: 1.383, defaultAnchor: { x: 0.5, y: 0.5 }, defaultZ: 1, contactShadow: false },
-  sofa: { allowedPlanes: FLOOR, minWidth: 0.4, maxWidth: 0.85, recommendedWidth: 0.678, boxAspect: 3.513, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 4, contactShadow: true },
-  table: { allowedPlanes: FLOOR, minWidth: 0.15, maxWidth: 0.4, recommendedWidth: 0.275, boxAspect: 2.523, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true },
-  rug: { allowedPlanes: FLOOR, minWidth: 0.35, maxWidth: 0.85, recommendedWidth: 0.62, boxAspect: 3.543, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 0, contactShadow: false },
-  lamp: { allowedPlanes: FLOOR_SIDES, minWidth: 0.08, maxWidth: 0.22, recommendedWidth: 0.155, boxAspect: 0.385, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true },
-  plant: { allowedPlanes: FLOOR_SIDES, minWidth: 0.12, maxWidth: 0.34, recommendedWidth: 0.241, boxAspect: 0.956, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true },
-  avatar: { allowedPlanes: ["floor", "foreground"], minWidth: 0.15, maxWidth: 0.34, recommendedWidth: 0.23, boxAspect: 0.548, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 6, contactShadow: true },
-  side_table: { allowedPlanes: FLOOR, minWidth: 0.1, maxWidth: 0.25, recommendedWidth: 0.17, boxAspect: 1.6, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true },
-  speaker: { allowedPlanes: FLOOR_SIDES, minWidth: 0.06, maxWidth: 0.16, recommendedWidth: 0.1, boxAspect: 0.7, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true },
+  media: { allowedPlanes: FLOOR, minWidth: 0.3, maxWidth: 0.62, recommendedWidth: 0.482, boxAspect: 2.069, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 2, contactShadow: true, allowFlipX: true, allowRotation: false },
+  frame: { allowedPlanes: WALL, minWidth: 0.08, maxWidth: 0.28, recommendedWidth: 0.157, boxAspect: 1.383, defaultAnchor: { x: 0.5, y: 0.5 }, defaultZ: 1, contactShadow: false, allowFlipX: true, allowRotation: true, rotationRange: { min: -15, max: 15 } },
+  sofa: { allowedPlanes: FLOOR, minWidth: 0.4, maxWidth: 0.85, recommendedWidth: 0.678, boxAspect: 3.513, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 4, contactShadow: true, allowFlipX: true, allowRotation: false },
+  table: { allowedPlanes: FLOOR, minWidth: 0.15, maxWidth: 0.4, recommendedWidth: 0.275, boxAspect: 2.523, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: false },
+  rug: { allowedPlanes: FLOOR, minWidth: 0.35, maxWidth: 0.85, recommendedWidth: 0.62, boxAspect: 3.543, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 0, contactShadow: false, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
+  lamp: { allowedPlanes: FLOOR_SIDES, minWidth: 0.08, maxWidth: 0.22, recommendedWidth: 0.155, boxAspect: 0.385, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
+  plant: { allowedPlanes: FLOOR_SIDES, minWidth: 0.12, maxWidth: 0.34, recommendedWidth: 0.241, boxAspect: 0.956, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
+  avatar: { allowedPlanes: ["floor", "foreground"], minWidth: 0.15, maxWidth: 0.34, recommendedWidth: 0.23, boxAspect: 0.548, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 6, contactShadow: true, allowFlipX: false, allowRotation: false },
+  side_table: { allowedPlanes: FLOOR, minWidth: 0.1, maxWidth: 0.25, recommendedWidth: 0.17, boxAspect: 1.6, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: false },
+  speaker: { allowedPlanes: FLOOR_SIDES, minWidth: 0.06, maxWidth: 0.16, recommendedWidth: 0.1, boxAspect: 0.7, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
 };
 
 /** Fallback guardrail for any unlisted slot type. */
@@ -51,6 +60,8 @@ export const DEFAULT_GUARDRAIL: EditorGuardrail = {
   defaultAnchor: { x: 0.5, y: 1 },
   defaultZ: 3,
   contactShadow: false,
+  allowFlipX: true,
+  allowRotation: false,
 };
 
 /** The advisory safe area (normalized). Objects fully outside it warn. */
@@ -85,6 +96,38 @@ export function guardrailForAsset(asset: LivingNestAsset | undefined): EditorGua
 }
 
 const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n));
+
+/** Whether an asset may be mirrored horizontally (default true). */
+export function canFlipX(asset: LivingNestAsset | undefined): boolean {
+  return guardrailForAsset(asset).allowFlipX !== false;
+}
+
+/** Whether an asset may be rotated (default false). */
+export function canRotate(asset: LivingNestAsset | undefined): boolean {
+  return guardrailForAsset(asset).allowRotation === true;
+}
+
+/** Clamp a rotation (deg) into the asset's permitted range; 0 when rotation is off. */
+export function clampRotation(asset: LivingNestAsset | undefined, deg: number): number {
+  const g = guardrailForAsset(asset);
+  if (g.allowRotation !== true) return 0;
+  const r = g.rotationRange ?? { min: -180, max: 180 };
+  return clamp(deg, r.min, r.max);
+}
+
+/** Snap an angle to the nearest common snap within `tol` degrees, else return it. */
+export function snapRotation(deg: number, tol = 5): number {
+  let best = deg;
+  let bestD = tol;
+  for (const s of ROTATION_SNAPS) {
+    const d = Math.abs(deg - s);
+    if (d <= bestD) {
+      bestD = d;
+      best = s;
+    }
+  }
+  return best;
+}
 
 /** The anchor's position relative to its box (0..1), robust to a degenerate box. */
 function anchorRel(obj: EditableNestObject): { x: number; y: number } {

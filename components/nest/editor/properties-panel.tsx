@@ -1,7 +1,7 @@
 "use client";
 
 import type { Interaction } from "@/lib/nest-types";
-import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Eye, EyeOff, Lock, Trash2, Unlock } from "lucide-react";
+import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Eye, EyeOff, FlipHorizontal2, Lock, RefreshCw, RotateCw, Trash2, Unlock } from "lucide-react";
 import type { EditableNestObject, EditorPlane } from "@/lib/nest-editor-types";
 import { EDITOR_PLANES } from "@/lib/nest-editor-types";
 import type { ReorderOp } from "@/lib/nest-editor";
@@ -32,16 +32,22 @@ export function PropertiesPanel({
   object,
   assetName,
   interactions,
+  canRotate = false,
+  canFlip = true,
   onPatch,
   onReorder,
   onRemove,
+  onResetScale,
 }: {
   object: EditableNestObject;
   assetName: string;
   interactions: Interaction[];
+  canRotate?: boolean;
+  canFlip?: boolean;
   onPatch: (patch: Partial<EditableNestObject>) => void;
   onReorder: (op: ReorderOp) => void;
   onRemove: () => void;
+  onResetScale?: () => void;
 }) {
   return (
     <div className="space-y-3 rounded-2xl border border-ink/10 bg-white/50 p-3">
@@ -92,7 +98,22 @@ export function PropertiesPanel({
         <label className="inline-flex items-center gap-1 text-[10px] font-bold text-ink/60">
           <input type="checkbox" checked={Boolean(object.contactShadow)} onChange={(e) => onPatch({ contactShadow: e.target.checked })} /> shadow
         </label>
+        {canFlip ? (
+          <button type="button" onClick={() => onPatch({ flipX: !object.flipX })} aria-pressed={Boolean(object.flipX)} className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-bold ${object.flipX ? "border-cobalt bg-cobalt/15 text-cobalt" : "border-ink/15 text-ink/60 hover:bg-ink/5"}`} title="Flip horizontal"><FlipHorizontal2 className="h-3.5 w-3.5" /> flip</button>
+        ) : null}
+        {onResetScale ? (
+          <button type="button" onClick={onResetScale} className="inline-flex items-center gap-1 rounded-md border border-ink/15 px-2 py-1 text-[10px] font-bold text-ink/60 hover:bg-ink/5" title="Reset to recommended scale"><RefreshCw className="h-3.5 w-3.5" /> reset scale</button>
+        ) : null}
       </div>
+
+      {canRotate ? (
+        <label className="flex items-center gap-2">
+          <RotateCw className="h-3.5 w-3.5 text-ink/45" />
+          <span className="text-[9px] font-bold uppercase tracking-wide text-ink/45">rotation°</span>
+          <input type="range" min={-180} max={180} step={1} value={object.rotation ?? 0} onChange={(e) => onPatch({ rotation: Number(e.target.value) })} className="flex-1 accent-cobalt" />
+          <input type="number" min={-180} max={180} step={1} value={object.rotation ?? 0} onChange={(e) => onPatch({ rotation: Number(e.target.value) })} className="w-14 rounded-md border border-ink/15 bg-white/70 px-1 py-0.5 text-xs text-ink focus:border-cobalt focus:outline-none" />
+        </label>
+      ) : null}
 
       <label className="flex flex-col gap-0.5">
         <span className="text-[9px] font-bold uppercase tracking-wide text-ink/45">interaction (semantic)</span>

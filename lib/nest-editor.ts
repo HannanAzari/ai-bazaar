@@ -21,7 +21,10 @@ import type {
 import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor-types";
 import { NEST_EDITOR_VERSION, validateEditorDocument } from "@/lib/nest-editor-types";
 import {
+  canFlipX,
+  canRotate,
   clampObject,
+  clampRotation,
   DEFAULT_GUARDRAIL,
   guardrailForAsset,
   slotTypeForAsset,
@@ -256,9 +259,70 @@ export function setObjectProps(
   if (!o) return doc;
   const g = guardrailForAsset(assetsById[o.assetId]);
   const merged: EditableNestObject = { ...o, ...patch };
+  // Keep rotation within the asset's policy even via the advanced precision form.
+  if (patch.rotation != null) merged.rotation = clampRotation(assetsById[o.assetId], patch.rotation);
+  if (patch.flipX === true && !canFlipX(assetsById[o.assetId])) merged.flipX = o.flipX;
   const geometryTouched =
     patch.x != null || patch.y != null || patch.width != null || patch.height != null || patch.plane != null || patch.anchor != null;
   return replaceObj(doc, normalize(geometryTouched ? clampObject(merged, g) : merged));
+}
+
+/** Set an object's rotation (deg), clamped to its policy. Locked/non-rotatable: no-op. */
+export function rotateObject(
+  doc: EditableNestDocument,
+  instanceId: string,
+  deg: number,
+  assetsById: Record<string, LivingNestAsset> = {},
+): EditableNestDocument {
+  const o = findObj(doc, instanceId);
+  if (!o || o.locked) return doc;
+  const asset = assetsById[o.assetId];
+  if (!canRotate(asset)) return doc; // disallowed rotation leaves the object unchanged
+  return replaceObj(doc, normalize({ ...o, rotation: clampRotation(asset, deg) }));
+}
+
+/** Toggle horizontal flip when policy allows. Locked/non-flippable: no-op. */
+export function flipObject(
+  doc: EditableNestDocument,
+  instanceId: string,
+  assetsById: Record<string, LivingNestAsset> = {},
+): EditableNestDocument {
+  const o = findObj(doc, instanceId);
+  if (!o || o.locked) return doc;
+  if (!canFlipX(assetsById[o.assetId])) return doc;
+  return replaceObj(doc, normalize({ ...o, flipX: !o.flipX }));
+}
+
+/** Deterministic diagonal offset (normalized) applied to a duplicated instance. */
+export const DUPLICATE_OFFSET = 0.04;
+
+/**
+ * Duplicate an instance: a new stable id, the same asset + transform, nudged a fixed
+ * diagonal step and re-clamped. Deterministic (no random). Returns the new id.
+ */
+export function duplicateObject(
+  doc: EditableNestDocument,
+  instanceId: string,
+  assetsById: Record<string, LivingNestAsset> = {},
+): { doc: EditableNestDocument; instanceId?: string } {
+  const o = findObj(doc, instanceId);
+  if (!o) return { doc };
+  const g = guardrailForAsset(assetsById[o.assetId]);
+  const newId = nextInstanceId(doc, o.assetId);
+  const copy: EditableNestObject = normalize(
+    clampObject(
+      {
+        ...o,
+        instanceId: newId,
+        locked: false,
+        x: o.x + DUPLICATE_OFFSET,
+        y: o.y + DUPLICATE_OFFSET,
+        anchor: { x: o.anchor.x + DUPLICATE_OFFSET, y: o.anchor.y + DUPLICATE_OFFSET },
+      },
+      g,
+    ),
+  );
+  return { doc: { ...doc, objects: [...doc.objects, copy] }, instanceId: newId };
 }
 
 /** Round geometry to stable precision so JSON stays clean + comparisons are exact. */
@@ -271,6 +335,7 @@ function normalize(o: EditableNestObject): EditableNestObject {
     height: round(o.height),
     anchor: { x: round(o.anchor.x), y: round(o.anchor.y) },
     zIndex: Math.round(o.zIndex),
+    ...(o.rotation != null ? { rotation: round(o.rotation, 2) } : {}),
   };
 }
 
@@ -305,6 +370,8 @@ export function editorDocumentToStage(
       defaultInteractionId: o.interactionId,
       scaleRef: o.scaleRef,
       contactShadow: o.contactShadow,
+      rotationDeg: o.rotation,
+      flipX: o.flipX,
     };
   });
 

@@ -21,7 +21,13 @@ import type { NestAsset, NestTemplate, NormalizedRect, SceneSlot, NestSlotType }
 export type LivingNestSlotType = NestSlotType | "sofa" | "table" | "rug" | "side_table" | "speaker";
 
 /** A SceneSlot whose `slotType` is widened to the living-room taxonomy. */
-export type LivingNestSlot = Omit<SceneSlot, "slotType"> & { slotType: LivingNestSlotType };
+export type LivingNestSlot = Omit<SceneSlot, "slotType"> & {
+  slotType: LivingNestSlotType;
+  /** Optional visual rotation (deg) around the object centre (M7A editor preview). */
+  rotationDeg?: number;
+  /** Optional horizontal mirror (M7A editor preview). */
+  flipX?: boolean;
+};
 
 /** A NestTemplate whose slots are LivingNestSlots. Otherwise identical. */
 export type LivingNestTemplate = Omit<NestTemplate, "slots"> & { slots: LivingNestSlot[] };

@@ -337,6 +337,14 @@ function PieceView({
   }
 
   const style: React.CSSProperties = { ...box, zIndex: piece.slot.zIndex };
+  // Optional editor transform (rotation / horizontal flip), applied around the centre.
+  // Absent on the locked Golden Living Nest fixture, so that route is unchanged.
+  const rot = piece.slot.rotationDeg;
+  const flip = piece.slot.flipX;
+  if ((rot != null && rot !== 0) || flip) {
+    style.transform = `${rot ? `rotate(${rot}deg)` : ""}${flip ? " scaleX(-1)" : ""}`.trim();
+    style.transformOrigin = "center";
+  }
   // Frame focus: enlarge + lift the whole frame piece and raise it above the dim.
   const focusClass = effect === "focus" ? `living-focus ${focused ? "living-focus-on" : ""}` : "";
 
