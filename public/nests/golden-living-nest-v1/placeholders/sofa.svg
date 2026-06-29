@@ -1,0 +1,47 @@
+<svg width="2000" height="760" viewBox="0 0 2000 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- TEMPORARY PLACEHOLDER — Golden Living Nest sofa. Low + wide cozy 3-seater,
+       warm matte bouclé, rounded, one accent (terracotta pillow), oak feet. 3/4
+       view, seat facing the viewer-right so it is never seen from behind. NOT
+       production-ready art — see docs/golden-living-nest-v1.md (missing art). -->
+  <defs>
+    <linearGradient id="sofaBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#efe0c2"/>
+      <stop offset="1" stop-color="#d9c294"/>
+    </linearGradient>
+    <linearGradient id="sofaCushion" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6ead0"/>
+      <stop offset="1" stop-color="#e3cfa3"/>
+    </linearGradient>
+    <linearGradient id="sofaArm" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ecdcb8"/>
+      <stop offset="1" stop-color="#d2bb8c"/>
+    </linearGradient>
+  </defs>
+  <!-- oak feet -->
+  <g fill="#5c3e26">
+    <rect x="250" y="650" width="80" height="100" rx="28"/>
+    <rect x="720" y="660" width="80" height="92" rx="28"/>
+    <rect x="1200" y="660" width="80" height="92" rx="28"/>
+    <rect x="1680" y="650" width="80" height="100" rx="28"/>
+  </g>
+  <!-- back rest (low, wide) -->
+  <rect x="300" y="120" width="1480" height="420" rx="120" fill="url(#sofaBody)"/>
+  <!-- back cushions -->
+  <rect x="360" y="170" width="430" height="320" rx="84" fill="url(#sofaCushion)"/>
+  <rect x="800" y="170" width="430" height="320" rx="84" fill="url(#sofaCushion)"/>
+  <rect x="1240" y="170" width="430" height="320" rx="84" fill="url(#sofaCushion)"/>
+  <!-- seat base -->
+  <rect x="200" y="430" width="1620" height="300" rx="120" fill="url(#sofaBody)"/>
+  <!-- seat cushions -->
+  <rect x="280" y="430" width="470" height="180" rx="64" fill="url(#sofaCushion)"/>
+  <rect x="770" y="430" width="470" height="180" rx="64" fill="url(#sofaCushion)"/>
+  <rect x="1260" y="430" width="470" height="180" rx="64" fill="url(#sofaCushion)"/>
+  <!-- arms (left arm nearer / slightly larger for 3/4 read) -->
+  <rect x="170" y="320" width="200" height="410" rx="92" fill="url(#sofaArm)"/>
+  <rect x="1630" y="340" width="180" height="390" rx="86" fill="url(#sofaArm)"/>
+  <!-- accent throw pillow (the one accent) -->
+  <rect x="430" y="300" width="250" height="220" rx="68" fill="#a65b3f"/>
+  <rect x="468" y="338" width="170" height="144" rx="46" fill="#b86a4c"/>
+  <!-- soft cool-plum self-shadow along the seat front -->
+  <rect x="230" y="700" width="1560" height="32" rx="16" fill="#46365a" opacity="0.18"/>
+</svg>

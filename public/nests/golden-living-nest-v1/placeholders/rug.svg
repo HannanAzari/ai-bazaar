@@ -1,0 +1,18 @@
+<svg width="1700" height="640" viewBox="0 0 1700 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- TEMPORARY PLACEHOLDER — Golden Living Nest rug. Flat soft floor footprint
+       (drawn behind furniture), warm with one accent border. Foreshortened ellipse
+       to read as lying on the floor. NOT production-ready art. -->
+  <defs>
+    <radialGradient id="rugFill" cx="0.5" cy="0.45" r="0.7">
+      <stop offset="0" stop-color="#ecdcb8"/>
+      <stop offset="1" stop-color="#d8c096"/>
+    </radialGradient>
+  </defs>
+  <!-- outer accent border -->
+  <ellipse cx="850" cy="330" rx="820" ry="280" fill="#a65b3f" opacity="0.55"/>
+  <!-- inner field -->
+  <ellipse cx="850" cy="330" rx="760" ry="250" fill="url(#rugFill)"/>
+  <!-- subtle inner ring (woven hint, matte) -->
+  <ellipse cx="850" cy="330" rx="560" ry="178" fill="none" stroke="#c19a6b" stroke-width="14" opacity="0.5"/>
+  <ellipse cx="850" cy="330" rx="300" ry="92" fill="none" stroke="#a65b3f" stroke-width="12" opacity="0.4"/>
+</svg>
