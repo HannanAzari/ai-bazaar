@@ -1,0 +1,167 @@
+// ── Nestudio V2 — Nest Editor document contract (M6) ────────────────────────
+//
+// The additive, framework-free contract for the visual Nest Editor. An
+// **EditableNestDocument** is the structured manifest the editor authors and saves —
+// NEVER a baked screenshot. It is intentionally separate from the catalog
+// (`NestAsset` / `LivingNestAsset`): a catalog asset is reusable and immutable; an
+// **EditableNestObject** is one *instance* that owns placement + local overrides and
+// references a catalog asset by id. Many instances may reference the same asset.
+//
+// Coordinates are normalized 0..1 on the scene (responsive by construction). No
+// React / DOM / browser types appear here, and the model serializes cleanly to JSON.
+// Pure validation helpers live at the bottom. This file edits nothing existing.
+
+import type { NestContentBinding, NestPlane } from "@/lib/nest-types";
+
+/** The current editor-document schema version. */
+export const NEST_EDITOR_VERSION = 1 as const;
+
+// We reuse the locked `NestPlane` union (`front_wall | left_sliver | right_sliver |
+// floor | foreground`) rather than the sprint's example `left_wall/right_wall`, so
+// edited documents stay renderer-compatible with the Golden Living Nest stage.
+export type EditorPlane = NestPlane;
+
+export const EDITOR_PLANES: EditorPlane[] = [
+  "front_wall",
+  "left_sliver",
+  "right_sliver",
+  "floor",
+  "foreground",
+];
+
+/**
+ * One placed object instance in an editable Nest. Owns its normalized box
+ * (`x,y,width,height` ∈ [0,1]), its scene-normalized base `anchor`, depth `plane` +
+ * integer `zIndex`, and optional local overrides (lock/hide/interaction/content/
+ * variant). It references a catalog asset by `assetId` and never mutates it.
+ */
+export interface EditableNestObject {
+  /** Stable unique id for this instance (not the asset id). */
+  instanceId: string;
+  /** The catalog asset this instance shows. */
+  assetId: string;
+
+  /** Normalized box on the scene (top-left + size), each ∈ [0,1]. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+
+  /** Scene-normalized base anchor (e.g. bottom-centre for floor objects). */
+  anchor: { x: number; y: number };
+
+  plane: EditorPlane;
+  /** Deterministic integer paint order (higher = nearer the viewer). */
+  zIndex: number;
+
+  locked?: boolean;
+  hidden?: boolean;
+
+  /** Semantic interaction id (TV→video, frame→gallery, …). Behaviour is predefined. */
+  interactionId?: string;
+  /** Reserved for a later sprint — content/link binding. */
+  contentBinding?: NestContentBinding;
+
+  variantId?: string;
+  /** Authoring scale reference (× avatar height) — informational. */
+  scaleRef?: number;
+  contactShadow?: boolean;
+}
+
+/**
+ * One creator's editable Nest manifest. Carries the background + aspect, the ordered
+ * object instances, and the ambience. This is what the editor saves, exports, and
+ * (later) publishes as a template manifest — a lightweight structured document, not
+ * an image.
+ */
+export interface EditableNestDocument {
+  version: typeof NEST_EDITOR_VERSION;
+  id: string;
+  name: string;
+
+  backgroundId: string;
+  backgroundImageUrl: string;
+  /** CSS-style aspect, e.g. "3:4". */
+  aspectRatio: string;
+
+  objects: EditableNestObject[];
+
+  ambiencePresetId?: string;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Pure validation ──────────────────────────────────────────────────────────
+
+export interface EditorValidationResult {
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+const inUnit = (n: number): boolean => n >= -0.0001 && n <= 1.0001;
+
+/** Validate one object's structural integrity (hard errors only). */
+export function validateEditorObject(obj: EditableNestObject, index = 0): string[] {
+  const errors: string[] = [];
+  const at = `object[${index}]${obj?.instanceId ? ` (${obj.instanceId})` : ""}`;
+  if (!obj || typeof obj !== "object") return [`${at}: not an object`];
+  if (!obj.instanceId) errors.push(`${at}: missing instanceId`);
+  if (!obj.assetId) errors.push(`${at}: missing assetId`);
+  for (const k of ["x", "y", "width", "height"] as const) {
+    if (!finite(obj[k])) errors.push(`${at}: ${k} is not a finite number`);
+    else if (!inUnit(obj[k])) errors.push(`${at}: ${k}=${obj[k]} is outside [0,1]`);
+  }
+  if (finite(obj.width) && obj.width <= 0) errors.push(`${at}: width must be > 0`);
+  if (finite(obj.height) && obj.height <= 0) errors.push(`${at}: height must be > 0`);
+  if (!obj.anchor || !finite(obj.anchor.x) || !finite(obj.anchor.y)) {
+    errors.push(`${at}: anchor must have finite x,y`);
+  }
+  if (!finite(obj.zIndex)) errors.push(`${at}: zIndex must be a finite number`);
+  if (!EDITOR_PLANES.includes(obj.plane)) errors.push(`${at}: invalid plane "${obj.plane}"`);
+  return errors;
+}
+
+/**
+ * Validate a full editable document. Hard `errors` make a document unusable (bad
+ * version, missing fields, duplicate instance ids, malformed objects); soft
+ * `warnings` are advisory (e.g. an empty Nest). Pure and deterministic.
+ */
+export function validateEditorDocument(doc: unknown): EditorValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!doc || typeof doc !== "object") {
+    return { ok: false, errors: ["document is not an object"], warnings };
+  }
+  const d = doc as Partial<EditableNestDocument>;
+  if (d.version !== NEST_EDITOR_VERSION) errors.push(`unsupported version "${String(d.version)}" (expected ${NEST_EDITOR_VERSION})`);
+  if (!d.id) errors.push("missing document id");
+  if (!d.name) errors.push("missing document name");
+  if (!d.backgroundImageUrl) errors.push("missing backgroundImageUrl");
+  if (!d.aspectRatio) errors.push("missing aspectRatio");
+  if (!Array.isArray(d.objects)) {
+    errors.push("objects must be an array");
+    return { ok: false, errors, warnings };
+  }
+
+  const seen = new Set<string>();
+  d.objects.forEach((o, i) => {
+    errors.push(...validateEditorObject(o, i));
+    if (o?.instanceId) {
+      if (seen.has(o.instanceId)) errors.push(`duplicate instanceId "${o.instanceId}"`);
+      seen.add(o.instanceId);
+    }
+  });
+
+  if (d.objects.length === 0) warnings.push("document has no objects");
+
+  return { ok: errors.length === 0, errors, warnings };
+}
+
+/** Type guard: a parsed value is a structurally valid EditableNestDocument. */
+export function isEditableNestDocument(doc: unknown): doc is EditableNestDocument {
+  return validateEditorDocument(doc).ok;
+}
