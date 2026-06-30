@@ -6,6 +6,7 @@ import {
   GOLDEN_LIVING_NEST_COMPOSED,
   GOLDEN_LIVING_NEST_TEMPLATE,
 } from "@/lib/fixtures/golden-living-nest";
+import { visibleRect } from "@/lib/nest-visual-bounds";
 import {
   addObject,
   createEditorDocumentFromTemplate,
@@ -72,11 +73,14 @@ describe("moveObject", () => {
     expect(after.x).toBeCloseTo(before.x + 0.05, 3);
   });
 
-  it("clamps the box inside the canvas", () => {
+  it("keeps the VISIBLE content on-canvas (padded PNG may sit partly off)", () => {
     const doc = baseDoc();
     const after = obj(moveObject(doc, "slot-avatar", 5, 0, A), "slot-avatar");
-    expect(after.x).toBeGreaterThanOrEqual(0);
-    expect(after.x + after.width).toBeLessThanOrEqual(1.0001);
+    // M7B.1: clamping uses visual-content bounds, so the avatar's transparent padding
+    // may extend past the edge but its visible body stays on-canvas.
+    const vis = visibleRect(after, after.assetId);
+    expect(vis.x).toBeGreaterThanOrEqual(-0.06);
+    expect(vis.x + vis.width).toBeLessThanOrEqual(1.06);
   });
 
   // 5. Floor-plane constraint

@@ -288,15 +288,17 @@ export function rotateObject(
   return replaceObj(doc, normalize({ ...o, rotation: clampRotation(asset, deg) }));
 }
 
-/** Toggle horizontal flip when policy allows. Locked/non-flippable: no-op. */
+/** Toggle horizontal flip when policy allows. `allowOverride` (Advanced) permits a
+ * policy-disabled flip with a warning. Locked/unavailable: no-op. */
 export function flipObject(
   doc: EditableNestDocument,
   instanceId: string,
   assetsById: Record<string, LivingNestAsset> = {},
+  allowOverride = false,
 ): EditableNestDocument {
   const o = findObj(doc, instanceId);
   if (!o || o.locked) return doc;
-  if (!canFlipX(assetsById[o.assetId])) return doc;
+  if (!canFlipX(assetsById[o.assetId], allowOverride)) return doc;
   return replaceObj(doc, normalize({ ...o, flipX: !o.flipX }));
 }
 

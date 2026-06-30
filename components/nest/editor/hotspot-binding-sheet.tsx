@@ -103,7 +103,7 @@ export function HotspotBindingSheet({
   }
 
   return (
-    <div className="flex max-h-[68vh] flex-col rounded-t-3xl border-t border-ink/10 bg-parchment shadow-[0_-8px_24px_rgba(70,54,90,.16)]">
+    <div className="flex max-h-[50vh] flex-col rounded-t-3xl border-t border-ink/10 bg-parchment shadow-[0_-8px_24px_rgba(70,54,90,.16)]">
       <div className="shrink-0 px-3 pt-2">
         <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-ink/15" />
         <div className="flex items-center justify-between">

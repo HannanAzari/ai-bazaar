@@ -12,7 +12,6 @@ import {
   LayoutGrid,
   Link2,
   Magnet,
-  Maximize2,
   MoreHorizontal,
   Move,
   Play,
@@ -20,7 +19,9 @@ import {
   RotateCcw,
   Save,
   Settings2,
+  TriangleAlert,
   Upload,
+  UserCog,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -54,6 +55,9 @@ import { canRedo, canUndo, createHistory, pushHistory, redoHistory, undoHistory,
 import { clearDraft, importDocumentJson, loadDraft, saveDraft } from "@/lib/nest-editor-storage";
 import { canFlipX, canRotate, editorWarnings, guardrailForAsset } from "@/lib/nest-editor-policy";
 import { pushRecent } from "@/lib/nest-editor-asset-index";
+import { placementWarnings } from "@/lib/nest-placement";
+import { capabilitiesFor, EDITOR_ROLES, roleLabel, type EditorRole } from "@/lib/nest-editor-roles";
+import { clampZoom, computeFitZoom } from "@/lib/nest-editor-view";
 import { EditorCanvas } from "@/components/nest/editor/editor-canvas";
 import { AssetDrawer } from "@/components/nest/editor/asset-drawer";
 import { PropertiesPanel } from "@/components/nest/editor/properties-panel";
@@ -78,7 +82,9 @@ export function NestEditor() {
   const [toast, setToast] = useState<string | null>(null);
   const [selectedHotspotId, setSelectedHotspotId] = useState<string | undefined>(undefined);
   const [previewHotspots, setPreviewHotspots] = useState(false);
+  const [role, setRole] = useState<EditorRole>("creator");
   const [mounted, setMounted] = useState(false);
+  const caps = capabilitiesFor(role);
   useEffect(() => setMounted(true), []);
   const fileRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -88,8 +94,15 @@ export function NestEditor() {
   const selected = selectedId ? doc.objects.find((o) => o.instanceId === selectedId) : undefined;
   const selectedAsset = selected ? ASSETS[selected.assetId] : undefined;
   const ambience = useMemo(() => GOLDEN_LIVING_NEST_TEMPLATE.ambiencePresets.find((p) => p.id === doc.ambiencePresetId), [doc.ambiencePresetId]);
-  const warnings = useMemo(() => editorWarnings(doc.objects, ASSETS), [doc.objects]);
+  // Boundary/tap-target/plane + placement (support/occupied-zone) advisories. Placeholder
+  // (production) warnings are only surfaced to roles that should see them.
+  const warnings = useMemo(() => {
+    const base = editorWarnings(doc.objects, ASSETS).filter((w) => w.kind !== "placeholder" || caps.showProductionWarnings);
+    const placement = placementWarnings(doc.objects, ASSETS).map((p) => ({ instanceId: p.instanceId, kind: p.kind, message: p.message }));
+    return [...base, ...placement];
+  }, [doc.objects, caps.showProductionWarnings]);
   const selectedWarnings = warnings.filter((w) => w.instanceId === selectedId);
+  const selectedIsPlaceholder = Boolean(selectedAsset?.placeholder);
 
   // Debounced autosave (compact status, not a banner).
   useEffect(() => {
@@ -128,7 +141,7 @@ export function NestEditor() {
     if (instanceId) setSelectedId(instanceId);
   };
   const onReorder = (op: ReorderOp) => selectedId && commit(reorderObject(doc, selectedId, op));
-  const onFlip = () => selectedId && commit(flipObject(doc, selectedId, ASSETS));
+  const onFlip = () => selectedId && commit(flipObject(doc, selectedId, ASSETS, caps.tunePolicy));
   const onToggleLock = () => selected && commit(setObjectProps(doc, selected.instanceId, { locked: !selected.locked }, ASSETS));
   const onDelete = () => {
     if (!selectedId) return;
@@ -188,25 +201,27 @@ export function NestEditor() {
     } else flash(`Import rejected: ${r.errors.join("; ")}`);
   };
 
-  const setZoomFit = () => setZoom(1);
-  const zoomIn = () => setZoom((z) => Math.min(1.6, +(z + 0.15).toFixed(2)));
-  const zoomOut = () => setZoom((z) => Math.max(0.6, +(z - 0.15).toFixed(2)));
+  const setZoomFit = () => setZoom(computeFitZoom());
+  const zoomIn = () => setZoom((z) => clampZoom(z + 0.15));
+  const zoomOut = () => setZoom((z) => clampZoom(z - 0.15));
 
   const preview = mode === "preview" ? editorDocumentToStage(doc, ASSETS, GOLDEN_LIVING_NEST_TEMPLATE) : null;
   const saveLabel = saveState === "saving" ? "Saving…" : saveState === "unsaved" ? "Unsaved" : saveState === "saved" ? "Saved ✓" : "";
 
   const ui = (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-parchment" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <div className="fixed inset-0 z-[110] flex flex-col bg-parchment" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
       {/* PREVIEW: clean, no editor chrome (just a way back) */}
       {mode === "preview" ? (
         <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-3">
           <button type="button" onClick={() => setMode("arrange")} className="absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-ink/85 px-3 py-1.5 text-xs font-bold text-parchment" style={{ marginTop: "env(safe-area-inset-top)" }}>
             <ArrowLeft className="h-4 w-4" /> Edit
           </button>
-          {/* Internal debug: reveal hotspot regions (off in normal visitor Preview) */}
-          <button type="button" onClick={() => setPreviewHotspots((v) => !v)} aria-pressed={previewHotspots} className={`absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold ${previewHotspots ? "bg-teal text-white" : "bg-ink/15 text-ink/60"}`} style={{ marginTop: "env(safe-area-inset-top)" }} title="Internal: show hotspot regions">
-            <Eye className="h-4 w-4" /> Hotspots
-          </button>
+          {/* Internal debug: reveal hotspot regions (template-author/internal only). */}
+          {caps.showDebug ? (
+            <button type="button" onClick={() => setPreviewHotspots((v) => !v)} aria-pressed={previewHotspots} className={`absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold ${previewHotspots ? "bg-teal text-white" : "bg-ink/15 text-ink/60"}`} style={{ marginTop: "env(safe-area-inset-top)" }} title="Internal: show hotspot regions">
+              <Eye className="h-4 w-4" /> Hotspots
+            </button>
+          ) : null}
           {preview ? <GoldenLivingNestStage template={preview.template} assetsById={ASSETS} interactionsById={GOLDEN_LIVING_NEST_INTERACTIONS_BY_ID} composed={preview.composed} debugHotspots={previewHotspots} /> : null}
         </div>
       ) : (
@@ -228,11 +243,18 @@ export function NestEditor() {
                 {moreOpen ? (
                   <MoreMenu
                     onClose={() => setMoreOpen(false)}
+                    role={role}
+                    onRole={setRole}
+                    caps={caps}
                     showGrid={showGrid}
                     snap={snap}
+                    zoom={zoom}
                     warnings={warnings.length}
                     onToggleGrid={() => setShowGrid((s) => !s)}
                     onToggleSnap={() => setSnap((s) => !s)}
+                    onFit={setZoomFit}
+                    onZoomIn={zoomIn}
+                    onZoomOut={zoomOut}
                     onSave={saveNow}
                     onLoad={load}
                     onImport={() => fileRef.current?.click()}
@@ -256,9 +278,9 @@ export function NestEditor() {
               selectedId={selectedId}
               onSelect={setSelectedId}
               onCommit={commit}
-              showGrid={showGrid}
-              snap={snap}
-              advanced={advancedOpen}
+              showGrid={caps.showDebug && showGrid}
+              snap={caps.showDebug && snap}
+              advanced={advancedOpen && caps.showPrecision}
               zoom={zoom}
               onDuplicate={onDuplicate}
               onReorder={onReorder}
@@ -268,28 +290,28 @@ export function NestEditor() {
               connect={mode === "connect"}
               selectedHotspotId={selectedHotspotId}
               onSelectHotspot={setSelectedHotspotId}
-              hotspotAuthoring={mode === "connect" && advancedOpen}
+              hotspotAuthoring={mode === "connect" && caps.authorHotspots}
               onHotspotsCommit={commitHotspots}
             />
 
-            {/* Zoom cluster */}
-            <div className="absolute right-2 top-2 flex flex-col gap-1 rounded-full border border-ink/10 bg-parchment/90 p-1 shadow-sm backdrop-blur">
-              <ToolIcon small label="Zoom in" onClick={zoomIn}><ZoomIn className="h-4 w-4" /></ToolIcon>
-              <ToolIcon small label="Fit" onClick={setZoomFit} active={zoom === 1}><Maximize2 className="h-4 w-4" /></ToolIcon>
-              <ToolIcon small label="Zoom out" onClick={zoomOut}><ZoomOut className="h-4 w-4" /></ToolIcon>
-            </div>
+            {/* Small placeholder indicator on the selected asset (details in Advanced). */}
+            {selectedIsPlaceholder && mode === "arrange" ? (
+              <span className="pointer-events-none absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-amber-400/90 px-2 py-1 text-[10px] font-bold text-amber-900 shadow" title="Placeholder art (not production-ready)">
+                <TriangleAlert className="h-3 w-3" /> placeholder
+              </span>
+            ) : null}
 
-            {/* Contextual warning chip for the selected object */}
+            {/* Contextual advisory warning chip for the selected object (gentle nudge). */}
             {selectedWarnings.length ? (
-              <button type="button" onClick={() => setAdvancedOpen(true)} className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-amber-400/50 bg-amber-50/95 px-3 py-1 text-[11px] font-bold text-amber-800 shadow">
-                {selectedWarnings[0].message} · Details
+              <button type="button" onClick={() => caps.showPrecision && setAdvancedOpen(true)} className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-amber-400/50 bg-amber-50/95 px-3 py-1 text-[11px] font-bold text-amber-800 shadow">
+                {selectedWarnings[0].message}{caps.showPrecision ? " · Details" : ""}
               </button>
             ) : null}
 
             {/* Asset drawer overlay (canvas remains visible above) */}
             {mode === "assets" ? (
               <div className="absolute inset-x-0 bottom-0 z-30 h-[58%]">
-                <AssetDrawer assets={GOLDEN_LIVING_NEST_ASSETS} advanced={advancedOpen} onAdd={onAdd} onClose={() => setMode("arrange")} />
+                <AssetDrawer assets={GOLDEN_LIVING_NEST_ASSETS} advanced={caps.showProductionWarnings} onAdd={onAdd} onClose={() => setMode("arrange")} />
               </div>
             ) : null}
 
@@ -301,7 +323,7 @@ export function NestEditor() {
                     object={selected}
                     assetName={ASSETS[selected.assetId]?.name ?? selected.assetId}
                     selectedHotspotId={selectedHotspotId}
-                    advanced={advancedOpen}
+                    advanced={caps.authorHotspots}
                     onSelectHotspot={setSelectedHotspotId}
                     onCommit={commitHotspots}
                     onClose={() => { setSelectedId(undefined); setSelectedHotspotId(undefined); }}
@@ -326,7 +348,7 @@ export function NestEditor() {
       )}
 
       {/* Advanced sheet (internal precision controls — hidden by default) */}
-      {advancedOpen && mode !== "connect" ? (
+      {advancedOpen && mode !== "connect" && caps.showPrecision ? (
         <div className="absolute inset-0 z-50 flex flex-col justify-end bg-ink/30" onClick={() => setAdvancedOpen(false)}>
           <div className="max-h-[80%] overflow-y-auto rounded-t-3xl bg-parchment p-3 shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}>
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-ink/15" />
@@ -386,17 +408,61 @@ function ModeBtn({ active, label, onClick, children }: { active: boolean; label:
   );
 }
 
-function MoreMenu({ onClose, showGrid, snap, warnings, onToggleGrid, onToggleSnap, onSave, onLoad, onImport, onExport, onReset, onAdvanced }: { onClose: () => void; showGrid: boolean; snap: boolean; warnings: number; onToggleGrid: () => void; onToggleSnap: () => void; onSave: () => void; onLoad: () => void; onImport: () => void; onExport: () => void; onReset: () => void; onAdvanced: () => void }) {
+function MoreMenu({ onClose, role, onRole, caps, showGrid, snap, zoom, warnings, onToggleGrid, onToggleSnap, onFit, onZoomIn, onZoomOut, onSave, onLoad, onImport, onExport, onReset, onAdvanced }: {
+  onClose: () => void;
+  role: EditorRole;
+  onRole: (r: EditorRole) => void;
+  caps: ReturnType<typeof capabilitiesFor>;
+  showGrid: boolean;
+  snap: boolean;
+  zoom: number;
+  warnings: number;
+  onToggleGrid: () => void;
+  onToggleSnap: () => void;
+  onFit: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onSave: () => void;
+  onLoad: () => void;
+  onImport: () => void;
+  onExport: () => void;
+  onReset: () => void;
+  onAdvanced: () => void;
+}) {
   const Item = ({ icon, label, onClick, active }: { icon: React.ReactNode; label: string; onClick: () => void; active?: boolean }) => (
     <button type="button" onClick={() => { onClick(); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold hover:bg-ink/5 ${active ? "text-cobalt" : "text-ink/75"}`}>{icon} {label}</button>
   );
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute right-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-2xl border border-ink/10 bg-parchment p-1 shadow-xl">
-        <Item icon={<Settings2 className="h-4 w-4" />} label={`Advanced${warnings ? ` (${warnings} ⚠)` : ""}`} onClick={() => { onAdvanced(); }} />
-        <Item icon={<Grid3x3 className="h-4 w-4" />} label="Guides / grid" onClick={onToggleGrid} active={showGrid} />
-        <Item icon={<Magnet className="h-4 w-4" />} label="Snap to grid" onClick={onToggleSnap} active={snap} />
+      <div className="absolute right-0 top-full z-50 mt-1 w-56 overflow-hidden rounded-2xl border border-ink/10 bg-parchment p-1 shadow-xl">
+        {/* Role switch (prototype capability levels) */}
+        <div className="px-2 pb-1 pt-1.5">
+          <p className="mb-1 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-ink/40"><UserCog className="h-3 w-3" /> Mode</p>
+          <div className="flex gap-1">
+            {EDITOR_ROLES.map((r) => (
+              <button key={r} type="button" onClick={() => onRole(r)} className={`flex-1 rounded-md px-1.5 py-1 text-[9px] font-bold transition ${role === r ? "bg-ink text-parchment" : "bg-white/70 text-ink/55 hover:text-ink/80"}`}>
+                {roleLabel(r).split(" ")[0]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="my-1 h-px bg-ink/10" />
+        {/* View / zoom — advanced roles only (creators get a fitted scene by default) */}
+        {caps.showPrecision ? (
+          <>
+            <p className="px-3 pb-0.5 pt-1 text-[9px] font-bold uppercase tracking-wider text-ink/40">View</p>
+            <div className="flex gap-1 px-2 pb-1">
+              <button type="button" onClick={onZoomOut} className="flex-1 rounded-md border border-ink/15 py-1 text-ink/65 hover:bg-ink/5"><ZoomOut className="mx-auto h-4 w-4" /></button>
+              <button type="button" onClick={onFit} className={`flex-[1.4] rounded-md border py-1 text-[10px] font-bold ${zoom === 1 ? "border-cobalt text-cobalt" : "border-ink/15 text-ink/65"} hover:bg-ink/5`}>Fit</button>
+              <button type="button" onClick={onZoomIn} className="flex-1 rounded-md border border-ink/15 py-1 text-ink/65 hover:bg-ink/5"><ZoomIn className="mx-auto h-4 w-4" /></button>
+            </div>
+            <div className="my-1 h-px bg-ink/10" />
+          </>
+        ) : null}
+        {caps.showPrecision ? <Item icon={<Settings2 className="h-4 w-4" />} label={`Advanced${warnings ? ` (${warnings} ⚠)` : ""}`} onClick={() => { onAdvanced(); }} /> : null}
+        {caps.showDebug ? <Item icon={<Grid3x3 className="h-4 w-4" />} label="Grid" onClick={onToggleGrid} active={showGrid} /> : null}
+        {caps.showDebug ? <Item icon={<Magnet className="h-4 w-4" />} label="Snap to grid" onClick={onToggleSnap} active={snap} /> : null}
         <div className="my-1 h-px bg-ink/10" />
         <Item icon={<Save className="h-4 w-4" />} label="Save now" onClick={() => { onSave(); onClose(); }} />
         <Item icon={<FolderOpen className="h-4 w-4" />} label="Load draft" onClick={() => { onLoad(); onClose(); }} />

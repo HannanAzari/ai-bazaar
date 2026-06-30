@@ -8,6 +8,7 @@
 
 import type { EditableNestObject, EditorPlane } from "@/lib/nest-editor-types";
 import type { LivingNestAsset, LivingNestSlotType } from "@/lib/nest-visual-types";
+import { visibleRect, visualBoundsFor } from "@/lib/nest-visual-bounds";
 
 /** Per-slot-type (or default) authoring guardrail. Sizes are normalized widths. */
 export interface EditorGuardrail {
@@ -23,6 +24,8 @@ export interface EditorGuardrail {
   contactShadow: boolean;
   /** Whether the object may be mirrored horizontally (default: true). */
   allowFlipX?: boolean;
+  /** When flip is disabled, why — Advanced may override with this warning shown. */
+  flipWarning?: string;
   /** Whether the object may be rotated (default: false — upright objects). */
   allowRotation?: boolean;
   /** Permitted rotation range in degrees (when allowRotation). */
@@ -30,7 +33,7 @@ export interface EditorGuardrail {
 }
 
 /** Common angle snaps offered while rotating (degrees). */
-export const ROTATION_SNAPS = [0, 15, 30, 45, 90, -15, -30, -45, -90] as const;
+export const ROTATION_SNAPS = [0, 5, -5, 15, -15, 30, -30, 45, -45, 90, -90, 180, -180] as const;
 
 const FLOOR: EditorPlane[] = ["floor"];
 const FLOOR_SIDES: EditorPlane[] = ["floor", "left_sliver", "right_sliver"];
@@ -39,15 +42,18 @@ const WALL: EditorPlane[] = ["front_wall"];
 /** Guardrails keyed by living-room slot type. */
 export const EDITOR_GUARDRAILS: Partial<Record<LivingNestSlotType, EditorGuardrail>> = {
   media: { allowedPlanes: FLOOR, minWidth: 0.3, maxWidth: 0.62, recommendedWidth: 0.482, boxAspect: 2.069, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 2, contactShadow: true, allowFlipX: true, allowRotation: false },
-  frame: { allowedPlanes: WALL, minWidth: 0.08, maxWidth: 0.28, recommendedWidth: 0.157, boxAspect: 1.383, defaultAnchor: { x: 0.5, y: 0.5 }, defaultZ: 1, contactShadow: false, allowFlipX: true, allowRotation: true, rotationRange: { min: -15, max: 15 } },
+  frame: { allowedPlanes: WALL, minWidth: 0.08, maxWidth: 0.28, recommendedWidth: 0.157, boxAspect: 1.383, defaultAnchor: { x: 0.5, y: 0.5 }, defaultZ: 1, contactShadow: false, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
   sofa: { allowedPlanes: FLOOR, minWidth: 0.4, maxWidth: 0.85, recommendedWidth: 0.678, boxAspect: 3.513, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 4, contactShadow: true, allowFlipX: true, allowRotation: false },
   table: { allowedPlanes: FLOOR, minWidth: 0.15, maxWidth: 0.4, recommendedWidth: 0.275, boxAspect: 2.523, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: false },
   rug: { allowedPlanes: FLOOR, minWidth: 0.35, maxWidth: 0.85, recommendedWidth: 0.62, boxAspect: 3.543, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 0, contactShadow: false, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
   lamp: { allowedPlanes: FLOOR_SIDES, minWidth: 0.08, maxWidth: 0.22, recommendedWidth: 0.155, boxAspect: 0.385, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
   plant: { allowedPlanes: FLOOR_SIDES, minWidth: 0.12, maxWidth: 0.34, recommendedWidth: 0.241, boxAspect: 0.956, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
-  avatar: { allowedPlanes: ["floor", "foreground"], minWidth: 0.15, maxWidth: 0.34, recommendedWidth: 0.23, boxAspect: 0.548, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 6, contactShadow: true, allowFlipX: false, allowRotation: false },
+  avatar: { allowedPlanes: ["floor", "foreground"], minWidth: 0.15, maxWidth: 0.34, recommendedWidth: 0.23, boxAspect: 0.548, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 6, contactShadow: true, allowFlipX: false, flipWarning: "Flipping mirrors clothing text, asymmetry and the light direction.", allowRotation: false },
   side_table: { allowedPlanes: FLOOR, minWidth: 0.1, maxWidth: 0.25, recommendedWidth: 0.17, boxAspect: 1.6, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: false },
   speaker: { allowedPlanes: FLOOR_SIDES, minWidth: 0.06, maxWidth: 0.16, recommendedWidth: 0.1, boxAspect: 0.7, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
+  // Bookshelf — upright furniture, no rotation; loose books / small decor rotate freely.
+  shelf: { allowedPlanes: FLOOR, minWidth: 0.12, maxWidth: 0.3, recommendedWidth: 0.18, boxAspect: 0.357, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
+  books: { allowedPlanes: ["floor", "foreground"], minWidth: 0.06, maxWidth: 0.18, recommendedWidth: 0.1, boxAspect: 1.748, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: false, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
 };
 
 /** Fallback guardrail for any unlisted slot type. */
@@ -70,17 +76,18 @@ export const EDITOR_SAFE_AREA = { x: 0.0, y: 0.02, width: 1.0, height: 0.96 };
 /** Minimum comfortable tap target (normalized) ≈ 44px on a phone-width scene. */
 export const MIN_TAP_TARGET = { width: 0.09, height: 0.06 };
 
-/** The base-anchor Y band each plane allows (keeps floor on the floor, wall on wall). */
+/** The visible-base Y band each plane allows. Widened (M7B.1) so floor objects can
+ * approach the room edges/corners; applied to the asset's *visible* base. */
 export function planeBand(plane: EditorPlane): { minY: number; maxY: number } {
   switch (plane) {
     case "front_wall":
-      return { minY: 0.06, maxY: 0.6 };
+      return { minY: 0.05, maxY: 0.62 };
     case "left_sliver":
     case "right_sliver":
-      return { minY: 0.1, maxY: 0.78 };
+      return { minY: 0.08, maxY: 0.92 };
     case "floor":
     case "foreground":
-      return { minY: 0.63, maxY: 0.99 };
+      return { minY: 0.55, maxY: 1.0 };
   }
 }
 
@@ -97,9 +104,27 @@ export function guardrailForAsset(asset: LivingNestAsset | undefined): EditorGua
 
 const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n));
 
-/** Whether an asset may be mirrored horizontally (default true). */
-export function canFlipX(asset: LivingNestAsset | undefined): boolean {
-  return guardrailForAsset(asset).allowFlipX !== false;
+export type FlipStatus = "unavailable" | "available" | "warning";
+
+/**
+ * Flip availability for an asset. `allowOverride` (Advanced/template-author) permits a
+ * policy-disabled flip *with a warning* (e.g. the real-person avatar).
+ */
+export function flipStatus(asset: LivingNestAsset | undefined, allowOverride = false): FlipStatus {
+  const g = guardrailForAsset(asset);
+  if (g.allowFlipX === true) return "available";
+  if (g.allowFlipX === false && g.flipWarning && allowOverride) return "warning";
+  return "unavailable";
+}
+
+/** The warning shown when a flip-restricted asset is overridden. */
+export function flipWarningFor(asset: LivingNestAsset | undefined): string | undefined {
+  return guardrailForAsset(asset).flipWarning;
+}
+
+/** Whether an asset may be mirrored horizontally (Advanced may override with a warning). */
+export function canFlipX(asset: LivingNestAsset | undefined, allowOverride = false): boolean {
+  return flipStatus(asset, allowOverride) !== "unavailable";
 }
 
 /** Whether an asset may be rotated (default false). */
@@ -141,11 +166,14 @@ function anchorRel(obj: EditableNestObject): { x: number; y: number } {
  * plane band. Pure — returns a new object; never mutates. This is the hard guardrail
  * the move/resize operations route through.
  */
+/** Soft margin: the asset's transparent padding may sit off-canvas; its visible art
+ * is kept on-screen. This is the HARD boundary (only prevents fully-off placement). */
+export const CANVAS_MARGIN = 0.05;
+
 export function clampObject(obj: EditableNestObject, g: EditorGuardrail = DEFAULT_GUARDRAIL): EditableNestObject {
   const rel = anchorRel(obj);
   // Size first (proportional callers pass already-sized boxes; clamp width into range).
   let width = clamp(obj.width, g.minWidth, g.maxWidth);
-  // Preserve aspect when width is clamped.
   const aspect = obj.width > 0 ? obj.height / obj.width : obj.height;
   let height = width * aspect;
   if (height > 1) {
@@ -153,16 +181,27 @@ export function clampObject(obj: EditableNestObject, g: EditorGuardrail = DEFAUL
     width = obj.height > 0 ? height / aspect : width;
   }
 
-  const x = clamp(obj.x, 0, 1 - width);
-  let y = clamp(obj.y, 0, 1 - height);
+  // Use the asset's VISIBLE content rect for boundary checks, so a padded PNG (avatar,
+  // thin lamp, bookshelf) can push its transparent padding off-canvas and reach corners.
+  const vb = visualBoundsFor(obj.assetId);
+  const vW = width * vb.width;
+  const vH = height * vb.height;
+  const M = CANVAS_MARGIN;
 
-  // Plane band on the base anchor.
+  // X: keep the visible rect within [-M, 1+M].
+  let x = obj.x;
+  const visX = clamp(x + vb.x * width, -M, Math.max(-M, 1 + M - vW));
+  x += visX - (x + vb.x * width);
+
+  // Y: plane band on the visible base, then keep the visible rect on-canvas.
+  let y = obj.y;
   const band = planeBand(obj.plane);
-  const anchorY = y + height * rel.y;
-  const clampedAnchorY = clamp(anchorY, band.minY, band.maxY);
-  if (clampedAnchorY !== anchorY) {
-    y = clamp(clampedAnchorY - height * rel.y, 0, 1 - height);
-  }
+  const visBase = y + vb.y * height + vH;
+  const clampedBase = clamp(visBase, band.minY, band.maxY);
+  y += clampedBase - visBase;
+  const visTop = y + vb.y * height;
+  const clampedTop = clamp(visTop, -M, Math.max(-M, 1 + M - vH));
+  y += clampedTop - visTop;
 
   const anchor = { x: x + width * rel.x, y: y + height * rel.y };
   return { ...obj, x, y, width, height, anchor };
@@ -170,11 +209,12 @@ export function clampObject(obj: EditableNestObject, g: EditorGuardrail = DEFAUL
 
 export interface EditorWarning {
   instanceId: string;
-  kind: "tap-target" | "outside-safe-area" | "placeholder" | "overlap" | "plane";
+  kind: "tap-target" | "boundary" | "placeholder" | "overlap" | "plane";
   message: string;
 }
 
-/** Advisory (non-blocking) warnings for a document. Deterministic, pure. */
+/** Advisory (non-blocking) warnings for a document, using VISIBLE content bounds so
+ * padded PNGs don't falsely warn. Deterministic, pure. */
 export function editorWarnings(
   objects: EditableNestObject[],
   assetsById: Record<string, LivingNestAsset>,
@@ -186,12 +226,14 @@ export function editorWarnings(
     if (asset?.placeholder) {
       out.push({ instanceId: o.instanceId, kind: "placeholder", message: `${asset.name} is placeholder art (not production-ready)` });
     }
-    if (o.width < MIN_TAP_TARGET.width || o.height < MIN_TAP_TARGET.height) {
+    const vis = visibleRect(o, o.assetId);
+    if (vis.width < MIN_TAP_TARGET.width || vis.height < MIN_TAP_TARGET.height) {
       out.push({ instanceId: o.instanceId, kind: "tap-target", message: "smaller than the comfortable tap target" });
     }
-    const sa = EDITOR_SAFE_AREA;
-    const outside = o.x + o.width < sa.x || o.x > sa.x + sa.width || o.y + o.height < sa.y || o.y > sa.y + sa.height;
-    if (outside) out.push({ instanceId: o.instanceId, kind: "outside-safe-area", message: "outside the safe area" });
+    // Soft boundary: warn only when the visible art noticeably crosses the canvas edge.
+    const off =
+      vis.x < -0.01 || vis.y < -0.01 || vis.x + vis.width > 1.01 || vis.y + vis.height > 1.01;
+    if (off) out.push({ instanceId: o.instanceId, kind: "boundary", message: "near the edge of the room" });
     const g = guardrailForAsset(asset);
     if (!g.allowedPlanes.includes(o.plane)) {
       out.push({ instanceId: o.instanceId, kind: "plane", message: `unusual plane "${o.plane}" for this object` });

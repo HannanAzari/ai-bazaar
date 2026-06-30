@@ -21,7 +21,10 @@ import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor
 import { moveObject, resizeObject, rotateObject, type ReorderOp } from "@/lib/nest-editor";
 import { canFlipX, canRotate, snapRotation } from "@/lib/nest-editor-policy";
 import type { NestAssetHotspot } from "@/lib/nest-hotspot-types";
+import { isInternalSemantic as hsInternal } from "@/lib/nest-hotspot-types";
 import { moveHotspot, resizeHotspot } from "@/lib/nest-hotspots";
+import { visibleRect } from "@/lib/nest-visual-bounds";
+import { computeAlignment, type AlignGuide } from "@/lib/nest-align";
 
 // The mobile editor canvas (Arrange mode). Pointer Events drive a unified gesture
 // model — one finger moves, two fingers pinch-resize + twist-rotate (when policy
@@ -80,6 +83,7 @@ export function EditorCanvas(props: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const pointers = useRef<Map<number, Pt>>(new Map());
   const gestureRef = useRef<Gesture | null>(null);
+  const guidesRef = useRef<AlignGuide[]>([]);
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
   const [layerOpen, setLayerOpen] = useState(false);
@@ -100,8 +104,21 @@ export function EditorCanvas(props: Props) {
       let dx = nx - g.startNX;
       let dy = ny - g.startNY;
       if (snap) {
+        // Advanced grid snap.
         dx = snapStep(o0.x + dx, 1 / gridCols) - o0.x;
         dy = snapStep(o0.y + dy, 1 / gridRows) - o0.y;
+        guidesRef.current = [];
+      } else {
+        // Smart alignment: snap the moving object's VISIBLE rect to canvas/other-object
+        // alignments; surface transient guides. Deterministic.
+        const movedVis = visibleRect({ x: o0.x + dx, y: o0.y + dy, width: o0.width, height: o0.height }, o0.assetId);
+        const targets = doc.objects
+          .filter((o) => o.instanceId !== g.id && !o.hidden)
+          .map((o) => ({ rect: visibleRect(o, o.assetId) }));
+        const al = computeAlignment(movedVis, targets);
+        guidesRef.current = al.guides;
+        dx += al.snap.dx;
+        dy += al.snap.dy;
       }
       return moveObject(doc, g.id, dx, dy, assetsById);
     }
@@ -143,6 +160,7 @@ export function EditorCanvas(props: Props) {
     if (gestureRef.current) {
       onCommit(liveDoc);
       gestureRef.current = null;
+      guidesRef.current = []; // alignment guides vanish the moment the gesture ends
       rerender();
     }
   }
@@ -208,10 +226,13 @@ export function EditorCanvas(props: Props) {
   return (
     <div className="flex h-full w-full items-center justify-center overflow-hidden p-2">
       <style>{CANVAS_CSS}</style>
-      <div className="relative" style={{ height: `${Math.round(zoom * 100)}%`, aspectRatio: aspectRatioCss(doc.aspectRatio as "3:4"), maxWidth: "96%", maxHeight: "100%" }}>
+      {/* Aspect-locked fit: an oversized base clamped by both max-dimensions keeps the
+          scene a true 3:4 (full room visible, including side walls) regardless of the
+          viewport shape. Zoom scales both clamps. */}
+      <div className="relative" style={{ width: "9999px", aspectRatio: aspectRatioCss(doc.aspectRatio as "3:4"), maxWidth: `${Math.round(96 * zoom)}%`, maxHeight: `${Math.round(100 * zoom)}%` }}>
         <div
           ref={sceneRef}
-          className="editor-scene absolute inset-0 touch-none select-none overflow-hidden rounded-[24px] border border-ink/10 shadow-xl"
+          className="editor-scene absolute inset-0 isolate touch-none select-none overflow-hidden rounded-[24px] border border-ink/10 shadow-xl"
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
@@ -226,6 +247,7 @@ export function EditorCanvas(props: Props) {
           <img src={doc.backgroundImageUrl} alt="" data-bg="1" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
           {ambience ? <div className="pointer-events-none absolute inset-0 mix-blend-soft-light" style={{ backgroundColor: ambience.tint, opacity: Math.min(0.45, ambience.intensity) }} aria-hidden /> : null}
           {showGrid ? <GridGuides cols={gridCols} rows={gridRows} /> : null}
+          {gestureRef.current && guidesRef.current.length ? <AlignGuides guides={guidesRef.current} /> : null}
 
           {objects.map((o) => {
             if (o.hidden) return null;
@@ -254,6 +276,13 @@ export function EditorCanvas(props: Props) {
 
           {/* Arrange chrome (hidden in Connect mode) */}
           {!connect && selected && !selected.hidden ? <TransformFrame o={selected} asset={selectedAsset} advanced={advanced} onHandleDown={onHandleDown} /> : null}
+
+          {/* Transient rotation degree label while rotating/pinching a rotatable object. */}
+          {!connect && selected && (gestureRef.current?.kind === "rotate" || gestureRef.current?.kind === "pinch") && selected.rotation != null ? (
+            <div className="pointer-events-none absolute z-[510] -translate-x-1/2 rounded-full bg-ink/90 px-2 py-0.5 text-[11px] font-bold text-parchment" style={{ left: pctOf(selected.x + selected.width / 2), top: pctOf(Math.max(0.02, selected.y - 0.03)) }}>
+              {Math.round(selected.rotation)}°
+            </div>
+          ) : null}
 
           {/* Connect-mode hotspot overlay for the selected asset */}
           {connect && selected && !selected.hidden ? (
@@ -378,15 +407,24 @@ function HotspotLayer({
       {display.map((h) => {
         const sel = h.id === selectedHotspotId;
         const ellipse = h.shape.type === "ellipse";
+        // State-driven styling (subtle when unselected, clear when selected).
+        const connected = Boolean(h.binding?.url) || hsInternal(h.semantic);
+        const cls = !h.enabled
+          ? "border border-dotted border-ink/30 bg-ink/[0.03]"
+          : sel
+            ? "border-2 border-teal bg-teal/15"
+            : connected
+              ? "border border-meadow-shade/70 bg-meadow/[0.06]"
+              : "border border-dashed border-teal/45";
         return (
           <div key={h.id} className="absolute" style={{ left: pctOf(h.shape.x), top: pctOf(h.shape.y), width: pctOf(h.shape.width), height: pctOf(h.shape.height) }}>
             <button
               type="button"
               onPointerDown={(e) => startMove(e, h)}
               aria-label={`Hotspot ${h.name}${sel ? " (selected)" : ""}`}
-              className={`absolute inset-0 touch-none ${ellipse ? "rounded-full" : "rounded-[6px]"} border-2 ${sel ? "border-teal bg-teal/25" : h.enabled ? "border-dashed border-teal/70 bg-teal/8" : "border-dotted border-ink/40 bg-ink/5"}`}
+              className={`absolute inset-0 touch-none ${ellipse ? "rounded-full" : "rounded-[6px]"} ${cls}`}
             >
-              {sel ? <span className="absolute -top-5 left-0 whitespace-nowrap rounded bg-teal px-1 py-0.5 text-[8px] font-bold text-white">{h.name}</span> : null}
+              {sel ? <span className="absolute -top-5 left-0 whitespace-nowrap rounded bg-teal px-1.5 py-0.5 text-[8px] font-bold text-white">{h.name}</span> : null}
             </button>
             {sel && authoring && !h.locked
               ? ([
@@ -410,10 +448,13 @@ function HotspotLayer({
 function TransformFrame({ o, asset, advanced, onHandleDown }: { o: EditableNestObject; asset?: LivingNestAsset; advanced: boolean; onHandleDown: (e: React.PointerEvent, o: EditableNestObject, kind: "resize" | "rotate", dirX?: number) => void }) {
   const t = transformOf(o);
   const rotatable = canRotate(asset) && !o.locked;
-  const anchorLeft = ((o.anchor.x - o.x) / o.width) * 100;
-  const anchorTop = ((o.anchor.y - o.y) / o.height) * 100;
+  // The selection frame wraps the VISIBLE content (not the transparent PNG padding),
+  // so padded assets (avatar, lamp) get a tight, believable selection box.
+  const vr = visibleRect(o, o.assetId);
+  const anchorLeft = vr.width > 0 ? ((o.anchor.x - vr.x) / vr.width) * 100 : 50;
+  const anchorTop = vr.height > 0 ? ((o.anchor.y - vr.y) / vr.height) * 100 : 100;
   return (
-    <div className="pointer-events-none absolute z-[500]" style={{ left: pctOf(o.x), top: pctOf(o.y), width: pctOf(o.width), height: pctOf(o.height), transform: t || undefined, transformOrigin: "center" }}>
+    <div className="pointer-events-none absolute z-[500]" style={{ left: pctOf(vr.x), top: pctOf(vr.y), width: pctOf(vr.width), height: pctOf(vr.height), transform: t || undefined, transformOrigin: "center" }}>
       <div className={`absolute inset-0 rounded-[10px] ${o.locked ? "border-2 border-dashed border-terracotta/80" : "border-[2px] border-cobalt"}`} style={{ boxShadow: "0 0 0 1px rgba(255,255,255,.7), 0 1px 6px rgba(70,54,90,.25)" }} />
       {!o.locked
         ? ([
@@ -485,6 +526,21 @@ function LayerItem({ label, onClick, children }: { label: string; onClick: () =>
     <button type="button" onClick={onClick} className="flex items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-xs font-bold text-ink/75 hover:bg-ink/5">
       {children} {label}
     </button>
+  );
+}
+
+// Transient smart alignment guides (Nestudio saffron) shown only during a gesture.
+function AlignGuides({ guides }: { guides: AlignGuide[] }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[450]" aria-hidden>
+      {guides.map((g, i) =>
+        g.axis === "x" ? (
+          <span key={`g${i}`} className="absolute top-0 h-full w-px bg-saffron shadow-[0_0_4px_rgba(232,162,60,.7)]" style={{ left: `${g.pos * 100}%` }} />
+        ) : (
+          <span key={`g${i}`} className="absolute left-0 w-full border-t border-saffron shadow-[0_0_4px_rgba(232,162,60,.7)]" style={{ top: `${g.pos * 100}%` }} />
+        ),
+      )}
+    </div>
   );
 }
 

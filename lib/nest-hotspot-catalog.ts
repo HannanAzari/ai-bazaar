@@ -26,25 +26,25 @@ type CatalogHotspot = {
 
 /** Predefined regions keyed by catalog asset id (asset-local 0..1 geometry). */
 const CATALOG: Record<string, CatalogHotspot[]> = {
-  // Media unit — only the screen, never the console.
+  // Media unit — the visible black screen panel only (pixel-measured PNG-local).
   "ast-tv": [
-    { rel: "screen", name: "TV Screen", semantic: "video", interactionId: "tv_screen_video", shape: { type: "rect", x: 0.165, y: 0.075, width: 0.67, height: 0.45 }, ariaLabel: "TV screen — play video" },
+    { rel: "screen", name: "TV Screen", semantic: "video", interactionId: "tv_screen_video", shape: { type: "rect", x: 0.2, y: 0.11, width: 0.6, height: 0.48 }, ariaLabel: "TV screen — play video" },
   ],
-  // Framed photo — the inner image, inside the frame border.
+  // Framed photo — the inner landscape image, inside the wooden border.
   "ast-framed-photo": [
-    { rel: "photo", name: "Photo", semantic: "gallery", interactionId: "frame_focus_gallery", shape: { type: "rect", x: 0.16, y: 0.14, width: 0.68, height: 0.6 }, ariaLabel: "Framed photo — open gallery" },
+    { rel: "photo", name: "Photo", semantic: "gallery", interactionId: "frame_focus_gallery", shape: { type: "rect", x: 0.18, y: 0.18, width: 0.64, height: 0.64 }, ariaLabel: "Framed photo — open gallery" },
   ],
-  // Floor lamp — the shade at the top (the switch is up here too).
+  // Floor lamp — the cylindrical shade at the top only (pixel-measured; excludes the pole).
   "ast-floor-lamp": [
-    { rel: "shade", name: "Lamp shade", semantic: "ambience", interactionId: "lamp_glow_ambience", shape: { type: "ellipse", x: 0.08, y: 0.0, width: 0.84, height: 0.28 }, ariaLabel: "Lamp — change ambience" },
+    { rel: "shade", name: "Lamp shade", semantic: "ambience", interactionId: "lamp_glow_ambience", shape: { type: "ellipse", x: 0.27, y: 0.12, width: 0.46, height: 0.16 }, ariaLabel: "Lamp — change ambience" },
   ],
-  // Side plant — the leaf mass only; the pot (below ~0.58) is excluded.
+  // Side plant — the leaf mass only (pixel-measured); the pot (below ~0.68) is excluded.
   "ast-side-plant": [
-    { rel: "leaves", name: "Leaves", semantic: "animation", interactionId: "plant_leaf_sway", shape: { type: "ellipse", x: 0.05, y: 0.0, width: 0.9, height: 0.56 }, ariaLabel: "Plant leaves — sway" },
+    { rel: "leaves", name: "Leaves", semantic: "animation", interactionId: "plant_leaf_sway", shape: { type: "ellipse", x: 0.15, y: 0.11, width: 0.66, height: 0.57 }, ariaLabel: "Plant leaves — sway" },
   ],
-  // Avatar — the body.
+  // Avatar — the visible body (inside the padded PNG: x0.2–0.8, y0.1–0.92).
   "ast-avatar": [
-    { rel: "body", name: "Avatar", semantic: "profile", interactionId: "avatar_greet", shape: { type: "rect", x: 0.12, y: 0.05, width: 0.72, height: 0.92 }, ariaLabel: "Creator — introduction" },
+    { rel: "body", name: "Avatar", semantic: "profile", interactionId: "avatar_greet", shape: { type: "rect", x: 0.2, y: 0.1, width: 0.6, height: 0.82 }, ariaLabel: "Creator — introduction" },
   ],
   // Writing desk — three genuine regions matching the art (laptop / notebook / desk lamp).
   "ast-desk": [
@@ -55,6 +55,12 @@ const CATALOG: Record<string, CatalogHotspot[]> = {
   // Stacked books — read an article.
   "ast-stacked-books": [
     { rel: "books", name: "Books", semantic: "article", interactionId: "book_open_article", shape: { type: "rect", x: 0.1, y: 0.1, width: 0.8, height: 0.8 }, ariaLabel: "Books — read article" },
+  ],
+  // Bookshelf — shelf-level regions (the art is too low-res for per-book taps).
+  "ast-bookshelf": [
+    { rel: "upper", name: "Upper shelf", semantic: "article", shape: { type: "rect", x: 0.24, y: 0.08, width: 0.52, height: 0.15 }, ariaLabel: "Upper shelf — read article" },
+    { rel: "middle", name: "Middle shelf", semantic: "gallery", shape: { type: "rect", x: 0.24, y: 0.45, width: 0.52, height: 0.15 }, ariaLabel: "Middle shelf — open gallery" },
+    { rel: "lower", name: "Lower shelf", semantic: "article", shape: { type: "rect", x: 0.24, y: 0.79, width: 0.52, height: 0.13 }, ariaLabel: "Lower shelf — read article" },
   ],
 };
 

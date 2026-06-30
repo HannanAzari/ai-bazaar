@@ -50,9 +50,9 @@ describe("rotation policy", () => {
     const d = rotateObject(base(), "slot-sofa", 45, A);
     expect(obj(d, "slot-sofa").rotation).toBeUndefined();
   });
-  it("constrains a frame to its tight range", () => {
-    const d = rotateObject(base(), "slot-frame", 90, A);
-    expect(obj(d, "slot-frame").rotation).toBe(15);
+  it("allows wide frame rotation (M7B.1: frames/decor rotate freely) but caps at ±180", () => {
+    expect(obj(rotateObject(base(), "slot-frame", 90, A), "slot-frame").rotation).toBe(90);
+    expect(obj(rotateObject(base(), "slot-frame", 400, A), "slot-frame").rotation).toBe(180);
   });
 });
 
@@ -78,7 +78,9 @@ describe("duplicate", () => {
     const before = obj(d0, "slot-plant");
     const { doc, instanceId } = duplicateObject(d0, "slot-plant", A);
     const dup = obj(doc, instanceId!);
-    expect(dup.x).toBeCloseTo(Math.min(1 - before.width, before.x + 0.04), 3);
+    // M7B.1: visual-bounds clamping keeps the plant's visible content on-canvas, so the
+    // deterministic +0.04 offset is preserved (no premature PNG-box capping).
+    expect(dup.x).toBeCloseTo(before.x + 0.04, 3);
     // deterministic
     expect(duplicateObject(base(), "slot-plant", A).doc.objects.length).toBe(doc.objects.length);
   });

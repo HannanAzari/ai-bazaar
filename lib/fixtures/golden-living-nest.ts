@@ -115,7 +115,8 @@ const TV = asset({
   states: [{ name: "idle" }, { name: "active" }],
   statePack: {
     // The screen region inside the asset box (normalized 0..1) — only this lights up.
-    screenRect: { x: 0.165, y: 0.075, width: 0.67, height: 0.45 },
+    // Pixel-calibrated (M7B.1) to the visible black panel; matches the TV hotspot.
+    screenRect: { x: 0.2, y: 0.11, width: 0.6, height: 0.48 },
     active: { id: "active", format: "css" },
     idle: { id: "idle", format: "css" },
   },
