@@ -64,9 +64,22 @@ import { clampZoom, computeFitZoom } from "@/lib/nest-editor-view";
 import { EditorCanvas } from "@/components/nest/editor/editor-canvas";
 import { AssetDrawer } from "@/components/nest/editor/asset-drawer";
 import { PropertiesPanel } from "@/components/nest/editor/properties-panel";
+import { FocusEditorOverlay } from "@/components/nest/editor/focus-editor-overlay";
+import { FocusSheet } from "@/components/nest/editor/focus-sheet";
+import type { NestFocusArea } from "@/lib/nest-focus-types";
+import {
+  addFocusArea,
+  createDetailScene,
+  getDetailScene,
+  mainSceneId,
+  removeFocusArea,
+  setDetailSceneObjects,
+  updateFocusArea,
+} from "@/lib/nest-focus-scenes";
+import { Maximize2 } from "lucide-react";
 
 const ASSETS = GOLDEN_LIVING_NEST_ASSETS_BY_ID;
-type Mode = "arrange" | "assets" | "connect" | "preview";
+type Mode = "arrange" | "assets" | "connect" | "focus" | "preview";
 type SaveState = "idle" | "unsaved" | "saving" | "saved";
 
 const freshDocument = (): EditableNestDocument =>
@@ -89,6 +102,10 @@ export function NestEditor() {
   // Each drawer remembers its own snap point across open/close (Phase 9/10).
   const [assetSnap, setAssetSnap] = useState<BottomSheetSnapPoint>("half");
   const [connectSnap, setConnectSnap] = useState<BottomSheetSnapPoint>("half");
+  const [focusSnap, setFocusSnap] = useState<BottomSheetSnapPoint>("half");
+  // M7C: which scene is being edited (the main id, or a detail-scene id) + focus selection.
+  const [activeSceneId, setActiveSceneId] = useState<string>("");
+  const [selectedFocusId, setSelectedFocusId] = useState<string | undefined>(undefined);
   const [mounted, setMounted] = useState(false);
   const caps = capabilitiesFor(role);
   useEffect(() => setMounted(true), []);
@@ -97,18 +114,38 @@ export function NestEditor() {
   const firstRun = useRef(true);
 
   const doc = history.present;
-  const selected = selectedId ? doc.objects.find((o) => o.instanceId === selectedId) : undefined;
+  const mainId = mainSceneId(doc);
+  // The scene currently being edited: the Main Nest, or one Detail Scene. The object
+  // editing surface operates on `activeDoc` (a scene-scoped view); the full `doc` carries
+  // the scene graph + is what history/persistence store.
+  const isMainActive = !activeSceneId || activeSceneId === mainId;
+  const activeScene = isMainActive ? undefined : getDetailScene(doc, activeSceneId);
+  const activeDoc: EditableNestDocument = useMemo(() => {
+    if (isMainActive || !activeScene) return doc;
+    return {
+      ...doc,
+      id: `${doc.id}--${activeScene.id}`,
+      objects: activeScene.objects,
+      backgroundImageUrl: activeScene.backgroundImageUrl ?? doc.backgroundImageUrl,
+      aspectRatio: activeScene.viewport.aspectRatio,
+      ambiencePresetId: activeScene.ambiencePresetId ?? doc.ambiencePresetId,
+      focusAreas: [],
+      detailScenes: [],
+    };
+  }, [doc, isMainActive, activeScene]);
+
+  const selected = selectedId ? activeDoc.objects.find((o) => o.instanceId === selectedId) : undefined;
   const selectedAsset = selected ? ASSETS[selected.assetId] : undefined;
-  const ambience = useMemo(() => GOLDEN_LIVING_NEST_TEMPLATE.ambiencePresets.find((p) => p.id === doc.ambiencePresetId), [doc.ambiencePresetId]);
+  const ambience = useMemo(() => GOLDEN_LIVING_NEST_TEMPLATE.ambiencePresets.find((p) => p.id === activeDoc.ambiencePresetId), [activeDoc.ambiencePresetId]);
   // Boundary/tap-target/plane + placement (support/occupied-zone) advisories. Placeholder
   // (production) warnings are only surfaced to roles that should see them.
   const warnings = useMemo(() => {
-    const base = editorWarnings(doc.objects, ASSETS).filter((w) => w.kind !== "placeholder" || caps.showProductionWarnings);
-    const placement = placementWarnings(doc.objects, ASSETS).map((p) => ({ instanceId: p.instanceId, kind: p.kind as string, message: p.message }));
+    const base = editorWarnings(activeDoc.objects, ASSETS).filter((w) => w.kind !== "placeholder" || caps.showProductionWarnings);
+    const placement = placementWarnings(activeDoc.objects, ASSETS).map((p) => ({ instanceId: p.instanceId, kind: p.kind as string, message: p.message }));
     // Composition overlap advisories (avatar-in-furniture, covers window/niche, …).
-    const overlaps = overlapAdvisories(doc.objects, ASSETS).map((a) => ({ instanceId: a.instanceId, kind: a.kind as string, message: a.message }));
+    const overlaps = overlapAdvisories(activeDoc.objects, ASSETS).map((a) => ({ instanceId: a.instanceId, kind: a.kind as string, message: a.message }));
     return [...base.map((b) => ({ instanceId: b.instanceId, kind: b.kind as string, message: b.message })), ...placement, ...overlaps];
-  }, [doc.objects, caps.showProductionWarnings]);
+  }, [activeDoc.objects, caps.showProductionWarnings]);
   const selectedWarnings = warnings.filter((w) => w.instanceId === selectedId);
   const selectedIsPlaceholder = Boolean(selectedAsset?.placeholder);
 
@@ -117,10 +154,10 @@ export function NestEditor() {
     if (!selected) return undefined;
     const floats = warnings.some((w) => w.instanceId === selected.instanceId && w.kind === "support");
     if (!floats) return undefined;
-    return supportCandidates(selected, doc.objects, ASSETS)[0];
-  }, [selected, doc.objects, warnings]);
+    return supportCandidates(selected, activeDoc.objects, ASSETS)[0];
+  }, [selected, activeDoc.objects, warnings]);
   const onPlaceOnSupport = () => {
-    if (selectedId && supportSuggestion) commit(placeOnSupport(doc, selectedId, supportSuggestion.instanceId, ASSETS));
+    if (selectedId && supportSuggestion) commitActive(placeOnSupport(activeDoc, selectedId, supportSuggestion.instanceId, ASSETS));
   };
 
   // Debounced autosave (compact status, not a banner).
@@ -144,37 +181,79 @@ export function NestEditor() {
     setTimeout(() => setToast((t) => (t === text ? null : t)), 2200);
   };
   const commit = (next: EditableNestDocument) => setHistory((h) => pushHistory(h, next));
+  // Scene-scoped commit: when a Detail Scene is active, object edits write back into that
+  // scene's manifest; on Main they commit the full document. One history entry either way.
+  const commitActive = (next: EditableNestDocument) => {
+    if (isMainActive || !activeScene) commit(next);
+    else commit(setDetailSceneObjects(doc, activeSceneId, next.objects, new Date().toISOString()));
+  };
 
-  // Object operations
+  // Object operations (operate on the ACTIVE scene)
   const onAdd = (asset: (typeof GOLDEN_LIVING_NEST_ASSETS)[number]) => {
-    const { doc: next, instanceId } = addObject(doc, asset);
-    commit(next);
+    const { doc: next, instanceId } = addObject(activeDoc, asset);
+    commitActive(next);
     pushRecent(asset.id);
     setSelectedId(instanceId);
     setMode("arrange");
   };
   const onDuplicate = () => {
     if (!selectedId) return;
-    const { doc: next, instanceId } = duplicateObject(doc, selectedId, ASSETS);
-    commit(next);
+    const { doc: next, instanceId } = duplicateObject(activeDoc, selectedId, ASSETS);
+    commitActive(next);
     if (instanceId) setSelectedId(instanceId);
   };
-  const onReorder = (op: ReorderOp) => selectedId && commit(reorderObject(doc, selectedId, op));
-  const onFlip = () => selectedId && commit(flipObject(doc, selectedId, ASSETS, caps.tunePolicy));
-  const onToggleLock = () => selected && commit(setObjectProps(doc, selected.instanceId, { locked: !selected.locked }, ASSETS));
+  const onReorder = (op: ReorderOp) => selectedId && commitActive(reorderObject(activeDoc, selectedId, op));
+  const onFlip = () => selectedId && commitActive(flipObject(activeDoc, selectedId, ASSETS, caps.tunePolicy));
+  const onToggleLock = () => selected && commitActive(setObjectProps(activeDoc, selected.instanceId, { locked: !selected.locked }, ASSETS));
   const onDelete = () => {
     if (!selectedId) return;
-    commit(removeObject(doc, selectedId));
+    commitActive(removeObject(activeDoc, selectedId));
     setSelectedId(undefined);
   };
-  const onPatch = (patch: Partial<EditableNestObject>) => selectedId && commit(setObjectProps(doc, selectedId, patch, ASSETS));
+  const onPatch = (patch: Partial<EditableNestObject>) => selectedId && commitActive(setObjectProps(activeDoc, selectedId, patch, ASSETS));
   const commitHotspots = (hotspots: NestAssetHotspot[]) => {
-    if (selectedId) commit(setObjectHotspots(doc, selectedId, hotspots));
+    if (selectedId) commitActive(setObjectHotspots(activeDoc, selectedId, hotspots));
   };
   const onResetScale = () => {
     if (!selected) return;
     const g = guardrailForAsset(ASSETS[selected.assetId]);
-    commit(resizeObject(doc, selected.instanceId, g.recommendedWidth, ASSETS));
+    commitActive(resizeObject(activeDoc, selected.instanceId, g.recommendedWidth, ASSETS));
+  };
+
+  // ── Focus Area operations (Main scene only; operate on the full document) ──
+  const focusAreas = doc.focusAreas ?? [];
+  const selectedFocus = focusAreas.find((f) => f.id === selectedFocusId);
+  const onAddFocus = (shape: "rect" | "ellipse") => {
+    const { doc: next, id } = addFocusArea(doc, { bounds: { x: 0.34, y: 0.4, width: 0.32, height: 0.24 }, shape, previewHint: "Explore" });
+    commit(next);
+    setSelectedFocusId(id);
+  };
+  const onPatchFocus = (patch: Partial<NestFocusArea>) => selectedFocusId && commit(updateFocusArea(doc, selectedFocusId, patch));
+  const onDeleteFocus = () => {
+    if (!selectedFocusId) return;
+    commit(removeFocusArea(doc, selectedFocusId));
+    setSelectedFocusId(undefined);
+  };
+  const onCommitFocusGeometry = (next: NestFocusArea[]) => commit({ ...doc, focusAreas: next });
+  const onCreateSceneForFocus = () => {
+    if (!selectedFocusId) return;
+    const { doc: next, scene } = createDetailScene(doc, { focusAreaId: selectedFocusId, name: selectedFocus?.name ?? "Detail scene", now: new Date().toISOString() });
+    commit(next);
+    setMode("arrange");
+    setSelectedId(undefined);
+    setActiveSceneId(scene.id);
+    flash(`Created “${scene.name}” detail scene`);
+  };
+  const openScene = (sceneId: string) => {
+    setActiveSceneId(sceneId);
+    setSelectedId(undefined);
+    setSelectedFocusId(undefined);
+    setMode("arrange");
+  };
+  const backToMain = () => {
+    setActiveSceneId("");
+    setSelectedId(undefined);
+    setMode("arrange");
   };
 
   // Document operations
@@ -183,18 +262,23 @@ export function NestEditor() {
     setSaveState(r.ok ? "saved" : "unsaved");
     flash(r.ok ? "Saved ✓" : `Save failed: ${r.error}`);
   };
+  const resetSceneContext = () => {
+    setSelectedId(undefined);
+    setSelectedFocusId(undefined);
+    setActiveSceneId("");
+  };
   const load = () => {
     const r = loadDraft(doc.id);
     if (r.ok && r.doc) {
       setHistory(createHistory(r.doc, 50));
-      setSelectedId(undefined);
+      resetSceneContext();
       flash("Draft loaded");
     } else flash(r.errors.join("; "));
   };
   const reset = () => {
     clearDraft(doc.id);
     setHistory(createHistory(freshDocument(), 50));
-    setSelectedId(undefined);
+    resetSceneContext();
     flash("Reset to Golden Living Nest");
   };
   const exportJson = () => {
@@ -215,7 +299,7 @@ export function NestEditor() {
     const r = importDocumentJson(await file.text());
     if (r.ok && r.doc) {
       setHistory(createHistory(r.doc, 50));
-      setSelectedId(undefined);
+      resetSceneContext();
       flash("Imported document");
     } else flash(`Import rejected: ${r.errors.join("; ")}`);
   };
@@ -224,7 +308,8 @@ export function NestEditor() {
   const zoomIn = () => setZoom((z) => clampZoom(z + 0.15));
   const zoomOut = () => setZoom((z) => clampZoom(z - 0.15));
 
-  const preview = mode === "preview" ? editorDocumentToStage(doc, ASSETS, GOLDEN_LIVING_NEST_TEMPLATE) : null;
+  // Preview the active scene (Main, or the current Detail Scene when one is open).
+  const preview = mode === "preview" ? editorDocumentToStage(activeDoc, ASSETS, GOLDEN_LIVING_NEST_TEMPLATE) : null;
   const saveLabel = saveState === "saving" ? "Saving…" : saveState === "unsaved" ? "Unsaved" : saveState === "saved" ? "Saved ✓" : "";
 
   const ui = (
@@ -290,13 +375,24 @@ export function NestEditor() {
 
           {/* Canvas area (hero) */}
           <div className="relative min-h-0 flex-1">
+            {/* Scene context — which scene the creator is editing (Main vs a Detail Scene). */}
+            <div className="pointer-events-none absolute left-1/2 top-2 z-30 -translate-x-1/2">
+              {isMainActive ? (
+                <span className="rounded-full border border-ink/10 bg-parchment/90 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-ink/55 shadow-sm backdrop-blur">Main Nest</span>
+              ) : (
+                <button type="button" onClick={backToMain} className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-cobalt/30 bg-parchment/95 px-3 py-1 text-[11px] font-bold text-cobalt shadow-sm backdrop-blur">
+                  <ArrowLeft className="h-3.5 w-3.5" /> Main Nest <span className="text-ink/40">/</span> {activeScene?.name ?? "Detail"}
+                </button>
+              )}
+            </div>
+
             <EditorCanvas
-              doc={doc}
+              doc={activeDoc}
               assetsById={ASSETS}
               ambience={ambience}
-              selectedId={selectedId}
+              selectedId={mode === "focus" ? undefined : selectedId}
               onSelect={setSelectedId}
-              onCommit={commit}
+              onCommit={commitActive}
               showGrid={caps.showDebug && showGrid}
               snap={caps.showDebug && snap}
               advanced={advancedOpen && caps.showPrecision}
@@ -312,6 +408,17 @@ export function NestEditor() {
               hotspotAuthoring={mode === "connect" && caps.authorHotspots}
               onHotspotsCommit={commitHotspots}
             />
+
+            {/* Focus mode authoring overlay (Main scene only) */}
+            {mode === "focus" && isMainActive ? (
+              <FocusEditorOverlay
+                focusAreas={focusAreas}
+                selectedId={selectedFocusId}
+                onSelect={setSelectedFocusId}
+                onCommit={onCommitFocusGeometry}
+                advanced={caps.showPrecision}
+              />
+            ) : null}
 
             {/* Small placeholder indicator on the selected asset (details in Advanced). */}
             {selectedIsPlaceholder && mode === "arrange" ? (
@@ -359,6 +466,26 @@ export function NestEditor() {
                 </div>
               )
             ) : null}
+
+            {/* Focus mode — area authoring sheet (Main scene only) */}
+            {mode === "focus" && isMainActive ? (
+              <FocusSheet
+                focusAreas={focusAreas}
+                selectedFocusId={selectedFocusId}
+                scenesById={Object.fromEntries((doc.detailScenes ?? []).map((s) => [s.id, s]))}
+                advanced={caps.showPrecision}
+                snap={focusSnap}
+                onSnapChange={setFocusSnap}
+                onClose={() => setMode("arrange")}
+                onSelectFocus={setSelectedFocusId}
+                onAddRect={() => onAddFocus("rect")}
+                onAddEllipse={() => onAddFocus("ellipse")}
+                onPatch={onPatchFocus}
+                onDelete={onDeleteFocus}
+                onCreateScene={onCreateSceneForFocus}
+                onOpenScene={openScene}
+              />
+            ) : null}
           </div>
 
           {/* Bottom command bar (~60px) */}
@@ -366,13 +493,17 @@ export function NestEditor() {
             <ModeBtn active={mode === "arrange"} label="Arrange" onClick={() => setMode("arrange")}><Move className="h-5 w-5" /></ModeBtn>
             <ModeBtn active={mode === "assets"} label="Assets" onClick={() => { setSelectedId(undefined); setMode("assets"); }}><LayoutGrid className="h-5 w-5" /></ModeBtn>
             <ModeBtn active={mode === "connect"} label="Connect" onClick={() => { setSelectedHotspotId(undefined); setMode("connect"); }}><Link2 className="h-5 w-5" /></ModeBtn>
+            {/* Focus mode is Main-scene only (one navigation level — no nested focus). */}
+            {isMainActive ? (
+              <ModeBtn active={mode === "focus"} label="Focus" onClick={() => { setSelectedId(undefined); setSelectedHotspotId(undefined); setMode("focus"); }}><Maximize2 className="h-5 w-5" /></ModeBtn>
+            ) : null}
             <ModeBtn active={false} label="Preview" onClick={() => { setSelectedId(undefined); setSelectedHotspotId(undefined); setMode("preview"); }}><Play className="h-5 w-5" /></ModeBtn>
           </nav>
         </>
       )}
 
       {/* Advanced sheet (internal precision controls — hidden by default) */}
-      {advancedOpen && mode !== "connect" && caps.showPrecision ? (
+      {advancedOpen && mode !== "connect" && mode !== "focus" && caps.showPrecision ? (
         <div className="absolute inset-0 z-50 flex flex-col justify-end bg-ink/30" onClick={() => setAdvancedOpen(false)}>
           <div className="max-h-[80%] overflow-y-auto rounded-t-3xl bg-parchment p-3 shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}>
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-ink/15" />

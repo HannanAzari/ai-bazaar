@@ -34,6 +34,7 @@ import type { NestAssetHotspot } from "@/lib/nest-hotspot-types";
 import { regenerateHotspotIds } from "@/lib/nest-hotspots";
 import { predefinedHotspotsForInstance } from "@/lib/nest-hotspot-catalog";
 import { anchorDeltaForSupport } from "@/lib/nest-placement";
+import { validateSceneGraph } from "@/lib/nest-focus-scenes";
 
 /** Fixed deterministic timestamp for created documents (no Date.now in the core). */
 const EDITOR_T = "2026-06-29T00:00:00.000Z";
@@ -119,7 +120,15 @@ export function parseEditorDocument(json: string): ParseResult {
   }
   const v = validateEditorDocument(raw);
   if (!v.ok) return { ok: false, errors: v.errors };
-  return { ok: true, doc: raw as EditableNestDocument, errors: [] };
+  const d = raw as EditableNestDocument;
+  // M7C: when a scene graph is present, validate its cross-references (each Focus Area
+  // targets an existing Detail Scene, parents match, no circular links). Pre-M7C
+  // documents (no focusAreas/detailScenes) skip this and load as Main-only.
+  if (d.focusAreas?.length || d.detailScenes?.length) {
+    const sg = validateSceneGraph(d);
+    if (!sg.ok) return { ok: false, errors: sg.errors };
+  }
+  return { ok: true, doc: d, errors: [] };
 }
 
 export { validateEditorDocument };

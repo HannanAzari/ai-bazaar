@@ -13,7 +13,15 @@
 >
 > **Status:** architecture established (documentation-first). The app still contains V1 prototypes
 > (isometric Golden Room + wall packs at `/design/golden-room`) which are now **reference history**,
-> not the target. No V2 implementation has started.
+> not the target.
+>
+> **Update (2026-06-30):** the front-facing **Nest editor foundation is now built** —
+> M7A (mobile editor) → M7B (hotspots) → M7B.1 (calibration) → M7B.2 (selection + asset library +
+> bottom sheet) — and **M7C** adds structured in-Nest navigation
+> (**Main Nest → Focus Area → Detail Scene**, [ADR-029](decision-log.md);
+> [nest-focus-detail-scenes-v1.md](nest-focus-detail-scenes-v1.md)) at `/design/nest-editor`
+> (authoring) and `/design/nest-focus` (visitor). M7C follows and reuses the completed
+> M7A–M7B.2 foundation; still no Supabase persistence and no generated artwork.
 
 ---
 

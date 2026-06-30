@@ -14,6 +14,7 @@
 import type { NestContentBinding, NestPlane } from "@/lib/nest-types";
 import type { NestAssetHotspot } from "@/lib/nest-hotspot-types";
 import { validateHotspots } from "@/lib/nest-hotspots";
+import type { NestDetailScene, NestFocusArea } from "@/lib/nest-focus-types";
 
 /** The current editor-document schema version. */
 export const NEST_EDITOR_VERSION = 1 as const;
@@ -98,6 +99,14 @@ export interface EditableNestDocument {
 
   ambiencePresetId?: string;
 
+  // ── M7C scene graph (additive, backward-compatible) ──
+  // The Main scene's Focus Areas and the Detail Scenes this document owns. Absent ⇒
+  // the document is a Main-only Nest (every pre-M7C document still validates + loads).
+  // Rich cross-reference validation lives in `lib/nest-focus-scenes.ts`
+  // (`validateSceneGraph`); this contract keeps only the structural shape.
+  focusAreas?: NestFocusArea[];
+  detailScenes?: NestDetailScene[];
+
   createdAt: string;
   updatedAt: string;
 }
@@ -170,6 +179,11 @@ export function validateEditorDocument(doc: unknown): EditorValidationResult {
   });
 
   if (d.objects.length === 0) warnings.push("document has no objects");
+
+  // Scene-graph fields are optional; only their structural shape is checked here so
+  // pre-M7C documents stay valid. Deep cross-reference validation is `validateSceneGraph`.
+  if (d.focusAreas != null && !Array.isArray(d.focusAreas)) errors.push("focusAreas must be an array");
+  if (d.detailScenes != null && !Array.isArray(d.detailScenes)) errors.push("detailScenes must be an array");
 
   return { ok: errors.length === 0, errors, warnings };
 }
