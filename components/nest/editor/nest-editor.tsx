@@ -6,9 +6,11 @@ import {
   ArrowLeft,
   Check,
   Download,
+  Eye,
   FolderOpen,
   Grid3x3,
   LayoutGrid,
+  Link2,
   Magnet,
   Maximize2,
   MoreHorizontal,
@@ -41,9 +43,12 @@ import {
   reorderObject,
   resizeObject,
   serializeEditorDocument,
+  setObjectHotspots,
   setObjectProps,
   type ReorderOp,
 } from "@/lib/nest-editor";
+import type { NestAssetHotspot } from "@/lib/nest-hotspot-types";
+import { HotspotBindingSheet } from "@/components/nest/editor/hotspot-binding-sheet";
 import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor-types";
 import { canRedo, canUndo, createHistory, pushHistory, redoHistory, undoHistory, type History } from "@/lib/nest-editor-history";
 import { clearDraft, importDocumentJson, loadDraft, saveDraft } from "@/lib/nest-editor-storage";
@@ -54,7 +59,7 @@ import { AssetDrawer } from "@/components/nest/editor/asset-drawer";
 import { PropertiesPanel } from "@/components/nest/editor/properties-panel";
 
 const ASSETS = GOLDEN_LIVING_NEST_ASSETS_BY_ID;
-type Mode = "arrange" | "assets" | "preview";
+type Mode = "arrange" | "assets" | "connect" | "preview";
 type SaveState = "idle" | "unsaved" | "saving" | "saved";
 
 const freshDocument = (): EditableNestDocument =>
@@ -71,6 +76,8 @@ export function NestEditor() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [toast, setToast] = useState<string | null>(null);
+  const [selectedHotspotId, setSelectedHotspotId] = useState<string | undefined>(undefined);
+  const [previewHotspots, setPreviewHotspots] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -129,6 +136,9 @@ export function NestEditor() {
     setSelectedId(undefined);
   };
   const onPatch = (patch: Partial<EditableNestObject>) => selectedId && commit(setObjectProps(doc, selectedId, patch, ASSETS));
+  const commitHotspots = (hotspots: NestAssetHotspot[]) => {
+    if (selectedId) commit(setObjectHotspots(doc, selectedId, hotspots));
+  };
   const onResetScale = () => {
     if (!selected) return;
     const g = guardrailForAsset(ASSETS[selected.assetId]);
@@ -193,7 +203,11 @@ export function NestEditor() {
           <button type="button" onClick={() => setMode("arrange")} className="absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-ink/85 px-3 py-1.5 text-xs font-bold text-parchment" style={{ marginTop: "env(safe-area-inset-top)" }}>
             <ArrowLeft className="h-4 w-4" /> Edit
           </button>
-          {preview ? <GoldenLivingNestStage template={preview.template} assetsById={ASSETS} interactionsById={GOLDEN_LIVING_NEST_INTERACTIONS_BY_ID} composed={preview.composed} /> : null}
+          {/* Internal debug: reveal hotspot regions (off in normal visitor Preview) */}
+          <button type="button" onClick={() => setPreviewHotspots((v) => !v)} aria-pressed={previewHotspots} className={`absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold ${previewHotspots ? "bg-teal text-white" : "bg-ink/15 text-ink/60"}`} style={{ marginTop: "env(safe-area-inset-top)" }} title="Internal: show hotspot regions">
+            <Eye className="h-4 w-4" /> Hotspots
+          </button>
+          {preview ? <GoldenLivingNestStage template={preview.template} assetsById={ASSETS} interactionsById={GOLDEN_LIVING_NEST_INTERACTIONS_BY_ID} composed={preview.composed} debugHotspots={previewHotspots} /> : null}
         </div>
       ) : (
         <>
@@ -251,6 +265,11 @@ export function NestEditor() {
               onFlip={onFlip}
               onToggleLock={onToggleLock}
               onDelete={onDelete}
+              connect={mode === "connect"}
+              selectedHotspotId={selectedHotspotId}
+              onSelectHotspot={setSelectedHotspotId}
+              hotspotAuthoring={mode === "connect" && advancedOpen}
+              onHotspotsCommit={commitHotspots}
             />
 
             {/* Zoom cluster */}
@@ -273,19 +292,41 @@ export function NestEditor() {
                 <AssetDrawer assets={GOLDEN_LIVING_NEST_ASSETS} advanced={advancedOpen} onAdd={onAdd} onClose={() => setMode("arrange")} />
               </div>
             ) : null}
+
+            {/* Connect hint / binding sheet overlay (canvas stays visible above) */}
+            {mode === "connect" ? (
+              selected ? (
+                <div className="absolute inset-x-0 bottom-0 z-30">
+                  <HotspotBindingSheet
+                    object={selected}
+                    assetName={ASSETS[selected.assetId]?.name ?? selected.assetId}
+                    selectedHotspotId={selectedHotspotId}
+                    advanced={advancedOpen}
+                    onSelectHotspot={setSelectedHotspotId}
+                    onCommit={commitHotspots}
+                    onClose={() => { setSelectedId(undefined); setSelectedHotspotId(undefined); }}
+                  />
+                </div>
+              ) : (
+                <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-teal/30 bg-parchment/95 px-4 py-2 text-xs font-bold text-ink/70 shadow">
+                  Tap an object to connect its interactions
+                </div>
+              )
+            ) : null}
           </div>
 
           {/* Bottom command bar (~60px) */}
           <nav className="flex h-16 shrink-0 items-center justify-around gap-1 border-t border-ink/10 px-3 py-1.5">
             <ModeBtn active={mode === "arrange"} label="Arrange" onClick={() => setMode("arrange")}><Move className="h-5 w-5" /></ModeBtn>
             <ModeBtn active={mode === "assets"} label="Assets" onClick={() => { setSelectedId(undefined); setMode("assets"); }}><LayoutGrid className="h-5 w-5" /></ModeBtn>
-            <ModeBtn active={false} label="Preview" onClick={() => { setSelectedId(undefined); setMode("preview"); }}><Play className="h-5 w-5" /></ModeBtn>
+            <ModeBtn active={mode === "connect"} label="Connect" onClick={() => { setSelectedHotspotId(undefined); setMode("connect"); }}><Link2 className="h-5 w-5" /></ModeBtn>
+            <ModeBtn active={false} label="Preview" onClick={() => { setSelectedId(undefined); setSelectedHotspotId(undefined); setMode("preview"); }}><Play className="h-5 w-5" /></ModeBtn>
           </nav>
         </>
       )}
 
       {/* Advanced sheet (internal precision controls — hidden by default) */}
-      {advancedOpen ? (
+      {advancedOpen && mode !== "connect" ? (
         <div className="absolute inset-0 z-50 flex flex-col justify-end bg-ink/30" onClick={() => setAdvancedOpen(false)}>
           <div className="max-h-[80%] overflow-y-auto rounded-t-3xl bg-parchment p-3 shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}>
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-ink/15" />

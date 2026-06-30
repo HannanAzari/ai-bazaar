@@ -20,6 +20,8 @@ import { aspectRatioCss } from "@/lib/nest-render";
 import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor-types";
 import { moveObject, resizeObject, rotateObject, type ReorderOp } from "@/lib/nest-editor";
 import { canFlipX, canRotate, snapRotation } from "@/lib/nest-editor-policy";
+import type { NestAssetHotspot } from "@/lib/nest-hotspot-types";
+import { moveHotspot, resizeHotspot } from "@/lib/nest-hotspots";
 
 // The mobile editor canvas (Arrange mode). Pointer Events drive a unified gesture
 // model — one finger moves, two fingers pinch-resize + twist-rotate (when policy
@@ -48,6 +50,13 @@ type Props = {
   onFlip: () => void;
   onToggleLock: () => void;
   onDelete: () => void;
+  /** Connect mode: select assets + their hotspots; arrange gestures are disabled. */
+  connect?: boolean;
+  selectedHotspotId?: string;
+  onSelectHotspot?: (id: string | undefined) => void;
+  /** Advanced authoring: show hotspot move/resize handles. */
+  hotspotAuthoring?: boolean;
+  onHotspotsCommit?: (hotspots: NestAssetHotspot[]) => void;
 };
 
 type Gesture =
@@ -67,6 +76,7 @@ const transformOf = (o: EditableNestObject) =>
 
 export function EditorCanvas(props: Props) {
   const { doc, assetsById, ambience, selectedId, onSelect, onCommit, showGrid, snap, advanced, zoom, gridCols = 24, gridRows = 32 } = props;
+  const connect = props.connect ?? false;
   const sceneRef = useRef<HTMLDivElement>(null);
   const pointers = useRef<Map<number, Pt>>(new Map());
   const gestureRef = useRef<Gesture | null>(null);
@@ -140,6 +150,8 @@ export function EditorCanvas(props: Props) {
   function onObjectDown(e: React.PointerEvent, o: EditableNestObject) {
     onSelect(o.instanceId);
     setLayerOpen(false);
+    // Connect mode: tapping an asset only selects it for connection — never moves it.
+    if (connect) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (o.locked) return;
     e.preventDefault();
@@ -240,14 +252,157 @@ export function EditorCanvas(props: Props) {
             );
           })}
 
-          {selected && !selected.hidden ? <TransformFrame o={selected} asset={selectedAsset} advanced={advanced} onHandleDown={onHandleDown} /> : null}
+          {/* Arrange chrome (hidden in Connect mode) */}
+          {!connect && selected && !selected.hidden ? <TransformFrame o={selected} asset={selectedAsset} advanced={advanced} onHandleDown={onHandleDown} /> : null}
+
+          {/* Connect-mode hotspot overlay for the selected asset */}
+          {connect && selected && !selected.hidden ? (
+            <HotspotLayer
+              key={selected.instanceId}
+              object={selected}
+              sceneRef={sceneRef}
+              hotspots={selected.hotspots ?? []}
+              selectedHotspotId={props.selectedHotspotId}
+              authoring={Boolean(props.hotspotAuthoring)}
+              onSelectHotspot={(id) => props.onSelectHotspot?.(id)}
+              onCommit={(hs) => props.onHotspotsCommit?.(hs)}
+            />
+          ) : null}
         </div>
 
-        {/* Contextual action bar — outside the clipped scene so it is never cut off */}
-        {selected && !selected.hidden ? (
+        {/* Contextual arrange action bar — outside the clipped scene (Arrange only) */}
+        {!connect && selected && !selected.hidden ? (
           <ContextBar o={selected} asset={selectedAsset} above={barAbove} layerOpen={layerOpen} setLayerOpen={setLayerOpen} onDuplicate={props.onDuplicate} onReorder={props.onReorder} onFlip={props.onFlip} onToggleLock={props.onToggleLock} onDelete={props.onDelete} />
         ) : null}
       </div>
+    </div>
+  );
+}
+
+// ── Hotspot overlay (Connect mode) ───────────────────────────────────────────
+// Renders the selected asset's hotspots in asset-local space (inside the object's
+// transformed box, so they follow rotation/flip). Tapping a region selects it; in
+// authoring mode the selected region gets a move body + corner resize handles. Drag
+// math is computed in the object's local frame (best on un-rotated assets).
+function HotspotLayer({
+  object,
+  sceneRef,
+  hotspots,
+  selectedHotspotId,
+  authoring,
+  onSelectHotspot,
+  onCommit,
+}: {
+  object: EditableNestObject;
+  sceneRef: React.RefObject<HTMLDivElement | null>;
+  hotspots: NestAssetHotspot[];
+  selectedHotspotId?: string;
+  authoring: boolean;
+  onSelectHotspot: (id: string | undefined) => void;
+  onCommit: (hotspots: NestAssetHotspot[]) => void;
+}) {
+  const gestureRef = useRef<
+    | { kind: "move"; id: string; startLX: number; startLY: number }
+    | { kind: "resize"; id: string; dirX: number; dirY: number; startLX: number; startLY: number; w0: number; h0: number }
+    | null
+  >(null);
+  const [, force] = useState(0);
+  const rerender = () => force((n) => n + 1);
+
+  const toLocal = (clientX: number, clientY: number) => {
+    const r = sceneRef.current!.getBoundingClientRect();
+    const nx = (clientX - r.left) / r.width;
+    const ny = (clientY - r.top) / r.height;
+    return { lx: (nx - object.x) / object.width, ly: (ny - object.y) / object.height };
+  };
+
+  // Compute the live geometry for the dragged hotspot from the last pointer.
+  const lastPt = useRef<{ lx: number; ly: number } | null>(null);
+  function liveHotspots(): NestAssetHotspot[] {
+    const g = gestureRef.current;
+    const p = lastPt.current;
+    if (!g || !p) return hotspots;
+    if (g.kind === "move") {
+      return moveHotspot(hotspots, g.id, p.lx - g.startLX, p.ly - g.startLY);
+    }
+    const w = g.w0 + g.dirX * (p.lx - g.startLX) * (g.dirX === 0 ? 0 : 2);
+    const h = g.h0 + g.dirY * (p.ly - g.startLY) * (g.dirY === 0 ? 0 : 2);
+    return resizeHotspot(hotspots, g.id, w, h);
+  }
+
+  function startMove(e: React.PointerEvent, h: NestAssetHotspot) {
+    onSelectHotspot(h.id);
+    if (!authoring || h.locked) return;
+    e.preventDefault();
+    e.stopPropagation();
+    try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch { /* ok */ }
+    const { lx, ly } = toLocal(e.clientX, e.clientY);
+    gestureRef.current = { kind: "move", id: h.id, startLX: lx, startLY: ly };
+    lastPt.current = { lx, ly };
+    rerender();
+  }
+  function startResize(e: React.PointerEvent, h: NestAssetHotspot, dirX: number, dirY: number) {
+    e.preventDefault();
+    e.stopPropagation();
+    try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch { /* ok */ }
+    const { lx, ly } = toLocal(e.clientX, e.clientY);
+    gestureRef.current = { kind: "resize", id: h.id, dirX, dirY, startLX: lx, startLY: ly, w0: h.shape.width, h0: h.shape.height };
+    lastPt.current = { lx, ly };
+    rerender();
+  }
+  function onMove(e: React.PointerEvent) {
+    if (!gestureRef.current) return;
+    e.preventDefault();
+    lastPt.current = toLocal(e.clientX, e.clientY);
+    rerender();
+  }
+  function onUp() {
+    if (gestureRef.current) {
+      onCommit(liveHotspots());
+      gestureRef.current = null;
+      lastPt.current = null;
+      rerender();
+    }
+  }
+
+  const display = gestureRef.current ? liveHotspots() : hotspots;
+  const t = transformOf(object);
+  return (
+    <div
+      className="absolute z-[520]"
+      style={{ left: pctOf(object.x), top: pctOf(object.y), width: pctOf(object.width), height: pctOf(object.height), transform: t || undefined, transformOrigin: "center" }}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+    >
+      {display.map((h) => {
+        const sel = h.id === selectedHotspotId;
+        const ellipse = h.shape.type === "ellipse";
+        return (
+          <div key={h.id} className="absolute" style={{ left: pctOf(h.shape.x), top: pctOf(h.shape.y), width: pctOf(h.shape.width), height: pctOf(h.shape.height) }}>
+            <button
+              type="button"
+              onPointerDown={(e) => startMove(e, h)}
+              aria-label={`Hotspot ${h.name}${sel ? " (selected)" : ""}`}
+              className={`absolute inset-0 touch-none ${ellipse ? "rounded-full" : "rounded-[6px]"} border-2 ${sel ? "border-teal bg-teal/25" : h.enabled ? "border-dashed border-teal/70 bg-teal/8" : "border-dotted border-ink/40 bg-ink/5"}`}
+            >
+              {sel ? <span className="absolute -top-5 left-0 whitespace-nowrap rounded bg-teal px-1 py-0.5 text-[8px] font-bold text-white">{h.name}</span> : null}
+            </button>
+            {sel && authoring && !h.locked
+              ? ([
+                  [0, 0, -1, -1],
+                  [1, 0, 1, -1],
+                  [0, 1, -1, 1],
+                  [1, 1, 1, 1],
+                ] as const).map(([cx, cy, dx, dy]) => (
+                  <span key={`${cx}-${cy}`} className="absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize touch-none items-center justify-center" style={{ left: `${cx * 100}%`, top: `${cy * 100}%` }} onPointerDown={(e) => startResize(e, h, dx, dy)}>
+                    <span className="h-3 w-3 rounded-full border-2 border-teal bg-white shadow" />
+                  </span>
+                ))
+              : null}
+          </div>
+        );
+      })}
     </div>
   );
 }

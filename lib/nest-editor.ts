@@ -30,6 +30,9 @@ import {
   slotTypeForAsset,
   type EditorGuardrail,
 } from "@/lib/nest-editor-policy";
+import type { NestAssetHotspot } from "@/lib/nest-hotspot-types";
+import { regenerateHotspotIds } from "@/lib/nest-hotspots";
+import { predefinedHotspotsForInstance } from "@/lib/nest-hotspot-catalog";
 
 /** Fixed deterministic timestamp for created documents (no Date.now in the core). */
 const EDITOR_T = "2026-06-29T00:00:00.000Z";
@@ -58,6 +61,7 @@ export function createEditorDocumentFromTemplate(opts: {
   for (const a of composed.slotAssignments) {
     const slot = slotById.get(a.slotId);
     if (!slot) continue;
+    const hotspots = predefinedHotspotsForInstance(a.assetId, slot.id);
     objects.push({
       instanceId: slot.id,
       assetId: a.assetId,
@@ -73,6 +77,7 @@ export function createEditorDocumentFromTemplate(opts: {
       variantId: a.variantId,
       scaleRef: slot.scaleRef,
       contactShadow: slot.contactShadow,
+      ...(hotspots.length ? { hotspots } : {}),
     });
   }
   objects.sort((p, q) => p.zIndex - q.zIndex);
@@ -198,6 +203,7 @@ export function addObject(
   const g = guardrailForAsset(asset);
   const place = defaultPlacement(g);
   const instanceId = nextInstanceId(doc, asset.id);
+  const hotspots = predefinedHotspotsForInstance(asset.id, instanceId);
   const obj: EditableNestObject = normalize(
     clampObject(
       {
@@ -209,6 +215,7 @@ export function addObject(
         interactionId: asset.defaultInteractionId,
         scaleRef: g.recommendedWidth,
         contactShadow: g.contactShadow,
+        ...(hotspots.length ? { hotspots } : {}),
       },
       g,
     ),
@@ -309,6 +316,8 @@ export function duplicateObject(
   if (!o) return { doc };
   const g = guardrailForAsset(assetsById[o.assetId]);
   const newId = nextInstanceId(doc, o.assetId);
+  // Duplicating an asset duplicates its hotspots with fresh, deterministic ids.
+  const hotspots = regenerateHotspotIds(o.hotspots, newId);
   const copy: EditableNestObject = normalize(
     clampObject(
       {
@@ -318,11 +327,23 @@ export function duplicateObject(
         x: o.x + DUPLICATE_OFFSET,
         y: o.y + DUPLICATE_OFFSET,
         anchor: { x: o.anchor.x + DUPLICATE_OFFSET, y: o.anchor.y + DUPLICATE_OFFSET },
+        ...(hotspots ? { hotspots } : {}),
       },
       g,
     ),
   );
   return { doc: { ...doc, objects: [...doc.objects, copy] }, instanceId: newId };
+}
+
+/** Replace the hotspots of one instance (one history entry per commit). */
+export function setObjectHotspots(
+  doc: EditableNestDocument,
+  instanceId: string,
+  hotspots: NestAssetHotspot[],
+): EditableNestDocument {
+  const o = findObj(doc, instanceId);
+  if (!o) return doc;
+  return replaceObj(doc, { ...o, hotspots });
 }
 
 /** Round geometry to stable precision so JSON stays clean + comparisons are exact. */
@@ -372,6 +393,7 @@ export function editorDocumentToStage(
       contactShadow: o.contactShadow,
       rotationDeg: o.rotation,
       flipX: o.flipX,
+      hotspots: o.hotspots,
     };
   });
 

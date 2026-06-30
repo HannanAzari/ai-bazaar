@@ -27,6 +27,8 @@ export type LivingNestSlot = Omit<SceneSlot, "slotType"> & {
   rotationDeg?: number;
   /** Optional horizontal mirror (M7A editor preview). */
   flipX?: boolean;
+  /** Optional interaction hotspots (asset-local sub-regions, M7B). */
+  hotspots?: import("@/lib/nest-hotspot-types").NestAssetHotspot[];
 };
 
 /** A NestTemplate whose slots are LivingNestSlots. Otherwise identical. */

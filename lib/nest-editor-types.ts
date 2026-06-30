@@ -12,6 +12,8 @@
 // Pure validation helpers live at the bottom. This file edits nothing existing.
 
 import type { NestContentBinding, NestPlane } from "@/lib/nest-types";
+import type { NestAssetHotspot } from "@/lib/nest-hotspot-types";
+import { validateHotspots } from "@/lib/nest-hotspots";
 
 /** The current editor-document schema version. */
 export const NEST_EDITOR_VERSION = 1 as const;
@@ -58,6 +60,9 @@ export interface EditableNestObject {
   rotation?: number;
   /** Mirror horizontally (visual scaleX(-1) — does not change the box bounds). */
   flipX?: boolean;
+
+  /** Interaction hotspots (asset-local sub-regions). Optional + backward-compatible. */
+  hotspots?: NestAssetHotspot[];
 
   locked?: boolean;
   hidden?: boolean;
@@ -128,6 +133,7 @@ export function validateEditorObject(obj: EditableNestObject, index = 0): string
   if (!EDITOR_PLANES.includes(obj.plane)) errors.push(`${at}: invalid plane "${obj.plane}"`);
   if (obj.rotation != null && !finite(obj.rotation)) errors.push(`${at}: rotation must be a finite number`);
   if (obj.flipX != null && typeof obj.flipX !== "boolean") errors.push(`${at}: flipX must be a boolean`);
+  if (obj.hotspots != null) errors.push(...validateHotspots(obj.hotspots).map((e) => `${at}: ${e}`));
   return errors;
 }
 
