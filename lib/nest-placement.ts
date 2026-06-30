@@ -111,6 +111,87 @@ export function occupiedZoneConflicts(
   return zones.filter((z) => overlapFraction(z.bounds, r) > 0.25);
 }
 
+// ── Support-surface suggestions (M7B.2) ──────────────────────────────────────
+//
+// When an asset that needs a surface (loose books) floats, we don't just warn — we
+// SUGGEST a compatible support nearby and offer one-tap placement. Ranking is
+// deterministic so the same scene always proposes the same surface.
+
+export interface SupportCandidate {
+  instanceId: string;
+  assetId: string;
+  /** Fraction of the object's base that horizontally overlaps the support. */
+  overlap: number;
+  /** Vertical gap (normalized) between the object's base and the support's top. */
+  distance: number;
+  zIndex: number;
+}
+
+/**
+ * Compatible support surfaces under/near an object's base, ranked deterministically:
+ *   1. more horizontal overlap first,
+ *   2. then nearer (smaller vertical gap to the support's top),
+ *   3. then higher z (nearer the viewer),
+ *   4. then instanceId ascending.
+ * Only returns candidates when the object actually requires a surface. A support is in
+ * scope when its top band sits at-or-below the object's base within a reach window and
+ * the bases overlap horizontally. Pure.
+ */
+export function supportCandidates(
+  obj: EditableNestObject,
+  others: EditableNestObject[],
+  assetsById: Record<string, LivingNestAsset>,
+  reach = 0.22,
+): SupportCandidate[] {
+  const rule = supportRuleForAsset(assetsById[obj.assetId]);
+  if (!rule?.requiresSurface) return [];
+  const base = visibleRect(obj, obj.assetId);
+  const baseY = base.y + base.height;
+  const baseCenterX = base.x + base.width / 2;
+  const out: SupportCandidate[] = [];
+  for (const o of others) {
+    if (o.instanceId === obj.instanceId || o.hidden) continue;
+    const a = assetsById[o.assetId];
+    if (rule.allowedSupportCategories && a && !rule.allowedSupportCategories.includes(a.category)) continue;
+    const r = visibleRect(o, o.assetId);
+    // The support's top must be near the object's base (within reach, slightly above or below).
+    const gap = r.y - baseY; // >0: support top below base (object floating above it)
+    if (gap < -r.height * 0.5 || gap > reach) continue;
+    const xOverlapPx = Math.min(base.x + base.width, r.x + r.width) - Math.max(base.x, r.x);
+    if (xOverlapPx <= 0) {
+      // Allow a near-miss if the support is horizontally close (creator can still drop on it).
+      const near = Math.abs(baseCenterX - (r.x + r.width / 2)) <= r.width * 0.75 + base.width;
+      if (!near) continue;
+    }
+    const overlap = base.width > 0 ? Math.max(0, xOverlapPx) / base.width : 0;
+    out.push({ instanceId: o.instanceId, assetId: o.assetId, overlap, distance: Math.abs(gap), zIndex: o.zIndex });
+  }
+  out.sort(
+    (p, q) =>
+      q.overlap - p.overlap ||
+      p.distance - q.distance ||
+      q.zIndex - p.zIndex ||
+      (p.instanceId < q.instanceId ? -1 : p.instanceId > q.instanceId ? 1 : 0),
+  );
+  return out;
+}
+
+/**
+ * The normalized (dx, dy) to move `obj` so its visible base sits centred on the top of
+ * `support`. Deterministic; the caller applies it through `moveObject` so clamping +
+ * history stay consistent. Returns {0,0} when either asset is missing.
+ */
+export function anchorDeltaForSupport(
+  obj: EditableNestObject,
+  support: EditableNestObject,
+): { dx: number; dy: number } {
+  const base = visibleRect(obj, obj.assetId);
+  const top = visibleRect(support, support.assetId);
+  const dx = top.x + top.width / 2 - (base.x + base.width / 2);
+  const dy = top.y - (base.y + base.height);
+  return { dx: +dx.toFixed(4), dy: +dy.toFixed(4) };
+}
+
 export interface PlacementWarning {
   instanceId: string;
   kind: "support" | "occupied-zone";

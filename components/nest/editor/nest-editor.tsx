@@ -40,6 +40,7 @@ import {
   duplicateObject,
   editorDocumentToStage,
   flipObject,
+  placeOnSupport,
   removeObject,
   reorderObject,
   resizeObject,
@@ -55,7 +56,9 @@ import { canRedo, canUndo, createHistory, pushHistory, redoHistory, undoHistory,
 import { clearDraft, importDocumentJson, loadDraft, saveDraft } from "@/lib/nest-editor-storage";
 import { canFlipX, canRotate, editorWarnings, guardrailForAsset } from "@/lib/nest-editor-policy";
 import { pushRecent } from "@/lib/nest-editor-asset-index";
-import { placementWarnings } from "@/lib/nest-placement";
+import { placementWarnings, supportCandidates } from "@/lib/nest-placement";
+import { overlapAdvisories } from "@/lib/nest-overlap-advisories";
+import type { BottomSheetSnapPoint } from "@/components/nest/editor/mobile-bottom-sheet";
 import { capabilitiesFor, EDITOR_ROLES, roleLabel, type EditorRole } from "@/lib/nest-editor-roles";
 import { clampZoom, computeFitZoom } from "@/lib/nest-editor-view";
 import { EditorCanvas } from "@/components/nest/editor/editor-canvas";
@@ -83,6 +86,9 @@ export function NestEditor() {
   const [selectedHotspotId, setSelectedHotspotId] = useState<string | undefined>(undefined);
   const [previewHotspots, setPreviewHotspots] = useState(false);
   const [role, setRole] = useState<EditorRole>("creator");
+  // Each drawer remembers its own snap point across open/close (Phase 9/10).
+  const [assetSnap, setAssetSnap] = useState<BottomSheetSnapPoint>("half");
+  const [connectSnap, setConnectSnap] = useState<BottomSheetSnapPoint>("half");
   const [mounted, setMounted] = useState(false);
   const caps = capabilitiesFor(role);
   useEffect(() => setMounted(true), []);
@@ -98,11 +104,24 @@ export function NestEditor() {
   // (production) warnings are only surfaced to roles that should see them.
   const warnings = useMemo(() => {
     const base = editorWarnings(doc.objects, ASSETS).filter((w) => w.kind !== "placeholder" || caps.showProductionWarnings);
-    const placement = placementWarnings(doc.objects, ASSETS).map((p) => ({ instanceId: p.instanceId, kind: p.kind, message: p.message }));
-    return [...base, ...placement];
+    const placement = placementWarnings(doc.objects, ASSETS).map((p) => ({ instanceId: p.instanceId, kind: p.kind as string, message: p.message }));
+    // Composition overlap advisories (avatar-in-furniture, covers window/niche, …).
+    const overlaps = overlapAdvisories(doc.objects, ASSETS).map((a) => ({ instanceId: a.instanceId, kind: a.kind as string, message: a.message }));
+    return [...base.map((b) => ({ instanceId: b.instanceId, kind: b.kind as string, message: b.message })), ...placement, ...overlaps];
   }, [doc.objects, caps.showProductionWarnings]);
   const selectedWarnings = warnings.filter((w) => w.instanceId === selectedId);
   const selectedIsPlaceholder = Boolean(selectedAsset?.placeholder);
+
+  // Actionable support-surface suggestion for a floating surface-asset (Phase 11).
+  const supportSuggestion = useMemo(() => {
+    if (!selected) return undefined;
+    const floats = warnings.some((w) => w.instanceId === selected.instanceId && w.kind === "support");
+    if (!floats) return undefined;
+    return supportCandidates(selected, doc.objects, ASSETS)[0];
+  }, [selected, doc.objects, warnings]);
+  const onPlaceOnSupport = () => {
+    if (selectedId && supportSuggestion) commit(placeOnSupport(doc, selectedId, supportSuggestion.instanceId, ASSETS));
+  };
 
   // Debounced autosave (compact status, not a banner).
   useEffect(() => {
@@ -301,34 +320,39 @@ export function NestEditor() {
               </span>
             ) : null}
 
+            {/* Actionable support-surface suggestion (one-tap, undoable) — Phase 11. */}
+            {supportSuggestion && mode === "arrange" ? (
+              <button type="button" onClick={onPlaceOnSupport} className="absolute bottom-11 left-1/2 z-20 -translate-x-1/2 rounded-full border border-meadow-shade/40 bg-meadow/20 px-3 py-1 text-[11px] font-bold text-meadow-shade shadow">
+                Place on {ASSETS[supportSuggestion.assetId]?.name ?? "surface"}
+              </button>
+            ) : null}
+
             {/* Contextual advisory warning chip for the selected object (gentle nudge). */}
             {selectedWarnings.length ? (
-              <button type="button" onClick={() => caps.showPrecision && setAdvancedOpen(true)} className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-amber-400/50 bg-amber-50/95 px-3 py-1 text-[11px] font-bold text-amber-800 shadow">
+              <button type="button" onClick={() => caps.showPrecision && setAdvancedOpen(true)} className="absolute bottom-2 left-1/2 z-20 -translate-x-1/2 rounded-full border border-amber-400/50 bg-amber-50/95 px-3 py-1 text-[11px] font-bold text-amber-800 shadow">
                 {selectedWarnings[0].message}{caps.showPrecision ? " · Details" : ""}
               </button>
             ) : null}
 
-            {/* Asset drawer overlay (canvas remains visible above) */}
+            {/* Asset drawer — shared bottom sheet (canvas remains visible above) */}
             {mode === "assets" ? (
-              <div className="absolute inset-x-0 bottom-0 z-30 h-[58%]">
-                <AssetDrawer assets={GOLDEN_LIVING_NEST_ASSETS} advanced={caps.showProductionWarnings} onAdd={onAdd} onClose={() => setMode("arrange")} />
-              </div>
+              <AssetDrawer assets={GOLDEN_LIVING_NEST_ASSETS} advanced={caps.showProductionWarnings} onAdd={onAdd} onClose={() => setMode("arrange")} snap={assetSnap} onSnapChange={setAssetSnap} />
             ) : null}
 
-            {/* Connect hint / binding sheet overlay (canvas stays visible above) */}
+            {/* Connect hint / binding sheet — shared bottom sheet (canvas stays interactive) */}
             {mode === "connect" ? (
               selected ? (
-                <div className="absolute inset-x-0 bottom-0 z-30">
-                  <HotspotBindingSheet
-                    object={selected}
-                    assetName={ASSETS[selected.assetId]?.name ?? selected.assetId}
-                    selectedHotspotId={selectedHotspotId}
-                    advanced={caps.authorHotspots}
-                    onSelectHotspot={setSelectedHotspotId}
-                    onCommit={commitHotspots}
-                    onClose={() => { setSelectedId(undefined); setSelectedHotspotId(undefined); }}
-                  />
-                </div>
+                <HotspotBindingSheet
+                  object={selected}
+                  assetName={ASSETS[selected.assetId]?.name ?? selected.assetId}
+                  selectedHotspotId={selectedHotspotId}
+                  advanced={caps.authorHotspots}
+                  snap={connectSnap}
+                  onSnapChange={setConnectSnap}
+                  onSelectHotspot={setSelectedHotspotId}
+                  onCommit={commitHotspots}
+                  onClose={() => { setSelectedId(undefined); setSelectedHotspotId(undefined); }}
+                />
               ) : (
                 <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-teal/30 bg-parchment/95 px-4 py-2 text-xs font-bold text-ink/70 shadow">
                   Tap an object to connect its interactions

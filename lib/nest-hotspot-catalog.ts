@@ -57,10 +57,15 @@ const CATALOG: Record<string, CatalogHotspot[]> = {
     { rel: "books", name: "Books", semantic: "article", interactionId: "book_open_article", shape: { type: "rect", x: 0.1, y: 0.1, width: 0.8, height: 0.8 }, ariaLabel: "Books — read article" },
   ],
   // Bookshelf — shelf-level regions (the art is too low-res for per-book taps).
+  // M7B.2 recalibration: the visible cut-out spans y≈0.07–0.93 with a solid top cap
+  // ending ≈0.12. The previous Upper region (y0.08) sat IN that cap, above the first
+  // shelf's contents. The three regions now land on the actual upper / middle / lower
+  // compartments (interior x≈0.28–0.72), never the cap or the frame walls. Documented
+  // in docs/nest-editor-selection-library-polish.md and guarded by a range unit test.
   "ast-bookshelf": [
-    { rel: "upper", name: "Upper shelf", semantic: "article", shape: { type: "rect", x: 0.24, y: 0.08, width: 0.52, height: 0.15 }, ariaLabel: "Upper shelf — read article" },
-    { rel: "middle", name: "Middle shelf", semantic: "gallery", shape: { type: "rect", x: 0.24, y: 0.45, width: 0.52, height: 0.15 }, ariaLabel: "Middle shelf — open gallery" },
-    { rel: "lower", name: "Lower shelf", semantic: "article", shape: { type: "rect", x: 0.24, y: 0.79, width: 0.52, height: 0.13 }, ariaLabel: "Lower shelf — read article" },
+    { rel: "upper", name: "Upper shelf", semantic: "article", shape: { type: "rect", x: 0.28, y: 0.14, width: 0.44, height: 0.15 }, ariaLabel: "Upper shelf — read article" },
+    { rel: "middle", name: "Middle shelf", semantic: "gallery", shape: { type: "rect", x: 0.28, y: 0.46, width: 0.44, height: 0.15 }, ariaLabel: "Middle shelf — open gallery" },
+    { rel: "lower", name: "Lower shelf", semantic: "article", shape: { type: "rect", x: 0.28, y: 0.77, width: 0.44, height: 0.14 }, ariaLabel: "Lower shelf — read article" },
   ],
 };
 

@@ -13,6 +13,7 @@ import {
   updateHotspot,
   validateBindingUrl,
 } from "@/lib/nest-hotspots";
+import { MobileBottomSheet, type BottomSheetSnapPoint } from "@/components/nest/editor/mobile-bottom-sheet";
 
 // The Connect bottom sheet. Normal creators pick a hotspot chip, then choose what it
 // opens (a safe link or an internal action) — they never see interaction ids or draw
@@ -42,6 +43,8 @@ export function HotspotBindingSheet({
   assetName,
   selectedHotspotId,
   advanced,
+  snap,
+  onSnapChange,
   onSelectHotspot,
   onCommit,
   onClose,
@@ -50,6 +53,8 @@ export function HotspotBindingSheet({
   assetName: string;
   selectedHotspotId?: string;
   advanced: boolean;
+  snap: BottomSheetSnapPoint;
+  onSnapChange: (s: BottomSheetSnapPoint) => void;
   onSelectHotspot: (id: string | undefined) => void;
   onCommit: (hotspots: NestAssetHotspot[]) => void;
   onClose: () => void;
@@ -102,20 +107,24 @@ export function HotspotBindingSheet({
     onSelectHotspot(r.id);
   }
 
-  return (
-    <div className="flex max-h-[50vh] flex-col rounded-t-3xl border-t border-ink/10 bg-parchment shadow-[0_-8px_24px_rgba(70,54,90,.16)]">
-      <div className="shrink-0 px-3 pt-2">
-        <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-ink/15" />
-        <div className="flex items-center justify-between">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[.18em] text-teal">Connect</p>
-            <h3 className="display truncate text-base leading-tight text-ink">{assetName}</h3>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full border border-ink/15 text-ink/55 hover:bg-ink/5"><X className="h-5 w-5" /></button>
-        </div>
-      </div>
+  // Opening the keyboard (focusing a field) should reveal the form — expand the sheet.
+  const expand = () => onSnapChange("expanded");
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 pt-2">
+  const header = (
+    <div className="px-3 pb-1 pt-1">
+      <div className="flex items-center justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[.18em] text-teal">Connect</p>
+          <h3 className="display truncate text-base leading-tight text-ink">{assetName}</h3>
+        </div>
+        <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full border border-ink/15 text-ink/55 hover:bg-ink/5"><X className="h-5 w-5" /></button>
+      </div>
+    </div>
+  );
+
+  return (
+    <MobileBottomSheet open snap={snap} onSnapChange={onSnapChange} onClose={onClose} backdrop="none" label={`Connect ${assetName}`} header={header}>
+      <div className="px-3 pb-4 pt-1">
         {/* Hotspot chips (segmented) */}
         {hotspots.length ? (
           <div className="mb-3 flex flex-wrap gap-1.5">
@@ -150,13 +159,13 @@ export function HotspotBindingSheet({
                 <span className="text-[9px] font-bold uppercase tracking-wide text-ink/45">Link</span>
                 <div className="relative mt-0.5">
                   <Link2 className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink/35" />
-                  <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={placeholder} inputMode="url" className="w-full rounded-lg border border-ink/15 bg-white/80 py-2 pl-7 pr-2 text-sm text-ink focus:border-teal focus:outline-none" />
+                  <input value={url} onChange={(e) => setUrl(e.target.value)} onFocus={expand} placeholder={placeholder} inputMode="url" className="w-full rounded-lg border border-ink/15 bg-white/80 py-2 pl-7 pr-2 text-sm text-ink focus:border-teal focus:outline-none" />
                 </div>
               </label>
             )}
             <label className="block">
               <span className="text-[9px] font-bold uppercase tracking-wide text-ink/45">Label (optional)</span>
-              <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={selected.name} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/80 py-1.5 px-2 text-sm text-ink focus:border-teal focus:outline-none" />
+              <input value={label} onChange={(e) => setLabel(e.target.value)} onFocus={expand} placeholder={selected.name} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/80 py-1.5 px-2 text-sm text-ink focus:border-teal focus:outline-none" />
             </label>
 
             {error ? <p className="text-[11px] font-bold text-terracotta">{error}</p> : null}
@@ -201,6 +210,6 @@ export function HotspotBindingSheet({
           </div>
         ) : null}
       </div>
-    </div>
+    </MobileBottomSheet>
   );
 }

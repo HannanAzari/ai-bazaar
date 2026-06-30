@@ -132,3 +132,10 @@ walls. This is unrelated to the future visitor **Focus Area / detail-scene** zoo
   aspect over filling the height).
 - Advanced hotspot drag math assumes an un-rotated asset.
 - The desk Microphone/Speaker regions are intentionally absent (not in the current art).
+
+> **Follow-up (M7B.2):** overlap-aware selection, the long-press layer picker, minimum
+> touch targets, the small-object transform-frame fix, the recalibrated **bookshelf upper
+> shelf** hotspot, the reusable asset calibration package, the compact image-first asset
+> library, the shared bottom sheet, support-surface suggestions and overlap advisories are
+> all documented in [nest-editor-selection-library-polish.md](nest-editor-selection-library-polish.md).
+> This record is unchanged.

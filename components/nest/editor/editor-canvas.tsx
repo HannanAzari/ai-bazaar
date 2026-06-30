@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowUpToLine,
+  Check,
   ChevronDown,
   ChevronUp,
   Copy,
@@ -25,6 +26,8 @@ import { isInternalSemantic as hsInternal } from "@/lib/nest-hotspot-types";
 import { moveHotspot, resizeHotspot } from "@/lib/nest-hotspots";
 import { visibleRect } from "@/lib/nest-visual-bounds";
 import { computeAlignment, type AlignGuide } from "@/lib/nest-align";
+import { hitTestCandidates, nextSelection, type TapCycleState } from "@/lib/nest-editor-hit-testing";
+import { EDITOR_TOUCH_TARGETS } from "@/lib/nest-editor-touch-targets";
 
 // The mobile editor canvas (Arrange mode). Pointer Events drive a unified gesture
 // model — one finger moves, two fingers pinch-resize + twist-rotate (when policy
@@ -71,6 +74,8 @@ type Gesture =
 type Pt = { x: number; y: number };
 
 const pctOf = (n: number) => `${+(n * 100).toFixed(3)}%`;
+/** Constant gap (px) the rotate handle sits above the selection frame. */
+const ROTATE_GAP = EDITOR_TOUCH_TARGETS.rotateHandleGapPx;
 const snapStep = (v: number, step: number) => Math.round(v / step) * step;
 const angle = (a: Pt, b: Pt) => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
 const dist = (a: Pt, b: Pt) => Math.hypot(b.x - a.x, b.y - a.y);
@@ -87,11 +92,28 @@ export function EditorCanvas(props: Props) {
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
   const [layerOpen, setLayerOpen] = useState(false);
+  // Overlap selection (Phase 1) + long-press layer picker (Phase 2).
+  const tapCycle = useRef<TapCycleState | undefined>(undefined);
+  const longPress = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const downClient = useRef<Pt | null>(null);
+  const didMove = useRef(false);
+  const [picker, setPicker] = useState<{ nx: number; ny: number; ids: string[] } | null>(null);
 
   const toNorm = (clientX: number, clientY: number) => {
     const r = sceneRef.current!.getBoundingClientRect();
     return { nx: (clientX - r.left) / r.width, ny: (clientY - r.top) / r.height };
   };
+  const sceneSize = () => {
+    const r = sceneRef.current?.getBoundingClientRect();
+    return r && r.width > 0 ? { width: r.width, height: r.height } : undefined;
+  };
+  const nowMs = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+
+  // Reset the overlap tap-cycle + close the layer picker whenever the mode changes.
+  useEffect(() => {
+    tapCycle.current = undefined;
+    setPicker(null);
+  }, [connect]);
 
   // Live (preview) document while a gesture is active; never commits history.
   const liveDoc: EditableNestDocument = (() => {
@@ -158,28 +180,62 @@ export function EditorCanvas(props: Props) {
   }
   function commit() {
     if (gestureRef.current) {
-      onCommit(liveDoc);
+      // A plain tap (no drag) must not pollute history — only a real gesture commits.
+      if (didMove.current) onCommit(liveDoc);
       gestureRef.current = null;
       guidesRef.current = []; // alignment guides vanish the moment the gesture ends
       rerender();
     }
   }
 
+  // Overlap-aware selection: pick from ALL objects under the pointer (visible bounds +
+  // min tap target), cycling on repeated taps near the same point. Returns the chosen id.
+  function selectAtPoint(e: React.PointerEvent, fallback: EditableNestObject): string {
+    const { nx, ny } = toNorm(e.clientX, e.clientY);
+    const point = { x: nx, y: ny };
+    const candidates = hitTestCandidates(liveDoc.objects, assetsById, point, { scene: sceneSize() });
+    const res = nextSelection(tapCycle.current, candidates, point, nowMs());
+    tapCycle.current = res.state;
+    const id = res.selectedId ?? fallback.instanceId;
+    onSelect(id);
+    return id;
+  }
+
+  // Long-press → open the layer picker when ≥2 objects overlap the point.
+  function armLongPress(nx: number, ny: number) {
+    clearTimeout(longPress.current);
+    longPress.current = setTimeout(() => {
+      const candidates = hitTestCandidates(liveDoc.objects, assetsById, { x: nx, y: ny }, { scene: sceneSize() });
+      if (candidates.length >= 2) {
+        gestureRef.current = null; // cancel any pending move so the picker takes over
+        pointers.current.clear();
+        didMove.current = false;
+        setPicker({ nx, ny, ids: candidates.map((c) => c.objectId) });
+        rerender();
+      }
+    }, 450);
+  }
+
   function onObjectDown(e: React.PointerEvent, o: EditableNestObject) {
-    onSelect(o.instanceId);
+    const id = selectAtPoint(e, o);
     setLayerOpen(false);
+    setPicker(null);
+    const sel = liveDoc.objects.find((x) => x.instanceId === id) ?? o;
+    const { nx, ny } = toNorm(e.clientX, e.clientY);
+    downClient.current = { x: e.clientX, y: e.clientY };
+    didMove.current = false;
+    armLongPress(nx, ny);
     // Connect mode: tapping an asset only selects it for connection — never moves it.
     if (connect) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (o.locked) return;
+    if (sel.locked) return;
     e.preventDefault();
     capture(e);
     const pts = Array.from(pointers.current.values());
     if (pts.length >= 2) {
-      gestureRef.current = { kind: "pinch", id: o.instanceId, startDist: dist(pts[0], pts[1]), startW: o.width, startAngle: angle(pts[0], pts[1]), startRot: o.rotation ?? 0 };
+      gestureRef.current = { kind: "pinch", id: sel.instanceId, startDist: dist(pts[0], pts[1]), startW: sel.width, startAngle: angle(pts[0], pts[1]), startRot: sel.rotation ?? 0 };
     } else {
-      const { nx, ny } = toNorm(e.clientX, e.clientY);
-      gestureRef.current = { kind: "move", id: o.instanceId, startNX: nx, startNY: ny };
+      gestureRef.current = { kind: "move", id: sel.instanceId, startNX: nx, startNY: ny };
     }
     rerender();
   }
@@ -187,6 +243,8 @@ export function EditorCanvas(props: Props) {
   function onHandleDown(e: React.PointerEvent, o: EditableNestObject, kind: "resize" | "rotate", dirX = 1) {
     e.preventDefault();
     e.stopPropagation();
+    clearTimeout(longPress.current);
+    didMove.current = false;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     capture(e);
     if (kind === "resize") {
@@ -202,11 +260,17 @@ export function EditorCanvas(props: Props) {
   }
 
   function onPointerMove(e: React.PointerEvent) {
+    // Cancel a pending long-press once the pointer travels (it's a drag, not a press).
+    if (downClient.current) {
+      const moved = Math.hypot(e.clientX - downClient.current.x, e.clientY - downClient.current.y);
+      if (moved > 8) clearTimeout(longPress.current);
+    }
     if (!pointers.current.has(e.pointerId)) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const g = gestureRef.current;
     if (!g) return;
     e.preventDefault();
+    didMove.current = true;
     const pts = Array.from(pointers.current.values());
     if (g.kind === "move" && pts.length >= 2) {
       const o = doc.objects.find((x) => x.instanceId === g.id)!;
@@ -216,9 +280,22 @@ export function EditorCanvas(props: Props) {
   }
 
   function onPointerUp(e: React.PointerEvent) {
+    clearTimeout(longPress.current);
+    downClient.current = null;
     pointers.current.delete(e.pointerId);
     if (gestureRef.current && pointers.current.size === 0) commit();
     else rerender();
+  }
+
+  // Open the overlap picker from the contextual "Layer → Select object" action,
+  // centred on the selected object's centre (reuses the same component as long-press).
+  function openLayerPickerForSelected() {
+    if (!selected) return;
+    const nx = selected.x + selected.width / 2;
+    const ny = selected.y + selected.height / 2;
+    const candidates = hitTestCandidates(liveDoc.objects, assetsById, { x: nx, y: ny }, { scene: sceneSize() });
+    setLayerOpen(false);
+    setPicker({ nx, ny, ids: (candidates.length ? candidates : [{ objectId: selected.instanceId }]).map((c) => c.objectId) });
   }
 
   const barAbove = selected ? selected.y > 0.16 : true;
@@ -240,6 +317,8 @@ export function EditorCanvas(props: Props) {
             if (e.target === e.currentTarget || (e.target as HTMLElement).dataset.bg === "1") {
               onSelect(undefined);
               setLayerOpen(false);
+              setPicker(null);
+              tapCycle.current = undefined;
             }
           }}
         >
@@ -301,7 +380,24 @@ export function EditorCanvas(props: Props) {
 
         {/* Contextual arrange action bar — outside the clipped scene (Arrange only) */}
         {!connect && selected && !selected.hidden ? (
-          <ContextBar o={selected} asset={selectedAsset} above={barAbove} layerOpen={layerOpen} setLayerOpen={setLayerOpen} onDuplicate={props.onDuplicate} onReorder={props.onReorder} onFlip={props.onFlip} onToggleLock={props.onToggleLock} onDelete={props.onDelete} />
+          <ContextBar o={selected} asset={selectedAsset} above={barAbove} layerOpen={layerOpen} setLayerOpen={setLayerOpen} onDuplicate={props.onDuplicate} onReorder={props.onReorder} onFlip={props.onFlip} onToggleLock={props.onToggleLock} onDelete={props.onDelete} onOpenLayerPicker={openLayerPickerForSelected} />
+        ) : null}
+
+        {/* Long-press / Layer → overlap object picker (Phase 2) */}
+        {picker ? (
+          <LayerPicker
+            nx={picker.nx}
+            ny={picker.ny}
+            ids={picker.ids}
+            objects={liveDoc.objects}
+            assetsById={assetsById}
+            selectedId={selectedId}
+            onPick={(id) => {
+              onSelect(id);
+              setPicker(null);
+            }}
+            onClose={() => setPicker(null)}
+          />
         ) : null}
       </div>
     </div>
@@ -463,7 +559,9 @@ function TransformFrame({ o, asset, advanced, onHandleDown }: { o: EditableNestO
             [0, 1, -1],
             [1, 1, 1],
           ] as const).map(([cx, cy, dirX]) => (
-            <span key={`${cx}-${cy}`} className="pointer-events-auto absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize touch-none items-center justify-center" style={{ left: `${cx * 100}%`, top: `${cy * 100}%` }} onPointerDown={(e) => onHandleDown(e, o, "resize", dirX)}>
+            // 40px invisible touch target (≥32px policy) around a small visible dot, so
+            // even a tiny object's corners stay grabbable without enlarging the art.
+            <span key={`${cx}-${cy}`} className="pointer-events-auto absolute flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize touch-none items-center justify-center" style={{ left: `${cx * 100}%`, top: `${cy * 100}%` }} onPointerDown={(e) => onHandleDown(e, o, "resize", dirX)}>
               <span className="h-3.5 w-3.5 rounded-full border-2 border-cobalt bg-white shadow" />
             </span>
           ))
@@ -471,17 +569,23 @@ function TransformFrame({ o, asset, advanced, onHandleDown }: { o: EditableNestO
             <span className="absolute right-1 top-1 rounded-full bg-terracotta/90 p-1 text-white"><Lock className="h-3 w-3" /></span>
           )}
       {rotatable ? (
-        <span className="pointer-events-auto absolute left-1/2 flex h-9 w-9 -translate-x-1/2 cursor-grab touch-none items-center justify-center" style={{ top: "-16%" }} onPointerDown={(e) => onHandleDown(e, o, "rotate")}>
-          <span className="absolute left-1/2 top-full h-[14%] w-px -translate-x-1/2 bg-cobalt/70" />
-          <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-cobalt bg-white shadow"><RotateCw className="h-3 w-3 text-cobalt" /></span>
-        </span>
+        // The rotate handle sits a CONSTANT pixel gap above the frame (never a % of the
+        // frame, so it can't collapse onto a tiny object), with a ~44px invisible touch
+        // target and a fixed-length connector. It is outside the frame and clear of the
+        // object body, so dragging the body never hits it.
+        <>
+          <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bg-cobalt/60" style={{ top: `-${ROTATE_GAP}px`, height: `${ROTATE_GAP}px`, width: 1 }} aria-hidden />
+          <button type="button" aria-label="Rotate" className="pointer-events-auto absolute left-1/2 flex h-11 w-11 cursor-grab touch-none items-center justify-center" style={{ top: 0, transform: `translate(-50%, calc(-100% - ${ROTATE_GAP}px))` }} onPointerDown={(e) => onHandleDown(e, o, "rotate")}>
+            <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-cobalt bg-white shadow"><RotateCw className="h-3 w-3 text-cobalt" /></span>
+          </button>
+        </>
       ) : null}
       {advanced ? <span className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-saffron ring-2 ring-white" style={{ left: `${anchorLeft}%`, top: `${anchorTop}%` }} /> : null}
     </div>
   );
 }
 
-function ContextBar({ o, asset, above, layerOpen, setLayerOpen, onDuplicate, onReorder, onFlip, onToggleLock, onDelete }: { o: EditableNestObject; asset?: LivingNestAsset; above: boolean; layerOpen: boolean; setLayerOpen: (v: boolean) => void; onDuplicate: () => void; onReorder: (op: ReorderOp) => void; onFlip: () => void; onToggleLock: () => void; onDelete: () => void }) {
+function ContextBar({ o, asset, above, layerOpen, setLayerOpen, onDuplicate, onReorder, onFlip, onToggleLock, onDelete, onOpenLayerPicker }: { o: EditableNestObject; asset?: LivingNestAsset; above: boolean; layerOpen: boolean; setLayerOpen: (v: boolean) => void; onDuplicate: () => void; onReorder: (op: ReorderOp) => void; onFlip: () => void; onToggleLock: () => void; onDelete: () => void; onOpenLayerPicker: () => void }) {
   const cx = (o.x + o.width / 2) * 100;
   const flippable = canFlipX(asset);
   const pos: React.CSSProperties = { left: `${Math.min(80, Math.max(20, cx))}%` };
@@ -502,6 +606,8 @@ function ContextBar({ o, asset, above, layerOpen, setLayerOpen, onDuplicate, onR
         <CtxBtn label="Delete" danger onClick={onDelete}><Trash2 className="h-4 w-4" /></CtxBtn>
         {layerOpen ? (
           <div className="absolute left-1/2 top-full mt-1 flex -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-ink/10 bg-parchment shadow-lg">
+            <LayerItem label="Select object…" onClick={() => { onOpenLayerPicker(); }}><Layers className="h-3.5 w-3.5" /></LayerItem>
+            <span className="h-px bg-ink/10" />
             <LayerItem label="Bring to front" onClick={() => { onReorder("front"); setLayerOpen(false); }}><ArrowUpToLine className="h-3.5 w-3.5" /></LayerItem>
             <LayerItem label="Bring forward" onClick={() => { onReorder("forward"); setLayerOpen(false); }}><ChevronUp className="h-3.5 w-3.5" /></LayerItem>
             <LayerItem label="Send backward" onClick={() => { onReorder("backward"); setLayerOpen(false); }}><ChevronDown className="h-3.5 w-3.5" /></LayerItem>
@@ -526,6 +632,84 @@ function LayerItem({ label, onClick, children }: { label: string; onClick: () =>
     <button type="button" onClick={onClick} className="flex items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-xs font-bold text-ink/75 hover:bg-ink/5">
       {children} {label}
     </button>
+  );
+}
+
+// Long-press / "Select object" overlap picker. Lists every object under the point in
+// effective z-order (topmost first), with thumbnails + names (never raw ids), the
+// current selection ticked. Tap an item to select it; tap outside or press Escape to
+// dismiss. Keyboard accessible (each row is a focusable menu item). Kept compact so it
+// never covers most of the canvas.
+function LayerPicker({
+  nx,
+  ny,
+  ids,
+  objects,
+  assetsById,
+  selectedId,
+  onPick,
+  onClose,
+}: {
+  nx: number;
+  ny: number;
+  ids: string[];
+  objects: EditableNestObject[];
+  assetsById: Record<string, LivingNestAsset>;
+  selectedId?: string;
+  onPick: (id: string) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.focus({ preventScroll: true });
+  }, []);
+  const left = Math.min(0.66, Math.max(0.04, nx));
+  const top = Math.min(0.62, Math.max(0.04, ny));
+  return (
+    <>
+      <button type="button" aria-label="Close object picker" tabIndex={-1} className="absolute inset-0 z-[640] cursor-default bg-transparent" onPointerDown={onClose} />
+      <div
+        ref={ref}
+        role="menu"
+        aria-label="Select object"
+        tabIndex={-1}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            onClose();
+          }
+        }}
+        className="absolute z-[650] max-h-[44%] w-44 overflow-y-auto overscroll-contain rounded-2xl border border-ink/12 bg-parchment/98 p-1 shadow-xl outline-none backdrop-blur"
+        style={{ left: pctOf(left), top: pctOf(top) }}
+      >
+        <p className="px-2 pb-1 pt-1 text-[9px] font-black uppercase tracking-[.16em] text-ink/45">Select object</p>
+        {ids.map((id) => {
+          const o = objects.find((x) => x.instanceId === id);
+          if (!o) return null;
+          const asset = assetsById[o.assetId];
+          const sel = id === selectedId;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={sel}
+              onClick={() => onPick(id)}
+              className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-bold transition ${sel ? "bg-cobalt/12 text-cobalt" : "text-ink/75 hover:bg-ink/5"}`}
+            >
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded bg-white/70">
+                {asset?.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={asset.thumbnailUrl} alt="" className="max-h-full max-w-full object-contain" draggable={false} />
+                ) : null}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{asset?.name ?? o.assetId}</span>
+              {sel ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }
 

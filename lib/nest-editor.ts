@@ -33,6 +33,7 @@ import {
 import type { NestAssetHotspot } from "@/lib/nest-hotspot-types";
 import { regenerateHotspotIds } from "@/lib/nest-hotspots";
 import { predefinedHotspotsForInstance } from "@/lib/nest-hotspot-catalog";
+import { anchorDeltaForSupport } from "@/lib/nest-placement";
 
 /** Fixed deterministic timestamp for created documents (no Date.now in the core). */
 const EDITOR_T = "2026-06-29T00:00:00.000Z";
@@ -335,6 +336,31 @@ export function duplicateObject(
     ),
   );
   return { doc: { ...doc, objects: [...doc.objects, copy] }, instanceId: newId };
+}
+
+/**
+ * Place an object onto a support surface: deterministically anchor its visible base
+ * onto the top of `supportId`, then nudge its paint order just above the support so it
+ * reads as resting on it. Routes through `moveObject` so clamping is consistent and the
+ * caller's single commit makes it undoable. No-op if either instance is missing/locked.
+ */
+export function placeOnSupport(
+  doc: EditableNestDocument,
+  instanceId: string,
+  supportId: string,
+  assetsById: Record<string, LivingNestAsset> = {},
+): EditableNestDocument {
+  const o = findObj(doc, instanceId);
+  const support = findObj(doc, supportId);
+  if (!o || !support || o.locked) return doc;
+  const { dx, dy } = anchorDeltaForSupport(o, support);
+  let next = moveObject(doc, instanceId, dx, dy, assetsById);
+  // Keep the placed object painted just above its support (never behind it).
+  const placed = next.objects.find((p) => p.instanceId === instanceId);
+  if (placed && placed.zIndex <= support.zIndex) {
+    next = replaceObj(next, { ...placed, zIndex: support.zIndex + 1 });
+  }
+  return next;
 }
 
 /** Replace the hotspots of one instance (one history entry per commit). */
