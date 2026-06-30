@@ -1,23 +1,26 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { NestFocusArea } from "@/lib/nest-focus-types";
-import { clampFocusBounds } from "@/lib/nest-focus-scenes";
+import type { NestFocusArea, NestFocusBounds } from "@/lib/nest-focus-types";
+import { focusBoundsOf, moveRectInsideBounds, resizeRectWithLockedAspect } from "@/lib/nest-focus-scenes";
+import { EDITOR_LAYERS } from "@/lib/nest-editor-layers";
 
-// ── Focus-mode authoring overlay (M7C) ───────────────────────────────────────
+// ── Fixed-ratio Focus editor overlay (M7C.4) ─────────────────────────────────
 //
-// Renders the Main scene's Focus Areas over the editor canvas in a visually distinct
-// Nestudio style (cobalt, vs teal hotspots) and lets a creator select / move / resize
-// them. It measures the canvas's `.editor-scene` element so regions align exactly with
-// the rendered scene, and works in scene-normalized 0..1 coordinates. One geometry
-// gesture commits once (at pointer-up). Hidden in Preview; objects beneath are inert in
-// Focus mode (this layer covers the scene). Commits a NEW focus-area array via onCommit.
+// Renders the Main scene's Focus Areas as fixed-ratio rectangles (each = `focusBounds`,
+// a normalized square that matches the 3:4 Nest). The creator drags inside to MOVE
+// (dimensions unchanged) and drags a corner to RESIZE (ratio LOCKED, opposite corner
+// anchored). One gesture commits once (pointer-up) = one undo entry.
+//
+// REPAIR: the host is `pointer-events-none` — only the rectangles/handles capture
+// pointers, so the rest of the editor canvas is NEVER blocked (the old full-canvas
+// capture layer is gone). Selected rectangles sit above the canvas so they don't select
+// assets beneath; non-selected ones are a subtle tap-to-select outline. Hidden in Preview.
 
 type Box = { left: number; top: number; width: number; height: number };
-
 type Gesture =
-  | { kind: "move"; id: string; startNX: number; startNY: number; x0: number; y0: number }
-  | { kind: "resize"; id: string; dirX: number; dirY: number; startNX: number; startNY: number; x0: number; y0: number; w0: number; h0: number };
+  | { kind: "move"; id: string; startNX: number; startNY: number; rect: NestFocusBounds }
+  | { kind: "resize"; id: string; dirX: number; dirY: number; rect: NestFocusBounds };
 
 export function FocusEditorOverlay({
   focusAreas,
@@ -66,21 +69,13 @@ export function FocusEditorOverlay({
     return { nx: (clientX - r.left) / r.width, ny: (clientY - r.top) / r.height };
   };
 
-  function liveAreas(): NestFocusArea[] {
+  function liveRect(fa: NestFocusArea): NestFocusBounds {
     const g = gestureRef.current;
     const p = lastPt.current;
-    if (!g || !p) return focusAreas;
-    return focusAreas.map((fa) => {
-      if (fa.id !== g.id) return fa;
-      if (g.kind === "move") {
-        return { ...fa, bounds: clampFocusBounds({ ...fa.bounds, x: g.x0 + (p.nx - g.startNX), y: g.y0 + (p.ny - g.startNY) }) };
-      }
-      const w = g.w0 + g.dirX * (p.nx - g.startNX) * (g.dirX === 0 ? 0 : 1);
-      const h = g.h0 + g.dirY * (p.ny - g.startNY) * (g.dirY === 0 ? 0 : 1);
-      const x = g.dirX < 0 ? g.x0 + (p.nx - g.startNX) : g.x0;
-      const y = g.dirY < 0 ? g.y0 + (p.ny - g.startNY) : g.y0;
-      return { ...fa, bounds: clampFocusBounds({ x, y, width: w, height: h }) };
-    });
+    const rect = focusBoundsOf(fa);
+    if (!g || !p || g.id !== fa.id) return rect;
+    if (g.kind === "move") return moveRectInsideBounds(g.rect, p.nx - g.startNX, p.ny - g.startNY);
+    return resizeRectWithLockedAspect(g.rect, { dirX: g.dirX, dirY: g.dirY }, { x: p.nx, y: p.ny });
   }
 
   function startMove(e: React.PointerEvent, fa: NestFocusArea) {
@@ -91,7 +86,7 @@ export function FocusEditorOverlay({
     measure();
     try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch { /* ok */ }
     const { nx, ny } = toNorm(e.clientX, e.clientY);
-    gestureRef.current = { kind: "move", id: fa.id, startNX: nx, startNY: ny, x0: fa.bounds.x, y0: fa.bounds.y };
+    gestureRef.current = { kind: "move", id: fa.id, startNX: nx, startNY: ny, rect: focusBoundsOf(fa) };
     lastPt.current = { nx, ny };
     rerender();
   }
@@ -101,7 +96,7 @@ export function FocusEditorOverlay({
     measure();
     try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch { /* ok */ }
     const { nx, ny } = toNorm(e.clientX, e.clientY);
-    gestureRef.current = { kind: "resize", id: fa.id, dirX, dirY, startNX: nx, startNY: ny, x0: fa.bounds.x, y0: fa.bounds.y, w0: fa.bounds.width, h0: fa.bounds.height };
+    gestureRef.current = { kind: "resize", id: fa.id, dirX, dirY, rect: focusBoundsOf(fa) };
     lastPt.current = { nx, ny };
     rerender();
   }
@@ -112,52 +107,44 @@ export function FocusEditorOverlay({
     rerender();
   }
   function onUp() {
-    if (gestureRef.current) {
-      onCommit(liveAreas());
+    const g = gestureRef.current;
+    if (g) {
+      const next = focusAreas.map((fa) => (fa.id === g.id ? { ...fa, focusBounds: liveRect(fa) } : fa));
+      onCommit(next);
       gestureRef.current = null;
       lastPt.current = null;
       rerender();
     }
   }
 
-  const display = gestureRef.current ? liveAreas() : focusAreas;
-
+  // The host does NOT capture pointers — only the rectangles do (repair). It sits at the
+  // `focusRegions` layer (BELOW the bottom drawer), so handles never escape over the sheet.
   return (
-    <div
-      ref={hostRef}
-      className="absolute inset-0 z-[40] touch-none"
-      onPointerMove={onMove}
-      onPointerUp={onUp}
-      onPointerCancel={onUp}
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onSelect(undefined);
-      }}
-    >
+    <div ref={hostRef} className="pointer-events-none absolute inset-0" style={{ zIndex: EDITOR_LAYERS.focusRegions }} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
       {box ? (
         <div className="absolute" style={{ left: box.left, top: box.top, width: box.width, height: box.height }}>
-          {display.map((fa) => {
+          {focusAreas.map((fa) => {
+            const r = liveRect(fa);
             const sel = fa.id === selectedId;
-            const ellipse = fa.shape === "ellipse";
             const cls = !fa.enabled
-              ? "border-2 border-dotted border-ink/35 bg-ink/[0.04]"
+              ? "border-2 border-dotted border-ink/35 bg-ink/[0.03]"
               : sel
-                ? "border-2 border-cobalt bg-cobalt/15"
-                : "border-2 border-dashed border-cobalt/55 bg-cobalt/[0.06]";
+                ? "border-2 border-cobalt bg-cobalt/10"
+                : "border-2 border-dashed border-cobalt/50 bg-cobalt/[0.04]";
             return (
-              <div key={fa.id} className="absolute" style={{ left: `${fa.bounds.x * 100}%`, top: `${fa.bounds.y * 100}%`, width: `${fa.bounds.width * 100}%`, height: `${fa.bounds.height * 100}%` }}>
+              <div key={fa.id} className="absolute" style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.width * 100}%`, height: `${r.height * 100}%` }}>
                 <button
                   type="button"
                   onPointerDown={(e) => startMove(e, fa)}
                   aria-label={`Focus area ${fa.name}${sel ? " (selected)" : ""}`}
-                  className={`absolute inset-0 touch-none ${ellipse ? "rounded-full" : "rounded-[8px]"} ${cls}`}
+                  className={`pointer-events-auto absolute inset-0 touch-none rounded-[8px] ${sel ? "cursor-move" : "cursor-pointer"} ${cls}`}
                 >
-                  <span className={`absolute -top-5 left-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[8px] font-bold text-white ${fa.enabled ? "bg-cobalt" : "bg-ink/50"}`}>
-                    {fa.name}
-                    {fa.locked ? " 🔒" : ""}
+                  <span className={`pointer-events-none absolute -top-5 left-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[8px] font-bold text-white ${fa.enabled ? "bg-cobalt" : "bg-ink/50"}`}>
+                    {fa.name}{fa.locked ? " 🔒" : ""}
                   </span>
                   {advanced && sel ? (
-                    <span className="absolute bottom-0.5 left-1 text-[7px] font-mono text-cobalt/80">
-                      {Math.round(fa.bounds.x * 100)},{Math.round(fa.bounds.y * 100)} · {Math.round(fa.bounds.width * 100)}×{Math.round(fa.bounds.height * 100)}
+                    <span className="pointer-events-none absolute bottom-0.5 left-1 font-mono text-[7px] text-cobalt/80">
+                      {Math.round(r.x * 100)},{Math.round(r.y * 100)} · {Math.round(r.width * 100)}×{Math.round(r.height * 100)}
                     </span>
                   ) : null}
                 </button>
@@ -168,8 +155,13 @@ export function FocusEditorOverlay({
                       [0, 1, -1, 1],
                       [1, 1, 1, 1],
                     ] as const).map(([cx, cy, dx, dy]) => (
-                      <span key={`${cx}-${cy}`} className="absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize touch-none items-center justify-center" style={{ left: `${cx * 100}%`, top: `${cy * 100}%` }} onPointerDown={(e) => startResize(e, fa, dx, dy)}>
-                        <span className="h-3 w-3 rounded-full border-2 border-cobalt bg-white shadow" />
+                      <span
+                        key={`${cx}-${cy}`}
+                        className="pointer-events-auto absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize touch-none items-center justify-center"
+                        style={{ left: `${cx * 100}%`, top: `${cy * 100}%` }}
+                        onPointerDown={(e) => startResize(e, fa, dx, dy)}
+                      >
+                        <span className="h-3.5 w-3.5 rounded-full border-2 border-cobalt bg-white shadow" />
                       </span>
                     ))
                   : null}

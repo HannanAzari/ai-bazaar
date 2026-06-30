@@ -8,6 +8,176 @@ for technical detail.
 
 ---
 
+## 2026-07-01 — M7C.6 — Focus Areas become nested editable scene contexts (ADR-031)
+
+Controlled architecture refinement: a Focus Area is an **entrance from one editable Nest
+scene into a child editable scene** (refines ADR-029/030; keeps the fixed-ratio cinematic
+transition). 561 tests.
+
+### Fixed / changed
+- **Persistence/Preview release blocker:** editor-authored zoom areas (only `focusBounds`,
+  no `zoomRegion`) were hidden by the navigator filter + rejected by validation → now
+  `isVisitableFocusArea` needs only a valid focus rectangle and `validateFocusArea` accepts
+  `focusBounds`. Authored areas appear in Preview/visitor + persist.
+- **Scene graph** ([`lib/nest-focus-scenes.ts`](../lib/nest-focus-scenes.ts)) over the
+  existing detail-scene storage: `getEditorScene` (unified root/child view), `childSceneId`
+  on Focus Areas, child scenes (`sceneType:"focus"`, `backgroundSource:parent_crop`),
+  `ensureFocusChildScene` (idempotent, migrates legacy childObjects),
+  `migrateDocumentToSceneGraph`, `focusAreaHasContent`.
+- **Editor scene stack** (pure): `rootEditorSceneContext` / `enterEditorScene` /
+  `exitEditorScene` / `parentEditorScene` / `canExitEditorScene`, `MAX_FOCUS_DEPTH = 3`.
+- **Editor "Enter area"** replaces "Preview focus": opens the child scene in Edit mode
+  (Arrange/Assets/Connect on scene-local objects), breadcrumb + Back to the parent editor;
+  Preview auto-enters the active area; delete-with-content confirms (Undo restores both).
+- **Visitor child rendering:** `CinematicFocusStage` overlays the child scene's objects (a
+  transparent `GoldenLivingNestStage`, full interactions) on the parent-crop base.
+- **Tests:** added [`test/nest-focus-scene-graph.test.ts`](../test/nest-focus-scene-graph.test.ts) (14).
+
+## 2026-06-30 — M7C.5 — Focus integration repair + minimal creator UX
+
+Narrow repair + UX sprint on M7C.4 (no architecture change; refines ADR-029). 547 tests.
+
+### Fixed / changed
+- **Layer model** ([`lib/nest-editor-layers.ts`](../lib/nest-editor-layers.ts)): documented
+  `EDITOR_LAYERS` map. Root cause of the overlay-over-sheet bug was the focus overlay at
+  `z-[40]` vs the drawer at `z-10`; the overlay host now sits at `focusRegions` (20) and the
+  Focus drawer at `drawer` (50) / backdrop (40) via new `MobileBottomSheet` z props. Handles
+  never escape over the sheet; the sheet masks + blocks pointers beneath it.
+- **Preview = visitor navigator** (highest-priority bug): the editor Preview rendered a
+  static `GoldenLivingNestStage` → now renders **`NestSceneNavigator`** with the live doc, so
+  authored Focus Areas work exactly like the visitor route. "Preview focus" collapses the
+  drawer + auto-enters the selected area via the navigator's new `autoEnterFocusId` prop
+  (no duplicate stage); Edit returns to Focus authoring with the area selected.
+- **Minimal creator Focus sheet**: compact chips · **+ Add area** · inline rename · Preview ·
+  Delete. Auto-named `Focus area N` (`nextFocusAreaName`), hint defaults to `Explore <name>`.
+  **Enabled / Lock / Reset / hint / entry / transition / detail-surface** moved to
+  Template/Internal-only (`showPrecision`); `enabled`/`locked` kept in the contract (default
+  true) — back-compatible.
+- **Tests:** added [`test/nest-editor-focus-ux.test.ts`](../test/nest-editor-focus-ux.test.ts) (12).
+
+## 2026-06-30 — M7C.4 — V1 fixed-ratio Focus Areas + in-place cinematic zoom + editor repair
+
+Final V1 simplification (refines ADR-029; no new ADR). **One creator-authored rectangle
+with the exact Nest aspect ratio is BOTH the tap target and the cinematic destination; the
+existing scene transforms in place — no modal, no backdrop, no duplicate stage.** Also
+repairs the input-blocking Focus editor. 535 tests.
+
+### Changed
+- **Single `focusBounds`** ([`lib/nest-focus-types.ts`](../lib/nest-focus-types.ts)): retires
+  the trigger/crop split + `cropSource`/`maxScale`/cover transform. A normalized **square**
+  (= 3:4 on screen). `triggerBoundsOf`/`cropBoundsOf` → `focusBoundsOf`. `transition` adds
+  `cinematic_zoom`. Deterministic **migration** (`focusBoundsOf`/`normalizeLegacyFocusArea`):
+  cropBounds → bounds → default, coerced to ratio, legacy data preserved.
+- **Fixed-ratio geometry** ([`lib/nest-focus-scenes.ts`](../lib/nest-focus-scenes.ts)):
+  `fitRectToAspectRatio`, `moveRectInsideBounds`, `resizeRectWithLockedAspect` (opposite
+  corner anchored). **Cinematic transform** `cinematicFocusTransform(Css)` (uniform
+  scale+translate, origin 0 0) maps focus edges → viewport edges; `{0,0,1,1}` = identity.
+- **In-place same stage** ([`focused-zoom-stage.tsx`](../components/nest/focused-zoom-stage.tsx)
+  → `CinematicFocusStage`): one Nest viewport, the scene is a single transformed layer; the
+  M7C.3 `fixed inset-0` modal/backdrop/second-stage is **removed**. The visitor navigator and
+  the editor **Preview focus** use the same component (exact match). ≈540 ms cinematic ease.
+- **Focus editor repair** ([`focus-editor-overlay.tsx`](../components/nest/editor/focus-editor-overlay.tsx)):
+  root cause was a full-canvas `pointer-events` capture layer → host is now
+  `pointer-events-none` (only rectangles/handles capture). One fixed-ratio rectangle editor;
+  the sheet is **Add · Preview focus · Reset · Delete** (removed Tap-area/Zoomed-view, oval,
+  crop ratio, crop-source). Removed the M7C.3 crop overlay.
+- **Fixtures** re-authored with fixed-ratio `focusBounds` (frame/TV/bookshelf/desk).
+- **Tests:** retired the M7C.3 crop suite; added [`test/nest-focus-cinematic.test.ts`](../test/nest-focus-cinematic.test.ts) (24) + migrated two M7C.2 assertions.
+
+## 2026-06-30 — M7C.3 — Creator-authored zoom crops & true full-screen focus
+
+Refines M7C.1/M7C.2 (no new architecture, no new art). **The creator visually authors and
+owns the final zoomed composition; the system only suggests.** Fixes the broken zoom
+composition (TV cut off, too much wall, bookshelf showing desk, undersized card). Refines
+ADR-030 (no new ADR). 538 tests (was 511).
+
+### Changed
+- **Cover transform** ([`focusViewportTransform`](../lib/nest-focus-scenes.ts)): the focused
+  view now COVERS the usable viewport (`scale = max(...)`, crop centre → viewport centre,
+  origin 0 0) instead of fitting inside it. `mapScenePointThroughFocus` verifies hotspot
+  alignment through the transform.
+- **Full-screen focused viewport** ([`focused-zoom-stage.tsx`](../components/nest/focused-zoom-stage.tsx)):
+  a `fixed inset-0` overlay that locks scroll, respects safe areas, overlays Back/title, and
+  fills a full-width **3:4 cinematic hero** (dark backdrop; `max-w 560` on desktop). Stage
+  gains a `fill` prop.
+- **Creator crop editor** ([`focus-crop-overlay.tsx`](../components/nest/editor/focus-crop-overlay.tsx)):
+  a photo-crop-style overlay (dim-outside, drag-to-move, corner resize, 40px hit targets,
+  blocks selection beneath) wired into the Nest editor with a **"Tap area" / "Zoomed view"**
+  toggle, **"Preview zoom"** (read-only, exact cover), and **"Use suggested crop"**.
+- **Suggested vs authored** (`cropSource`): `recommendCrop` is a suggestion only; a creator
+  edit sets `creator_authored` and `shouldAutoApplySuggestedCrop` then returns false (never
+  silently overwritten). Recalibrated **creator-authored** TV/frame/bookshelf crops (TV +
+  frame fill 100%×100%; bookshelf excludes the desk).
+- **Persistence/history:** crop + cropSource ride the document (Save/Load, Export/Import,
+  Undo/Redo); one drag/resize = one history entry; preview never mutates.
+- **Tests:** 27 new ([`test/nest-focus-crop.test.ts`](../test/nest-focus-crop.test.ts)).
+
+## 2026-06-30 — M7C.2 — Focus-first interaction & zoom composition polish
+
+A focused behavioural/composition correction on M7C.1 (no new architecture, no new art).
+**The rule:** in Main view a Focus Area owns the first tap; the object's gallery/video/shelf
+interaction becomes active only *after* the visitor is inside the focused view. Refines
+ADR-030 (no new ADR). 511 tests (was 484).
+
+### Changed
+- **Focus-first Main resolution** ([`resolveMainScenePointerAction`](../lib/nest-focus-scenes.ts)):
+  `Focus Area → object hotspot → whole-object → none`; overlapping areas resolve smallest
+  trigger first → `priority` → stable id. The legacy `resolveFocusNavigation` is retained.
+  Inside-zoom priority gains a `parent_hotspot` tier (`child hotspot → child object →
+  focused parent hotspot → background`); the parent Focus Area never re-fires while focused.
+- **Navigator** ([`nest-scene-navigator.tsx`](../components/nest/nest-scene-navigator.tsx)):
+  the whole trigger region is now a transparent, accessible button that **enters focus
+  first** — the **persistent "Zoom to…" pills are removed**. A single transient first-visit
+  hint + pulse on the primary area (`selectDiscoveryHint`); suppressed after first focus;
+  reduced-motion = static. Pure interaction-state machine (`main_idle → entering_focus →
+  focused_idle → exiting_focus`) makes rapid taps yield exactly one transition with no
+  content firing during entry; Back/Escape restore Main + focus the trigger.
+- **Trigger vs crop** separated (`triggerBoundsOf`/`cropBoundsOf`) + debug shows them
+  distinctly (trigger solid, crop dashed). **TV** trigger pulled clear of avatar+plant and
+  reliably reachable; **Frame** crop tightened (less empty wall). New deterministic
+  `recommendCrop(visualBounds, category)`. Editor uses "Tap area"/"Zoomed view" vocabulary.
+- **Desk Surface** marked explicitly **provisional**; documented the dedicated future
+  background spec (20–30° downward, desktop-filling, slotted) — not generated.
+- **Tests:** 27 new ([`test/nest-focus-first.test.ts`](../test/nest-focus-first.test.ts)).
+
+## 2026-06-30 — M7C.1 — Hybrid Focus (Zoom Region + Detail Surface) + resolution audit
+
+Refines M7C structured navigation (ADR-029): a Focus Area now resolves to one of **two
+target types** — a **Zoom Region** (enlarge a crop of the *existing* Main scene) or a
+**Detail Surface** (a separately authored close-up). Adds a **measured, deterministic
+resolution audit** so existing artwork is reused on evidence rather than guessed.
+**No new artwork, no Supabase, no randomness.** See ADR-030 +
+[nest-hybrid-focus-v1.md](nest-hybrid-focus-v1.md). 484 tests (was 452).
+
+### Added
+- **Hybrid Focus contract** ([`lib/nest-focus-types.ts`](../lib/nest-focus-types.ts)):
+  additive `targetType` (`zoom_region` | `detail_surface`), `zoomRegion` (crop bounds,
+  `maxScale`, crop-local `childObjects`/`childHotspots`, `resolutionStrategy`,
+  progressive `imageSources`), `detailSurfaceId`; `transition` adds `smooth_zoom`. Fully
+  backward-compatible — legacy `targetSceneId` links **migrate to `detail_surface`** on read
+  (`focusTargetTypeOf` / `migrateFocusArea`).
+- **Resolution audit + policy** ([`lib/nest-focus-resolution.ts`](../lib/nest-focus-resolution.ts)):
+  pure `auditFocusResolution` (source-px vs display-px → `sourcePixelsPerDisplayPixel` →
+  verdict `excellent/acceptable/soft/unusable`), `recommendStrategy`, progressive
+  `selectFocusImageSource`, creator/author warnings, and the real measured source
+  dimensions. **Finding: the existing cut-outs stay crisp under the capped stage — no
+  higher-res replacement is required for M7C.1** (hi-res URL contract added but undefined).
+- **True crop-zoom renderer** ([`nest-scene-navigator.tsx`](../components/nest/nest-scene-navigator.tsx)):
+  `zoomTransform` (uniform scale, recentred crop) applied as a CSS transform on the *same*
+  stage — no scene swap, no white flash, reversible, reduced-motion fade, interaction lock,
+  Escape/back. Zoom-region child objects (crop-local, active only after focus) +
+  interaction priority (`resolveZoomInteraction`: child hotspot → child object → background).
+- **Honest hybrid fixtures** ([`lib/fixtures/golden-hybrid-focus.ts`](../lib/fixtures/golden-hybrid-focus.ts)):
+  `goldenLivingNestHybrid` (TV Console Zoom + Frame Zoom over real objects) and
+  `studioNestHybrid` (Bookshelf Zoom + tight Desk Detail Surface over real objects) — no
+  trigger ever points at an absent object. Internal demo `/design/nest-hybrid-focus`.
+- **Tests:** 32 new ([`test/nest-hybrid-focus.test.ts`](../test/nest-hybrid-focus.test.ts)).
+
+### Notes
+- The original `golden-desk-detail.ts` M7C fixture is retained unchanged (back-compat).
+- Deferred: a dedicated tabletop background asset, the full in-canvas zoom-vs-surface
+  authoring picker, and *generating* high-resolution variants.
+
 ## 2026-06-25 — Analytics + Discovery V1
 
 Durable, mode-aware analytics + anonymous visitor sessions, a creator insights

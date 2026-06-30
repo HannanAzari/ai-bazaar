@@ -25,7 +25,6 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { GoldenLivingNestStage } from "@/components/nest/golden-living-nest-stage";
 import {
   GOLDEN_LIVING_NEST_ASSETS,
   GOLDEN_LIVING_NEST_ASSETS_BY_ID,
@@ -70,13 +69,23 @@ import type { NestFocusArea } from "@/lib/nest-focus-types";
 import {
   addFocusArea,
   createDetailScene,
+  ensureFocusChildScene,
+  focusAreaHasContent,
+  fitRectToAspectRatio,
   getDetailScene,
   mainSceneId,
+  nextFocusAreaName,
   removeFocusArea,
+  resolveFocusSceneBase,
   setDetailSceneObjects,
   updateFocusArea,
 } from "@/lib/nest-focus-scenes";
+import { NestSceneNavigator } from "@/components/nest/nest-scene-navigator";
+import { FocusedParentBase } from "@/components/nest/focused-zoom-stage";
 import { Maximize2 } from "lucide-react";
+
+/** A default fixed-ratio (square = 3:4 on-screen) focus rectangle for new areas. */
+const DEFAULT_FOCUS_RECT = fitRectToAspectRatio({ x: 0.34, y: 0.34, width: 0.32, height: 0.32 });
 
 const ASSETS = GOLDEN_LIVING_NEST_ASSETS_BY_ID;
 type Mode = "arrange" | "assets" | "connect" | "focus" | "preview";
@@ -106,6 +115,9 @@ export function NestEditor() {
   // M7C: which scene is being edited (the main id, or a detail-scene id) + focus selection.
   const [activeSceneId, setActiveSceneId] = useState<string>("");
   const [selectedFocusId, setSelectedFocusId] = useState<string | undefined>(undefined);
+  // M7C.5: Preview uses the real NestSceneNavigator. `previewFocusId` (set by the Focus
+  // sheet's "Preview focus" shortcut) auto-enters that area through the same navigator.
+  const [previewFocusId, setPreviewFocusId] = useState<string | undefined>(undefined);
   const [mounted, setMounted] = useState(false);
   const caps = capabilitiesFor(role);
   useEffect(() => setMounted(true), []);
@@ -133,6 +145,34 @@ export function NestEditor() {
       detailScenes: [],
     };
   }, [doc, isMainActive, activeScene]);
+
+  // M7C.7: the read-only background for the canvas. For a `parent_crop` child Focus Scene
+  // this is the parent scene transformed to the focus rectangle — the SAME crop the visitor
+  // sees — so the editor never falls back to the flat (empty-looking) Main background. A
+  // broken parent reference shows an explicit error, not a blank room.
+  const backgroundNode = useMemo<React.ReactNode>(() => {
+    if (isMainActive || !activeScene) return undefined;
+    if (activeScene.backgroundSource?.type !== "parent_crop") return undefined; // image surface keeps its own bg
+    const base = resolveFocusSceneBase(doc, activeSceneId);
+    if (!base) {
+      return (
+        <div className="absolute inset-0 flex items-center justify-center bg-ink/5 p-6 text-center text-xs font-bold text-ink/55">
+          This focus area’s parent view is missing. Re-enter it from the Main Nest.
+        </div>
+      );
+    }
+    const parentDoc: EditableNestDocument = { ...doc, objects: base.parentObjects, aspectRatio: base.parentAspectRatio, focusAreas: [], detailScenes: [] };
+    const parentStage = editorDocumentToStage(parentDoc, ASSETS, GOLDEN_LIVING_NEST_TEMPLATE);
+    return (
+      <FocusedParentBase
+        parentStage={parentStage}
+        assetsById={ASSETS}
+        interactionsById={GOLDEN_LIVING_NEST_INTERACTIONS_BY_ID}
+        focusBounds={base.focusBounds}
+        interactive={false}
+      />
+    );
+  }, [isMainActive, activeScene, doc, activeSceneId]);
 
   const selected = selectedId ? activeDoc.objects.find((o) => o.instanceId === selectedId) : undefined;
   const selectedAsset = selected ? ASSETS[selected.assetId] : undefined;
@@ -223,14 +263,51 @@ export function NestEditor() {
   // ── Focus Area operations (Main scene only; operate on the full document) ──
   const focusAreas = doc.focusAreas ?? [];
   const selectedFocus = focusAreas.find((f) => f.id === selectedFocusId);
-  const onAddFocus = (shape: "rect" | "ellipse") => {
-    const { doc: next, id } = addFocusArea(doc, { bounds: { x: 0.34, y: 0.4, width: 0.32, height: 0.24 }, shape, previewHint: "Explore" });
-    commit(next);
+  // Create one fixed-ratio (3:4) zoom focus area — the V1 contract. Auto-named + selected
+  // immediately (the rectangle appears at once; no form first).
+  const onAddFocus = () => {
+    const name = nextFocusAreaName(doc.focusAreas ?? []);
+    const { doc: next, id } = addFocusArea(doc, { bounds: DEFAULT_FOCUS_RECT, shape: "rect", name, previewHint: `Explore ${name}` });
+    const withFocus = updateFocusArea(next, id, { targetType: "zoom_region", focusBounds: DEFAULT_FOCUS_RECT });
+    commit(withFocus);
     setSelectedFocusId(id);
+  };
+  const onResetFocus = () => {
+    if (!selectedFocusId) return;
+    commit(updateFocusArea(doc, selectedFocusId, { focusBounds: DEFAULT_FOCUS_RECT }));
+  };
+  // M7C.6 "Enter area": ensure the Focus Area's editable CHILD SCENE exists, then ENTER it
+  // in Edit mode (the same editor tools now operate on the child scene). Not a preview.
+  const onEnterArea = () => {
+    if (!selectedFocusId) return;
+    const { doc: next, childSceneId } = ensureFocusChildScene(doc, selectedFocusId, new Date().toISOString());
+    commit(next);
+    if (childSceneId) {
+      setSelectedId(undefined);
+      setSelectedFocusId(undefined);
+      setActiveSceneId(childSceneId);
+      setMode("arrange");
+    }
+  };
+  // Preview from the active editing scene: if inside a child scene, auto-enter its area so
+  // the visitor preview starts there; Back-to-edit returns to the same editing scene.
+  const onPreview = () => {
+    setSelectedId(undefined);
+    setSelectedHotspotId(undefined);
+    const childArea = !isMainActive && activeScene ? activeScene.parentFocusAreaId : undefined;
+    setPreviewFocusId(childArea || undefined);
+    setMode("preview");
+  };
+  const exitPreview = () => {
+    setPreviewFocusId(undefined);
+    setMode("arrange");
   };
   const onPatchFocus = (patch: Partial<NestFocusArea>) => selectedFocusId && commit(updateFocusArea(doc, selectedFocusId, patch));
   const onDeleteFocus = () => {
     if (!selectedFocusId) return;
+    // Confirm only when the child scene holds authored content (objects/nested areas). The
+    // delete cascades the child scene; Undo restores both.
+    if (focusAreaHasContent(doc, selectedFocusId) && typeof window !== "undefined" && !window.confirm("This focus area has content inside it. Delete the area and everything in it? You can undo.")) return;
     commit(removeFocusArea(doc, selectedFocusId));
     setSelectedFocusId(undefined);
   };
@@ -308,25 +385,33 @@ export function NestEditor() {
   const zoomIn = () => setZoom((z) => clampZoom(z + 0.15));
   const zoomOut = () => setZoom((z) => clampZoom(z - 0.15));
 
-  // Preview the active scene (Main, or the current Detail Scene when one is open).
-  const preview = mode === "preview" ? editorDocumentToStage(activeDoc, ASSETS, GOLDEN_LIVING_NEST_TEMPLATE) : null;
   const saveLabel = saveState === "saving" ? "Saving…" : saveState === "unsaved" ? "Unsaved" : saveState === "saved" ? "Saved ✓" : "";
 
   const ui = (
     <div className="fixed inset-0 z-[110] flex flex-col bg-parchment" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
-      {/* PREVIEW: clean, no editor chrome (just a way back) */}
+      {/* PREVIEW: the EXACT visitor experience — the same NestSceneNavigator + cinematic
+          stage + focus-first resolution. Authored Focus Areas work here just like the
+          visitor route (no static stage, no separate preview renderer). */}
       {mode === "preview" ? (
         <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-3">
-          <button type="button" onClick={() => setMode("arrange")} className="absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-ink/85 px-3 py-1.5 text-xs font-bold text-parchment" style={{ marginTop: "env(safe-area-inset-top)" }}>
+          <button type="button" onClick={exitPreview} className="absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-ink/85 px-3 py-1.5 text-xs font-bold text-parchment" style={{ marginTop: "env(safe-area-inset-top)" }}>
             <ArrowLeft className="h-4 w-4" /> Edit
           </button>
-          {/* Internal debug: reveal hotspot regions (template-author/internal only). */}
+          {/* Internal debug: reveal focus-area + hotspot regions (template-author/internal only). */}
           {caps.showDebug ? (
             <button type="button" onClick={() => setPreviewHotspots((v) => !v)} aria-pressed={previewHotspots} className={`absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold ${previewHotspots ? "bg-teal text-white" : "bg-ink/15 text-ink/60"}`} style={{ marginTop: "env(safe-area-inset-top)" }} title="Internal: show hotspot regions">
               <Eye className="h-4 w-4" /> Hotspots
             </button>
           ) : null}
-          {preview ? <GoldenLivingNestStage template={preview.template} assetsById={ASSETS} interactionsById={GOLDEN_LIVING_NEST_INTERACTIONS_BY_ID} composed={preview.composed} debugHotspots={previewHotspots} /> : null}
+          <NestSceneNavigator
+            key={previewFocusId ?? "preview"}
+            doc={doc}
+            assetsById={ASSETS}
+            interactionsById={GOLDEN_LIVING_NEST_INTERACTIONS_BY_ID}
+            baseTemplate={GOLDEN_LIVING_NEST_TEMPLATE}
+            debug={previewHotspots}
+            autoEnterFocusId={previewFocusId}
+          />
         </div>
       ) : (
         <>
@@ -407,9 +492,11 @@ export function NestEditor() {
               onSelectHotspot={setSelectedHotspotId}
               hotspotAuthoring={mode === "connect" && caps.authorHotspots}
               onHotspotsCommit={commitHotspots}
+              backgroundNode={backgroundNode}
             />
 
-            {/* Focus mode authoring overlay (Main scene only) */}
+            {/* Focus mode authoring overlay (Main scene only) — one fixed-ratio rectangle.
+                The host is pointer-events-none so the canvas is never blocked. */}
             {mode === "focus" && isMainActive ? (
               <FocusEditorOverlay
                 focusAreas={focusAreas}
@@ -478,12 +565,13 @@ export function NestEditor() {
                 onSnapChange={setFocusSnap}
                 onClose={() => setMode("arrange")}
                 onSelectFocus={setSelectedFocusId}
-                onAddRect={() => onAddFocus("rect")}
-                onAddEllipse={() => onAddFocus("ellipse")}
+                onAddFocus={onAddFocus}
                 onPatch={onPatchFocus}
                 onDelete={onDeleteFocus}
                 onCreateScene={onCreateSceneForFocus}
                 onOpenScene={openScene}
+                onEnterArea={selectedFocus ? onEnterArea : undefined}
+                onReset={selectedFocus ? onResetFocus : undefined}
               />
             ) : null}
           </div>
@@ -497,7 +585,7 @@ export function NestEditor() {
             {isMainActive ? (
               <ModeBtn active={mode === "focus"} label="Focus" onClick={() => { setSelectedId(undefined); setSelectedHotspotId(undefined); setMode("focus"); }}><Maximize2 className="h-5 w-5" /></ModeBtn>
             ) : null}
-            <ModeBtn active={false} label="Preview" onClick={() => { setSelectedId(undefined); setSelectedHotspotId(undefined); setMode("preview"); }}><Play className="h-5 w-5" /></ModeBtn>
+            <ModeBtn active={false} label="Preview" onClick={onPreview}><Play className="h-5 w-5" /></ModeBtn>
           </nav>
         </>
       )}

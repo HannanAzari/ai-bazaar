@@ -32,6 +32,11 @@ type Props = {
   showOverlays?: boolean;
   /** Internal: reveal hotspot regions for testing (off in normal visitor Preview). */
   debugHotspots?: boolean;
+  /** Full-bleed: drop the centred max-width card chrome so a parent can size it (M7C.3). */
+  fill?: boolean;
+  /** Transparent: skip the background image + gradient so this stage can overlay another
+   *  (M7C.6 — a child Focus Scene's objects layered over the parent-crop base). */
+  transparent?: boolean;
 };
 
 type Piece = {
@@ -81,6 +86,8 @@ export function GoldenLivingNestStage({
   composed,
   showOverlays = false,
   debugHotspots = false,
+  fill = false,
+  transparent = false,
 }: Props) {
   const pieces = useMemo<Piece[]>(() => {
     const list: Piece[] = [];
@@ -159,15 +166,21 @@ export function GoldenLivingNestStage({
   }
 
   return (
-    <div className="mx-auto w-full" style={{ maxWidth: "min(94vw, 460px)" }}>
+    <div className={fill ? "w-full" : "mx-auto w-full"} style={fill ? undefined : { maxWidth: "min(94vw, 460px)" }}>
       <style>{STAGE_CSS}</style>
       <div
-        className="living-scene relative overflow-hidden rounded-[28px] border border-ink/10 shadow-xl"
-        style={{ aspectRatio: aspectRatioCss(template.aspectRatio) }}
+        className={`living-scene relative overflow-hidden ${fill ? "rounded-none border-0 shadow-none" : "rounded-[28px] border border-ink/10 shadow-xl"}`}
+        // `transparent` overlays the stage on a parent-crop base (M7C.6/M7C.7): the
+        // `.living-scene` beige is a `background` SHORTHAND (a gradient IMAGE), so an inline
+        // `background: transparent` is required to clear it — a `background-color` reset
+        // (the old `!bg-transparent`) leaves the gradient image opaque and HIDES the base.
+        style={{ aspectRatio: aspectRatioCss(template.aspectRatio), ...(transparent ? { background: "transparent" } : null) }}
       >
-        <div className="absolute inset-0 living-bg-fallback" aria-hidden />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img ref={bgRef} src={template.backgroundImageUrl} alt="" aria-hidden style={{ opacity: bgFailed ? 0 : 1 }} className="absolute inset-0 h-full w-full object-cover" onError={() => setBgFailed(true)} />
+        {transparent ? null : <div className="absolute inset-0 living-bg-fallback" aria-hidden />}
+        {transparent ? null : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img ref={bgRef} src={template.backgroundImageUrl} alt="" aria-hidden style={{ opacity: bgFailed ? 0 : 1 }} className="absolute inset-0 h-full w-full object-cover" onError={() => setBgFailed(true)} />
+        )}
 
         {ambience ? (
           <div className="pointer-events-none absolute inset-0 mix-blend-soft-light living-ambience" style={{ backgroundColor: ambience.tint, opacity: Math.min(0.6, ambience.intensity) }} aria-hidden />

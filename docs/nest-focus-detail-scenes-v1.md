@@ -1,5 +1,24 @@
 # Nest Focus Areas & Detail Scenes V1 (M7C)
 
+> **Refined by M7C.1 (the Hybrid Focus system) — see
+> [nest-hybrid-focus-v1.md](nest-hybrid-focus-v1.md) and ADR-030.** The single "every
+> focus opens another room" model below is now one of **two** target types: a **Detail
+> Surface** (this document) for perspective/composition close-ups, and a **Zoom Region**
+> for content that already exists in the Main Nest and only needs to be enlarged (true
+> crop zoom, no new scene). Pre-M7C.1 `targetSceneId` detail links migrate automatically
+> to `detail_surface`; everything below still holds for that target type.
+
+> **M7C.6 (ADR-031) note:** a Focus Area is now an **entrance to a child editable scene** —
+> the parent defines the entrance rectangle; the child scene (a `NestDetailScene`,
+> `sceneType:"focus"`, `parent_crop` base) has its own local objects/hotspots/areas. The
+> Detail-Scene machinery described here *is* that child-scene storage + editor; M7C.6 adds
+> the scene-graph abstraction, the editor "Enter area" flow, and the persistence fix.
+
+> **M7C.4 (V1) note:** a `zoom_region` Focus Area is now ONE creator-authored fixed-ratio
+> rectangle (`focusBounds`) and the visitor zoom is an **in-place** cinematic transform of
+> the existing stage (no modal/duplicate stage). **Detail surfaces (`detail_surface`)
+> described below remain a separate architecture** (a real scene swap) — unchanged.
+
 > M7C proves Nestudio's next major experience: a visitor enters a full Nest, taps a
 > meaningful area (a desk), transitions into an authored close-up **Detail Scene**,
 > interacts with smaller objects there, and returns to the Main Nest. Internal routes:

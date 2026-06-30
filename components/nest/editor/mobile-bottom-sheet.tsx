@@ -49,6 +49,10 @@ export interface MobileBottomSheetProps {
   /** Optional per-snap visible fractions override. */
   visible?: VisibleOverrides;
   className?: string;
+  /** Explicit stacking (M7C.5 layer model). Overrides the default z-10/z-0 so the drawer
+   *  can sit ABOVE canvas authoring overlays. Defaults preserve prior behaviour. */
+  sheetZIndex?: number;
+  backdropZIndex?: number;
 }
 
 export function MobileBottomSheet({
@@ -65,6 +69,8 @@ export function MobileBottomSheet({
   children,
   visible,
   className = "",
+  sheetZIndex,
+  backdropZIndex,
 }: MobileBottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -185,7 +191,7 @@ export function MobileBottomSheet({
           tabIndex={-1}
           onClick={() => shouldDismiss("backdrop", dismissible) && onClose()}
           className={`absolute inset-0 z-0 ${backdrop === "scrim" ? "bg-ink/30" : "bg-transparent"} ${noMotion ? "" : "transition-opacity"}`}
-          style={{ cursor: dismissible ? "pointer" : "default" }}
+          style={{ cursor: dismissible ? "pointer" : "default", zIndex: backdropZIndex }}
         />
       ) : null}
       <div
@@ -202,6 +208,7 @@ export function MobileBottomSheet({
           transition: sheetTransition(noMotion, Boolean(dragging.current)),
           paddingBottom: "env(safe-area-inset-bottom)",
           touchAction: "none",
+          zIndex: sheetZIndex,
         }}
       >
         {/* Grab handle (drag to change snap, tap to cycle) */}

@@ -63,6 +63,10 @@ type Props = {
   /** Advanced authoring: show hotspot move/resize handles. */
   hotspotAuthoring?: boolean;
   onHotspotsCommit?: (hotspots: NestAssetHotspot[]) => void;
+  /** M7C.7: a custom (read-only) background layer — the transformed parent-crop base for a
+   *  child Focus Scene. When set it REPLACES the flat `backgroundImageUrl` image, so the
+   *  child editor is authored over the exact parent crop the visitor sees. */
+  backgroundNode?: React.ReactNode;
 };
 
 type Gesture =
@@ -322,8 +326,14 @@ export function EditorCanvas(props: Props) {
             }
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={doc.backgroundImageUrl} alt="" data-bg="1" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
+          {props.backgroundNode ? (
+            // Transformed parent-crop base (child Focus Scene). pointer-events-none so taps on
+            // empty space fall through to the scene container and clear the selection.
+            <div data-bg="1" aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">{props.backgroundNode}</div>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={doc.backgroundImageUrl} alt="" data-bg="1" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
+          )}
           {ambience ? <div className="pointer-events-none absolute inset-0 mix-blend-soft-light" style={{ backgroundColor: ambience.tint, opacity: Math.min(0.45, ambience.intensity) }} aria-hidden /> : null}
           {showGrid ? <GridGuides cols={gridCols} rows={gridRows} /> : null}
           {gestureRef.current && guidesRef.current.length ? <AlignGuides guides={guidesRef.current} /> : null}

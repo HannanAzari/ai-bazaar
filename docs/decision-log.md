@@ -1376,6 +1376,106 @@ control) and is the wrong primitive.
 
 ---
 
+## ADR-030 — Hybrid Focus: Zoom Region + Detail Surface, with a measured resolution audit
+
+**Status:** Accepted · 2026-06-30 · **refines ADR-029** (does not supersede it). Master doc:
+[nest-hybrid-focus-v1.md](nest-hybrid-focus-v1.md).
+
+### Context
+ADR-029's structured navigation modelled every Focus Area as opening a separately authored
+**Detail Scene**. That is wrong for content that already exists in the Main Nest and only
+needs to be **enlarged** (a bookshelf, a TV console, a frame): re-authoring a whole room
+adds nothing and the generic "desk room" read as a wide room with a desk pasted in. But
+some surfaces genuinely cannot be revealed by zooming a front-facing scene (a desk top) —
+there the *camera*, not the resolution, is the problem.
+
+### Decision
+A Focus Area resolves to one of **two target types**, additively on the same
+`NestFocusArea`:
+- **`zoom_region`** — CSS-transform a normalized **crop** of the *existing* Main scene so it
+  fills the viewport (uniform scale `min(1/cropW,1/cropH)` recentred; no scene swap, no
+  second renderer). Carries crop bounds, optional crop-local child objects/hotspots (active
+  only after focus), a resolution strategy, and progressive `imageSources`.
+- **`detail_surface`** — the ADR-029 Detail Scene (now used for perspective/composition
+  close-ups). Legacy `targetSceneId` links migrate to this type automatically.
+
+Before any artwork is replaced, a **pure, deterministic resolution audit**
+([`lib/nest-focus-resolution.ts`](../lib/nest-focus-resolution.ts)) measures source pixels
+in a crop vs. display pixels after zoom → a `sourcePixelsPerDisplayPixel` ratio → a verdict
+(`excellent ≥1 · acceptable ≥0.66 · soft ≥0.4 · unusable`) → a strategy
+(`reuse_source · reuse_source_with_child_assets · load_high_res_variant ·
+use_detail_surface`). A `highResolutionUrl` contract exists but is **undefined in M7C.1**.
+
+### Alternatives considered
+- **Keep one Detail-Scene model for everything** — rejected: wasteful re-authoring; the
+  generic desk room looked wrong.
+- **Browser/CSS pinch-zoom of the raw scene** — rejected: no child interactions, no control
+  over the crop, exposes the lowest-res layer.
+- **Assume small assets are low-res and regenerate art** — rejected: the *measured* audit
+  shows the existing cut-outs stay crisp under the capped stage; no replacement is needed.
+- **A separate zoom renderer / WebGL** — rejected: a CSS transform on the existing stage
+  meets the bar (no white flash, reduced-motion fade, reversible).
+
+### Consequences
+- (+) The right tool per case; existing artwork is **reused on evidence**, not guessed;
+  fully backward-compatible (pre-M7C.1 docs migrate on read).
+- (+) Deterministic, unit-tested core (32 new tests, 484 total); honest fixtures never link
+  a trigger to an absent object (TV/Frame on the living nest; Bookshelf/Desk on a studio
+  example main).
+- (−) A dedicated shallow tabletop background asset and the full in-canvas zoom-vs-surface
+  authoring picker remain follow-ups; high-resolution variants are contract-only.
+
+---
+
+## ADR-031 — Focus Areas are entrances to nested editable scenes
+
+**Status:** Accepted · 2026-07-01 · **refines ADR-029/ADR-030** (keeps the M7C.4 fixed-ratio
+cinematic transition; does not discard it). Master doc:
+[nest-hybrid-focus-v1.md](nest-hybrid-focus-v1.md).
+
+### Context
+Through M7C.1–5 a Focus Area drifted into a *preview/crop* feature: the creator could size a
+fixed-ratio rectangle and preview the zoom, but could not **work inside** the focused view —
+add small assets, hotspots or nested content. Editor-authored areas also failed to appear in
+Preview/visitor (a filter required a `zoomRegion` payload they never had).
+
+### Decision
+A Focus Area is an **entrance from one editable Nest scene into a child editable scene.** The
+parent defines the entrance rectangle (`focusBounds`, fixed ratio); the child scene
+(`NestDetailScene`, `sceneType:"focus"`, `backgroundSource:{type:"parent_crop"}`) inherits a
+**transformed view of the parent** as its read-only visual base and owns its own local
+objects, hotspots, interactions and (recursively) child Focus Areas. The **same editor and
+visitor navigator** operate on the scene graph:
+- editor **"Enter area"** (`ensureFocusChildScene` + active-scene switch) opens the child in
+  Edit mode with Arrange/Assets/Connect; **Back** returns directly to the parent editor;
+- the **visitor** taps the area → in-place cinematic transform to the child scene (parent
+  crop base + child objects on top); Back pops one scene level;
+- a pure **scene stack** (`enterEditorScene`/`exitEditorScene`/…, `MAX_FOCUS_DEPTH = 3`)
+  models nesting deterministically (one technical level beyond Main works fully in V1;
+  deeper is exercised in pure logic).
+
+The **release-blocker fix**: a zoom/entrance area is visitable with only a valid
+`focusBounds` (`isVisitableFocusArea`) — `zoomRegion` is no longer required.
+
+### Alternatives considered
+- **Replace the document shape with `scenes: Record<…>`** — rejected for V1: the existing
+  `detailScenes` storage + detail-scene editor already implement "editable child scene";
+  building the scene-graph *abstraction* (`getEditorScene` / scene stack / `childSceneId`)
+  over it preserves all persistence, history and ~547 tests.
+- **Keep "Preview focus"** — rejected: it returned through Preview-Main, not the authoring
+  context; superseded by **"Enter area"** (an edit context).
+- **Generate a second background image per child** — rejected: the child base is the parent
+  transformed (`parent_crop`), no new art.
+
+### Consequences
+- (+) Focus is real scene authoring; authored areas now persist + appear in Preview/visitor;
+  the same editor + navigator drive both; fully back-compatible (legacy migrates via
+  `ensureFocusChildScene` / `migrateDocumentToSceneGraph`).
+- (−) V1 active nesting is one level (Main → Focus) in the UI; deeper nesting + the exact
+  parent-crop base **inside the editor canvas** (the visitor already shows it) are follow-ups.
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that
