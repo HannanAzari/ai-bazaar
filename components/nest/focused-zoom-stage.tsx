@@ -38,6 +38,7 @@ export function CinematicFocusStage({
   transitionMs = 540,
   reduced = false,
   card = true,
+  focusOverlay,
   children,
 }: {
   stage: StagePair;
@@ -57,6 +58,8 @@ export function CinematicFocusStage({
   reduced?: boolean;
   /** Render the Nest card chrome (rounded/border/shadow). */
   card?: boolean;
+  /** M7C.8: inherited parent interaction proxies — above the child stage, below chrome. */
+  focusOverlay?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
@@ -85,6 +88,9 @@ export function CinematicFocusStage({
           <GoldenLivingNestStage template={childStage.template} assetsById={assetsById} interactionsById={interactionsById} composed={childStage.composed} debugHotspots={debug} fill transparent />
         </div>
       ) : null}
+      {/* Inherited parent interaction proxies (M7C.8) — above native child objects' container
+       *  but pointer-events-none except for precise hotspots; below the focus chrome. */}
+      {focusOverlay}
       {children}
     </div>
   );

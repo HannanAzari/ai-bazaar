@@ -4,6 +4,9 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { GoldenLivingNestStage } from "@/components/nest/golden-living-nest-stage";
 import { CinematicFocusStage } from "@/components/nest/focused-zoom-stage";
+import { ProjectedFocusChildren } from "@/components/nest/projected-focus-children";
+import { InheritedInteractionLayer } from "@/components/nest/inherited-interaction-layer";
+import { resolveInheritedFocusObjects } from "@/lib/nest-focus-projection";
 import type { Interaction } from "@/lib/nest-types";
 import type { LivingNestAsset, LivingNestTemplate } from "@/lib/nest-visual-types";
 import type { EditableNestDocument } from "@/lib/nest-editor-types";
@@ -377,7 +380,16 @@ export function NestSceneNavigator({ doc, assetsById, interactionsById, baseTemp
           debug={debug}
           reduced={reduced}
           transitionMs={dur}
+          focusOverlay={
+            zoomActive && zoomChildSceneId ? (
+              <InheritedInteractionLayer objects={resolveInheritedFocusObjects(doc, zoomChildSceneId)} mode="preview" debug={debug} />
+            ) : null
+          }
         >
+          {/* Main-Nest read-only projection of child Focus-Scene objects (M7C.8). Behind the
+              focus triggers, so a tap on a projected child enters its Focus Area (focus-first). */}
+          {!zoomActive ? <ProjectedFocusChildren doc={doc} assetsById={assetsById} mode="visitor" debug={debug} /> : null}
+
           {/* Main-scene FOCUS-FIRST trigger regions (the rect = focusBounds). Hidden while focused. */}
           {!zoomActive
             ? enabledFocusAreas.map((f, i) => {

@@ -77,6 +77,23 @@ export interface EditableNestObject {
   /** Authoring scale reference (× avatar height) — informational. */
   scaleRef?: number;
   contactShadow?: boolean;
+
+  /**
+   * M7C.8: when this object lives in a child Focus Scene, whether it is also rendered as a
+   * read-only projection back in the Main Nest (at the matching small position inside the
+   * Focus Area). Absent ⇒ treated as `{ showInParent: true }` (default-on for child assets,
+   * so existing documents project with no migration). Ignored for Main/native objects.
+   */
+  projection?: ChildProjectionPolicy;
+}
+
+/** M7C.8 — how a child Focus-Scene object projects back into its parent (Main) scene. */
+export interface ChildProjectionPolicy {
+  /** Render a read-only projection of this object in the parent scene. */
+  showInParent: boolean;
+  /** `always` (default) shows in both editor + visitor; `preview_only` shows only in the
+   *  visitor experience (hidden from the Main authoring canvas). */
+  parentVisibility?: "always" | "preview_only";
 }
 
 /**

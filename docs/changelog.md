@@ -8,6 +8,35 @@ for technical detail.
 
 ---
 
+## 2026-07-01 — M7C.8 — Inherited parent interactions & child→Main projection
+
+Additive over the M7C.6/7 Focus Scene chain — **no data-model redesign, no new scene types,
+no artwork**. Two derived (never-persisted) views cross the Focus boundary via one shared
+transform (`lib/nest-focus-projection.ts`, the exact inverse of the cinematic crop):
+**(A)** parent objects intersecting a Focus Area are surfaced inside the child scene as
+read-only **interaction proxies** (Strategy A — zero-opacity hit regions over the flattened
+crop, no duplicated art); the child scene may store a per-hotspot **content-binding
+override** (`inheritedBindings`, child override beats parent, else inherit). **(B)** native
+child objects render back in Main as a read-only **projection** clipped to the Focus Area
+(`projection` policy, default-on), above Main objects + below focus triggers so a tap enters
+the Focus Area (**focus-first**). Reused the binding sheet for overrides; new
+`ProjectedFocusChildren` + `InheritedInteractionLayer`. One nesting level; broken refs fail
+safe; export/import/undo-redo preserved. 590 tests; production-build flow verified
+(inherited TV → child-override video over the persistent crop; child plant projected onto
+the console in Main + visitor). Additive design note in
+[nest-focus-detail-scenes-v1.md](nest-focus-detail-scenes-v1.md) (no new ADR).
+
+## 2026-07-01 — M7C.7 — Fix child-scene visual base & preview disappearance
+
+Release-blocker repair on the M7C.6 chain. The child editor fell back to the flat Main
+background (empty room) and the Preview crop vanished after the transition. Fixes: the editor
+canvas renders the **transformed parent crop** via a shared `FocusedParentBase` (used during
+the animation, after it settles, and in the editor); the transparent overlay clears its
+gradient **background-image** (not just `background-color`) so it can never cover the base;
+`resolveFocusSceneBase` resolves the base or an explicit error state (never a blank room).
+569 tests; production-build screenshots prove the full Enter/edit/Preview/Back flow. No new
+art.
+
 ## 2026-07-01 — M7C.6 — Focus Areas become nested editable scene contexts (ADR-031)
 
 Controlled architecture refinement: a Focus Area is an **entrance from one editable Nest

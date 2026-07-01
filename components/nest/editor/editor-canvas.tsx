@@ -67,6 +67,9 @@ type Props = {
    *  child Focus Scene. When set it REPLACES the flat `backgroundImageUrl` image, so the
    *  child editor is authored over the exact parent crop the visitor sees. */
   backgroundNode?: React.ReactNode;
+  /** M7C.8: a read-only overlay above the objects, below the authoring chrome — used for
+   *  Main-Nest projections of child objects, and for inherited interaction proxies. */
+  foregroundNode?: React.ReactNode;
 };
 
 type Gesture =
@@ -362,6 +365,9 @@ export function EditorCanvas(props: Props) {
               </button>
             );
           })}
+
+          {/* Read-only foreground overlay (M7C.8: Main projections / inherited proxies). */}
+          {props.foregroundNode}
 
           {/* Arrange chrome (hidden in Connect mode) */}
           {!connect && selected && !selected.hidden ? <TransformFrame o={selected} asset={selectedAsset} advanced={advanced} onHandleDown={onHandleDown} /> : null}

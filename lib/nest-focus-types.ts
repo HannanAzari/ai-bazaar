@@ -19,7 +19,7 @@
 // `editorDocumentToStage` → `GoldenLivingNestStage` with no second engine.
 
 import type { EditableNestObject } from "@/lib/nest-editor-types";
-import type { NestAssetHotspot } from "@/lib/nest-hotspot-types";
+import type { NestAssetHotspot, NestHotspotContentBinding } from "@/lib/nest-hotspot-types";
 
 export type NestSceneKind = "main" | "detail";
 
@@ -240,6 +240,15 @@ export interface NestDetailScene {
   sceneType?: EditableSceneType;
   /** M7C.6: the child scene's visual base (parent_crop for Focus Scenes). */
   backgroundSource?: SceneBackgroundSource;
+
+  /**
+   * M7C.8: child-scene CONTENT-BINDING OVERRIDES for INHERITED parent hotspots. Keyed by
+   * `${parentObjectId}::${hotspotId}`. The child scene never owns the parent object's
+   * geometry/art (those stay in the parent) — it may only override what an inherited
+   * hotspot links to inside this Focus Scene. Absent / no entry ⇒ inherit the parent
+   * hotspot's own binding. See `inheritedBindingKey` / `resolveInheritedHotspotBinding`.
+   */
+  inheritedBindings?: Record<string, NestHotspotContentBinding>;
 
   backgroundImageUrl?: string;
   viewport: NestSceneViewport;

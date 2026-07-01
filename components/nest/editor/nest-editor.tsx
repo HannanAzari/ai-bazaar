@@ -82,6 +82,9 @@ import {
 } from "@/lib/nest-focus-scenes";
 import { NestSceneNavigator } from "@/components/nest/nest-scene-navigator";
 import { FocusedParentBase } from "@/components/nest/focused-zoom-stage";
+import { ProjectedFocusChildren } from "@/components/nest/projected-focus-children";
+import { InheritedInteractionLayer } from "@/components/nest/inherited-interaction-layer";
+import { resolveInheritedFocusObjects, setInheritedHotspotBinding } from "@/lib/nest-focus-projection";
 import { Maximize2 } from "lucide-react";
 
 /** A default fixed-ratio (square = 3:4 on-screen) focus rectangle for new areas. */
@@ -115,6 +118,10 @@ export function NestEditor() {
   // M7C: which scene is being edited (the main id, or a detail-scene id) + focus selection.
   const [activeSceneId, setActiveSceneId] = useState<string>("");
   const [selectedFocusId, setSelectedFocusId] = useState<string | undefined>(undefined);
+  // M7C.8: in a child Focus Scene's Connect mode, the selected INHERITED parent object/
+  // hotspot (for authoring a child binding override). Mutually exclusive with `selectedId`.
+  const [selectedInheritedId, setSelectedInheritedId] = useState<string | undefined>(undefined);
+  const [selectedInheritedHotspotId, setSelectedInheritedHotspotId] = useState<string | undefined>(undefined);
   // M7C.5: Preview uses the real NestSceneNavigator. `previewFocusId` (set by the Focus
   // sheet's "Preview focus" shortcut) auto-enters that area through the same navigator.
   const [previewFocusId, setPreviewFocusId] = useState<string | undefined>(undefined);
@@ -173,6 +180,52 @@ export function NestEditor() {
       />
     );
   }, [isMainActive, activeScene, doc, activeSceneId]);
+
+  // M7C.8: inherited parent objects (read-only interaction proxies) for the active child
+  // Focus Scene, and the read-only overlay drawn over the canvas (Main projections in the
+  // Main scene; inherited proxies while authoring a child's Connect mode).
+  const inheritedObjects = useMemo(
+    () => (!isMainActive && activeScene?.backgroundSource?.type === "parent_crop" ? resolveInheritedFocusObjects(doc, activeSceneId) : []),
+    [isMainActive, activeScene, doc, activeSceneId],
+  );
+  const selectedInherited = inheritedObjects.find((o) => o.derivedId === selectedInheritedId);
+
+  const onSelectInherited = (derivedId: string, hotspotId?: string) => {
+    setSelectedId(undefined);
+    setSelectedHotspotId(undefined);
+    setSelectedInheritedId(derivedId);
+    setSelectedInheritedHotspotId(hotspotId);
+  };
+  // Apply binding edits from the reused HotspotBindingSheet onto INHERITED hotspots: write a
+  // child-scene override when the chosen binding differs from the parent's, else clear it.
+  // Geometry/enable/lock changes are ignored — inherited geometry stays read-only (V1 rule).
+  const commitInheritedBindings = (hotspots: NestAssetHotspot[]) => {
+    if (!selectedInherited) return;
+    const parentObj = doc.objects.find((o) => o.instanceId === selectedInherited.parentObjectId);
+    const now = new Date().toISOString();
+    let next = doc;
+    for (const h of hotspots) {
+      const parentBinding = parentObj?.hotspots?.find((p) => p.id === h.id)?.binding;
+      const sameAsParent = JSON.stringify(h.binding ?? null) === JSON.stringify(parentBinding ?? null);
+      next = setInheritedHotspotBinding(next, activeSceneId, selectedInherited.parentObjectId, h.id, sameAsParent ? undefined : h.binding, now);
+    }
+    commit(next);
+  };
+
+  // The read-only foreground overlay for the canvas.
+  const foregroundNode = isMainActive ? (
+    <ProjectedFocusChildren doc={doc} assetsById={ASSETS} mode="editor" />
+  ) : mode === "connect" && inheritedObjects.length ? (
+    <InheritedInteractionLayer objects={inheritedObjects} mode="connect" selectedObjectId={selectedInheritedId} selectedHotspotId={selectedInheritedHotspotId} onSelect={onSelectInherited} />
+  ) : undefined;
+
+  // Inherited selection only exists inside a child scene's Connect mode.
+  useEffect(() => {
+    if (isMainActive || mode !== "connect") {
+      setSelectedInheritedId(undefined);
+      setSelectedInheritedHotspotId(undefined);
+    }
+  }, [isMainActive, mode, activeSceneId]);
 
   const selected = selectedId ? activeDoc.objects.find((o) => o.instanceId === selectedId) : undefined;
   const selectedAsset = selected ? ASSETS[selected.assetId] : undefined;
@@ -476,7 +529,7 @@ export function NestEditor() {
               assetsById={ASSETS}
               ambience={ambience}
               selectedId={mode === "focus" ? undefined : selectedId}
-              onSelect={setSelectedId}
+              onSelect={(id) => { setSelectedId(id); if (id) { setSelectedInheritedId(undefined); setSelectedInheritedHotspotId(undefined); } }}
               onCommit={commitActive}
               showGrid={caps.showDebug && showGrid}
               snap={caps.showDebug && snap}
@@ -493,6 +546,7 @@ export function NestEditor() {
               hotspotAuthoring={mode === "connect" && caps.authorHotspots}
               onHotspotsCommit={commitHotspots}
               backgroundNode={backgroundNode}
+              foregroundNode={foregroundNode}
             />
 
             {/* Focus mode authoring overlay (Main scene only) — one fixed-ratio rectangle.
@@ -535,7 +589,33 @@ export function NestEditor() {
 
             {/* Connect hint / binding sheet — shared bottom sheet (canvas stays interactive) */}
             {mode === "connect" ? (
-              selected ? (
+              selectedInherited ? (
+                // Inherited parent object: same binding UI, but commits a CHILD OVERRIDE.
+                // `advanced={false}` keeps geometry/add/delete hidden (geometry is read-only).
+                <HotspotBindingSheet
+                  object={{
+                    instanceId: selectedInherited.derivedId,
+                    assetId: selectedInherited.assetId,
+                    x: selectedInherited.childBounds.x,
+                    y: selectedInherited.childBounds.y,
+                    width: selectedInherited.childBounds.width,
+                    height: selectedInherited.childBounds.height,
+                    anchor: { x: 0.5, y: 1 },
+                    plane: "front_wall",
+                    zIndex: selectedInherited.zIndex,
+                    hotspots: selectedInherited.hotspots,
+                    locked: true,
+                  }}
+                  assetName={`${ASSETS[selectedInherited.assetId]?.name ?? selectedInherited.assetId} · inherited`}
+                  selectedHotspotId={selectedInheritedHotspotId}
+                  advanced={false}
+                  snap={connectSnap}
+                  onSnapChange={setConnectSnap}
+                  onSelectHotspot={setSelectedInheritedHotspotId}
+                  onCommit={commitInheritedBindings}
+                  onClose={() => { setSelectedInheritedId(undefined); setSelectedInheritedHotspotId(undefined); }}
+                />
+              ) : selected ? (
                 <HotspotBindingSheet
                   object={selected}
                   assetName={ASSETS[selected.assetId]?.name ?? selected.assetId}
@@ -549,7 +629,7 @@ export function NestEditor() {
                 />
               ) : (
                 <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-teal/30 bg-parchment/95 px-4 py-2 text-xs font-bold text-ink/70 shadow">
-                  Tap an object to connect its interactions
+                  Tap an object{inheritedObjects.length ? " (or the TV/frame in the crop)" : ""} to connect its interactions
                 </div>
               )
             ) : null}

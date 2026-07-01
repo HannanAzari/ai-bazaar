@@ -192,6 +192,60 @@ Deliberately recorded, **not fixed** in M7C (they do not block the feature chain
   covered by **pure unit tests of their decision helpers** plus browser verification — the
   test runner is node-only by design.
 
+## M7C.7 design note — permanent parent-crop visual base (additive)
+
+A child Focus Scene's visual base is the **parent scene transformed to the area's
+`focusBounds`** (`backgroundSource: { type: "parent_crop", parentSceneId, focusBounds }`).
+One shared renderer — `FocusedParentBase` ([`components/nest/focused-zoom-stage.tsx`](../components/nest/focused-zoom-stage.tsx)) —
+draws that base **during the cinematic animation, after it settles, and in the child
+editor**, so the authored crop is pixel-identical to the visited crop. The editor canvas
+takes it as `backgroundNode` instead of the flat Main background; `resolveFocusSceneBase`
+([`lib/nest-focus-scenes.ts`](../lib/nest-focus-scenes.ts)) resolves it (or an explicit
+error state for a broken parent — never a blank room). The transparent child overlay clears
+its gradient **background-image** (not just `background-color`) so it can never cover the
+base. See [`test/nest-focus-visual-base.test.ts`](../test/nest-focus-visual-base.test.ts).
+
+## M7C.8 design note — inherited parent interactions & child→Main projection (additive)
+
+Two derived, **never-persisted** views flow across the Focus boundary. One shared transform
+([`lib/nest-focus-projection.ts`](../lib/nest-focus-projection.ts)) backs rendering,
+hit-testing and tests; it is the exact inverse of the renderer's cinematic crop transform
+(child-local `(cx,cy)` ↔ parent `focus.origin + c·focus.size`).
+
+**A. Inherited parent objects (interaction proxies).** Parent objects that **intersect** the
+Focus Area are surfaced inside the child scene as read-only proxies (`resolveInheritedFocusObjects`).
+**Strategy A**: the parent art is already in the flattened crop base, so proxies draw **no
+art** — only zero-opacity hit regions carrying the parent's asset-local hotspots, aligned by
+the same transform (`InheritedInteractionLayer`). Geometry/art stay owned by the **parent**;
+the child scene may store only a **content-binding override** per inherited hotspot
+(`NestDetailScene.inheritedBindings`, keyed `parentObjectId::hotspotId`). Resolution: child
+override **beats** parent binding; absent override **falls back** to the parent's. In Connect
+the creator selects an inherited hotspot and authors that override through the same binding
+sheet (`advanced=false`, so geometry stays read-only).
+
+**B. Child → Main projection.** Native child objects render back in the Main Nest as a
+read-only projection (`projectChildObjectsToMain`) inside a `focusBounds` container with
+`overflow:hidden` — so each child is placed by its child-local box and **clipped** to the
+Focus Area, never spilling out. No second object is persisted; the child scene stays the
+sole owner. Policy: `EditableNestObject.projection` (`{ showInParent, parentVisibility }`);
+absent ⇒ default-on. The projection layer is `pointer-events:none` and sits **above** Main
+objects but **below** focus triggers, so a tap on a projected child enters its Focus Area
+(**focus-first**). `ProjectedFocusChildren` renders it in both the editor Main canvas and the
+visitor navigator.
+
+**Ownership / precedence / limits.** Native child objects own overlaps; precise inherited
+hotspots capture their exact sub-region (container is pointer-events-none). Overlapping
+Focus Areas resolve by `priority` then document order (existing `resolveMainScenePointerAction`).
+**One nesting level only**: depth-1 Focus Scenes whose parent is Main project/inherit;
+deeper nesting is ignored. No persisted object is ever duplicated; no artwork is generated.
+Tests: [`test/nest-focus-projection.test.ts`](../test/nest-focus-projection.test.ts).
+
+**Known limitations.** The flattened base still renders the parent's hotspot `<button>`s in
+the DOM (inert via `pointer-events:none`, but reachable by keyboard Tab and announced); a
+future pass can render the base non-interactively. Inherited interactions surface the
+binding (link/drawer) rather than re-running the parent's animated effect on the flattened
+base.
+
 ## Deferred beyond M7C
 
 Nested `Detail → Detail` scenes, endless/recursive zoom, puzzle authoring, multiplayer, AI
