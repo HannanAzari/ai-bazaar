@@ -52,7 +52,11 @@ export const EDITOR_GUARDRAILS: Partial<Record<LivingNestSlotType, EditorGuardra
   side_table: { allowedPlanes: FLOOR, minWidth: 0.1, maxWidth: 0.25, recommendedWidth: 0.17, boxAspect: 1.6, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: false },
   speaker: { allowedPlanes: FLOOR_SIDES, minWidth: 0.06, maxWidth: 0.16, recommendedWidth: 0.1, boxAspect: 0.7, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
   // Bookshelf — upright furniture, no rotation; loose books / small decor rotate freely.
-  shelf: { allowedPlanes: FLOOR, minWidth: 0.12, maxWidth: 0.3, recommendedWidth: 0.18, boxAspect: 0.357, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
+  // boxAspect is scene-normalized (nw/nh) so the box's PIXEL aspect on the 3:4 stage matches
+  // the art: pixelAspect = boxAspect·(3/4). The bookshelf cut-out is 535×1499 (pixel aspect
+  // 0.357), so boxAspect = 0.357·(4/3) ≈ 0.476. (M7C.9: was 0.357 — the raw art aspect —
+  // which over-tallened the box, letterboxing the art and floating the shelf hotspots.)
+  shelf: { allowedPlanes: FLOOR, minWidth: 0.12, maxWidth: 0.3, recommendedWidth: 0.18, boxAspect: 0.476, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
   books: { allowedPlanes: ["floor", "foreground"], minWidth: 0.06, maxWidth: 0.18, recommendedWidth: 0.1, boxAspect: 1.748, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: false, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
 };
 

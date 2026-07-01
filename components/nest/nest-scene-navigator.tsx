@@ -79,6 +79,9 @@ export function NestSceneNavigator({ doc, assetsById, interactionsById, baseTemp
   const [nav, setNav] = useState<NestNavigationState>({ currentSceneId: main, transitionState: "idle" });
   // Zoom-region state (M7C.1) — does NOT swap scenes; transforms the Main stage.
   const [zoom, setZoom] = useState<{ fa: NestFocusArea; phase: ZoomPhase } | null>(null);
+  // M7C.9: on/glow/play state for INHERITED parent objects in the focus view, keyed by the
+  // parent object (base slot) id — so the read-only crop shows the same TV/frame feedback.
+  const [inheritedFx, setInheritedFx] = useState<Record<string, boolean>>({});
   // Discovery state (M7C.2): a single transient first-visit hint, suppressed after the
   // first focus entry. No persistent visitor CTA.
   const [hasFocusedOnce, setHasFocusedOnce] = useState(false);
@@ -182,6 +185,7 @@ export function NestSceneNavigator({ doc, assetsById, interactionsById, baseTemp
       if (lockRef.current || !zoom) return;
       lockRef.current = true;
       setZoom((z) => (z ? { ...z, phase: "exiting" } : null));
+      setInheritedFx({}); // clear inherited on/glow state when leaving the focus view
       if (popHistory && typeof window !== "undefined") {
         try {
           window.history.back();
@@ -380,9 +384,15 @@ export function NestSceneNavigator({ doc, assetsById, interactionsById, baseTemp
           debug={debug}
           reduced={reduced}
           transitionMs={dur}
+          baseActiveOverrides={inheritedFx}
           focusOverlay={
             zoomActive && zoomChildSceneId ? (
-              <InheritedInteractionLayer objects={resolveInheritedFocusObjects(doc, zoomChildSceneId)} mode="preview" debug={debug} />
+              <InheritedInteractionLayer
+                objects={resolveInheritedFocusObjects(doc, zoomChildSceneId)}
+                mode="preview"
+                debug={debug}
+                onEffectToggle={(pid) => setInheritedFx((s) => ({ ...s, [pid]: !s[pid] }))}
+              />
             ) : null
           }
         >

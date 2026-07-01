@@ -28,6 +28,7 @@ export function InheritedInteractionLayer({
   selectedObjectId,
   selectedHotspotId,
   onSelect,
+  onEffectToggle,
 }: {
   objects: InheritedFocusObject[];
   mode: "preview" | "connect";
@@ -37,6 +38,8 @@ export function InheritedInteractionLayer({
   selectedHotspotId?: string;
   /** Connect: select an inherited object (+ optional hotspot) for binding authoring. */
   onSelect?: (derivedId: string, hotspotId?: string) => void;
+  /** Preview (M7C.9): toggle the parent object's on/glow/play visual on the crop base. */
+  onEffectToggle?: (parentObjectId: string) => void;
 }) {
   const [picked, setPicked] = useState<{ name: string; href?: string; label?: string } | null>(null);
   if (objects.length === 0) return null;
@@ -67,7 +70,11 @@ export function InheritedInteractionLayer({
                   onClick={(e) => {
                     e.stopPropagation();
                     if (mode === "connect") onSelect?.(o.derivedId, h.id);
-                    else setPicked({ name: h.name, href: h.binding?.url, label: h.binding?.label ?? h.semantic });
+                    else {
+                      // Show the same on/glow/play visual as Main (toggle) + surface the binding.
+                      onEffectToggle?.(o.parentObjectId);
+                      setPicked({ name: h.name, href: h.binding?.url, label: h.binding?.label ?? h.semantic });
+                    }
                   }}
                   aria-label={h.ariaLabel ?? h.name}
                   className={`pointer-events-auto absolute ${ellipse ? "rounded-full" : "rounded-[4px]"} ${

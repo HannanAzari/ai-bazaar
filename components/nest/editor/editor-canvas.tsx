@@ -15,7 +15,7 @@ import {
   Trash2,
   Unlock,
 } from "lucide-react";
-import type { NestAmbiencePreset } from "@/lib/nest-types";
+import type { NestAmbiencePreset, NormalizedRect } from "@/lib/nest-types";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import { aspectRatioCss } from "@/lib/nest-render";
 import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor-types";
@@ -28,6 +28,7 @@ import { visibleRect } from "@/lib/nest-visual-bounds";
 import { computeAlignment, type AlignGuide } from "@/lib/nest-align";
 import { hitTestCandidates, nextSelection, type TapCycleState } from "@/lib/nest-editor-hit-testing";
 import { EDITOR_TOUCH_TARGETS } from "@/lib/nest-editor-touch-targets";
+import { contextToolbarPlacement, type ToolbarPlacement } from "@/lib/nest-editor-toolbar";
 
 // The mobile editor canvas (Arrange mode). Pointer Events drive a unified gesture
 // model — one finger moves, two fingers pinch-resize + twist-rotate (when policy
@@ -305,7 +306,24 @@ export function EditorCanvas(props: Props) {
     setPicker({ nx, ny, ids: (candidates.length ? candidates : [{ objectId: selected.instanceId }]).map((c) => c.objectId) });
   }
 
-  const barAbove = selected ? selected.y > 0.16 : true;
+  // Contextual toolbar placement (M7C.9): anchor to the VISIBLE rect and pick a side that
+  // never covers the resize/rotation handles (rotation handle sits above small assets).
+  const selectedVr = selected ? visibleRect(selected, selected.assetId) : undefined;
+  const barPlacement: ToolbarPlacement = (() => {
+    if (!selected || !selectedVr) return { side: "above", offsetPx: 8 };
+    const ss = sceneSize();
+    const rotatable = canRotate(selectedAsset) && !selected.locked;
+    if (!ss || ss.height <= 0) {
+      // Pre-layout fallback: keep the historical heuristic but clear the rotation handle.
+      return { side: selected.y > 0.16 ? "above" : "below", offsetPx: rotatable ? 70 : 8 };
+    }
+    return contextToolbarPlacement({
+      topPx: selectedVr.y * ss.height,
+      bottomPx: (selectedVr.y + selectedVr.height) * ss.height,
+      sceneHeightPx: ss.height,
+      hasRotateHandle: rotatable,
+    });
+  })();
 
   return (
     <div className="flex h-full w-full items-center justify-center overflow-hidden p-2">
@@ -396,7 +414,7 @@ export function EditorCanvas(props: Props) {
 
         {/* Contextual arrange action bar — outside the clipped scene (Arrange only) */}
         {!connect && selected && !selected.hidden ? (
-          <ContextBar o={selected} asset={selectedAsset} above={barAbove} layerOpen={layerOpen} setLayerOpen={setLayerOpen} onDuplicate={props.onDuplicate} onReorder={props.onReorder} onFlip={props.onFlip} onToggleLock={props.onToggleLock} onDelete={props.onDelete} onOpenLayerPicker={openLayerPickerForSelected} />
+          <ContextBar o={selected} vr={selectedVr!} placement={barPlacement} asset={selectedAsset} layerOpen={layerOpen} setLayerOpen={setLayerOpen} onDuplicate={props.onDuplicate} onReorder={props.onReorder} onFlip={props.onFlip} onToggleLock={props.onToggleLock} onDelete={props.onDelete} onOpenLayerPicker={openLayerPickerForSelected} />
         ) : null}
 
         {/* Long-press / Layer → overlap object picker (Phase 2) */}
@@ -601,16 +619,17 @@ function TransformFrame({ o, asset, advanced, onHandleDown }: { o: EditableNestO
   );
 }
 
-function ContextBar({ o, asset, above, layerOpen, setLayerOpen, onDuplicate, onReorder, onFlip, onToggleLock, onDelete, onOpenLayerPicker }: { o: EditableNestObject; asset?: LivingNestAsset; above: boolean; layerOpen: boolean; setLayerOpen: (v: boolean) => void; onDuplicate: () => void; onReorder: (op: ReorderOp) => void; onFlip: () => void; onToggleLock: () => void; onDelete: () => void; onOpenLayerPicker: () => void }) {
-  const cx = (o.x + o.width / 2) * 100;
+function ContextBar({ o, vr, placement, asset, layerOpen, setLayerOpen, onDuplicate, onReorder, onFlip, onToggleLock, onDelete, onOpenLayerPicker }: { o: EditableNestObject; vr: NormalizedRect; placement: ToolbarPlacement; asset?: LivingNestAsset; layerOpen: boolean; setLayerOpen: (v: boolean) => void; onDuplicate: () => void; onReorder: (op: ReorderOp) => void; onFlip: () => void; onToggleLock: () => void; onDelete: () => void; onOpenLayerPicker: () => void }) {
+  // Centre on the VISIBLE rect; pick the side + offset that clears the resize/rotation handles.
+  const cx = (vr.x + vr.width / 2) * 100;
   const flippable = canFlipX(asset);
   const pos: React.CSSProperties = { left: `${Math.min(80, Math.max(20, cx))}%` };
-  if (above) {
-    pos.top = `calc(${o.y * 100}% - 8px)`;
-    pos.transform = "translate(-50%, -100%)";
+  if (placement.side === "above") {
+    pos.top = `${vr.y * 100}%`;
+    pos.transform = `translate(-50%, calc(-100% - ${placement.offsetPx}px))`;
   } else {
-    pos.top = `calc(${(o.y + o.height) * 100}% + 8px)`;
-    pos.transform = "translate(-50%, 0)";
+    pos.top = `${(vr.y + vr.height) * 100}%`;
+    pos.transform = `translate(-50%, ${placement.offsetPx}px)`;
   }
   return (
     <div className="pointer-events-none absolute z-[600] flex justify-center" style={pos}>

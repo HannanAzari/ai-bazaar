@@ -614,6 +614,7 @@ export function NestEditor() {
                   onSelectHotspot={setSelectedInheritedHotspotId}
                   onCommit={commitInheritedBindings}
                   onClose={() => { setSelectedInheritedId(undefined); setSelectedInheritedHotspotId(undefined); }}
+                  onSaved={() => { flash("Saved ✓"); setSelectedInheritedId(undefined); setSelectedInheritedHotspotId(undefined); }}
                 />
               ) : selected ? (
                 <HotspotBindingSheet
@@ -626,6 +627,7 @@ export function NestEditor() {
                   onSelectHotspot={setSelectedHotspotId}
                   onCommit={commitHotspots}
                   onClose={() => { setSelectedId(undefined); setSelectedHotspotId(undefined); }}
+                  onSaved={() => { flash("Saved ✓"); setSelectedId(undefined); setSelectedHotspotId(undefined); }}
                 />
               ) : (
                 <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-teal/30 bg-parchment/95 px-4 py-2 text-xs font-bold text-ink/70 shadow">

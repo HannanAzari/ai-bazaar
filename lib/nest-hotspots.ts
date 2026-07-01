@@ -228,6 +228,35 @@ export function clearHotspotBinding(hotspots: NestAssetHotspot[], id: string): N
 }
 
 /**
+ * Pure Connect-Save decision (M7C.9). Validates the link and, on success, returns the next
+ * hotspots to persist; on failure returns the error message. The UI uses `ok` to decide
+ * whether to persist + close the sheet (ok) or keep it open with the error (!ok). Internal
+ * (built-in action) hotspots need no link; an entered link is still validated if present.
+ */
+export function resolveBindingSave(params: {
+  hotspots: NestAssetHotspot[];
+  hotspotId: string;
+  semantic: NestHotspotSemantic;
+  url: string;
+  label: string;
+  /** Whether the hotspot's semantic is a built-in action (no link required). */
+  internal: boolean;
+}): { ok: true; hotspots: NestAssetHotspot[] } | { ok: false; error: string } {
+  const { hotspots, hotspotId, semantic, url, label, internal } = params;
+  const h = find(hotspots, hotspotId);
+  if (!h) return { ok: false, error: "No region selected." };
+  const trimmed = url.trim();
+  if (!internal || trimmed) {
+    const check = validateBindingUrl(trimmed);
+    if (!check.ok) return { ok: false, error: check.error ?? "Invalid URL" };
+  }
+  return {
+    ok: true,
+    hotspots: setHotspotBinding(hotspots, hotspotId, { type: semantic, url: trimmed || undefined, label: label.trim() || h.name }),
+  };
+}
+
+/**
  * The topmost enabled hotspot containing an asset-local point, or undefined. Paint
  * order is array order (later = on top), so we scan from the end for determinism.
  */

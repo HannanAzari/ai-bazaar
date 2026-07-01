@@ -107,7 +107,8 @@ export function FocusSheet({
                 onChange={(e) => setDraft(e.target.value)}
                 onBlur={commitRename}
                 onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenaming(false); }}
-                className="w-full rounded-lg border border-cobalt bg-white/90 py-1.5 px-2 text-sm font-bold text-ink outline-none"
+                style={{ fontSize: 16 }}
+                className="w-full rounded-lg border border-cobalt bg-white/90 py-1.5 px-2 font-bold text-ink outline-none"
                 aria-label="Rename focus area"
               />
             ) : (
@@ -129,7 +130,7 @@ export function FocusSheet({
                 <p className="text-[9px] font-black uppercase tracking-wider text-ink/40">Template / internal</p>
                 <label className="block">
                   <span className="text-[9px] font-bold uppercase tracking-wide text-ink/45">Visitor hint</span>
-                  <input value={selected.previewHint ?? ""} onChange={(e) => onPatch({ previewHint: e.target.value })} placeholder={`Explore ${selected.name}`} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/80 py-1.5 px-2 text-sm text-ink focus:border-cobalt focus:outline-none" />
+                  <input value={selected.previewHint ?? ""} onChange={(e) => onPatch({ previewHint: e.target.value })} placeholder={`Explore ${selected.name}`} style={{ fontSize: 16 }} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/80 py-1.5 px-2 text-ink focus:border-cobalt focus:outline-none" />
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="block">

@@ -37,6 +37,10 @@ type Props = {
   /** Transparent: skip the background image + gradient so this stage can overlay another
    *  (M7C.6 — a child Focus Scene's objects layered over the parent-crop base). */
   transparent?: boolean;
+  /** M7C.9: externally-driven "on" state per slot id (e.g. the inherited TV in a Focus
+   *  Scene). When a slot id is present here it wins over the stage's own internal state, so
+   *  a read-only base can still show the same screen/glow/focus effect as the Main Nest. */
+  activeOverrides?: Record<string, boolean>;
 };
 
 type Piece = {
@@ -88,6 +92,7 @@ export function GoldenLivingNestStage({
   debugHotspots = false,
   fill = false,
   transparent = false,
+  activeOverrides,
 }: Props) {
   const pieces = useMemo<Piece[]>(() => {
     const list: Piece[] = [];
@@ -120,7 +125,9 @@ export function GoldenLivingNestStage({
 
   const ambience: NestAmbiencePreset | undefined = template.ambiencePresets[ambienceIndex];
   const selected = pieces.find((p) => p.slot.id === selectedSlotId);
-  const frameFocused = pieces.some((p) => effectFor(p) === "focus" && activeStates[p.slot.id]);
+  // External overrides (M7C.9) win over the stage's own internal toggle state.
+  const isActive = (slotId: string) => activeOverrides?.[slotId] ?? Boolean(activeStates[slotId]);
+  const frameFocused = pieces.some((p) => effectFor(p) === "focus" && isActive(p.slot.id));
 
   const bgRef = useRef<HTMLImageElement>(null);
   const [bgFailed, setBgFailed] = useState(false);
@@ -192,9 +199,9 @@ export function GoldenLivingNestStage({
           <PieceView
             key={piece.slot.id}
             piece={piece}
-            active={Boolean(activeStates[piece.slot.id])}
+            active={isActive(piece.slot.id)}
             tapTick={tapTick[piece.slot.id] ?? 0}
-            focused={effectFor(piece) === "focus" && Boolean(activeStates[piece.slot.id])}
+            focused={effectFor(piece) === "focus" && isActive(piece.slot.id)}
             glow={ambience?.glow ?? "#ffc55c"}
             debugHotspots={debugHotspots}
             pulses={pulses}

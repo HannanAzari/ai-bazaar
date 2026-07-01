@@ -39,6 +39,7 @@ export function CinematicFocusStage({
   reduced = false,
   card = true,
   focusOverlay,
+  baseActiveOverrides,
   children,
 }: {
   stage: StagePair;
@@ -60,6 +61,8 @@ export function CinematicFocusStage({
   card?: boolean;
   /** M7C.8: inherited parent interaction proxies — above the child stage, below chrome. */
   focusOverlay?: React.ReactNode;
+  /** M7C.9: externally-driven "on" state for parent-crop base slots (inherited TV, etc.). */
+  baseActiveOverrides?: Record<string, boolean>;
   children?: React.ReactNode;
 }) {
   return (
@@ -79,6 +82,7 @@ export function CinematicFocusStage({
         reduced={reduced}
         debug={debug}
         interactive={!focusBounds}
+        activeOverrides={baseActiveOverrides}
       >
         {childFa && !childStage ? <ZoomChildren fa={childFa} active={childActive} assetsById={assetsById} debug={debug} /> : null}
       </FocusedParentBase>
@@ -112,6 +116,7 @@ export function FocusedParentBase({
   reduced = false,
   debug = false,
   interactive = false,
+  activeOverrides,
   children,
 }: {
   parentStage: StagePair;
@@ -123,6 +128,8 @@ export function FocusedParentBase({
   debug?: boolean;
   /** Allow taps to reach the base (only the un-focused Main view); else it is a backdrop. */
   interactive?: boolean;
+  /** M7C.9: externally-driven "on" state per parent slot (inherited TV screen, etc.). */
+  activeOverrides?: Record<string, boolean>;
   children?: React.ReactNode;
 }) {
   const t = focusBounds ? cinematicFocusTransformCss(focusBounds) : null;
@@ -137,7 +144,7 @@ export function FocusedParentBase({
         pointerEvents: interactive ? undefined : "none",
       }}
     >
-      <GoldenLivingNestStage template={parentStage.template} assetsById={assetsById} interactionsById={interactionsById} composed={parentStage.composed} debugHotspots={debug} fill />
+      <GoldenLivingNestStage template={parentStage.template} assetsById={assetsById} interactionsById={interactionsById} composed={parentStage.composed} debugHotspots={debug} fill activeOverrides={activeOverrides} />
       {children}
     </div>
   );

@@ -9,9 +9,8 @@ import {
   addHotspot,
   clearHotspotBinding,
   removeHotspot,
-  setHotspotBinding,
+  resolveBindingSave,
   updateHotspot,
-  validateBindingUrl,
 } from "@/lib/nest-hotspots";
 import { MobileBottomSheet, type BottomSheetSnapPoint } from "@/components/nest/editor/mobile-bottom-sheet";
 
@@ -48,6 +47,7 @@ export function HotspotBindingSheet({
   onSelectHotspot,
   onCommit,
   onClose,
+  onSaved,
 }: {
   object: EditableNestObject;
   assetName: string;
@@ -58,6 +58,8 @@ export function HotspotBindingSheet({
   onSelectHotspot: (id: string | undefined) => void;
   onCommit: (hotspots: NestAssetHotspot[]) => void;
   onClose: () => void;
+  /** M7C.9: called after a valid Save — the host shows "Saved" + closes the sheet. */
+  onSaved?: () => void;
 }) {
   const hotspots = object.hotspots ?? [];
   const selected = hotspots.find((h) => h.id === selectedHotspotId);
@@ -77,21 +79,15 @@ export function HotspotBindingSheet({
 
   function connect() {
     if (!selected) return;
-    if (!internal) {
-      const check = validateBindingUrl(url);
-      if (!check.ok) {
-        setError(check.error ?? "Invalid URL");
-        return;
-      }
-    } else if (url) {
-      const check = validateBindingUrl(url);
-      if (!check.ok) {
-        setError(check.error ?? "Invalid URL");
-        return;
-      }
+    const res = resolveBindingSave({ hotspots, hotspotId: selected.id, semantic: selected.semantic, url, label, internal });
+    if (!res.ok) {
+      setError(res.error);
+      return;
     }
+    // Valid: persist, then hand off to the host to show "Saved" + close the sheet.
     setError(null);
-    onCommit(setHotspotBinding(hotspots, selected.id, { type: selected.semantic, url: url || undefined, label: label || selected.name }));
+    onCommit(res.hotspots);
+    onSaved?.();
   }
   function remove() {
     if (!selected) return;
@@ -159,13 +155,13 @@ export function HotspotBindingSheet({
                 <span className="text-[9px] font-bold uppercase tracking-wide text-ink/45">Link</span>
                 <div className="relative mt-0.5">
                   <Link2 className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink/35" />
-                  <input value={url} onChange={(e) => setUrl(e.target.value)} onFocus={expand} placeholder={placeholder} inputMode="url" className="w-full rounded-lg border border-ink/15 bg-white/80 py-2 pl-7 pr-2 text-sm text-ink focus:border-teal focus:outline-none" />
+                  <input value={url} onChange={(e) => setUrl(e.target.value)} onFocus={expand} placeholder={placeholder} inputMode="url" style={{ fontSize: 16 }} className="w-full rounded-lg border border-ink/15 bg-white/80 py-2 pl-7 pr-2 text-ink focus:border-teal focus:outline-none" />
                 </div>
               </label>
             )}
             <label className="block">
               <span className="text-[9px] font-bold uppercase tracking-wide text-ink/45">Label (optional)</span>
-              <input value={label} onChange={(e) => setLabel(e.target.value)} onFocus={expand} placeholder={selected.name} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/80 py-1.5 px-2 text-sm text-ink focus:border-teal focus:outline-none" />
+              <input value={label} onChange={(e) => setLabel(e.target.value)} onFocus={expand} placeholder={selected.name} style={{ fontSize: 16 }} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/80 py-1.5 px-2 text-ink focus:border-teal focus:outline-none" />
             </label>
 
             {error ? <p className="text-[11px] font-bold text-terracotta">{error}</p> : null}
