@@ -10,6 +10,8 @@ import type {
 } from "@/lib/nest-visual-types";
 import type { NestAssetHotspot, NestHotspotSemantic } from "@/lib/nest-hotspot-types";
 import { aspectRatioCss } from "@/lib/nest-render";
+import { resolveObjectSurfaces } from "@/lib/nest-surfaces";
+import { SurfaceContentLayer } from "@/components/nest/surface-content-layer";
 
 // Golden Living Nest renderer (M5 + M7B hotspots). Renders one premium front-facing
 // living room with LAYERED interactions so only the meaningful part of an object
@@ -310,11 +312,15 @@ function PieceView({
   }
   const focusClass = effect === "focus" ? `living-focus ${focused ? "living-focus-on" : ""}` : "";
 
+  // M8: editable-surface content (photo/text/sticker) clipped to its region, above the art.
+  const surfaceLayer = <SurfaceContentLayer surfaces={resolveObjectSurfaces({ assetId: piece.assetId, surfaces: piece.slot.surfaces })} />;
+
   // ── Hotspot path: the asset is non-interactive; precise regions are the targets ──
   if (hasHotspots) {
     return (
       <div className={`absolute ${focusClass}`} style={style}>
         {body}
+        {surfaceLayer}
         {hotspots.map((h) => (
           <HotspotTarget key={h.id} hotspot={h} debug={debugHotspots} pulse={pulses[h.id] ?? 0} onActivate={() => onActivateHotspot(piece, h)} />
         ))}
@@ -324,11 +330,12 @@ function PieceView({
 
   // ── Whole-object fallback (no hotspots) ──
   if (!interactive) {
-    return <div className={`absolute ${focusClass}`} style={style}>{body}</div>;
+    return <div className={`absolute ${focusClass}`} style={style}>{body}{surfaceLayer}</div>;
   }
   return (
     <button type="button" className={`absolute cursor-pointer ${focusClass}`} style={style} onClick={() => onActivate(piece)} aria-label={`${piece.asset?.name ?? piece.assetId} — ${piece.interaction?.name ?? "interactive"}`}>
       {body}
+      {surfaceLayer}
     </button>
   );
 }

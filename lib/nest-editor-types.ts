@@ -85,6 +85,11 @@ export interface EditableNestObject {
    * so existing documents project with no migration). Ignored for Main/native objects.
    */
   projection?: ChildProjectionPolicy;
+
+  /** M8: editable-surface CONTENT for this instance, keyed by the catalog surface def id
+   *  (nest-surface-catalog.ts). Visual personalization only (photo/text/sticker), fully
+   *  independent of hotspots/bindings. Optional + backward-compatible. */
+  surfaces?: import("@/lib/nest-surface-types").ObjectSurfaceContent;
 }
 
 /** M7C.8 — how a child Focus-Scene object projects back into its parent (Main) scene. */

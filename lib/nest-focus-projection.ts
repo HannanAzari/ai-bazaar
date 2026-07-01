@@ -218,6 +218,8 @@ export interface ProjectedChildObject {
   parentBounds: NestFocusBounds;
   /** The object's plane (drives object-bottom vs object-center, matching the child render). */
   plane: EditableNestObject["plane"];
+  /** M8: the object's editable-surface content, so projections show the same personalization. */
+  surfaces?: EditableNestObject["surfaces"];
   rotation?: number;
   flipX?: boolean;
   /** Paint order relative to Main objects (always above, ordered by child z then scene). */
@@ -267,6 +269,7 @@ export function projectChildObjectsToMain(
         focusBounds: focus,
         parentBounds: clipped,
         plane: o.plane,
+        surfaces: o.surfaces,
         rotation: o.rotation,
         flipX: o.flipX,
         zIndex: PROJECTED_Z_BASE + order * 100 + o.zIndex,

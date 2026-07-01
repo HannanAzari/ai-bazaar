@@ -85,13 +85,16 @@ import { FocusedParentBase } from "@/components/nest/focused-zoom-stage";
 import { ProjectedFocusChildren } from "@/components/nest/projected-focus-children";
 import { InheritedInteractionLayer } from "@/components/nest/inherited-interaction-layer";
 import { resolveInheritedFocusObjects, setInheritedHotspotBinding } from "@/lib/nest-focus-projection";
+import { SurfaceEditorSheet } from "@/components/nest/editor/surface-editor-sheet";
+import { resolveObjectSurfaces, setObjectSurfaceContent } from "@/lib/nest-surfaces";
+import { ImagePlus } from "lucide-react";
 import { Maximize2 } from "lucide-react";
 
 /** A default fixed-ratio (square = 3:4 on-screen) focus rectangle for new areas. */
 const DEFAULT_FOCUS_RECT = fitRectToAspectRatio({ x: 0.34, y: 0.34, width: 0.32, height: 0.32 });
 
 const ASSETS = GOLDEN_LIVING_NEST_ASSETS_BY_ID;
-type Mode = "arrange" | "assets" | "connect" | "focus" | "preview";
+type Mode = "arrange" | "assets" | "connect" | "focus" | "surface" | "preview";
 type SaveState = "idle" | "unsaved" | "saving" | "saved";
 
 const freshDocument = (): EditableNestDocument =>
@@ -122,6 +125,9 @@ export function NestEditor() {
   // hotspot (for authoring a child binding override). Mutually exclusive with `selectedId`.
   const [selectedInheritedId, setSelectedInheritedId] = useState<string | undefined>(undefined);
   const [selectedInheritedHotspotId, setSelectedInheritedHotspotId] = useState<string | undefined>(undefined);
+  // M8: the surface being edited on the selected object (Surface mode).
+  const [selectedSurfaceId, setSelectedSurfaceId] = useState<string | undefined>(undefined);
+  const [surfaceSnap, setSurfaceSnap] = useState<BottomSheetSnapPoint>("half");
   // M7C.5: Preview uses the real NestSceneNavigator. `previewFocusId` (set by the Focus
   // sheet's "Preview focus" shortcut) auto-enters that area through the same navigator.
   const [previewFocusId, setPreviewFocusId] = useState<string | undefined>(undefined);
@@ -229,6 +235,16 @@ export function NestEditor() {
 
   const selected = selectedId ? activeDoc.objects.find((o) => o.instanceId === selectedId) : undefined;
   const selectedAsset = selected ? ASSETS[selected.assetId] : undefined;
+
+  // M8: the surface currently open in the editor (on the selected object).
+  const selectedSurface = selected ? resolveObjectSurfaces(selected).find((s) => s.id === selectedSurfaceId) : undefined;
+  const onCommitSurface = (content: Parameters<typeof setObjectSurfaceContent>[3]) => {
+    if (selectedId && selectedSurfaceId) commitActive(setObjectSurfaceContent(activeDoc, selectedId, selectedSurfaceId, content));
+  };
+  // Surface selection only exists inside Surface mode; clear it otherwise.
+  useEffect(() => {
+    if (mode !== "surface") setSelectedSurfaceId(undefined);
+  }, [mode, selectedId, activeSceneId]);
   const ambience = useMemo(() => GOLDEN_LIVING_NEST_TEMPLATE.ambiencePresets.find((p) => p.id === activeDoc.ambiencePresetId), [activeDoc.ambiencePresetId]);
   // Boundary/tap-target/plane + placement (support/occupied-zone) advisories. Placeholder
   // (production) warnings are only surfaced to roles that should see them.
@@ -529,8 +545,11 @@ export function NestEditor() {
               assetsById={ASSETS}
               ambience={ambience}
               selectedId={mode === "focus" ? undefined : selectedId}
-              onSelect={(id) => { setSelectedId(id); if (id) { setSelectedInheritedId(undefined); setSelectedInheritedHotspotId(undefined); } }}
+              onSelect={(id) => { setSelectedId(id); setSelectedSurfaceId(undefined); if (id) { setSelectedInheritedId(undefined); setSelectedInheritedHotspotId(undefined); } }}
               onCommit={commitActive}
+              surface={mode === "surface"}
+              selectedSurfaceId={selectedSurfaceId}
+              onSelectSurface={setSelectedSurfaceId}
               showGrid={caps.showDebug && showGrid}
               snap={caps.showDebug && snap}
               advanced={advancedOpen && caps.showPrecision}
@@ -636,6 +655,25 @@ export function NestEditor() {
               )
             ) : null}
 
+            {/* Surface mode — personalise an asset's editable surfaces (M8) */}
+            {mode === "surface" ? (
+              selectedSurface ? (
+                <SurfaceEditorSheet
+                  surface={selectedSurface}
+                  assetName={selected ? ASSETS[selected.assetId]?.name ?? selected.assetId : "Asset"}
+                  snap={surfaceSnap}
+                  onSnapChange={setSurfaceSnap}
+                  onCommit={onCommitSurface}
+                  onClose={() => setSelectedSurfaceId(undefined)}
+                  onSaved={() => { flash("Saved ✓"); setSelectedSurfaceId(undefined); }}
+                />
+              ) : (
+                <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-saffron/40 bg-parchment/95 px-4 py-2 text-xs font-bold text-ink/70 shadow">
+                  {selected ? "Tap a highlighted surface to personalise it" : "Tap an asset with a screen, photo or cover"}
+                </div>
+              )
+            ) : null}
+
             {/* Focus mode — area authoring sheet (Main scene only) */}
             {mode === "focus" && isMainActive ? (
               <FocusSheet
@@ -667,6 +705,7 @@ export function NestEditor() {
             {isMainActive ? (
               <ModeBtn active={mode === "focus"} label="Focus" onClick={() => { setSelectedId(undefined); setSelectedHotspotId(undefined); setMode("focus"); }}><Maximize2 className="h-5 w-5" /></ModeBtn>
             ) : null}
+            <ModeBtn active={mode === "surface"} label="Surface" onClick={() => { setSelectedHotspotId(undefined); setSelectedSurfaceId(undefined); setMode("surface"); }}><ImagePlus className="h-5 w-5" /></ModeBtn>
             <ModeBtn active={false} label="Preview" onClick={onPreview}><Play className="h-5 w-5" /></ModeBtn>
           </nav>
         </>

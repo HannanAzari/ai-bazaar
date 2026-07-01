@@ -29,6 +29,8 @@ import { computeAlignment, type AlignGuide } from "@/lib/nest-align";
 import { hitTestCandidates, nextSelection, type TapCycleState } from "@/lib/nest-editor-hit-testing";
 import { EDITOR_TOUCH_TARGETS } from "@/lib/nest-editor-touch-targets";
 import { contextToolbarPlacement, type ToolbarPlacement } from "@/lib/nest-editor-toolbar";
+import { resolveObjectSurfaces } from "@/lib/nest-surfaces";
+import { SurfaceContentLayer } from "@/components/nest/surface-content-layer";
 
 // The mobile editor canvas (Arrange mode). Pointer Events drive a unified gesture
 // model — one finger moves, two fingers pinch-resize + twist-rotate (when policy
@@ -71,6 +73,11 @@ type Props = {
   /** M7C.8: a read-only overlay above the objects, below the authoring chrome — used for
    *  Main-Nest projections of child objects, and for inherited interaction proxies. */
   foregroundNode?: React.ReactNode;
+  /** M8 Surface mode: select-only (no move/resize); tapping the selected object's surface
+   *  regions opens the surface editor. */
+  surface?: boolean;
+  selectedSurfaceId?: string;
+  onSelectSurface?: (id: string | undefined) => void;
 };
 
 type Gesture =
@@ -233,8 +240,8 @@ export function EditorCanvas(props: Props) {
     downClient.current = { x: e.clientX, y: e.clientY };
     didMove.current = false;
     armLongPress(nx, ny);
-    // Connect mode: tapping an asset only selects it for connection — never moves it.
-    if (connect) return;
+    // Connect / Surface mode: tapping an asset only selects it — never moves it.
+    if (connect || props.surface) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (sel.locked) return;
     e.preventDefault();
@@ -380,6 +387,8 @@ export function EditorCanvas(props: Props) {
                 ) : (
                   <div className="flex h-full w-full items-center justify-center rounded border border-terracotta/50 bg-terracotta/10 text-[9px] font-bold text-ink/60">{o.assetId}</div>
                 )}
+                {/* M8: editable-surface content (photo/text/sticker), clipped to the region. */}
+                <SurfaceContentLayer surfaces={resolveObjectSurfaces(o)} />
               </button>
             );
           })}
@@ -387,8 +396,13 @@ export function EditorCanvas(props: Props) {
           {/* Read-only foreground overlay (M7C.8: Main projections / inherited proxies). */}
           {props.foregroundNode}
 
-          {/* Arrange chrome (hidden in Connect mode) */}
-          {!connect && selected && !selected.hidden ? <TransformFrame o={selected} asset={selectedAsset} advanced={advanced} onHandleDown={onHandleDown} /> : null}
+          {/* M8 Surface mode: tappable surface regions on the selected object. */}
+          {props.surface && selected && !selected.hidden ? (
+            <SurfaceHighlightLayer object={selected} selectedSurfaceId={props.selectedSurfaceId} onSelect={(id) => props.onSelectSurface?.(id)} />
+          ) : null}
+
+          {/* Arrange chrome (hidden in Connect / Surface modes) */}
+          {!connect && !props.surface && selected && !selected.hidden ? <TransformFrame o={selected} asset={selectedAsset} advanced={advanced} onHandleDown={onHandleDown} /> : null}
 
           {/* Transient rotation degree label while rotating/pinching a rotatable object. */}
           {!connect && selected && (gestureRef.current?.kind === "rotate" || gestureRef.current?.kind === "pinch") && selected.rotation != null ? (
@@ -413,7 +427,7 @@ export function EditorCanvas(props: Props) {
         </div>
 
         {/* Contextual arrange action bar — outside the clipped scene (Arrange only) */}
-        {!connect && selected && !selected.hidden ? (
+        {!connect && !props.surface && selected && !selected.hidden ? (
           <ContextBar o={selected} vr={selectedVr!} placement={barPlacement} asset={selectedAsset} layerOpen={layerOpen} setLayerOpen={setLayerOpen} onDuplicate={props.onDuplicate} onReorder={props.onReorder} onFlip={props.onFlip} onToggleLock={props.onToggleLock} onDelete={props.onDelete} onOpenLayerPicker={openLayerPickerForSelected} />
         ) : null}
 
@@ -569,6 +583,35 @@ function HotspotLayer({
                 ))
               : null}
           </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Surface highlight layer (M8 Surface mode) ────────────────────────────────
+// Tappable outlines of the selected object's editable surface regions (asset-local),
+// following the object's transform. Tapping one opens the surface editor. No move/resize.
+function SurfaceHighlightLayer({ object, selectedSurfaceId, onSelect }: { object: EditableNestObject; selectedSurfaceId?: string; onSelect: (id: string | undefined) => void }) {
+  const surfaces = resolveObjectSurfaces(object);
+  if (surfaces.length === 0) return null;
+  const t = transformOf(object);
+  return (
+    <div className="absolute z-[520]" style={{ left: pctOf(object.x), top: pctOf(object.y), width: pctOf(object.width), height: pctOf(object.height), transform: t || undefined, transformOrigin: "center" }}>
+      {surfaces.map((s) => {
+        const sel = s.id === selectedSurfaceId;
+        return (
+          <button
+            key={s.id}
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onSelect(s.id); }}
+            aria-label={`Edit ${s.name} surface`}
+            className={`absolute touch-none rounded-[5px] ${sel ? "border-2 border-saffron bg-saffron/20" : "border border-dashed border-saffron/70 bg-saffron/[0.08]"}`}
+            style={{ left: pctOf(s.bounds.x), top: pctOf(s.bounds.y), width: pctOf(s.bounds.width), height: pctOf(s.bounds.height) }}
+          >
+            <span className="absolute -top-5 left-0 whitespace-nowrap rounded bg-saffron px-1.5 py-0.5 text-[8px] font-bold text-ink">{s.name}{s.content ? " ✓" : ""}</span>
+          </button>
         );
       })}
     </div>

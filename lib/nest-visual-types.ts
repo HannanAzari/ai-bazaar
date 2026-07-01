@@ -29,6 +29,8 @@ export type LivingNestSlot = Omit<SceneSlot, "slotType"> & {
   flipX?: boolean;
   /** Optional interaction hotspots (asset-local sub-regions, M7B). */
   hotspots?: import("@/lib/nest-hotspot-types").NestAssetHotspot[];
+  /** Optional editable-surface content for this instance (M8), keyed by surface def id. */
+  surfaces?: import("@/lib/nest-surface-types").ObjectSurfaceContent;
 };
 
 /** A NestTemplate whose slots are LivingNestSlots. Otherwise identical. */

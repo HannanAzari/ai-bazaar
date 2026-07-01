@@ -431,6 +431,7 @@ export function editorDocumentToStage(
       rotationDeg: o.rotation,
       flipX: o.flipX,
       hotspots: o.hotspots,
+      surfaces: o.surfaces,
     };
   });
 

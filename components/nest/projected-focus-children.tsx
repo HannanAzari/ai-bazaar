@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import type { EditableNestDocument } from "@/lib/nest-editor-types";
 import { projectChildObjectsToMain, type ProjectedChildObject } from "@/lib/nest-focus-projection";
+import { resolveObjectSurfaces } from "@/lib/nest-surfaces";
+import { SurfaceContentLayer } from "@/components/nest/surface-content-layer";
 
 // ── Main-Nest projection of child Focus-Scene objects (M7C.8 Part B) ───────────
 //
@@ -82,6 +84,8 @@ export function ProjectedFocusChildren({
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={asset.imageUrl} alt="" draggable={false} className={`h-full w-full object-contain ${floor ? "object-bottom" : "object-center"}`} />
                   ) : null}
+                  {/* M8: projected surfaces show the same personalization in Main. */}
+                  <SurfaceContentLayer surfaces={resolveObjectSurfaces({ assetId: o.assetId, surfaces: o.surfaces })} />
                 </div>
               );
             })}
