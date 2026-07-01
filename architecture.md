@@ -46,10 +46,17 @@ and the locked [docs/nestudio-visual-dna.md](docs/nestudio-visual-dna.md).
 > `wall-module-system`, `wall-zoom-experience`, `creator-home-v2`, `scene-pack-architecture`,
 > `room-shell-pack-spec`, `wall-pack-spec`, `golden-room-v1`, …) are **reference history only.**
 >
-> **Code reality:** the running app (§2 below) is the **V1 cozy-village product** (Room Engine
-> V1–V5 + the deterministic AI Room Designer). **No V2 (Nest) implementation has started** — the
-> V2 architecture is documentation-first. §2–§10 describe the shipped V1 engine, which remains the
-> basis the V2 Nest Composer will evolve from.
+> **Code reality:** the public running app (§2 below) is the **V1 cozy-village product** (Room
+> Engine V1–V5 + the deterministic AI Room Designer). The **V2 Nest line is being built as
+> internal, unlinked `/design/*` prototypes** (not yet the public surface): the front-facing
+> Golden Living Nest renderer, the Nest editor (hotspots, calibration), and **structured in-Nest
+> navigation** — `Main Nest → Focus Area → Detail Scene` (ADR-029), refined by **M7C.1 Hybrid
+> Focus** (ADR-030): a Focus Area resolves to a **Zoom Region** (true crop zoom of the existing
+> scene) or a **Detail Surface** (authored close-up), gated by a pure, measured **resolution
+> audit** (`lib/nest-focus-resolution.ts`). Masters:
+> [docs/nest-hybrid-focus-v1.md](docs/nest-hybrid-focus-v1.md),
+> [docs/nest-focus-detail-scenes-v1.md](docs/nest-focus-detail-scenes-v1.md). §2–§10 describe the
+> shipped V1 engine, which remains the basis the V2 Nest Composer evolves from.
 
 ### Tech stack
 - **Next.js 15** (App Router) · **React 19** · **TypeScript** (strict, `target: es5`)

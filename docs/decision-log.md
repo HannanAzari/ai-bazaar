@@ -1315,6 +1315,167 @@ Library, so treat it as immutable without a superseding ADR.
 
 ---
 
+## ADR-029 — Structured in-Nest navigation: Main Nest → Focus Area → Detail Scene
+
+**Status:** Accepted · 2026-06-30 · builds on the M7A–M7B.2 editor foundation; refines the
+front-facing Nest of **ADR-027/ADR-028** with a navigation layer. Master doc:
+[nest-focus-detail-scenes-v1.md](nest-focus-detail-scenes-v1.md).
+
+### Context
+The front-facing Nest (ADR-027/028) and the M7A–M7B.2 editor give a single rich scene with
+asset hotspots. The next experience is *depth*: a visitor taps a meaningful area (a desk,
+shelf, TV setup, pinboard) and moves into a close-up of that part of the creator's world,
+interacts there, and returns. The naive implementation — browser/viewport zoom — magnifies
+the same pixels (exposing low-res raster, adding no new interactive objects, no authoring
+control) and is the wrong primitive.
+
+### Decision
+- **Structured navigation, not zoom.** A **Focus Area** is a navigable region of a scene
+  that links to a separately authored **Detail Scene**; navigation is
+  `Main Nest → Focus Area → Detail Scene → Back`. **One level only** in V1 (nested
+  Detail → Detail is deferred).
+- **A Detail Scene is content, not magnification** — its own background, scene-scoped
+  object manifest, z-order, hotspots, bindings, ambience and viewport, rendered through the
+  **same** `GoldenLivingNestStage` via the existing `editorDocumentToStage` adapter (no
+  second renderer).
+- **The scene graph attaches additively to `EditableNestDocument`** (`focusAreas` +
+  `detailScenes`); absent ⇒ a Main-only Nest, so every pre-M7C document still validates and
+  loads. Existing localStorage/JSON/Undo-Redo carry the graph for free; import/load run
+  `validateSceneGraph`.
+- **Detail Scene objects are `EditableNestObject[]`** (the editor's manifest type) — a
+  documented deviation from the sprint's suggested `LivingNestSlot[]` — so the Detail Scene
+  editor reuses every existing pure op and the editor is not forked. A shared "active scene"
+  concept routes object edits to the Main or a Detail manifest.
+- **Pure, deterministic helpers** (`lib/nest-focus-scenes.ts`): validation, CRUD, linking,
+  navigation resolution, and a navigation state machine — no `Math.random`, no `Date.now`,
+  no DOM — fully unit-tested. Ids are deterministic (`focus-<n>` / `detail-<n>`).
+- **Interaction priority is explicit + tested:** Main = `hotspot → focus area →
+  whole-object`; Detail = `hotspot → whole-object`. The transition is a lightweight CSS
+  illusion (transform + opacity, ~420 ms / 180 ms reduced-motion), origin from the Focus
+  Area bounds, locked against double-navigation.
+
+### Alternatives Considered
+- **Viewport/browser zoom** — rejected: magnifies raster, no new objects, no authoring,
+  fights the front-facing camera.
+- **A second, independent Detail editor/renderer** — rejected: duplicates the editor and
+  stage; the active-scene adapter reuses both.
+- **A standalone scene-graph store / new persistence key** — rejected: attaching to the
+  document gives back-compat + free persistence and Undo/Redo (cf. ADR-012 migrate-on-read).
+- **`LivingNestSlot[]` detail manifests** (as the sprint example) — rejected in favour of
+  `EditableNestObject[]` so the existing editor ops apply unchanged.
+
+### Consequences
+- (+) A genuine "explore a part of this person's world" experience; the Main Nest, editor,
+  and renderer are reused, not rebuilt; Main-only documents stay compatible.
+- (+) Deterministic, unit-tested core (35 M7C tests); accessible (keyboard, ARIA, focus
+  restore, reduced motion, never double-tap-only).
+- (−) One navigation level only; nested scenes, endless zoom, and puzzle authoring are
+  deferred.
+- (−) The transition is a polished illusion, not a physical camera; the M7B.2 known minor
+  bugs are recorded for on-device testing, not fixed here.
+
+---
+
+## ADR-030 — Hybrid Focus: Zoom Region + Detail Surface, with a measured resolution audit
+
+**Status:** Accepted · 2026-06-30 · **refines ADR-029** (does not supersede it). Master doc:
+[nest-hybrid-focus-v1.md](nest-hybrid-focus-v1.md).
+
+### Context
+ADR-029's structured navigation modelled every Focus Area as opening a separately authored
+**Detail Scene**. That is wrong for content that already exists in the Main Nest and only
+needs to be **enlarged** (a bookshelf, a TV console, a frame): re-authoring a whole room
+adds nothing and the generic "desk room" read as a wide room with a desk pasted in. But
+some surfaces genuinely cannot be revealed by zooming a front-facing scene (a desk top) —
+there the *camera*, not the resolution, is the problem.
+
+### Decision
+A Focus Area resolves to one of **two target types**, additively on the same
+`NestFocusArea`:
+- **`zoom_region`** — CSS-transform a normalized **crop** of the *existing* Main scene so it
+  fills the viewport (uniform scale `min(1/cropW,1/cropH)` recentred; no scene swap, no
+  second renderer). Carries crop bounds, optional crop-local child objects/hotspots (active
+  only after focus), a resolution strategy, and progressive `imageSources`.
+- **`detail_surface`** — the ADR-029 Detail Scene (now used for perspective/composition
+  close-ups). Legacy `targetSceneId` links migrate to this type automatically.
+
+Before any artwork is replaced, a **pure, deterministic resolution audit**
+([`lib/nest-focus-resolution.ts`](../lib/nest-focus-resolution.ts)) measures source pixels
+in a crop vs. display pixels after zoom → a `sourcePixelsPerDisplayPixel` ratio → a verdict
+(`excellent ≥1 · acceptable ≥0.66 · soft ≥0.4 · unusable`) → a strategy
+(`reuse_source · reuse_source_with_child_assets · load_high_res_variant ·
+use_detail_surface`). A `highResolutionUrl` contract exists but is **undefined in M7C.1**.
+
+### Alternatives considered
+- **Keep one Detail-Scene model for everything** — rejected: wasteful re-authoring; the
+  generic desk room looked wrong.
+- **Browser/CSS pinch-zoom of the raw scene** — rejected: no child interactions, no control
+  over the crop, exposes the lowest-res layer.
+- **Assume small assets are low-res and regenerate art** — rejected: the *measured* audit
+  shows the existing cut-outs stay crisp under the capped stage; no replacement is needed.
+- **A separate zoom renderer / WebGL** — rejected: a CSS transform on the existing stage
+  meets the bar (no white flash, reduced-motion fade, reversible).
+
+### Consequences
+- (+) The right tool per case; existing artwork is **reused on evidence**, not guessed;
+  fully backward-compatible (pre-M7C.1 docs migrate on read).
+- (+) Deterministic, unit-tested core (32 new tests, 484 total); honest fixtures never link
+  a trigger to an absent object (TV/Frame on the living nest; Bookshelf/Desk on a studio
+  example main).
+- (−) A dedicated shallow tabletop background asset and the full in-canvas zoom-vs-surface
+  authoring picker remain follow-ups; high-resolution variants are contract-only.
+
+---
+
+## ADR-031 — Focus Areas are entrances to nested editable scenes
+
+**Status:** Accepted · 2026-07-01 · **refines ADR-029/ADR-030** (keeps the M7C.4 fixed-ratio
+cinematic transition; does not discard it). Master doc:
+[nest-hybrid-focus-v1.md](nest-hybrid-focus-v1.md).
+
+### Context
+Through M7C.1–5 a Focus Area drifted into a *preview/crop* feature: the creator could size a
+fixed-ratio rectangle and preview the zoom, but could not **work inside** the focused view —
+add small assets, hotspots or nested content. Editor-authored areas also failed to appear in
+Preview/visitor (a filter required a `zoomRegion` payload they never had).
+
+### Decision
+A Focus Area is an **entrance from one editable Nest scene into a child editable scene.** The
+parent defines the entrance rectangle (`focusBounds`, fixed ratio); the child scene
+(`NestDetailScene`, `sceneType:"focus"`, `backgroundSource:{type:"parent_crop"}`) inherits a
+**transformed view of the parent** as its read-only visual base and owns its own local
+objects, hotspots, interactions and (recursively) child Focus Areas. The **same editor and
+visitor navigator** operate on the scene graph:
+- editor **"Enter area"** (`ensureFocusChildScene` + active-scene switch) opens the child in
+  Edit mode with Arrange/Assets/Connect; **Back** returns directly to the parent editor;
+- the **visitor** taps the area → in-place cinematic transform to the child scene (parent
+  crop base + child objects on top); Back pops one scene level;
+- a pure **scene stack** (`enterEditorScene`/`exitEditorScene`/…, `MAX_FOCUS_DEPTH = 3`)
+  models nesting deterministically (one technical level beyond Main works fully in V1;
+  deeper is exercised in pure logic).
+
+The **release-blocker fix**: a zoom/entrance area is visitable with only a valid
+`focusBounds` (`isVisitableFocusArea`) — `zoomRegion` is no longer required.
+
+### Alternatives considered
+- **Replace the document shape with `scenes: Record<…>`** — rejected for V1: the existing
+  `detailScenes` storage + detail-scene editor already implement "editable child scene";
+  building the scene-graph *abstraction* (`getEditorScene` / scene stack / `childSceneId`)
+  over it preserves all persistence, history and ~547 tests.
+- **Keep "Preview focus"** — rejected: it returned through Preview-Main, not the authoring
+  context; superseded by **"Enter area"** (an edit context).
+- **Generate a second background image per child** — rejected: the child base is the parent
+  transformed (`parent_crop`), no new art.
+
+### Consequences
+- (+) Focus is real scene authoring; authored areas now persist + appear in Preview/visitor;
+  the same editor + navigator drive both; fully back-compatible (legacy migrates via
+  `ensureFocusChildScene` / `migrateDocumentToSceneGraph`).
+- (−) V1 active nesting is one level (Main → Focus) in the UI; deeper nesting + the exact
+  parent-crop base **inside the editor canvas** (the visitor already shows it) are follow-ups.
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

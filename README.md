@@ -16,6 +16,18 @@ The world map is a **hexagon district map**: ten villages laid out as a connecte
 - Public houses open into the room first, with owner information kept secondary.
 - Likes, follows, visitors, search, and mock generation jobs remain supported.
 
+## Nestudio (V2 Nest — in development, internal)
+
+The next-generation creator surface is a **front-facing cinematic Nest** (`Village → House →
+Nest → Objects → Content`, ADR-027/028), built as **internal, unlinked `/design/*` prototypes**
+— not yet the public experience. It adds **structured in-Nest navigation** (`Main Nest → Focus
+Area → Detail Scene`, ADR-029), refined by **Hybrid Focus** (ADR-030): tapping a region either
+**zooms into a crop of the existing scene** (a bookshelf, TV console or frame) or opens a
+separately authored **detail surface** (a desk top). Which to use is decided by a measured
+**resolution audit** — existing artwork is reused only where it stays crisp under zoom. Try
+`/design/nest-hybrid-focus` (Living Nest / Studio Nest toggle). Docs:
+[docs/nest-hybrid-focus-v1.md](docs/nest-hybrid-focus-v1.md).
+
 ## Discovery, tags, analytics & moderation
 
 - **Tags** — houses, decorations, and links carry lowercase normalized tags. Browse `/tags`, open any tag at `/tags/<tag>`, and see every house and item that shares it. Owners edit tags from the studio.
