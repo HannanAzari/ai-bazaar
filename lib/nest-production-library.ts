@@ -60,11 +60,37 @@ let libraryCache: ProductionLibrary | null = null;
 export async function hydrateLibrary(): Promise<void> {
   if (libraryBackend() !== "supabase") return;
   try {
-    libraryCache = await sbLibRepo.fetchLibrary();
+    libraryCache = backfillImages(await sbLibRepo.fetchLibrary());
     if (isBrowser()) window.dispatchEvent(new CustomEvent(PRODUCTION_CHANGED_EVENT));
   } catch {
     /* keep the fixture fallback — never break local/offline */
   }
+}
+
+// If a Supabase row exists but its image URL is missing/empty, fall back to the
+// bundled fixture image (deployable under public/nests/library-v1/) — matched by id.
+// This keeps onboarding rendering even before Storage is fully populated.
+function backfillImages(lib: ProductionLibrary): ProductionLibrary {
+  const fx = NEST_PRODUCTION_LIBRARY_V1;
+  const bg = new Map(fx.backgrounds.map((b) => [b.id, b]));
+  const as = new Map(fx.assets.map((a) => [a.id, a]));
+  const tp = new Map(fx.templates.map((t) => [t.id, t]));
+  return {
+    backgrounds: lib.backgrounds.map((b) => {
+      const f = bg.get(b.id);
+      const imageUrl = b.imageUrl || f?.imageUrl || "";
+      return { ...b, imageUrl, variants: { ...b.variants, standard: b.variants?.standard || f?.variants?.standard || imageUrl } };
+    }),
+    assets: lib.assets.map((a) => {
+      const f = as.get(a.id);
+      const imageUrl = a.imageUrl || f?.cutoutUrl || f?.imageUrl || "";
+      return { ...a, imageUrl, cutoutUrl: a.cutoutUrl || f?.cutoutUrl || imageUrl, variants: { ...a.variants, standard: a.variants?.standard || f?.variants?.standard || imageUrl } };
+    }),
+    templates: lib.templates.map((t) => {
+      const f = tp.get(t.id);
+      return { ...t, previewImage: t.previewImage || f?.previewImage };
+    }),
+  };
 }
 
 // ── Status overrides ─────────────────────────────────────────────────────────

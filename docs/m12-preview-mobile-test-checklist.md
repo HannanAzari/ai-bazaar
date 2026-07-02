@@ -8,6 +8,12 @@
 The app is **local-mode by default** (localStorage + `?c=` links). Supabase turns on only when
 `NEXT_PUBLIC_NEST_BACKEND=supabase` **in the Preview environment**. Never set it in Production here.
 
+> **Image fix (preview blank-images):** the curated library now ships **deployable, web-optimized
+> art** under `public/nests/library-v1/` (committed; the raw candidate art is gitignored). Onboarding
+> renders these on Vercel in **either** backend. In Supabase mode, if a DB row is missing an image URL,
+> the app falls back to this bundled art by id — so onboarding never shows broken images. Step B below
+> uploads this same committed art to Storage.
+
 ---
 
 ## A. Apply Supabase migrations (once, to the preview project)
@@ -25,13 +31,18 @@ user-uploads/ nest-thumbnails/`), and RLS is enabled on the `nest_*` tables.
 
 ## B. Upload the curated library
 
+Uploads the committed `public/nests/library-v1/**` art (14 images) to Storage + upserts rows
+(templates now include placements + preview_image). Works from a fresh clone (no gitignored deps).
+
 ```bash
 export NEXT_PUBLIC_SUPABASE_URL=…            # preview project URL
 export SUPABASE_SERVICE_ROLE_KEY=…           # preview service key (never commit)
 node scripts/upload-nest-library.mjs
 ```
 **Verify:** `backgrounds/` + `assets/` buckets fill; rows appear in `nest_backgrounds` /
-`nest_assets` / `nest_templates` (statuses seeded: featured/approved/draft/hidden).
+`nest_assets` / `nest_templates` with **`image_url` = a public Storage URL**
+(`https://<project>.supabase.co/storage/v1/object/public/backgrounds/library-v1__…webp`).
+Open one `image_url` in a browser — it must return the image (public bucket).
 
 ## C. Configure Supabase Auth (preview project)
 

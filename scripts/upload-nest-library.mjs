@@ -3,14 +3,14 @@
 //
 //   node scripts/upload-nest-library.mjs
 //
-// Uploads the fixture library images (public/nests/**) to Storage buckets and
-// upserts nest_backgrounds / nest_assets / nest_templates rows. Uses the SERVICE
-// ROLE key (bypasses RLS) — run it yourself; it is NOT run from CI or the app.
-// Requires: NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY in the environment
-// (or .env.local). Idempotent (upsert + upsert:true on storage). Fails gracefully.
+// Uploads the DEPLOYABLE library images (public/nests/library-v1/**, committed to
+// git) to Storage buckets and upserts nest_backgrounds / nest_assets / nest_templates
+// rows with the resulting public URLs. Reading committed images means this works from
+// a fresh clone / CI (no dependency on gitignored candidate art).
 //
-// The MANIFEST below mirrors lib/fixtures/nest-production-library-v1.ts — keep the
-// two in sync if the fixture changes (this is a one-time migration tool).
+// Uses the SERVICE ROLE key (bypasses RLS) — run it yourself; NOT from the app/CI.
+// Requires NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY in env (or .env.local).
+// Idempotent (upsert + storage upsert:true). Fails gracefully.
 
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname, extname } from "node:path";
@@ -43,43 +43,45 @@ const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 const CDN = (bucket, key) => `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${key}`;
 const CTYPE = { ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg" };
 
-// Local image path (under public/) → { bucket, key }
-const BG = "/nests/camera-dna-v1/candidates/backgrounds";
-const PRODBG = "/nests/production-v1/candidates/backgrounds";
-const OBJ = "/nests/production-v1/candidates/objects";
+const LIB = "/nests/library-v1"; // committed, deployable art (source of truth for upload)
 
-// Manifest — mirrors the fixture (statuses etc. are seeded; admin can re-curate).
+// Manifest — mirrors lib/fixtures/nest-production-library-v1.ts (statuses seeded;
+// admins re-curate later). Keep in sync if the fixture changes.
 const BACKGROUNDS = [
-  { id: "bg-creator-loft", title: "Creator Loft", style: "Loft · concrete & brick", status: "featured", tags: ["creator", "loft"], local: `${BG}/bg-creator-loft/c1/bg-creator-loft-master.png` },
-  { id: "bg-writer-nook", title: "Writer's Nook", style: "Study · walnut & books", status: "approved", tags: ["writer"], local: `${BG}/bg-writer-nook/c1/bg-writer-nook-master.png` },
-  { id: "bg-gamer-cave", title: "Gamer Cave", style: "Gamer · dark & RGB", status: "approved", tags: ["gamer"], local: `${BG}/bg-gamer-cave/c1/bg-gamer-cave-master.png` },
-  { id: "bg-minimal-zen", title: "Minimal Zen", style: "Zen · stone & plaster", status: "approved", tags: ["zen"], local: `${BG}/bg-minimal-zen/c1/bg-minimal-zen-master.png` },
-  { id: "bg-outdoor-balcony", title: "Outdoor Balcony", style: "Balcony · decking & sky", status: "draft", tags: ["outdoor"], local: `${BG}/bg-outdoor-balcony/c1/bg-outdoor-balcony-master.png` },
-  { id: "bg-warm-studio", title: "Warm Studio", style: "Living · warm plaster", status: "approved", tags: ["living-room"], local: `${PRODBG}/bg-lr-warm-studio/c3/bg-lr-warm-studio-master.png` },
-  { id: "bg-focused-office", title: "Focused Office", style: "Office · olive calm", status: "hidden", tags: ["office"], local: `${PRODBG}/bg-so-focused-office/c2/bg-so-focused-office-master.png` },
+  { id: "bg-creator-loft", title: "Creator Loft", style: "Loft · concrete & brick", status: "featured", tags: ["creator", "loft"] },
+  { id: "bg-writer-nook", title: "Writer's Nook", style: "Study · walnut & books", status: "approved", tags: ["writer"] },
+  { id: "bg-gamer-cave", title: "Gamer Cave", style: "Gamer · dark & RGB", status: "approved", tags: ["gamer"] },
+  { id: "bg-minimal-zen", title: "Minimal Zen", style: "Zen · stone & plaster", status: "approved", tags: ["zen"] },
+  { id: "bg-outdoor-balcony", title: "Outdoor Balcony", style: "Balcony · decking & sky", status: "draft", tags: ["outdoor"] },
+  { id: "bg-warm-studio", title: "Warm Studio", style: "Living · warm plaster", status: "approved", tags: ["living-room"] },
+  { id: "bg-focused-office", title: "Focused Office", style: "Office · olive calm", status: "hidden", tags: ["office"] },
 ];
 const ASSETS = [
-  { id: "ast-lr-sofa-boucle", title: "Bouclé Sofa", category: "furniture", slots: ["seat"], c: "c2", status: "approved" },
-  { id: "ast-lr-media-oak-console", title: "Oak Media Console", category: "electronics", slots: ["media"], c: "c3", status: "approved" },
-  { id: "ast-lr-table-oak-round", title: "Oak Coffee Table", category: "furniture", slots: ["table"], c: "c1", status: "approved" },
-  { id: "ast-so-desk-oak", title: "Oak Desk", category: "furniture", slots: ["desk"], c: "c2", status: "approved" },
-  { id: "ast-so-chair-task", title: "Task Chair", category: "furniture", slots: ["seat"], c: "c2", status: "approved" },
-  { id: "ast-so-shelf-tall", title: "Tall Bookshelf", category: "furniture", slots: ["shelf"], c: "c3", status: "approved" },
-  { id: "ast-lr-frame-portrait", title: "Photo Frame", category: "decor", slots: ["frame"], c: "c3", status: "draft" },
+  { id: "ast-lr-sofa-boucle", title: "Bouclé Sofa", category: "furniture", slots: ["seat"], status: "approved" },
+  { id: "ast-lr-media-oak-console", title: "Oak Media Console", category: "electronics", slots: ["media"], status: "approved" },
+  { id: "ast-lr-table-oak-round", title: "Oak Coffee Table", category: "furniture", slots: ["table"], status: "approved" },
+  { id: "ast-so-desk-oak", title: "Oak Desk", category: "furniture", slots: ["desk"], status: "approved" },
+  { id: "ast-so-chair-task", title: "Task Chair", category: "furniture", slots: ["seat"], status: "approved" },
+  { id: "ast-so-shelf-tall", title: "Tall Bookshelf", category: "furniture", slots: ["shelf"], status: "approved" },
+  { id: "ast-lr-frame-portrait", title: "Photo Frame", category: "decor", slots: ["frame"], status: "draft" },
 ];
+const P = (assetId, slotType, x, y, scale, zIndex) => ({ assetId, slotType, x, y, scale, zIndex });
 const TEMPLATES = [
-  { id: "tpl-creator-loft", title: "Creator Loft", persona: "Creator", background_id: "bg-creator-loft", status: "featured" },
-  { id: "tpl-gamer-cave", title: "Gamer Cave", persona: "Gamer", background_id: "bg-gamer-cave", status: "approved" },
-  { id: "tpl-writer-nook", title: "Writer's Nook", persona: "Writer", background_id: "bg-writer-nook", status: "approved" },
-  { id: "tpl-minimal-zen", title: "Minimal Zen", persona: "Minimalist", background_id: "bg-minimal-zen", status: "approved" },
+  { id: "tpl-creator-loft", title: "Creator Loft", persona: "Creator", background_id: "bg-creator-loft", status: "featured", tags: ["creator", "loft"],
+    placements: [P("ast-lr-media-oak-console", "media", 0.5, 0.52, 0.78, 2), P("ast-lr-sofa-boucle", "seat", 0.36, 0.84, 0.62, 3), P("ast-lr-table-oak-round", "table", 0.56, 0.92, 0.3, 4), P("ast-so-shelf-tall", "shelf", 0.86, 0.7, 0.95, 3)] },
+  { id: "tpl-gamer-cave", title: "Gamer Cave", persona: "Gamer", background_id: "bg-gamer-cave", status: "approved", tags: ["gamer"],
+    placements: [P("ast-so-desk-oak", "desk", 0.5, 0.82, 0.5, 3), P("ast-so-chair-task", "seat", 0.5, 0.93, 0.55, 4), P("ast-lr-media-oak-console", "media", 0.78, 0.55, 0.7, 2)] },
+  { id: "tpl-writer-nook", title: "Writer's Nook", persona: "Writer", background_id: "bg-writer-nook", status: "approved", tags: ["writer", "reading"],
+    placements: [P("ast-so-desk-oak", "desk", 0.45, 0.82, 0.5, 3), P("ast-so-chair-task", "seat", 0.5, 0.93, 0.5, 4), P("ast-so-shelf-tall", "shelf", 0.83, 0.68, 0.95, 2)] },
+  { id: "tpl-minimal-zen", title: "Minimal Zen", persona: "Minimalist", background_id: "bg-minimal-zen", status: "approved", tags: ["zen", "minimal"],
+    placements: [P("ast-lr-sofa-boucle", "seat", 0.5, 0.85, 0.62, 3), P("ast-lr-table-oak-round", "table", 0.5, 0.93, 0.3, 4)] },
 ];
 
 async function uploadImage(bucket, localPath) {
   const abs = resolve(PUB, "." + localPath);
   if (!existsSync(abs)) { console.warn(`   ! missing image ${localPath}`); return undefined; }
-  const key = localPath.replace(/^\/nests\//, "").replace(/\//g, "__"); // flat, stable key
-  const body = readFileSync(abs);
-  const { error } = await db.storage.from(bucket).upload(key, body, {
+  const key = localPath.replace(/^\/nests\//, "").replace(/\//g, "__");
+  const { error } = await db.storage.from(bucket).upload(key, readFileSync(abs), {
     contentType: CTYPE[extname(abs)] ?? "application/octet-stream", upsert: true,
   });
   if (error) { console.warn(`   ! upload failed ${key}: ${error.message}`); return undefined; }
@@ -87,25 +89,26 @@ async function uploadImage(bucket, localPath) {
 }
 
 async function main() {
+  const bgUrl = {};
   console.log("[upload-nest-library] uploading backgrounds…");
   for (const b of BACKGROUNDS) {
-    const url = await uploadImage("backgrounds", b.local);
+    const url = await uploadImage("backgrounds", `${LIB}/backgrounds/${b.id}.webp`);
     if (!url) continue;
+    bgUrl[b.id] = url;
     await db.from("nest_backgrounds").upsert({ id: b.id, slug: b.id, title: b.title, image_url: url, variants: { standard: url }, style: b.style, status: b.status, camera_dna_version: "camera-dna-lock-v1", tags: b.tags });
     console.log(`   ✓ ${b.id}`);
   }
   console.log("[upload-nest-library] uploading assets…");
   for (const a of ASSETS) {
-    const local = `${OBJ}/${a.id}/${a.c}/${a.id}-cutout.png`;
-    const url = await uploadImage("assets", local);
+    const url = await uploadImage("assets", `${LIB}/assets/${a.id}.webp`);
     if (!url) continue;
     await db.from("nest_assets").upsert({ id: a.id, slug: a.id, title: a.title, image_url: url, cutout_url: url, variants: { standard: url }, category: a.category, compatible_slot_types: a.slots, status: a.status, camera_dna_version: "front-facing-v1", tags: [] });
     console.log(`   ✓ ${a.id}`);
   }
   console.log("[upload-nest-library] upserting templates…");
   for (const t of TEMPLATES) {
-    await db.from("nest_templates").upsert({ id: t.id, slug: t.id, title: t.title, persona: t.persona, background_id: t.background_id, placements: [], status: t.status, tags: [] });
-    console.log(`   ✓ ${t.id}`);
+    await db.from("nest_templates").upsert({ id: t.id, slug: t.id, title: t.title, persona: t.persona, background_id: t.background_id, placements: t.placements, preview_image: bgUrl[t.background_id] ?? null, status: t.status, tags: t.tags });
+    console.log(`   ✓ ${t.id} (${t.placements.length} placements)`);
   }
   console.log("[upload-nest-library] done. Re-run any time (idempotent).");
 }

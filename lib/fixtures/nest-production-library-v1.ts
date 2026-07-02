@@ -14,11 +14,14 @@ import type {
 } from "@/lib/nest-production-types";
 
 export const CAMERA_DNA_LOCK_V1 = "camera-dna-lock-v1";
-const CAM = "/nests/camera-dna-v1/candidates/backgrounds";
-const PROD = "/nests/production-v1/candidates";
 
-const bgMaster = (id: string) => `${CAM}/${id}/c1/${id}-master.png`;
-const objDir = (id: string, c: string) => `${PROD}/objects/${id}/${c}`;
+// Deployable, web-optimized library art committed under public/nests/library-v1/ so
+// onboarding renders on Vercel (the source candidate art is gitignored / not deployed).
+// In Supabase mode these also serve as the per-item fallback when a DB row lacks an
+// image URL (see lib/nest-production-library.ts hydrateLibrary).
+const LIB = "/nests/library-v1";
+const bgMaster = (id: string) => `${LIB}/backgrounds/${id}.webp`;
+const assetImg = (id: string) => `${LIB}/assets/${id}.webp`;
 
 // ── Backgrounds ──────────────────────────────────────────────────────────────
 const BACKGROUNDS: ProductionBackground[] = [
@@ -54,15 +57,13 @@ const BACKGROUNDS: ProductionBackground[] = [
   },
   {
     id: "bg-warm-studio", name: "Warm Studio", style: "Living · warm plaster",
-    imageUrl: `${PROD}/backgrounds/bg-lr-warm-studio/c3/bg-lr-warm-studio-master.png`,
-    variants: { standard: `${PROD}/backgrounds/bg-lr-warm-studio/c3/variants/standard/bg-lr-warm-studio.webp` },
+    imageUrl: bgMaster("bg-warm-studio"), variants: { standard: bgMaster("bg-warm-studio") },
     cameraDnaVersion: "front-facing-v1", status: "approved",
     tags: ["living-room", "warm"], sourceCandidateId: "bg-lr-warm-studio/c3",
   },
   {
     id: "bg-focused-office", name: "Focused Office", style: "Office · olive calm",
-    imageUrl: `${PROD}/backgrounds/bg-so-focused-office/c2/bg-so-focused-office-master.png`,
-    variants: { standard: `${PROD}/backgrounds/bg-so-focused-office/c2/variants/standard/bg-so-focused-office.webp` },
+    imageUrl: bgMaster("bg-focused-office"), variants: { standard: bgMaster("bg-focused-office") },
     cameraDnaVersion: "front-facing-v1", status: "hidden", // withheld → hidden from onboarding
     tags: ["office", "focus"], sourceCandidateId: "bg-so-focused-office/c2",
   },
@@ -75,15 +76,11 @@ function asset(
     cameraDnaVersion?: string;
   },
 ): ProductionAsset {
-  const d = objDir(p.id, p.c);
+  const url = assetImg(p.id);
   return {
     id: p.id, name: p.name, category: p.category,
-    imageUrl: `${d}/${p.id}-cutout.png`, cutoutUrl: `${d}/${p.id}-cutout.png`,
-    variants: {
-      mobile: `${d}/variants/mobile/${p.id}.webp`,
-      standard: `${d}/variants/standard/${p.id}.webp`,
-      focus: `${d}/variants/focus/${p.id}.webp`,
-    },
+    imageUrl: url, cutoutUrl: url,
+    variants: { standard: url },
     visualBounds: { aspect: p.aspect, anchor: { x: 0.5, y: 1 } },
     compatibleSlotTypes: p.compatibleSlotTypes,
     editableSurfaces: p.editableSurfaces,
