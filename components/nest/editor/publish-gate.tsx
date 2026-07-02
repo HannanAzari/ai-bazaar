@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
 import { getNestSession, localSignUp, signInWithGoogle, signUpWithEmail, type NestSession } from "@/lib/nest-auth";
+import { claimUsername, validateUsername } from "@/lib/nest-profile-store";
 import { loadDoc, nestBackend, persistDoc, publish, type PublishResult } from "@/lib/nest-repo";
 import { editableObjectsToPlacements } from "@/lib/nest-editor-bridge";
 import { PUBLISH_VISIBILITY_OPTIONS, type NestPublishVisibility } from "@/lib/nest-production-types";
@@ -36,7 +37,19 @@ export function PublishGate({
   const fullUrl = result ? (typeof window !== "undefined" ? window.location.origin + result.url : result.url) : "";
 
   async function refresh() { setSession(await getNestSession()); }
-  function doLocalSignup() { if (!username.trim()) return; localSignUp(username); void refresh(); }
+  function doLocalSignup() {
+    const name = username.trim();
+    if (!name) return;
+    const reason = validateUsername(name);
+    if (reason) { setError(reason); return; }
+    const s = localSignUp(name);
+    // Register the username in the identity store — enforces uniqueness + persists
+    // it for Home / the /@handle profile route (M15).
+    const claim = claimUsername(s.userId, name);
+    if (!claim.ok) { setError(claim.error); return; }
+    setError(undefined);
+    void refresh();
+  }
   async function doEmailSignup() {
     setError(undefined);
     try { await signUpWithEmail(email, password); await refresh(); }
@@ -90,7 +103,7 @@ export function PublishGate({
               </button>
             </div>
             <a href={result.url} target="_blank" rel="noreferrer" className="block rounded-xl bg-[#d9913c] px-4 py-3 text-center text-sm font-bold text-white transition hover:brightness-95">View my Nest ↗</a>
-            <button onClick={() => { window.location.href = "/studio"; }} className="block w-full rounded-xl border border-[#c9b98a] bg-white px-4 py-3 text-center text-sm font-bold text-ink transition hover:bg-[#f0e9d4]">Back to Studio</button>
+            <button onClick={() => { window.location.href = "/home"; }} className="block w-full rounded-xl border border-[#c9b98a] bg-white px-4 py-3 text-center text-sm font-bold text-ink transition hover:bg-[#f0e9d4]">Back to Home</button>
             <p className="text-center text-[11px] text-ink-soft">Visibility: {result.visibility} · backend: {backend}</p>
           </div>
         ) : !canPublish ? (
@@ -100,6 +113,7 @@ export function PublishGate({
                 <p className="text-sm text-ink-soft">Your work is saved on this device. Pick a username to claim + publish it.</p>
                 <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="username" style={{ fontSize: 16 }} className="w-full rounded-xl border border-[#c9b98a] bg-white px-3 py-2.5" />
                 <button onClick={doLocalSignup} disabled={!username.trim()} className="w-full rounded-xl bg-[#d9913c] px-4 py-3 text-sm font-bold text-white disabled:opacity-50">Create account</button>
+                {error ? <p className="text-center text-xs font-bold text-[#a94f5c]">{error}</p> : null}
               </>
             ) : (
               <>

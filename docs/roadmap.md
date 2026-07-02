@@ -66,6 +66,7 @@ by generating visuals per creator.**
 | Analytics + Discovery V1 | 2026-06-25 | Mode-aware **durable analytics** (`SupabaseEventsRepository` implemented; `trackEvent` writes Supabase in production, local fallback), **anonymous visitor sessions** (first/returning, duration), **creator insights dashboard** (visits, unique visitors, room entries, avg session, top objects/room/day), per-object + **visitor funnel** analytics, **Featured Nests** discovery (Trending/New/Recently active) on `/discover`; `visitor_sessions` table + owner-read events RLS (`20260625_*`); demo unchanged; 236 tests |
 
 | M13 — Mobile Stabilisation | 2026-07-02 | Reunited the single Nest editor with the restored Golden Nest assets after the M12 library cutover: catalog-aligned asset ids (Connect + Surfaces work), `seat`/`desk` floor guardrails, generic text/image overlays, mobile UX (Done→/studio, scroll-lock, 16px inputs, safe-area), null-safe `slotTypeForAsset` (focus-scene crash fix), `/nest-admin` redirect, flawed oak assets hidden + templates repointed. Preview only (`m12-nest-platform`); 319 tests. See [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md) + ADR-032. |
+| M15 — Real App Shell & Nest Home | 2026-07-02 | Nestudio becomes a real app: permanent mobile bottom nav (`Home · Explore · Create · Updates`), real **Home** (profile summary · drafts · published), **username ownership** + `/@<handle>` public profile, Create tab as the single creation entry, Explore + Updates placeholders. Built on the **nest-auth identity** (no auth rewrite); single editor + persistence preserved. `/studio`,`/`,`/design/nest-onboarding` redirect into the shell; editor/publish return to `/home` (login wall removed). Preview only (`m12-nest-platform`); 335 tests. See [m15-app-shell.md](m15-app-shell.md) + ADR-033. |
 
 All sprints ship green: `typecheck · lint · test · build`.
 
@@ -73,10 +74,16 @@ All sprints ship green: `typecheck · lint · test · build`.
 
 ## In Progress
 
-**M13 mobile stabilisation shipped 2026-07-02** on `m12-nest-platform` (preview only; **not
-merged to `main`, not deployed to production**) and is **awaiting on-device mobile testing**
-before M14 is scoped — see [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md) and
-[m12-preview-mobile-test-checklist.md](m12-preview-mobile-test-checklist.md). Earlier,
+**M15 real app shell & Nest Home shipped 2026-07-02** on `m12-nest-platform` (preview only;
+**not merged to `main`, not deployed to production**): a permanent mobile bottom nav, a real
+Home, username ownership (`/@handle`), and the Create tab as the single creation entry — built
+on the nest-auth identity, single editor + persistence preserved. Verified on an iPhone
+viewport. See [m15-app-shell.md](m15-app-shell.md) + ADR-033. **Next:** back the identity +
+`/@handle` with the Supabase backend (currently local-mode), unify the nest-auth and V1
+AuthProvider sessions, and bring back Village as a real (5th) tab. Earlier, **M13 mobile
+stabilisation shipped 2026-07-02** (single editor reunited with the Golden Nest assets); see
+[m13-mobile-stabilisation.md](m13-mobile-stabilisation.md) and
+[m12-preview-mobile-test-checklist.md](m12-preview-mobile-test-checklist.md). Earlier still,
 **Analytics + Discovery V1 shipped 2026-06-25** —
 durable mode-aware analytics, anonymous visitor sessions, a creator insights
 dashboard, per-object + funnel analytics, and Featured Nests discovery; demo

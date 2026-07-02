@@ -1350,6 +1350,47 @@ Add generic text/image **overlays** as `EditableNestObject`s (synthetic `overlay
 
 ---
 
+## ADR-033 — App shell built on the nest-auth identity; 4 tabs; `/@handle` via rewrite (M15)
+
+**Status:** Accepted (2026-07-02). Branch `m12-nest-platform`, preview only.
+Record: [m15-app-shell.md](m15-app-shell.md). Refines ADR-032 (single editor) — does not supersede.
+
+### Context
+M15 turns Nestudio into a real app (navigation · identity · ownership). Two identity systems
+coexisted: the **V1 AuthProvider** (`useSession`, email/password, `profiles` table) powering
+`/studio`, and the **nest-auth** session (`getNestSession`, username stub | Supabase anon)
+that actually owns NestDocuments + published nests. The editor exited to `/studio`, whose
+middleware gate bounced signed-out creators to `/auth/login` — a confusing post-publish wall.
+The hard rules: single editor, no persistence rewrite, avoid large auth rewrites, no villages.
+
+### Decision
+1. **Identity spine = nest-auth**, joined with a new light `lib/nest-profile-store.ts` (username
+   with uniqueness, bio, avatar) + a username registry for `/@handle` resolution. The V1
+   AuthProvider/`profiles` table is left untouched — no auth rewrite.
+2. **4 tabs** (`Home · Explore · Create · Updates`), not the 5 the brief listed — **Village** is
+   out of scope this sprint, so a Village placeholder would be a dead tab. It returns as a real
+   tab when village systems exist. Cozy identity over a generic social pattern.
+3. **`/@<username>`** is served from `/profile/[handle]` via a `next.config` **rewrite**, because
+   Next reserves `@`-prefixed folders for parallel-route slots.
+4. `/studio`, `/`, and `/design/nest-onboarding` **redirect** into the shell; `/studio` is
+   removed from the middleware `PROTECTED` list (the gate, not the page, caused the login wall).
+
+### Alternatives Considered
+- **Build on the V1 AuthProvider** — it doesn't own NestDocuments, so it needs a session bridge
+  (bigger change, toward the auth rewrite the rules warn against).
+- **Unify the two sessions now** — the large auth rewrite explicitly out of scope for M15.
+- **Root-level `[handle]` dynamic route** for `/@handle` — greedy (catches every unknown top
+  segment) and doesn't preserve the literal `@`.
+
+### Consequences
+- (+) Real app shell + Home + username ownership without touching auth or persistence; single
+  editor preserved; no post-publish login wall.
+- (−) Identity + `/@handle` resolution are **local-mode** (`localStorage`, per browser) until the
+  Supabase backend backs them; the two sessions stay separate (unifying is a follow-up).
+- (−) `VillageWorld` is no longer the `/` landing (preserved in-tree for the future Village tab).
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

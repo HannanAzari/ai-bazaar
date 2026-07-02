@@ -4,6 +4,13 @@ AI Bazaar is a mobile-first creative village where each member can claim one lit
 
 The world map is a **hexagon district map**: ten villages laid out as a connected honeycomb, with a frontier of empty plots that signals room to grow. Each hex opens into its own ring of 24 houses around a shared green, fountain, tree, or garden — the horizontal circular street view and the per-house interior are unchanged.
 
+> **Nestudio app shell (M15, 2026-07-02 — preview only, `m12-nest-platform`).** The evolving
+> product (**Nestudio**) now opens into a real mobile app shell with a permanent bottom nav —
+> **Home · Explore · Create · Updates** — plus **username ownership** at `/@<handle>`. `/` now
+> opens the app shell (`/home`); the single Nest editor (`/nest-editor`) and publishing return
+> there. Built on the nest-auth identity (no auth rewrite); the V1 village below is preserved.
+> See [docs/m15-app-shell.md](docs/m15-app-shell.md) + decision-log ADR-033.
+
 ## Experience
 
 - The default route opens directly to the hexagon district map; each hex is one village.
@@ -358,8 +365,9 @@ by runtime mode via `getRepositories()`, mirroring `getImageStorage()` and
 
 - **Auth** — `lib/auth/*` + `useSession()` (a unified, mode-aware session).
   Production uses Supabase email+password; demo keeps the passwordless localStorage
-  session. `middleware.ts` refreshes the session cookie and protects `/studio` +
-  `/onboarding` in production.
+  session. `middleware.ts` refreshes the session cookie and protects `/onboarding`
+  in production. (M15: `/studio` is no longer protected — it redirects to the public
+  `/home` app shell; gating it there caused a post-publish login wall.)
 - **Profiles / houses / rooms** — real Supabase repositories (anon key + RLS, lazy
   client). Rooms persist as a jsonb snapshot on the `rooms` table (`client_id` +
   `objects`), preserving the full Room Engine V5 model. Components save/load via the

@@ -235,13 +235,25 @@ has a graceful fallback.
 
 ## 6. Route map
 
+> **M15 app shell (2026-07-02, ADR-033).** Nestudio now opens into a real app shell with a
+> permanent mobile bottom nav — `Home · Explore · Create · Updates` (`components/nest/app-shell/*`).
+> These routes own their own chrome (the V1 `SiteHeader` hides itself there). Identity is the
+> **nest-auth** session joined with `lib/nest-profile-store.ts` (username ownership); `/@<handle>`
+> is a public profile served from `/profile/[handle]` via a `next.config` rewrite. `/`, `/studio`,
+> and `/design/nest-onboarding` redirect into the shell. See [m15-app-shell.md](docs/m15-app-shell.md).
+
 | Route | Type | Notes |
 |---|---|---|
-| `/` | static | Hex district map (`VillageWorld`) + onboarding overlay |
+| `/` | redirect | → `/home` (M15). `VillageWorld` preserved in-tree for the future Village tab |
+| `/home` | client | **App shell Home** — profile summary, Continue creating (drafts), Published Nests |
+| `/explore` | client | **App shell Explore** — recently-published + curated example Nests (placeholder feed) |
+| `/create` | client | **App shell Create** — the single creation entry (Quick Start / Build My Own → editor) |
+| `/updates` | client | **App shell Updates** — friendly empty state (no notifications backend) |
+| `/@<handle>` → `/profile/[handle]` | client (rewrite) | Public creator profile (username + published Nests) |
 | `/bazaar` | static | Alias of the map |
 | `/bazaar/[slug]` | SSG (10) | Village street (`StreetWalk`); claim flow |
 | `/shop/[address]` | SSG (10) + dynamic | Public room (`ShopPageClient` → `RoomExperience` or legacy). Resolves owner-claimed addresses client-side via `useAllShops` |
-| `/studio` | client | Owner editor (room / exterior / classic interior + details + tags). Requires demo user + claimed house |
+| `/studio` | redirect | → `/home` (M15; V1 owner editor retired from the flow) |
 | `/discover` | static | Trending/newest, tags, swipe/grid/list |
 | `/tags`, `/tags/[tag]` | static + SSG | Tag index + detail |
 | `/u/[handle]` | SSG | Creator profile (flag) |

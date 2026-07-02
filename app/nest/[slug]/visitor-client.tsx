@@ -42,7 +42,7 @@ function Gate({ icon, title, body }: { icon: React.ReactNode; title: string; bod
       {icon}
       <h1 className="display text-2xl">{title}</h1>
       <p className="max-w-xs text-sm text-ink-soft">{body}</p>
-      <Link href="/design/nest-onboarding" className="mt-2 rounded-xl bg-[#d9913c] px-4 py-2 text-sm font-bold text-white">Create your own Nest</Link>
+      <Link href="/create" className="mt-2 rounded-xl bg-[#d9913c] px-4 py-2 text-sm font-bold text-white">Create your own Nest</Link>
     </div>
   );
 }
@@ -84,7 +84,7 @@ function VisitorView({ doc }: { doc: NestDocument }) {
       </div>
 
       <p className="mt-3 text-center text-xs text-ink-soft">You&rsquo;re visiting a published Nest · comments, likes &amp; following arrive later.</p>
-      <Link href="/design/nest-onboarding" className="mt-3 block rounded-xl bg-[#d9913c] px-4 py-3 text-center text-sm font-bold text-white">Create your own Nest</Link>
+      <Link href="/create" className="mt-3 block rounded-xl bg-[#d9913c] px-4 py-3 text-center text-sm font-bold text-white">Create your own Nest</Link>
     </div>
   );
 }

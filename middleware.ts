@@ -4,10 +4,13 @@ import { extractSubdomain, subdomainRewritePath } from "@/lib/subdomain";
 
 // Edge middleware for the production cutover. Two responsibilities, both no-ops in
 // demo mode (no Supabase env): (1) refresh the Supabase auth session cookie and
-// protect /studio + /onboarding; (2) rewrite `<handle>.nestud.io` → /u/<handle>.
+// protect the V1 onboarding; (2) rewrite `<handle>.nestud.io` → /u/<handle>.
 // Demo mode keeps localStorage auth, so route protection is client-side there.
-
-const PROTECTED = ["/studio", "/onboarding"];
+//
+// M15: /studio is no longer protected — it now just redirects to the public /home
+// (the Nest app shell). Gating it here bounced creators to /auth/login, which is the
+// confusing post-publish login wall Phase 5 removes.
+const PROTECTED = ["/onboarding"];
 
 export async function middleware(req: NextRequest) {
   // 1. Subdomain rewrite (works in any mode; harmless when there's no subdomain).

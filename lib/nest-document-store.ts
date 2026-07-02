@@ -141,6 +141,39 @@ export function resolvePublishedBySlug(slug: string): { doc: NestDocument; ref: 
   return { doc, ref };
 }
 
+// ── Home / Explore listings (M15) ─────────────────────────────────────────────
+//
+// The app shell (Home, Explore, /@handle) reads the same local store. A doc is a
+// "draft" until it has been published; publishing stamps its visibility and adds a
+// PublishedRef. Continue-Creating shows drafts; Published shows the published refs
+// resolved back to their (possibly newer) doc. All newest-first.
+
+/** Drafts the creator can keep working on (never-published docs), newest first. */
+export function listDrafts(): NestDocument[] {
+  const pubDocIds = new Set(Object.values(published()).map((r) => r.docId));
+  return getAllLocalDocs()
+    .filter((d) => d.visibility === "draft" && !pubDocIds.has(d.id))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export type PublishedNest = { ref: PublishedRef; doc: NestDocument };
+
+/** Published nests (registry ⋈ doc), newest first. `ownerId` filters to one creator. */
+export function listPublished(ownerId?: string): PublishedNest[] {
+  return Object.values(published())
+    .filter((ref) => (ownerId ? ref.ownerId === ownerId : true))
+    .map((ref) => ({ ref, doc: getDoc(ref.docId) }))
+    .filter((x): x is PublishedNest => !!x.doc)
+    .sort((a, b) => b.doc.updatedAt.localeCompare(a.doc.updatedAt));
+}
+
+/** Rebuild the shareable `/nest/<slug>?c=…` URL for a locally-published nest. */
+export function publishedUrl(entry: PublishedNest): string {
+  return isShareable(entry.ref.visibility)
+    ? `/nest/${entry.ref.slug}?c=${encodeDoc(entry.doc)}`
+    : `/nest/${entry.ref.slug}`;
+}
+
 // ── Encoding (self-contained shareable links) ────────────────────────────────
 function b64urlEncode(s: string): string {
   const bytes = new TextEncoder().encode(s);

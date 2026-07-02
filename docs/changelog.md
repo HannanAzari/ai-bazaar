@@ -8,6 +8,44 @@ for technical detail.
 
 ---
 
+## 2026-07-02 — M15: real app shell & Nest Home
+
+App-shell sprint on `m12-nest-platform` (preview only; **no merge to `main`, no production
+deploy**). Turns Nestudio from an "editor prototype" into a real app — navigation, identity,
+and ownership — **without** villages, social systems, or AI generation. Built on the existing
+**nest-auth identity** (no auth rewrite) and the single editor. Full record:
+[m15-app-shell.md](m15-app-shell.md); rationale in [decision-log.md](decision-log.md) ADR-033.
+
+### Added
+- **Permanent mobile app shell** — a safe-area-aware bottom nav (`Home · Explore · Create ·
+  Updates`, emphasised centre Create) + chrome wrapper (`components/nest/app-shell/*`); the V1
+  `SiteHeader` hides itself on nest-app routes.
+- **Home** (`/home`) — profile summary (avatar · @username · bio · nest count), **Continue
+  creating** (drafts), **Published Nests**, Create-New shortcut.
+- **Username ownership** — `lib/nest-profile-store.ts` (claim + uniqueness + persistence + bio/
+  avatar), a `useNestIdentity` hook, and a public profile at **`/@<username>`** (served from
+  `/profile/[handle]` via a `next.config` rewrite).
+- **Create** (`/create`) — the single creation entry (Quick Start / Build My Own → editor).
+- **Explore** (`/explore`) — recently-published + curated example Nests (opened via the
+  self-contained `?c=` link). **Updates** (`/updates`) — friendly empty state.
+- Listing helpers on the NestDocument store: `listDrafts`, `listPublished`, `publishedUrl`.
+- Tests: `test/nest-profile-store.test.ts`, `test/nest-home-listings.test.ts` (335 total).
+
+### Changed
+- Editor **Done/Back** + publish gate → return to **`/home`** (was the `/studio` dead-end).
+- `/studio` → redirects to `/home`; removed from the middleware `PROTECTED` list (it was
+  bouncing creators to `/auth/login` post-publish); V1 header "My place" → `/home`.
+- Root `/` → opens into the app shell (`/home`); `VillageWorld` preserved for later.
+- `/design/nest-onboarding` → redirects to `/create` (onboarding is no longer disconnected).
+
+### Known limitations
+- Identity + `/@handle` resolution are **local-mode** (`localStorage`, per browser) until the
+  Supabase backend backs them; the nest-auth and V1 AuthProvider sessions remain separate
+  (intentional — no auth rewrite this sprint). Village returns as a real tab later; Explore is
+  a placeholder feed.
+
+---
+
 ## 2026-07-02 — M13: mobile stabilisation (Nest editor)
 
 Polish/stabilisation sprint on `m12-nest-platform` (preview only; **no merge to `main`,
