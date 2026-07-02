@@ -7,6 +7,7 @@
 // owner's local store. Server persistence (Supabase) is a later sprint.
 
 import type { NestDocument, NestPlacement, NestVisibility } from "@/lib/nest-document-types";
+import type { NestOverlay } from "@/lib/nest-editor-types";
 import { isShareable } from "@/lib/nest-document-types";
 import { resolveTemplate } from "@/lib/nest-production-library";
 
@@ -154,13 +155,29 @@ function b64urlDecode(s: string): string {
   return new TextDecoder().decode(bytes);
 }
 
+// M14: a compact placement is `[assetId, x, y, scale, zIndex]`, with an optional 6th
+// element carrying the extras a share link should preserve — overlay content (text/image
+// stickers), the overlay box (w/h), and rotation. Older 5-element links still decode; older
+// decoders ignore the 6th element. NOTE: an image overlay's `src` is a data-URL and can make
+// the `?c=` link very long — text stickers + rotation are the common, URL-safe cases.
+type CompactExtra = { o?: NestOverlay | null; w?: number | null; h?: number | null; r?: number | null };
+type CompactPlacement =
+  | [string, number, number, number | null, number | null]
+  | [string, number, number, number | null, number | null, CompactExtra];
+
 /** Compact-encode a doc for a URL (only what the renderer needs). */
 export function encodeDoc(doc: NestDocument): string {
   const compact = {
     b: doc.backgroundId,
     t: doc.title,
     v: doc.visibility,
-    p: doc.placements.map((p) => [p.assetId, +p.x.toFixed(4), +p.y.toFixed(4), p.scale ?? null, p.zIndex ?? null]),
+    p: doc.placements.map((p): CompactPlacement => {
+      const base: [string, number, number, number | null, number | null] = [p.assetId, +p.x.toFixed(4), +p.y.toFixed(4), p.scale ?? null, p.zIndex ?? null];
+      if (p.overlay || p.rotation != null || p.w != null || p.h != null) {
+        return [...base, { o: p.overlay ?? null, w: p.w ?? null, h: p.h ?? null, r: p.rotation ?? null }];
+      }
+      return base;
+    }),
   };
   return b64urlEncode(JSON.stringify(compact));
 }
@@ -168,12 +185,19 @@ export function encodeDoc(doc: NestDocument): string {
 /** Decode a shareable doc payload back into a NestDocument (renderer-ready). */
 export function decodeDoc(encoded: string): NestDocument | undefined {
   try {
-    const c = JSON.parse(b64urlDecode(encoded)) as {
-      b: string; t: string; v: NestVisibility; p: [string, number, number, number | null, number | null][];
-    };
+    const c = JSON.parse(b64urlDecode(encoded)) as { b: string; t: string; v: NestVisibility; p: CompactPlacement[] };
     return {
       id: "shared", backgroundId: c.b, title: c.t, visibility: c.v,
-      placements: c.p.map((a, i) => ({ id: `pl-${i}`, assetId: a[0], x: a[1], y: a[2], scale: a[3] ?? undefined, zIndex: a[4] ?? undefined })),
+      placements: c.p.map((a, i): NestPlacement => {
+        const extra = a[5] as CompactExtra | undefined;
+        return {
+          id: `pl-${i}`, assetId: a[0], x: a[1], y: a[2], scale: a[3] ?? undefined, zIndex: a[4] ?? undefined,
+          ...(extra?.o ? { overlay: extra.o } : {}),
+          ...(extra?.w != null ? { w: extra.w } : {}),
+          ...(extra?.h != null ? { h: extra.h } : {}),
+          ...(extra?.r != null ? { rotation: extra.r } : {}),
+        };
+      }),
       createdAt: "", updatedAt: "",
     };
   } catch {

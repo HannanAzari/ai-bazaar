@@ -826,7 +826,11 @@ function GridGuides({ cols, rows }: { cols: number; rows: number }) {
 
 const CANVAS_CSS = `
 .editor-scene { background: linear-gradient(180deg, #efe2c4 0%, #e7d3ad 62%, #d8c096 100%); touch-action: none; }
-.editor-piece { cursor: grab; }
+/* M14 delight: newly-mounted pieces gently pop in (a placement animation). Only new
+   elements animate — React keys existing pieces by instanceId, so moves never re-trigger it. */
+@keyframes piece-in { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: scale(1); } }
+.editor-piece { cursor: grab; animation: piece-in .26s cubic-bezier(.22,.61,.36,1) both; }
 .editor-piece:active { cursor: grabbing; }
+@media (prefers-reduced-motion: reduce) { .editor-piece { animation: none; } }
 .editor-contact-shadow { position:absolute; left:50%; bottom:0; width:72%; aspect-ratio:6 / 1; transform:translate(-50%,34%); background:radial-gradient(50% 50% at 50% 50%, rgba(70,54,90,.30) 0%, rgba(70,54,90,.12) 55%, rgba(70,54,90,0) 75%); filter:blur(2px); pointer-events:none; }
 `;

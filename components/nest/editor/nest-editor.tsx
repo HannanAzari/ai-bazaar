@@ -22,23 +22,22 @@ import {
   TriangleAlert,
   Upload,
   UserCog,
+  X,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
 import {
-  GOLDEN_LIVING_NEST_COMPOSED,
   GOLDEN_LIVING_NEST_INTERACTIONS,
   GOLDEN_LIVING_NEST_INTERACTIONS_BY_ID,
   GOLDEN_LIVING_NEST_TEMPLATE,
 } from "@/lib/fixtures/golden-living-nest";
-import { productionEditorCatalog } from "@/lib/nest-editor-bridge";
+import { productionEditorCatalog, productionStarterDocument } from "@/lib/nest-editor-bridge";
 import { PublishGate } from "@/components/nest/editor/publish-gate";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import {
   addImageOverlay,
   addObject,
   addTextOverlay,
-  createEditorDocumentFromTemplate,
   duplicateObject,
   editorDocumentToStage,
   flipObject,
@@ -104,8 +103,10 @@ const DEFAULT_FOCUS_RECT = fitRectToAspectRatio({ x: 0.34, y: 0.34, width: 0.32,
 type Mode = "arrange" | "assets" | "connect" | "focus" | "surface" | "preview";
 type SaveState = "idle" | "unsaved" | "saving" | "saved";
 
-const freshDocument = (): EditableNestDocument =>
-  createEditorDocumentFromTemplate({ template: GOLDEN_LIVING_NEST_TEMPLATE, composed: GOLDEN_LIVING_NEST_COMPOSED });
+// M14 (Phase 2): the editor's default document is a clean PRODUCTION starter (featured
+// template on a production background) — never the old Golden Living fixture, which
+// referenced non-production ids and rendered fallback boxes.
+const freshDocument = (): EditableNestDocument => productionStarterDocument();
 
 export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; documentId?: string } = {}) {
   // `seed` (M12.x bridge): open on a document created by onboarding (production
@@ -267,6 +268,32 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
 
   const selected = selectedId ? activeDoc.objects.find((o) => o.instanceId === selectedId) : undefined;
   const selectedAsset = selected ? ASSETS[selected.assetId] : undefined;
+
+  // M14 (Phase 3): small, dismissible first-time hints. Each hint shows once ever (per
+  // device) and tells the creator the single most useful next thing. Never a heavy tutorial.
+  const [seenHints, setSeenHints] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try { setSeenHints(JSON.parse(window.localStorage.getItem("nestudio-hints-seen") || "{}")); } catch { /* ignore */ }
+  }, []);
+  const dismissHint = (k: string) =>
+    setSeenHints((s) => {
+      const next = { ...s, [k]: true };
+      try { window.localStorage.setItem("nestudio-hints-seen", JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  // The current contextual hint (arrange mode only; overlay editing is guided by its sheet).
+  const hint: { k: string; text: string } | undefined = (() => {
+    if (mode !== "arrange") return undefined;
+    if (selected?.overlay && !overlaySheetOpen && !seenHints.sticker)
+      return { k: "sticker", text: "Tap the sticker again to edit its text or image." };
+    if (selectedId && !selected?.overlay && !seenHints.move)
+      return { k: "move", text: "Drag to move · pinch or use the corner handles to resize." };
+    if (!selectedId && !seenHints.open)
+      return activeDoc.objects.length
+        ? { k: "open", text: "Tap a piece to edit it — or Publish when you're ready." }
+        : { k: "open", text: "Tap Assets to add your first piece, then Publish when ready." };
+    return undefined;
+  })();
 
   // M8: the surface currently open in the editor (on the selected object).
   const selectedSurface = selected ? resolveObjectSurfaces(selected).find((s) => s.id === selectedSurfaceId) : undefined;
@@ -476,7 +503,7 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
     clearDraft(doc.id);
     setHistory(createHistory(freshDocument(), 50));
     resetSceneContext();
-    flash("Reset to Golden Living Nest");
+    flash("Reset to starter Nest");
   };
   const exportJson = () => {
     try {
@@ -592,6 +619,17 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
                 </button>
               )}
             </div>
+
+            {/* First-time hint (Phase 3) — small, dismissible, one at a time. */}
+            {hint ? (
+              <div className="pointer-events-none absolute left-1/2 top-11 z-30 flex w-[min(92%,26rem)] -translate-x-1/2 justify-center">
+                <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-cobalt/25 bg-parchment/95 px-3 py-1.5 text-[11px] font-bold text-ink/75 shadow-md backdrop-blur">
+                  <span className="text-cobalt">💡</span>
+                  <span className="min-w-0">{hint.text}</span>
+                  <button type="button" onClick={() => dismissHint(hint.k)} aria-label="Dismiss hint" className="ml-0.5 shrink-0 rounded-full p-0.5 text-ink/45 hover:bg-ink/5"><X className="h-3.5 w-3.5" /></button>
+                </div>
+              </div>
+            ) : null}
 
             <EditorCanvas
               doc={activeDoc}

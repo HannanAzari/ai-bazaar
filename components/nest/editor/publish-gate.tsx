@@ -68,6 +68,7 @@ export function PublishGate({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-3 sm:items-center" onClick={onClose}>
+      <style>{`@keyframes publish-pop { 0% { transform: scale(0.4); opacity: 0 } 60% { transform: scale(1.12) } 100% { transform: scale(1); opacity: 1 } } .publish-pop { animation: publish-pop .42s cubic-bezier(.22,.61,.36,1) both } @media (prefers-reduced-motion: reduce) { .publish-pop { animation: none } }`}</style>
       <div className="w-full max-w-[420px] rounded-3xl border border-[#e0d5b8] bg-[#f7f0dd] p-5 text-ink shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-2 flex items-start justify-between">
           <h2 className="display text-2xl">{result ? "Your Nest is live" : canPublish ? "Publish your Nest" : "Create an account to publish your Nest"}</h2>
@@ -76,14 +77,20 @@ export function PublishGate({
 
         {result ? (
           <div className="space-y-3">
-            <p className="text-sm text-ink-soft">Share this link:</p>
+            {/* Celebratory confirmation (Phase 5). */}
+            <div className="flex flex-col items-center gap-1 py-1 text-center">
+              <span className="publish-pop flex size-12 items-center justify-center rounded-full bg-[#4d7358] text-white shadow-md"><Check className="size-6" /></span>
+              <p className="text-sm font-bold text-ink">Your Nest is live 🎉</p>
+              <p className="text-xs text-ink-soft">Share the link — it opens on any device.</p>
+            </div>
             <div className="flex items-center gap-2 rounded-xl border border-[#c9b98a] bg-white px-3 py-2">
               <span className="min-w-0 flex-1 truncate text-xs">{fullUrl}</span>
-              <button onClick={copy} className="flex items-center gap-1 rounded-lg bg-[#4d7358] px-2 py-1 text-xs font-bold text-white">
-                {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{copied ? "Copied" : "Copy"}
+              <button onClick={copy} aria-label="Copy link" className="flex items-center gap-1 rounded-lg bg-[#4d7358] px-2.5 py-1.5 text-xs font-bold text-white transition hover:brightness-110">
+                {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{copied ? "Copied!" : "Copy"}
               </button>
             </div>
-            <a href={result.url} target="_blank" rel="noreferrer" className="block rounded-xl bg-[#d9913c] px-4 py-3 text-center text-sm font-bold text-white">Open your Nest</a>
+            <a href={result.url} target="_blank" rel="noreferrer" className="block rounded-xl bg-[#d9913c] px-4 py-3 text-center text-sm font-bold text-white transition hover:brightness-95">View my Nest ↗</a>
+            <button onClick={() => { window.location.href = "/studio"; }} className="block w-full rounded-xl border border-[#c9b98a] bg-white px-4 py-3 text-center text-sm font-bold text-ink transition hover:bg-[#f0e9d4]">Back to Studio</button>
             <p className="text-center text-[11px] text-ink-soft">Visibility: {result.visibility} · backend: {backend}</p>
           </div>
         ) : !canPublish ? (

@@ -14,7 +14,7 @@ import type { EditableNestDocument, EditableNestObject, EditorPlane } from "@/li
 import type { NestDocument, NestPlacement } from "@/lib/nest-document-types";
 import type { ProductionAsset, ProductionHotspot } from "@/lib/nest-production-types";
 import type { NestEditableSurface } from "@/lib/nest-types";
-import { getAssets, resolveAsset, resolveBackground } from "@/lib/nest-production-library";
+import { getAssets, getBackgrounds, getTemplates, resolveAsset, resolveBackground } from "@/lib/nest-production-library";
 import { createEditorDocumentFromTemplate } from "@/lib/nest-editor";
 import { predefinedHotspotsForInstance } from "@/lib/nest-hotspot-catalog";
 import { registerAssetSurfaces } from "@/lib/nest-surface-catalog";
@@ -218,5 +218,44 @@ export function nestDocumentToEditable(doc: NestDocument): EditableNestDocument 
     id: doc.id,
     backgroundImageUrl: bg?.variants?.standard ?? bg?.imageUrl ?? base.backgroundImageUrl,
     objects: doc.placements.map(placementToObject),
+  };
+}
+
+/**
+ * M14 (Phase 2): a clean **production** starter document for the editor's default (direct
+ * `/nest-editor` with no `?document=`). Built entirely from the curated library — a featured
+ * template's background + placements — so there are **no fallback boxes / missing asset ids**
+ * (the old Golden Living fixture default referenced non-production ids). Falls back to a
+ * featured background (empty) if no template is visible, then to the base fixture if the
+ * library is empty. Pure + synchronous (safe for a `useState` initializer).
+ */
+export function productionStarterDocument(): EditableNestDocument {
+  const base = createEditorDocumentFromTemplate({
+    template: GOLDEN_LIVING_NEST_TEMPLATE,
+    composed: GOLDEN_LIVING_NEST_COMPOSED,
+  });
+  const templates = getTemplates({ onlyVisible: true });
+  const tpl = templates.find((t) => t.status === "featured") ?? templates[0];
+  if (tpl) {
+    const bg = resolveBackground(tpl.backgroundId);
+    return {
+      ...base,
+      id: "nest-starter",
+      name: tpl.name,
+      backgroundId: tpl.backgroundId,
+      backgroundImageUrl: bg?.variants?.standard ?? bg?.imageUrl ?? base.backgroundImageUrl,
+      objects: tpl.objectPlacements.map((p, i) =>
+        placementToObject({ id: `${p.assetId}-${i}`, assetId: p.assetId, x: p.x, y: p.y, scale: p.scale, zIndex: p.zIndex }, i),
+      ),
+    };
+  }
+  const bg = getBackgrounds({ onlyVisible: true })[0];
+  return {
+    ...base,
+    id: "nest-starter",
+    name: bg?.name ?? base.name,
+    backgroundId: bg?.id ?? base.backgroundId,
+    backgroundImageUrl: bg?.variants?.standard ?? bg?.imageUrl ?? base.backgroundImageUrl,
+    objects: [],
   };
 }
