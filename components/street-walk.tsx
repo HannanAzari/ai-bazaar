@@ -44,7 +44,7 @@ export function StreetWalk({ bazaar }: { bazaar: Bazaar }) {
   const confirmClaim = () => {
     if (claiming === null || addressTaken) return;
     const place = claimShop(bazaar.id, claiming, secondWord, thirdWord);
-    if (place) router.push("/studio");
+    if (place) router.push("/profile");
   };
 
   return (

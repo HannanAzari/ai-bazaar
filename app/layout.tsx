@@ -22,10 +22,10 @@ const nunitoSans = Nunito_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: "AI Bazaar",
-    template: "%s | AI Bazaar",
+    default: "Nestudio",
+    template: "%s · Nestudio",
   },
-  description: "Choose a village, claim a little house, and build your own creative place.",
+  description: "Make a cozy Nest that feels like you — a little place to share and explore.",
 };
 
 // M13 (Task 5): `viewport-fit=cover` makes iOS expose the safe-area insets the Nest editor

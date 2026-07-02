@@ -4,13 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Compass, Home, UserRound, WandSparkles } from "lucide-react";
 import { useDemo } from "@/components/providers/demo-provider";
-import { NotificationBell } from "@/components/notification-bell";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { flags } from "@/lib/flags";
 
-// M15: the new Nestudio app shell (Home · Explore · Create · Updates · /@handle)
-// and the full-screen editor own their own chrome, so the V1 village header steps
-// out of the way there.
+// M15.1: the Nestudio app shell (Home · Explore · Create · Notifications · Profile ·
+// /@handle) and the full-screen editor own their own chrome, so this legacy V1 header
+// steps out of the way there. It only renders on the remaining V1 routes.
 const NEST_APP_PREFIXES = ["/home", "/explore", "/create", "/notifications", "/updates", "/profile", "/nest-editor", "/nest/", "/@"];
 
 export function SiteHeader() {
@@ -25,7 +23,7 @@ export function SiteHeader() {
           <span className="grid size-8 place-items-center rounded-full bg-terracotta text-parchment shadow-soft">
             <Home size={16} />
           </span>
-          <span className="display text-lg">AI Bazaar</span>
+          <span className="display text-lg">Nestudio</span>
         </Link>
 
         <nav className="flex items-center gap-1">
@@ -39,7 +37,6 @@ export function SiteHeader() {
               <span className="hidden sm:inline">My place</span>
             </Link>
           )}
-          {flags.notifications && <NotificationBell />}
           {user ? (
             <Button variant="ghost" className="size-10 px-0" onClick={logout} aria-label="Log out">
               <UserRound size={18} />

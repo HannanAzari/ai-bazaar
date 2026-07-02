@@ -23,7 +23,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await signIn({ email, password });
-      router.push("/studio");
+      router.push("/profile");
     } catch (err) {
       setError(friendlyError(err, "signin"));
       setBusy(false);

@@ -8,6 +8,34 @@ for technical detail.
 
 ---
 
+## 2026-07-03 — M15.2: pre-M16 cleanup pass
+
+Small cleanup on `m12-nest-platform` (preview only; **no merge to `main`, no production
+deploy**). Removes/isolates lingering V1/Bazaar assumptions that could confuse the Nestudio
+app shell. **No new features, no auth changes, no villages.**
+
+### Changed
+- **Branding:** global metadata rebranded **AI Bazaar → Nestudio** (`app/layout.tsx` title
+  default + template `%s · Nestudio` + description) — every Nestudio tab title now reads
+  `… · Nestudio`. V1 `SiteHeader` logo + `Footer` tagline rebranded to Nestudio; visitor Nest
+  page title `A Nestudio Nest` → `A cozy Nest` (avoids `· Nestudio` redundancy).
+- **Wording:** Home discovery copy no longer says "houses" (village language) — now Nest-centric.
+- **Stale `/studio` navigations** removed: `/auth/login` and the V1 street-claim now push
+  `/profile` directly (were `/studio`, which only redirects there).
+- **V1 notification collision:** dropped the V1 `NotificationBell` from `SiteHeader` (it pointed
+  at `/notifications`, now the Nest placeholder). `notification-bell.tsx` + `notifications-client.tsx`
+  + `lib/notifications.ts` preserved in-tree.
+
+### Notes
+- Dev badge (`DevModeBadge`) is already production-gated → not shown in the Vercel preview.
+- Remaining "AI Bazaar" strings live only on isolated V1 routes (`/activity`, `/tags`, V1 room
+  object modals) that the Nestudio shell never links to.
+
+### Gates
+- `typecheck · lint · test (335) · build` green (Node 20); browser-verified (title `Home · Nestudio`).
+
+---
+
 ## 2026-07-03 — M15.1: navigation meaning correction
 
 Correction/polish sprint on `m12-nest-platform` (preview only; **no merge to `main`, no

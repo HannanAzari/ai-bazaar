@@ -55,7 +55,7 @@ export function HomeClient() {
       <header>
         <p className="eyebrow text-terracotta">Nestudio</p>
         <h1 className="display text-3xl">Wander cozy Nests</h1>
-        <p className="mt-1 text-sm text-ink/55">Step into spaces creators made their own. More houses to explore soon.</p>
+        <p className="mt-1 text-sm text-ink/55">Step into Nests creators made their own. More to explore soon.</p>
       </header>
 
       <div className="space-y-4">

@@ -5,7 +5,7 @@ import { NestVisitorClient } from "./visitor-client";
 // slug (owner's browser). Private/followers nests only resolve for their owner.
 
 export const metadata = {
-  title: "A Nestudio Nest",
+  title: "A cozy Nest",
   robots: { index: false, follow: false },
 };
 
