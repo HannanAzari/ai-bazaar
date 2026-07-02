@@ -49,6 +49,27 @@
    `migrateLocalNestsToSupabase()` on first authed load to copy a user's localStorage nests
    into their account (no work lost).
 
+## M12.1 — Library cutover (backgrounds/assets/templates + admin)
+
+The curated library also moves to Supabase, keeping the fixture as a safe fallback:
+
+- **Schema:** `supabase/migrations/20260702_03_nest_library_admin.sql` adds `is_admin()`-gated
+  UPDATE policies on `nest_backgrounds/nest_assets/nest_templates` (reads are already public).
+- **Source:** `lib/nest/supabase-library-repo.ts` fetches the library (all statuses) + writes
+  status. `lib/nest-production-library.ts` gained `hydrateLibrary()` (pulls the DB into an
+  in-memory cache the sync resolvers read) and a backend-aware, async `setItemStatus` (writes
+  to the DB in supabase mode, else a localStorage override). `getLibrary()` prefers the cache
+  when hydrated, else the fixture + overrides.
+- **Behavior:** admin approve/feature/hide/archive → DB; onboarding lists only approved/featured
+  from the DB; published Nests still resolve archived items (library SELECT + resolve-by-id return
+  any status; fixtures kept as fallback). If Supabase is unavailable the fixture path remains.
+- **Admin must be an `is_admin()` user** (signed in) to write library status in supabase mode.
+  Fixtures are **not removed**.
+
+To activate the library cutover: apply migration `_03`, run `scripts/upload-nest-library.mjs`
+(populates the tables), and set `NEXT_PUBLIC_NEST_BACKEND=supabase`. Local mode (flag off) is
+unchanged — verified in-browser (admin hide → onboarding filters, via the fixture path).
+
 ## Environments
 
 | Env | URL | Notes |

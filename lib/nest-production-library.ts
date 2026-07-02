@@ -1,22 +1,25 @@
-// ── Nestudio Production Library — local layer (M10) ──────────────────────────
+// ── Nestudio Production Library — layer (M10 local · M12.1 Supabase source) ──
 //
-// Reads the seed fixture and overlays admin curation from localStorage: status
-// overrides (approve/hide/archive/feature) + admin-created templates. NOTHING is
-// ever hard-deleted — items only change status — so old Nests keep resolving assets
-// by id even after they're pulled from the public flow.
-//
-// Local + SSR-safe only (fixtures + localStorage). No Supabase, no auth, no AI.
+// Source of the curated library. Default = the seed fixture + localStorage admin
+// overrides (M10). When NEXT_PUBLIC_NEST_BACKEND=supabase, `hydrateLibrary()` pulls
+// nest_backgrounds/nest_assets/nest_templates into an in-memory cache that the sync
+// resolvers read; admin status writes go to Supabase. NOTHING is ever hard-deleted —
+// items only change status — so published Nests keep resolving assets by id (any
+// status). If Supabase is unavailable, the fixture path remains (safe fallback);
+// fixtures are NOT removed.
 
 import type {
   ObjectPlacement,
   ProductionAsset,
   ProductionBackground,
+  ProductionItemType,
   ProductionLibrary,
   ProductionLibraryStatus,
   ProductionTemplate,
 } from "@/lib/nest-production-types";
 import { isOnboardingVisible } from "@/lib/nest-production-types";
 import { NEST_PRODUCTION_LIBRARY_V1 } from "@/lib/fixtures/nest-production-library-v1";
+import * as sbLibRepo from "@/lib/nest/supabase-library-repo";
 
 const STATUS_KEY = "nestudio-production-status"; // { [itemId]: status }
 const TEMPLATES_KEY = "nestudio-production-custom-templates"; // ProductionTemplate[]
@@ -44,6 +47,26 @@ function writeJson(key: string, value: unknown) {
   }
 }
 
+// ── Backend + Supabase cache (M12.1) ─────────────────────────────────────────
+const libraryBackend = () => (process.env.NEXT_PUBLIC_NEST_BACKEND === "supabase" ? "supabase" : "local");
+let libraryCache: ProductionLibrary | null = null;
+
+/**
+ * Pull the curated library from Supabase into the in-memory cache (supabase backend
+ * only). List components call this on mount; the sync resolvers then read the cache.
+ * On failure or in local mode it's a no-op — the fixture + localStorage path stays
+ * (safe local fallback). Notifies subscribers so onboarding/admin re-render.
+ */
+export async function hydrateLibrary(): Promise<void> {
+  if (libraryBackend() !== "supabase") return;
+  try {
+    libraryCache = await sbLibRepo.fetchLibrary();
+    if (isBrowser()) window.dispatchEvent(new CustomEvent(PRODUCTION_CHANGED_EVENT));
+  } catch {
+    /* keep the fixture fallback — never break local/offline */
+  }
+}
+
 // ── Status overrides ─────────────────────────────────────────────────────────
 type StatusMap = Record<string, ProductionLibraryStatus>;
 
@@ -51,8 +74,32 @@ function statusOverrides(): StatusMap {
   return readJson<StatusMap>(STATUS_KEY, {});
 }
 
-/** Curate an item. Never deletes — only moves status. Persists + notifies. */
-export function setItemStatus(itemId: string, status: ProductionLibraryStatus) {
+function inferItemType(itemId: string): ProductionItemType | undefined {
+  const lib = getLibrary();
+  if (lib.backgrounds.some((b) => b.id === itemId)) return "background";
+  if (lib.assets.some((a) => a.id === itemId)) return "asset";
+  if (lib.templates.some((t) => t.id === itemId)) return "template";
+  return undefined;
+}
+
+/**
+ * Curate an item. Never deletes — only moves status. Supabase backend writes to the
+ * DB (then re-hydrates); local backend persists a localStorage override. Falls back
+ * to the local override if the Supabase write fails.
+ */
+export async function setItemStatus(itemId: string, status: ProductionLibraryStatus): Promise<void> {
+  if (libraryBackend() === "supabase") {
+    const type = inferItemType(itemId);
+    if (type) {
+      try {
+        await sbLibRepo.setStatus(type, itemId, status);
+        await hydrateLibrary();
+        return;
+      } catch {
+        /* fall through to a local override so the admin action isn't lost */
+      }
+    }
+  }
   const map = statusOverrides();
   map[itemId] = status;
   writeJson(STATUS_KEY, map);
@@ -97,8 +144,37 @@ export function addCustomTemplate(input: {
   return tpl;
 }
 
-// ── The resolved library (fixture + overrides + custom templates) ────────────
+/**
+ * Save the CURRENT NestDocument state as a draft template (one shared path used by
+ * the editor + admin — no duplicated template logic). A template is just a
+ * pre-populated document: background + object placements + metadata.
+ */
+export function saveDocAsTemplate(input: {
+  name: string;
+  persona: string;
+  backgroundId: string;
+  placements: { assetId: string; slotType?: ObjectPlacement["slotType"]; x: number; y: number; scale?: number; zIndex?: number }[];
+  tags?: string[];
+  previewImage?: string;
+}): ProductionTemplate {
+  return addCustomTemplate({
+    name: input.name,
+    persona: input.persona,
+    backgroundId: input.backgroundId,
+    objectPlacements: input.placements.map((p) => ({
+      assetId: p.assetId, slotType: p.slotType, x: p.x, y: p.y, scale: p.scale, zIndex: p.zIndex,
+    })),
+    tags: input.tags,
+    previewImage: input.previewImage,
+  });
+}
+
+// ── The resolved library ─────────────────────────────────────────────────────
+// Supabase backend + hydrated → the DB cache (statuses live in the DB). Otherwise
+// the fixture + localStorage overrides (M10 local path / pre-hydration fallback).
+// Both are keyed by the same ids, so resolve-by-id works in either state.
 export function getLibrary(): ProductionLibrary {
+  if (libraryBackend() === "supabase" && libraryCache) return libraryCache;
   const m = statusOverrides();
   const base = NEST_PRODUCTION_LIBRARY_V1;
   return {

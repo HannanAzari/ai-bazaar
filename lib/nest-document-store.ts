@@ -53,6 +53,11 @@ export function getAllLocalDocs(): NestDocument[] {
   return Object.values(allDocs());
 }
 
+/** The most-recently-updated local doc — the "current" document for admin template save. */
+export function getMostRecentLocalDoc(): NestDocument | undefined {
+  return getAllLocalDocs().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+}
+
 export function saveDoc(doc: NestDocument): NestDocument {
   const docs = allDocs();
   const next = { ...doc, updatedAt: now() };

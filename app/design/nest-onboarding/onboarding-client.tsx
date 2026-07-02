@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Sparkles, Palette } from "lucide-react";
-import { getBackgrounds, getTemplates, onProductionChanged } from "@/lib/nest-production-library";
+import { getBackgrounds, getTemplates, hydrateLibrary, onProductionChanged } from "@/lib/nest-production-library";
 import { createFromBackground, createFromTemplate } from "@/lib/nest-repo";
 import type { ProductionBackground, ProductionTemplate } from "@/lib/nest-production-types";
 
@@ -23,7 +23,9 @@ export function NestOnboardingClient() {
       setBackgrounds(getBackgrounds({ onlyVisible: true }));
     };
     load();
-    return onProductionChanged(load);
+    const off = onProductionChanged(load);
+    void hydrateLibrary(); // M12.1: pull the DB library when backend=supabase
+    return off;
   }, []);
 
   const template = templates.find((t) => t.id === selTpl);
@@ -32,11 +34,11 @@ export function NestOnboardingClient() {
   // Choosing a template/background creates a real Nest document and opens the editor.
   async function startTemplate(id: string) {
     const doc = await createFromTemplate(id);
-    if (doc) router.push(`/nest-editor?doc=${doc.id}`);
+    if (doc) router.push(`/nest-editor?document=${doc.id}`);
   }
   async function startBackground(id: string, name?: string) {
     const doc = await createFromBackground(id, name ? `My ${name}` : "My Nest");
-    router.push(`/nest-editor?doc=${doc.id}`);
+    router.push(`/nest-editor?document=${doc.id}`);
   }
 
   return (

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, Copy, Plus, Trash2, X } from "lucide-react";
-import { getAssets, resolveAsset, resolveBackground } from "@/lib/nest-production-library";
+import { getAssets, resolveAsset, resolveBackground, resolveTemplate, saveDocAsTemplate } from "@/lib/nest-production-library";
 import { loadDoc, nestBackend, persistDoc, publish, type PublishResult } from "@/lib/nest-repo";
 import { getNestSession, localSignUp, signInWithGoogle, signUpWithEmail, type NestSession } from "@/lib/nest-auth";
 import { PUBLISH_VISIBILITY_OPTIONS, type NestPublishVisibility } from "@/lib/nest-production-types";
@@ -16,6 +16,7 @@ export function NestEditorClient({ docId }: { docId?: string }) {
   const [showPalette, setShowPalette] = useState(false);
   const [showPublish, setShowPublish] = useState(false);
   const [savedAt, setSavedAt] = useState<string>();
+  const [tplMsg, setTplMsg] = useState<string>();
 
   useEffect(() => {
     let alive = true;
@@ -59,6 +60,15 @@ export function NestEditorClient({ docId }: { docId?: string }) {
     mutatePlacements((ps) => ps.filter((p) => p.id !== selectedId));
     setSelectedId(undefined);
   }
+  // Save the CURRENT document state as a draft template (shared saveDocAsTemplate).
+  function saveTemplate() {
+    const persona = (doc!.sourceTemplateId ? resolveTemplate(doc!.sourceTemplateId)?.persona : undefined) ?? "Creator";
+    const tpl = saveDocAsTemplate({
+      name: doc!.title, persona, backgroundId: doc!.backgroundId, placements: doc!.placements,
+    });
+    setTplMsg(`Saved “${tpl.name}” as a draft template — approve it in admin.`);
+    setTimeout(() => setTplMsg(undefined), 3200);
+  }
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[460px] px-4 pb-28 pt-4">
@@ -98,8 +108,11 @@ export function NestEditorClient({ docId }: { docId?: string }) {
 
       {/* publish bar */}
       <div className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-[460px] border-t border-[#e0d5b8] bg-[#f7f0dd]/95 px-4 py-3 backdrop-blur">
-        <button onClick={() => setShowPublish(true)} className="w-full rounded-xl bg-[#d9913c] px-4 py-3 text-sm font-bold text-white hover:brightness-95">Publish Nest</button>
-        <p className="mt-1 text-center text-[11px] text-ink-soft">Draft saved on this device · no account needed until you publish.</p>
+        <div className="flex gap-2">
+          <button onClick={saveTemplate} className="rounded-xl border border-[#c9b98a] bg-white px-3 py-3 text-sm font-bold hover:bg-[#f0e9d4]">Save as template</button>
+          <button onClick={() => setShowPublish(true)} className="flex-1 rounded-xl bg-[#d9913c] px-4 py-3 text-sm font-bold text-white hover:brightness-95">Publish Nest</button>
+        </div>
+        <p className="mt-1 text-center text-[11px] text-ink-soft">{tplMsg ?? "Draft saved on this device · no account needed until you publish."}</p>
       </div>
 
       {showPalette ? (

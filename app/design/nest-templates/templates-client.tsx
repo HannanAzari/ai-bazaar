@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getTemplates, onProductionChanged, resolveBackground } from "@/lib/nest-production-library";
+import { getTemplates, hydrateLibrary, onProductionChanged, resolveBackground } from "@/lib/nest-production-library";
 import { createFromTemplate } from "@/lib/nest-repo";
 import { isOnboardingVisible, type ProductionLibraryStatus, type ProductionTemplate } from "@/lib/nest-production-types";
 
@@ -18,7 +18,11 @@ export function NestTemplatesClient() {
   const [tick, setTick] = useState(0);
   const [onlyPublished, setOnlyPublished] = useState(false);
 
-  useEffect(() => onProductionChanged(() => setTick((t) => t + 1)), []);
+  useEffect(() => {
+    const off = onProductionChanged(() => setTick((t) => t + 1));
+    void hydrateLibrary(); // M12.1: pull the DB library when backend=supabase
+    return off;
+  }, []);
 
   const templates = useMemo(() => {
     void tick;
@@ -53,7 +57,7 @@ function TemplateCard({ t }: { t: ProductionTemplate }) {
   const img = t.previewImage ?? bg?.variants.standard ?? bg?.imageUrl;
   async function open() {
     const doc = await createFromTemplate(t.id);
-    if (doc) router.push(`/nest-editor?doc=${doc.id}`);
+    if (doc) router.push(`/nest-editor?document=${doc.id}`);
   }
   return (
     <div className="overflow-hidden rounded-2xl border border-[#e0d5b8] bg-[#efe7cf]">

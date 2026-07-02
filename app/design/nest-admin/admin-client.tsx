@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  addCustomTemplate,
   getLibrary,
+  hydrateLibrary,
   onProductionChanged,
   resetCuration,
+  saveDocAsTemplate,
   setItemStatus,
 } from "@/lib/nest-production-library";
+import { getMostRecentLocalDoc } from "@/lib/nest-document-store";
 import type {
   ProductionAsset,
   ProductionBackground,
@@ -26,13 +28,6 @@ const STATUS_STYLE: Record<ProductionLibraryStatus, string> = {
   archived: "bg-[#a94f5c] text-white",
 };
 
-// Starter placements for "Create Template From Current Nest" (fixture/current doc stand-in).
-const STARTER_PLACEMENTS = [
-  { assetId: "ast-lr-sofa-boucle", slotType: "seat" as const, x: 0.38, y: 0.85, scale: 0.62, zIndex: 3 },
-  { assetId: "ast-lr-table-oak-round", slotType: "table" as const, x: 0.56, y: 0.92, scale: 0.3, zIndex: 4 },
-  { assetId: "ast-lr-media-oak-console", slotType: "media" as const, x: 0.5, y: 0.52, scale: 0.78, zIndex: 2 },
-];
-
 export function NestAdminClient() {
   const [adminMode, setAdminMode] = useState(false);
   const [ready, setReady] = useState(false);
@@ -42,7 +37,9 @@ export function NestAdminClient() {
   useEffect(() => {
     setAdminMode(typeof window !== "undefined" && localStorage.getItem(ADMIN_FLAG) === "on");
     setReady(true);
-    return onProductionChanged(() => setTick((t) => t + 1));
+    const off = onProductionChanged(() => setTick((t) => t + 1));
+    void hydrateLibrary(); // M12.1: pull the DB library when backend=supabase
+    return off;
   }, []);
 
   const lib: ProductionLibrary = useMemo(() => { void tick; return getLibrary(); }, [tick]);
@@ -92,7 +89,7 @@ export function NestAdminClient() {
         ))}
       </div>
 
-      {tab === "templates" ? <CreateTemplate backgrounds={lib.backgrounds.map((b) => ({ id: b.id, name: b.name }))} /> : null}
+      {tab === "templates" ? <CreateTemplate /> : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {(tab === "backgrounds" ? lib.backgrounds : tab === "assets" ? lib.assets : lib.templates).map(
@@ -145,7 +142,7 @@ function ItemRow({ id, name, sub, image, status }: { id: string; name: string; s
             <button
               key={s}
               disabled={status === s}
-              onClick={() => setItemStatus(id, s)}
+              onClick={() => void setItemStatus(id, s)}
               className={`rounded-lg border px-2 py-1 text-[11px] font-bold capitalize ${status === s ? `${STATUS_STYLE[s]} border-transparent` : "border-[#c9b98a] bg-white text-ink hover:bg-[#f0e9d4]"}`}
             >
               {s === "approved" ? "Approve" : s === "featured" ? "Feature" : s === "hidden" ? "Hide" : "Archive"}
@@ -157,20 +154,23 @@ function ItemRow({ id, name, sub, image, status }: { id: string; name: string; s
   );
 }
 
-function CreateTemplate({ backgrounds }: { backgrounds: { id: string; name: string }[] }) {
+// Saves the CURRENT NestDocument (the most-recently-edited Nest) as a draft template
+// via the shared saveDocAsTemplate — no starter/stand-in placements, no editing logic here.
+function CreateTemplate() {
   const [name, setName] = useState("");
   const [persona, setPersona] = useState("");
-  const [bg, setBg] = useState(backgrounds[0]?.id ?? "");
   const [tags, setTags] = useState("");
   const [saved, setSaved] = useState<string>();
+  const doc = getMostRecentLocalDoc();
 
   function save() {
-    if (!name || !bg) return;
-    const tpl = addCustomTemplate({
-      name, persona: persona || "Creator", backgroundId: bg,
-      objectPlacements: STARTER_PLACEMENTS,
+    if (!doc) return;
+    const tpl = saveDocAsTemplate({
+      name: name || doc.title,
+      persona: persona || "Creator",
+      backgroundId: doc.backgroundId,
+      placements: doc.placements,
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-      previewImage: undefined,
     });
     setSaved(tpl.id); setName(""); setPersona(""); setTags("");
     setTimeout(() => setSaved(undefined), 2500);
@@ -179,17 +179,20 @@ function CreateTemplate({ backgrounds }: { backgrounds: { id: string; name: stri
   return (
     <div className="rounded-2xl border border-dashed border-[#c9b98a] bg-white/60 p-4">
       <p className="text-sm font-bold">Create Template From Current Nest</p>
-      <p className="mb-3 text-xs text-ink-soft">Saves a <strong>draft</strong> template locally from the current document (starter placements for now). Approve it above to publish.</p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Template name" className="rounded-lg border border-[#c9b98a] bg-white px-3 py-2 text-sm" />
-        <input value={persona} onChange={(e) => setPersona(e.target.value)} placeholder="Persona (e.g. Creator)" className="rounded-lg border border-[#c9b98a] bg-white px-3 py-2 text-sm" />
-        <select value={bg} onChange={(e) => setBg(e.target.value)} className="rounded-lg border border-[#c9b98a] bg-white px-3 py-2 text-sm">
-          {backgrounds.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
-        <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="tags, comma, separated" className="rounded-lg border border-[#c9b98a] bg-white px-3 py-2 text-sm" />
-      </div>
-      <button onClick={save} disabled={!name || !bg} className="mt-3 rounded-xl bg-[#4d7358] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Save draft template</button>
-      {saved ? <span className="ml-2 text-xs font-bold text-[#4d7358]">Saved {saved} (draft)</span> : null}
+      {doc ? (
+        <>
+          <p className="mb-3 text-xs text-ink-soft">Saves a <strong>draft</strong> template from the current Nest <strong>“{doc.title}”</strong> ({doc.backgroundId} · {doc.placements.length} objects). Approve it above to publish.</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={doc.title} className="rounded-lg border border-[#c9b98a] bg-white px-3 py-2 text-sm" />
+            <input value={persona} onChange={(e) => setPersona(e.target.value)} placeholder="Persona (e.g. Creator)" className="rounded-lg border border-[#c9b98a] bg-white px-3 py-2 text-sm" />
+            <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="tags, comma, separated" className="rounded-lg border border-[#c9b98a] bg-white px-3 py-2 text-sm sm:col-span-2" />
+          </div>
+          <button onClick={save} className="mt-3 rounded-xl bg-[#4d7358] px-4 py-2 text-sm font-bold text-white">Save draft template</button>
+          {saved ? <span className="ml-2 text-xs font-bold text-[#4d7358]">Saved {saved} (draft)</span> : null}
+        </>
+      ) : (
+        <p className="text-xs text-ink-soft">Open a template or room in the editor first — then its state can be saved here (or via “Save as template” in the editor).</p>
+      )}
     </div>
   );
 }
