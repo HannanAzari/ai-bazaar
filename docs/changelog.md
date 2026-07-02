@@ -8,6 +8,30 @@ for technical detail.
 
 ---
 
+## 2026-07-03 — M15.1: navigation meaning correction
+
+Correction/polish sprint on `m12-nest-platform` (preview only; **no merge to `main`, no
+production deploy**). The M15 "Home" was really a profile dashboard — this fixes the app's
+information architecture before preview testing. No new features. Full record:
+[m15-app-shell.md](m15-app-shell.md) (M15.1 section); rationale ADR-034.
+
+### Changed
+- **5 tabs, icons only** (no labels): `Home · Explore · Create · Notifications · Profile`.
+- **Home** → discovery feed ("wander cozy Nests": published + curated Nest cards). Was the
+  profile dashboard.
+- **Profile** (`/profile`) → the creator's private dashboard (profile summary · Continue
+  creating · Published · Create New · View public profile) — the old `/home` content.
+- **Explore** → search/discovery (search box + trending tag chips filtering Nests client-side).
+- **Notifications** (`/notifications`) → placeholder; `/updates` redirects here (replaced the V1
+  village inbox at this route; `components/notifications-client.tsx` preserved).
+- Editor Done/Back, publish-gate "Back", `/studio`, and V1 "My place" now return to **`/profile`**
+  (were `/home`); root `/` still opens Home (discovery).
+
+### Gates
+- `typecheck · lint · test (335) · build` green (Node 20); browser-verified on mobile viewport.
+
+---
+
 ## 2026-07-02 — M15: real app shell & Nest Home
 
 App-shell sprint on `m12-nest-platform` (preview only; **no merge to `main`, no production

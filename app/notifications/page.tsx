@@ -1,27 +1,28 @@
-import { notFound } from "next/navigation";
 import { Bell } from "lucide-react";
-import { NotificationsClient } from "@/components/notifications-client";
-import { Footer } from "@/components/footer";
-import { flags } from "@/lib/flags";
+import { NestAppChrome } from "@/components/nest/app-shell/nest-app-chrome";
 
-export const metadata = { title: "Notifications", robots: { index: false } };
+export const metadata = {
+  title: "Notifications",
+  robots: { index: false, follow: false },
+};
 
+// M15.1 — the app-shell Notifications tab. A complete-feeling shell without a backend
+// (no notifications system yet) — intentionally a friendly empty state. Replaces the V1
+// village notifications inbox at this route (`components/notifications-client.tsx` is
+// preserved in-tree for when a real inbox returns). `/updates` redirects here.
 export default function NotificationsPage() {
-  if (!flags.notifications) notFound();
-
   return (
-    <>
-      <section className="shell py-12">
-        <div className="flex items-center gap-3">
-          <span className="grid size-12 place-items-center rounded-2xl bg-terracotta/10 text-terracotta"><Bell size={24} /></span>
-          <div>
-            <p className="eyebrow text-terracotta">Your village</p>
-            <h1 className="display text-4xl sm:text-5xl">Notifications</h1>
-          </div>
+    <NestAppChrome>
+      <div className="pt-1">
+        <h1 className="display text-3xl">Notifications</h1>
+        <div className="mt-8 flex flex-col items-center gap-3 rounded-3xl border border-dashed border-timber/25 bg-white/60 p-10 text-center">
+          <span className="grid size-14 place-items-center rounded-full bg-[#efe7cf] text-terracotta">
+            <Bell className="size-7" />
+          </span>
+          <p className="display text-2xl">No notifications yet</p>
+          <p className="max-w-xs text-sm text-ink/50">When people interact with your Nest, you&rsquo;ll see it here.</p>
         </div>
-        <NotificationsClient />
-      </section>
-      <Footer />
-    </>
+      </div>
+    </NestAppChrome>
   );
 }

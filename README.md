@@ -4,12 +4,13 @@ AI Bazaar is a mobile-first creative village where each member can claim one lit
 
 The world map is a **hexagon district map**: ten villages laid out as a connected honeycomb, with a frontier of empty plots that signals room to grow. Each hex opens into its own ring of 24 houses around a shared green, fountain, tree, or garden — the horizontal circular street view and the per-house interior are unchanged.
 
-> **Nestudio app shell (M15, 2026-07-02 — preview only, `m12-nest-platform`).** The evolving
-> product (**Nestudio**) now opens into a real mobile app shell with a permanent bottom nav —
-> **Home · Explore · Create · Updates** — plus **username ownership** at `/@<handle>`. `/` now
-> opens the app shell (`/home`); the single Nest editor (`/nest-editor`) and publishing return
-> there. Built on the nest-auth identity (no auth rewrite); the V1 village below is preserved.
-> See [docs/m15-app-shell.md](docs/m15-app-shell.md) + decision-log ADR-033.
+> **Nestudio app shell (M15 + M15.1, 2026-07-02–03 — preview only, `m12-nest-platform`).** The
+> evolving product (**Nestudio**) now opens into a real mobile app shell with a permanent, **icon-
+> only bottom nav** — **Home · Explore · Create · Notifications · Profile** — plus **username
+> ownership** at `/@<handle>`. **Home is discovery** (a feed of cozy Nests); **Profile** is the
+> creator's private dashboard; the single Nest editor (`/nest-editor`) and publishing return to
+> `/profile`. Built on the nest-auth identity (no auth rewrite); the V1 village below is preserved.
+> See [docs/m15-app-shell.md](docs/m15-app-shell.md) + decision-log ADR-033/ADR-034.
 
 ## Experience
 

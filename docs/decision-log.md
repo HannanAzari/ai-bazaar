@@ -1391,6 +1391,42 @@ The hard rules: single editor, no persistence rewrite, avoid large auth rewrites
 
 ---
 
+## ADR-034 — Navigation meaning: 5 icon-only tabs; Home = discovery, Profile = dashboard (M15.1)
+
+**Status:** Accepted (2026-07-03). Branch `m12-nest-platform`, preview only.
+Record: [m15-app-shell.md](m15-app-shell.md) (M15.1). **Revises the tab-count + Home decisions
+in ADR-033** (identity spine + `/@handle` rewrite from ADR-033 stand).
+
+### Context
+M15's "Home" was actually a profile dashboard — that mis-sets the app's meaning. In the intended
+journey, someone opens a creator link, lands in a **discovery/Home** experience, and only reaches
+their own dashboard to claim identity / manage Nests. Home must be discovery, not "my place."
+
+### Decision
+- **5 tabs, icons only** (no text labels): `Home · Explore · Create · Notifications · Profile`.
+  (ADR-033 shipped 4 labelled tabs — superseded here.)
+- **Home = discovery** (feed of published + curated Nests; future swipe/village/"For You").
+- **Profile (`/profile`) = the private dashboard** (the old `/home` content); it coexists with the
+  public `/@handle` at `/profile/[handle]`.
+- **Explore = search/discovery** (search + trending chips; future categories/marketplace).
+- **Notifications** replaces the Updates tab (`/updates` redirects); the V1 village inbox is
+  retired from that route (component preserved).
+- Editor + publish + `/studio` return to **`/profile`** (were `/home`); root `/` opens Home.
+
+### Alternatives Considered
+- Keep Home as the dashboard + add a separate discovery tab — muddies the primary tab's meaning
+  and doesn't match "open a link → land in discovery."
+- Icons + labels — the brief calls for a quieter, non-social-media bar; icons-only with
+  `aria-label` keeps a11y.
+
+### Consequences
+- (+) The app now reads correctly: Home invites exploring; Profile is where you own your identity.
+- (+) No new systems — reuses the M15 shell, identity, and single editor.
+- (−) Home/Explore are still placeholders (no real swipe feed, village, or marketplace yet).
+- (−) The V1 notifications inbox is no longer reachable at `/notifications` (preserved in-tree).
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

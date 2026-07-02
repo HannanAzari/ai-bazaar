@@ -1,36 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { getTemplates, hydrateLibrary, onProductionChanged, resolveTemplate } from "@/lib/nest-production-library";
-import { encodeDoc, listPublished, onDocsChanged, publishedUrl, type PublishedNest } from "@/lib/nest-document-store";
+import { Search } from "lucide-react";
+import { getTemplates, hydrateLibrary, onProductionChanged } from "@/lib/nest-production-library";
+import { listPublished, onDocsChanged, publishedUrl, type PublishedNest } from "@/lib/nest-document-store";
 import { nestThumb } from "@/components/nest/app-shell/nest-card";
-import type { NestDocument } from "@/lib/nest-document-types";
+import { templateToExample } from "@/components/nest/app-shell/curated";
 import type { ProductionTemplate } from "@/lib/nest-production-types";
 
-// Phase 6 — a lightweight Explore screen so the app feels alive. NOT the final feed:
-// no likes, comments, or recommendations. It shows any Nests published in this browser
-// plus curated example Nests built from the production templates. Curated examples open
-// as real visitor Nests via the self-contained ?c= link (works with no backend).
+// M15.1 — Explore is search/discovery (distinct from Home's feed). Lightweight for now:
+// a search box + trending tag chips that filter curated + published Nests client-side. It
+// points at the future direction (searchable nests, categories, marketplace) without
+// building any of it — no likes/comments/recommendations, no backend.
 
-/** A curated template rendered as a shareable example Nest (via ?c=). */
-function templateToExample(t: ProductionTemplate): { doc: NestDocument; href: string } {
-  const doc: NestDocument = {
-    id: `example-${t.id}`,
-    backgroundId: t.backgroundId,
-    title: t.name,
-    visibility: "public",
-    placements: t.objectPlacements.map((p, i) => ({ id: `pl-${i}`, ...p })),
-    createdAt: "",
-    updatedAt: "",
-    sourceTemplateId: t.id,
-  };
-  return { doc, href: `/nest/${t.id}?c=${encodeDoc(doc)}` };
-}
+type Card = { key: string; title: string; subtitle?: string; src?: string; href: string; badge?: string; tags: string[] };
 
 export function ExploreClient() {
   const [published, setPublished] = useState<PublishedNest[]>([]);
   const [templates, setTemplates] = useState<ProductionTemplate[]>([]);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     const load = () => setPublished(listPublished());
@@ -46,78 +35,91 @@ export function ExploreClient() {
     return off;
   }, []);
 
-  const examples = templates.map(templateToExample);
+  const cards: Card[] = useMemo(() => [
+    ...published.map((entry) => ({ key: `pub-${entry.ref.slug}`, title: entry.doc.title, subtitle: "Published", src: nestThumb(entry.doc), href: publishedUrl(entry), badge: "Live", tags: [] as string[] })),
+    ...templates.map((t) => {
+      const { doc, href } = templateToExample(t);
+      return { key: `ex-${t.id}`, title: t.name, subtitle: t.persona, src: t.previewImage ?? nestThumb(doc), href, tags: t.tags };
+    }),
+  ], [published, templates]);
+
+  // Trending tags: the most common curated tags (a stand-in for real trending).
+  const trending = useMemo(() => {
+    const counts = new Map<string, number>();
+    templates.forEach((t) => t.tags.forEach((tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1)));
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([tag]) => tag);
+  }, [templates]);
+
+  const q = query.trim().toLowerCase();
+  const results = q
+    ? cards.filter((c) => [c.title, c.subtitle ?? "", ...c.tags].join(" ").toLowerCase().includes(q))
+    : cards;
 
   return (
-    <div className="space-y-6 pt-1">
+    <div className="space-y-5 pt-1">
       <header>
         <h1 className="display text-3xl">Explore</h1>
-        <p className="mt-1 text-sm text-ink/55">A peek into cozy Nests from the community.</p>
+        <p className="mt-1 text-sm text-ink/55">Search cozy Nests, creators, and themes.</p>
       </header>
 
-      {published.length > 0 ? (
-        <Section title="Recently published">
-          <Grid>
-            {published.slice(0, 8).map((entry) => (
-              <ExploreCard key={entry.ref.slug} title={entry.doc.title} src={nestThumb(entry.doc)} href={publishedUrl(entry)} badge="Live" />
+      <div className="flex items-center gap-2 rounded-2xl border border-timber/20 bg-white px-3 shadow-soft">
+        <Search className="size-4 text-ink/40" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search Nests & themes"
+          aria-label="Search"
+          style={{ fontSize: 16 }}
+          className="w-full bg-transparent py-3 outline-none"
+        />
+      </div>
+
+      {trending.length > 0 ? (
+        <div>
+          <p className="mb-2 text-xs font-black uppercase tracking-wider text-ink/45">Trending themes</p>
+          <div className="flex flex-wrap gap-2">
+            {trending.map((tag) => (
+              <button
+                key={tag}
+                onClick={() => setQuery(query === tag ? "" : tag)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${query === tag ? "border-terracotta bg-terracotta text-parchment" : "border-timber/20 bg-white text-ink/60 hover:text-ink"}`}
+              >
+                #{tag}
+              </button>
             ))}
-          </Grid>
-        </Section>
+          </div>
+        </div>
       ) : null}
 
-      <Section title="Curated examples" hint="Tap to visit — then make your own.">
-        {examples.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-timber/25 bg-white/60 p-6 text-center text-sm text-ink/50">No examples are published yet.</p>
+      <section>
+        <div className="mb-2 flex items-baseline justify-between">
+          <h2 className="text-lg font-black text-ink">{q ? "Results" : "Discover"}</h2>
+          {q ? <span className="text-[11px] text-ink/45">{results.length} match{results.length === 1 ? "" : "es"}</span> : null}
+        </div>
+        {results.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-timber/25 bg-white/60 p-6 text-center text-sm text-ink/50">No Nests match “{query}” yet.</p>
         ) : (
-          <Grid>
-            {examples.map(({ doc, href }) => {
-              const tpl = resolveTemplate(doc.sourceTemplateId ?? "");
-              return <ExploreCard key={doc.id} title={doc.title} subtitle={tpl?.persona} src={tpl?.previewImage ?? nestThumb(doc)} href={href} />;
-            })}
-          </Grid>
+          <div className="grid grid-cols-2 gap-3">
+            {results.map((c) => (
+              <Link key={c.key} href={c.href} className="group block overflow-hidden rounded-2xl border border-timber/15 bg-white shadow-soft transition active:scale-[0.98]">
+                <div className="relative aspect-[4/5] w-full bg-[#e9e0c8]">
+                  {c.src ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- local curated art
+                    <img src={c.src} alt={c.title} className="size-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="grid size-full place-items-center text-xs text-ink/40">No preview</div>
+                  )}
+                  {c.badge ? <span className="absolute left-2 top-2 rounded-full bg-ink/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-parchment">{c.badge}</span> : null}
+                </div>
+                <div className="p-2.5">
+                  <p className="truncate text-sm font-black text-ink">{c.title}</p>
+                  {c.subtitle ? <p className="truncate text-xs text-ink/45">{c.subtitle}</p> : null}
+                </div>
+              </Link>
+            ))}
+          </div>
         )}
-      </Section>
-
-      <div className="rounded-3xl border border-timber/15 bg-gradient-to-br from-[#f6e7c6] to-[#ecd9ad] p-5 text-center shadow-soft">
-        <p className="display text-2xl">Make one that feels like you</p>
-        <Link href="/create" className="mt-3 inline-flex items-center rounded-xl bg-terracotta px-5 py-3 text-sm font-bold text-parchment">Create your Nest</Link>
-      </div>
+      </section>
     </div>
   );
-}
-
-function ExploreCard({ title, subtitle, src, href, badge }: { title: string; subtitle?: string; src?: string; href: string; badge?: string }) {
-  return (
-    <Link href={href} className="group block overflow-hidden rounded-2xl border border-timber/15 bg-white shadow-soft transition active:scale-[0.98]">
-      <div className="relative aspect-[4/5] w-full bg-[#e9e0c8]">
-        {src ? (
-          // eslint-disable-next-line @next/next/no-img-element -- local curated art
-          <img src={src} alt={title} className="size-full object-cover" loading="lazy" />
-        ) : (
-          <div className="grid size-full place-items-center text-xs text-ink/40">No preview</div>
-        )}
-        {badge ? <span className="absolute left-2 top-2 rounded-full bg-ink/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-parchment">{badge}</span> : null}
-      </div>
-      <div className="p-2.5">
-        <p className="truncate text-sm font-black text-ink">{title}</p>
-        {subtitle ? <p className="truncate text-xs text-ink/45">{subtitle}</p> : null}
-      </div>
-    </Link>
-  );
-}
-
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <div className="mb-2 flex items-baseline justify-between">
-        <h2 className="text-lg font-black text-ink">{title}</h2>
-        {hint ? <span className="text-[11px] text-ink/45">{hint}</span> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Grid({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-2 gap-3">{children}</div>;
 }

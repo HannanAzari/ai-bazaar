@@ -235,25 +235,29 @@ has a graceful fallback.
 
 ## 6. Route map
 
-> **M15 app shell (2026-07-02, ADR-033).** Nestudio now opens into a real app shell with a
-> permanent mobile bottom nav — `Home · Explore · Create · Updates` (`components/nest/app-shell/*`).
-> These routes own their own chrome (the V1 `SiteHeader` hides itself there). Identity is the
-> **nest-auth** session joined with `lib/nest-profile-store.ts` (username ownership); `/@<handle>`
-> is a public profile served from `/profile/[handle]` via a `next.config` rewrite. `/`, `/studio`,
-> and `/design/nest-onboarding` redirect into the shell. See [m15-app-shell.md](docs/m15-app-shell.md).
+> **M15 app shell (2026-07-02, ADR-033) + M15.1 nav correction (2026-07-03, ADR-034).** Nestudio
+> opens into a real app shell with a permanent mobile bottom nav — **5 icon-only tabs**:
+> `Home · Explore · Create · Notifications · Profile` (`components/nest/app-shell/*`). These routes
+> own their own chrome (the V1 `SiteHeader` hides itself there). **Home = discovery**, **Profile =
+> the private dashboard** (the public profile is `/@<handle>`, served from `/profile/[handle]` via a
+> `next.config` rewrite). Identity is the **nest-auth** session joined with `lib/nest-profile-store.ts`
+> (username ownership). `/`→`/home`; `/studio`+`/design/nest-onboarding`→ shell; `/updates`→
+> `/notifications`. See [m15-app-shell.md](docs/m15-app-shell.md).
 
 | Route | Type | Notes |
 |---|---|---|
 | `/` | redirect | → `/home` (M15). `VillageWorld` preserved in-tree for the future Village tab |
-| `/home` | client | **App shell Home** — profile summary, Continue creating (drafts), Published Nests |
-| `/explore` | client | **App shell Explore** — recently-published + curated example Nests (placeholder feed) |
-| `/create` | client | **App shell Create** — the single creation entry (Quick Start / Build My Own → editor) |
-| `/updates` | client | **App shell Updates** — friendly empty state (no notifications backend) |
+| `/home` | client | **Home — discovery feed** (published + curated Nest cards; future swipe/village) |
+| `/explore` | client | **Explore — search/discovery** (search + trending tag chips; placeholder) |
+| `/create` | client | **Create** — the single creation entry (Quick Start / Build My Own → editor) |
+| `/notifications` | client | **Notifications** — friendly empty state (no backend). `/updates` redirects here |
+| `/profile` | client | **Profile — private dashboard** (summary · Continue creating · Published · Create New) |
 | `/@<handle>` → `/profile/[handle]` | client (rewrite) | Public creator profile (username + published Nests) |
 | `/bazaar` | static | Alias of the map |
 | `/bazaar/[slug]` | SSG (10) | Village street (`StreetWalk`); claim flow |
 | `/shop/[address]` | SSG (10) + dynamic | Public room (`ShopPageClient` → `RoomExperience` or legacy). Resolves owner-claimed addresses client-side via `useAllShops` |
-| `/studio` | redirect | → `/home` (M15; V1 owner editor retired from the flow) |
+| `/studio` | redirect | → `/profile` (M15.1; V1 owner editor retired from the flow) |
+| `/updates` | redirect | → `/notifications` (M15.1) |
 | `/discover` | static | Trending/newest, tags, swipe/grid/list |
 | `/tags`, `/tags/[tag]` | static + SSG | Tag index + detail |
 | `/u/[handle]` | SSG | Creator profile (flag) |

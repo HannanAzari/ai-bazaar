@@ -11,7 +11,7 @@ import { flags } from "@/lib/flags";
 // M15: the new Nestudio app shell (Home · Explore · Create · Updates · /@handle)
 // and the full-screen editor own their own chrome, so the V1 village header steps
 // out of the way there.
-const NEST_APP_PREFIXES = ["/home", "/explore", "/create", "/updates", "/nest-editor", "/nest/", "/@", "/profile/"];
+const NEST_APP_PREFIXES = ["/home", "/explore", "/create", "/notifications", "/updates", "/profile", "/nest-editor", "/nest/", "/@"];
 
 export function SiteHeader() {
   const { user, ownedShop, logout } = useDemo();
@@ -34,7 +34,7 @@ export function SiteHeader() {
             <span className="hidden sm:inline">Explore</span>
           </Link>
           {ownedShop && (
-            <Link href="/home" className="flex items-center gap-2 rounded-full px-3 py-2 text-sm font-bold hover:bg-white/70">
+            <Link href="/profile" className="flex items-center gap-2 rounded-full px-3 py-2 text-sm font-bold hover:bg-white/70">
               <WandSparkles size={17} />
               <span className="hidden sm:inline">My place</span>
             </Link>

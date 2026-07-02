@@ -565,7 +565,9 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
           {/* Top toolbar (~56px) */}
           <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-ink/10 px-2">
             <div className="flex items-center gap-1">
-              <a href="/home" aria-label="Back to Home" className="flex h-10 w-10 items-center justify-center rounded-full text-ink/70 hover:bg-ink/5"><ArrowLeft className="h-5 w-5" /></a>
+              {/* Hard navigation out of the editor (full unmount), not client-side Link. */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+              <a href="/profile" aria-label="Back to Profile" className="flex h-10 w-10 items-center justify-center rounded-full text-ink/70 hover:bg-ink/5"><ArrowLeft className="h-5 w-5" /></a>
               <ToolIcon label="Undo" onClick={() => setHistory(undoHistory(history))} disabled={!canUndo(history)}><RotateCcw className="h-5 w-5 -scale-x-100" /></ToolIcon>
               <ToolIcon label="Redo" onClick={() => setHistory(redoHistory(history))} disabled={!canRedo(history)}><Redo2 className="h-5 w-5" /></ToolIcon>
             </div>
@@ -601,8 +603,8 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
                 ) : null}
               </div>
               <button type="button" onClick={() => setShowPublish(true)} className="ml-1.5 inline-flex h-9 items-center gap-1 rounded-full bg-[#d9913c] px-3.5 text-xs font-bold text-white hover:brightness-95"><Upload className="h-4 w-4" /> Publish</button>
-              {/* Done saves + returns the creator to their Home (M15). */}
-              <button type="button" onClick={() => { saveNow(); window.location.href = "/home"; }} className="ml-2 inline-flex h-9 items-center gap-1 rounded-full bg-ink px-3.5 text-xs font-bold text-parchment hover:bg-ink/85"><Check className="h-4 w-4" /> Done</button>
+              {/* Done saves + returns the creator to their Profile (M15.1). */}
+              <button type="button" onClick={() => { saveNow(); window.location.href = "/profile"; }} className="ml-2 inline-flex h-9 items-center gap-1 rounded-full bg-ink px-3.5 text-xs font-bold text-parchment hover:bg-ink/85"><Check className="h-4 w-4" /> Done</button>
             </div>
             <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onImportFile(f); e.target.value = ""; }} />
           </header>

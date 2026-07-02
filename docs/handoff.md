@@ -5,16 +5,19 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest Nest sprint — M15 real app shell & Nest Home (2026-07-02):** Nestudio is now a real
-> app — a permanent mobile bottom nav (`Home · Explore · Create · Updates`), a real **Home**
-> (profile summary · drafts · published), **username ownership** at `/@<handle>`, and the Create
-> tab as the single creation entry. Built on the **nest-auth identity** (`lib/nest-profile-store.ts`
-> + `useNestIdentity`), no auth rewrite; single editor + persistence preserved. `/studio`, `/`,
-> and `/design/nest-onboarding` redirect into the shell; the editor + publish gate return to
-> `/home` (the old post-publish login wall is gone). Identity is **local-mode** for now. Shipped
-> on `m12-nest-platform` (**preview only — not merged to `main`**). See
-> [m15-app-shell.md](m15-app-shell.md) + decision-log ADR-033. Prior: M13 mobile stabilisation
-> ([m13-mobile-stabilisation.md](m13-mobile-stabilisation.md), ADR-032).
+> **Latest Nest sprint — M15.1 navigation meaning correction (2026-07-03):** the app shell now
+> uses **5 icon-only tabs** — `Home · Explore · Create · Notifications · Profile`. **Home is
+> discovery** (a feed of published + curated Nests); **Profile (`/profile`) is the private
+> dashboard** (profile summary · Continue creating · Published · Create New — the old `/home`
+> content); Explore gained search + trending tag chips; `/updates`→`/notifications`; and the
+> editor + publish gate + `/studio` return to **`/profile`**. Correction sprint (no new features),
+> ADR-034. This builds on **M15 real app shell (2026-07-02, ADR-033)**: permanent bottom nav,
+> username ownership at `/@<handle>` (served from `/profile/[handle]` via a `next.config` rewrite),
+> the **nest-auth identity** (`lib/nest-profile-store.ts` + `useNestIdentity`, no auth rewrite),
+> single editor + persistence preserved. Identity is **local-mode** for now. Shipped on
+> `m12-nest-platform` (**preview only — not merged to `main`**). See
+> [m15-app-shell.md](m15-app-shell.md) + decision-log ADR-033/ADR-034. Prior: M13 mobile
+> stabilisation ([m13-mobile-stabilisation.md](m13-mobile-stabilisation.md), ADR-032).
 
 **Before closing any sprint, follow [sprint-checklist.md](sprint-checklist.md)
 (definition of done): update all source-of-truth docs, then pass typecheck +

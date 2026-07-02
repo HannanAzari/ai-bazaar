@@ -69,3 +69,44 @@ bottom nav persists; safe-area insets respected. No console errors.
 `npm run typecheck` · `npm run lint` · `npm run test` (335 tests) · `npm run build` — all green
 (Node 20). New tests: [`nest-profile-store.test.ts`](../test/nest-profile-store.test.ts),
 [`nest-home-listings.test.ts`](../test/nest-home-listings.test.ts).
+
+---
+
+## M15.1 — Navigation meaning correction (2026-07-03)
+
+The M15 "Home" was really a **profile dashboard**, which mis-set the app's meaning. M15.1 is a
+correction/polish sprint (no new features) that fixes the information architecture before preview
+testing. See ADR-034 (revises the tab-count part of ADR-033).
+
+### What changed
+- **5 tabs, icons only** (no text labels): `Home · Explore · Create · Notifications · Profile`
+  ([`bottom-nav.tsx`](../components/nest/app-shell/bottom-nav.tsx)). Labels live in `aria-label`.
+- **Home is now discovery** — a lightweight "wander cozy Nests" feed of published + curated Nests
+  (full-width cards → visitor Nest). Represents the future swipe/village/"For You" direction
+  without building it. ([`app/home/*`](../app/home))
+- **Profile (`/profile`)** — the creator's private dashboard: profile summary · Continue creating ·
+  Published Nests · Create New · View public profile. This is the old `/home` content.
+  ([`app/profile/page.tsx`](../app/profile/page.tsx) + `profile-dashboard-client.tsx`) It coexists
+  with the public `/@handle` at [`/profile/[handle]`](../app/profile).
+- **Explore (`/explore`)** — now search/discovery: a search box + trending tag chips that filter
+  curated + published Nests client-side (points at searchable nests / categories / marketplace
+  later). ([`app/explore/*`](../app/explore))
+- **Notifications (`/notifications`)** — the placeholder (was `/updates`); `/updates` redirects
+  here. Replaced the V1 village inbox at this route (`components/notifications-client.tsx` preserved).
+- **Return destinations → `/profile`** (were `/home`): editor Done/Back, publish-gate "Back",
+  `/studio` redirect, and the V1 header "My place". Root `/` still opens Home (discovery).
+- Shared [`curated.ts`](../components/nest/app-shell/curated.ts) (`templateToExample`) so Home +
+  Explore stay consistent.
+
+### User journey (intended)
+Open a creator link → land in a Nest / Home-style discovery → tap Create → build in the single
+editor → at publish, the gate guides sign-up / username claim → **publishing returns to Profile**.
+
+### Design
+Cozy, warm, identity-first Nestudio DNA — familiar patterns, not a Rooms.xyz / voxel / TikTok
+clone. Icons-only bar stays quiet; Create is the one emphasised action.
+
+### Gates (M15.1)
+`typecheck · lint · test (335) · build` — all green (Node 20). Browser-verified on 375×812:
+Home feed, Explore search + trending chips (filter works), Profile dashboard/claim, Notifications,
+5 icon-only tabs, `/updates`→`/notifications`, `/studio`→`/profile`.

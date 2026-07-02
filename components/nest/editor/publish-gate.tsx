@@ -103,7 +103,7 @@ export function PublishGate({
               </button>
             </div>
             <a href={result.url} target="_blank" rel="noreferrer" className="block rounded-xl bg-[#d9913c] px-4 py-3 text-center text-sm font-bold text-white transition hover:brightness-95">View my Nest ↗</a>
-            <button onClick={() => { window.location.href = "/home"; }} className="block w-full rounded-xl border border-[#c9b98a] bg-white px-4 py-3 text-center text-sm font-bold text-ink transition hover:bg-[#f0e9d4]">Back to Home</button>
+            <button onClick={() => { window.location.href = "/profile"; }} className="block w-full rounded-xl border border-[#c9b98a] bg-white px-4 py-3 text-center text-sm font-bold text-ink transition hover:bg-[#f0e9d4]">Back to Profile</button>
             <p className="text-center text-[11px] text-ink-soft">Visibility: {result.visibility} · backend: {backend}</p>
           </div>
         ) : !canPublish ? (

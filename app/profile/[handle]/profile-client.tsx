@@ -65,7 +65,7 @@ export function ProfileClient({ handle }: { handle: string }) {
             <p className="text-lg font-black text-ink">{published.length}</p>
             <p className="text-[11px] font-bold uppercase tracking-wide text-ink/45">{published.length === 1 ? "Nest" : "Nests"}</p>
           </div>
-          {isOwn ? <Link href="/home" className="ml-auto self-center text-xs font-bold text-terracotta hover:underline">Manage in Home →</Link> : null}
+          {isOwn ? <Link href="/profile" className="ml-auto self-center text-xs font-bold text-terracotta hover:underline">Manage in Profile →</Link> : null}
         </div>
       </header>
 
