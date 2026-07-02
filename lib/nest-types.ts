@@ -65,6 +65,7 @@ export type NestAssetCategory =
   | "decor" // books, frames, posters, trophies, rugs…
   | "creator_tool" // cameras, keyboards, drawing tablets, easels…
   | "business" // product shelves, artwork, handmade-goods displays…
+  | "surface" // a standalone editable-surface skin (a book cover / photo card) — see §NestSurfaceKind
   | "avatar" // the creator's character (runtime-generated)
   | "personal"; // a truly personal belonging (runtime-generated)
 
@@ -123,6 +124,42 @@ export type NestAssetState = {
   transparentPngUrl?: string;
 };
 
+// ── Editable surfaces (Production Pack V1 · M9.1) ─────────────────────────────
+
+/**
+ * The kinds of creator-customizable surface a Nest asset can expose (or, for a
+ * standalone `surface` asset, the kind it fills). The engine composites content
+ * into these regions — a surface is never baked into the object art.
+ * - `screen` — TV / laptop / monitor → video / website
+ * - `photo` — frame / poster / mini-frame → gallery image
+ * - `cover` — book / notebook / sticky note → article
+ * - `note-board` — pinboard → hosts note/photo children
+ * - `surface-projection` — a flat top (table / desk / shelf) that hosts projected children
+ */
+export type NestSurfaceKind =
+  | "screen"
+  | "photo"
+  | "cover"
+  | "note-board"
+  | "surface-projection";
+
+/**
+ * A named, creator-customizable region on an asset. `bounds` is the normalized
+ * footprint (0..1) on the asset image the engine composites content into; `aspect`
+ * is the region's target aspect (e.g. "16:9" for a TV screen). Optional/additive:
+ * assets that predate this (V1 golden fixtures) simply omit it.
+ */
+export type NestEditableSurface = {
+  id: string;
+  label: string;
+  kind: NestSurfaceKind;
+  bounds: NormalizedRect;
+  /** What binds here (a screen → video/website, a frame → gallery, a cover → article). */
+  contentType: NestContentType;
+  /** Target aspect of the region, e.g. "16:9" / "3:4". */
+  aspect: string;
+};
+
 /**
  * A curated reusable object in the Asset Library — the heart of Nestudio. Every
  * asset is authored to the locked front-facing camera + DNA, tagged with the slot
@@ -153,6 +190,19 @@ export type NestAsset = {
   variants: NestAssetVariant[];
   /** Interaction states (idle/hover/open). Empty/[idle] for non-interactive decor. */
   states: NestAssetState[];
+  /**
+   * Creator-customizable regions this asset exposes (a TV's screen, a frame's
+   * photo, a book's cover, a pinboard's board, a desk/table/shelf top). Optional +
+   * additive — V1 golden fixtures omit it and render unchanged (Production Pack V1 · M9.1).
+   */
+  editableSurfaces?: NestEditableSurface[];
+  /**
+   * Set only when `category === "surface"`: which editable-surface kind this
+   * standalone skin fills (a `cover` book-cover skin, a `photo` photo card). This
+   * is how the pack models cover/photo skins as **standalone surface assets** rather
+   * than `NestAssetVariant`s (Production Pack V1 · M9.1).
+   */
+  surfaceKind?: NestSurfaceKind;
   approvalStatus: NestApprovalStatus;
   source: NestAssetSource;
   createdAt: string;
@@ -175,7 +225,12 @@ export type NestSlotType =
   | "avatar"
   | "frame"
   | "lamp"
-  | "product";
+  | "product"
+  // ── Production Pack V1 additions (M9.1) ──────────────────────────────────────
+  | "seat" // sofas, armchairs, office/desk chairs (floor plane)
+  | "table" // coffee/side tables — surface furniture that is not a work desk (projection parent)
+  | "rug" // floor coverings (floor plane, lowest z, no contact shadow)
+  | "pinboard"; // wall-mounted note/cork boards that host editable note children
 
 /** A slot's importance (production-bible §10): primary slots drive identity and are
  * expected to be filled; optional slots are ambient/filler. */
@@ -413,6 +468,11 @@ export const NEST_SLOT_TYPES: NestSlotType[] = [
   "frame",
   "lamp",
   "product",
+  // Production Pack V1 additions (M9.1)
+  "seat",
+  "table",
+  "rug",
+  "pinboard",
 ];
 
 /** Find a slot on a template by id. */
@@ -451,6 +511,15 @@ export function resolveInteractionId(
 /** Whether an asset is one of the two runtime-generated kinds (avatar / personal). */
 export function isRuntimeGenerated(asset: NestAsset): boolean {
   return asset.source === "runtime_avatar" || asset.source === "runtime_personal";
+}
+
+/**
+ * Whether an asset is a standalone editable-surface skin (category `surface`), i.e.
+ * a book-cover / photo card that fills a host's editable surface rather than
+ * snapping into a scene slot (Production Pack V1 · M9.1).
+ */
+export function isSurfaceAsset(asset: NestAsset): boolean {
+  return asset.category === "surface";
 }
 
 export type NestValidationResult = {

@@ -8,6 +8,10 @@ import {
   Leaf,
   Library,
   PenTool,
+  Pin,
+  Sofa,
+  Square,
+  Table,
   Tv,
   User,
   X,
@@ -59,6 +63,11 @@ const ICON_BY_SLOT: Record<NestSlotType, LucideIcon> = {
   avatar: User,
   window: ImageIcon,
   product: Library,
+  // Production Pack V1 additions (M9.1)
+  seat: Sofa,
+  table: Table,
+  rug: Square,
+  pinboard: Pin,
 };
 
 export function GoldenNestStage({ template, assetsById, interactionsById, composed, showOverlays = false }: Props) {

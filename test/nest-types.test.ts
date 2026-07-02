@@ -22,11 +22,14 @@ import {
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 describe("nest contract constants", () => {
-  it("locks the front-facing camera (ADR-028) and exposes the 10-slot taxonomy", () => {
+  it("locks the front-facing camera (ADR-028) and exposes the 14-slot taxonomy", () => {
     expect(NEST_CAMERA_CONTRACT_VERSION).toBe("front-facing-v1");
-    expect(NEST_SLOT_TYPES).toHaveLength(10);
+    // 10 original + 4 Production Pack V1 additions (M9.1)
+    expect(NEST_SLOT_TYPES).toHaveLength(14);
     expect(NEST_SLOT_TYPES).toContain("media");
     expect(NEST_SLOT_TYPES).toContain("avatar");
+    expect(NEST_SLOT_TYPES).toEqual(expect.arrayContaining(["seat", "table", "rug", "pinboard"]));
+    expect(new Set(NEST_SLOT_TYPES).size).toBe(NEST_SLOT_TYPES.length); // no dupes
   });
 });
 

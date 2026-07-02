@@ -1,0 +1,1835 @@
+{
+  "generatedAt": "2026-07-01T07:51:29.548793+00:00",
+  "model": "gemini-3.1-flash-image",
+  "candidatesPerAsset": 3,
+  "batch": "P0 pilot (9 assets)",
+  "generationBlocker": null,
+  "approvalPolicy": "No asset is auto-approved (M9.2). Each has a recommended candidate for human review.",
+  "scoreDimensions": [
+    "dnaAdherence",
+    "composition",
+    "transparency",
+    "focusReadability",
+    "editableSurfaceSuitability"
+  ],
+  "scoreNote": "dnaAdherence + composition are AUTOMATED PROXIES (warmth / centering / sharpness) \u2014 confirm visually.",
+  "counts": {
+    "assets": 9,
+    "withViableCandidate": 9,
+    "needsRegenerate": 0
+  },
+  "assets": [
+    {
+      "assetId": "bg-lr-warm-studio",
+      "kind": "background",
+      "tier": null,
+      "modelUsed": "gemini-3.1-flash-image",
+      "masterResolution": [
+        4096,
+        5461
+      ],
+      "aspectRatio": "3:4",
+      "transparencyRequired": false,
+      "editableSurfaceSpec": null,
+      "promptUsed": "Cozy handcrafted stylized 3D illustration in the \"Nestudio\" style: warm, premium-matte, rounded, soft-edged forms with thick readable silhouettes. Warm earthy palette \u2014 oiled oak, warm plaster, parchment, oatmeal \u2014 with restrained soft form-shading and subtle ambient occlusion. Soft warm key light from the upper-left, gentle ambient fill, cool-plum shadow (#46365a), never grey. Front-facing cinematic camera, eye-level to slightly elevated, gentle ~5-10 degree downward tilt. Parallel / near-orthographic, no strong perspective convergence. Matte finish, no gloss, no chrome, no plastic sheen. Friendly slightly-exaggerated but grounded proportions. Calm, uncluttered, generous negative space. Crisp and readable at small size.\n\nAn EMPTY front-facing room stage: full front wall + narrow left/right wall slivers + a floor meeting the wall at a seam ~62% down the frame. Completely UNFURNISHED \u2014 no furniture, no props, no people. Calm, low-detail, soft value range, generous empty wall and floor. Opaque background.\n\nAn empty cozy living-room stage. Warm plaster walls in soft honey-oatmeal (#e6cfa9), a warm oiled-oak wood floor, a soft window on the upper-left casting gentle daylight.\n\nAvoid entirely: photorealism, photo, harsh gloss, chrome, glass shine, specular highlights, plastic sheen, neon, lens flare, dramatic/sunset/night lighting, hard cast shadows, isometric, 30 degree, top-down, one-point tunnel perspective, dutch tilt, fisheye, vanishing-point convergence, transparency checkerboard pattern, text, letters, watermark, logo, UI, caption, signature, clutter, busy, ornate, baroque, anime, painterly, flat vector, clipart, sticker-art, kawaii, chibi, Animal Crossing, Stardew Valley, The Sims, Dreamlight Valley look.",
+      "candidateCount": 3,
+      "selectedCandidate": 3,
+      "candidates": [
+        {
+          "candidate": 1,
+          "masterPng": "public/nests/production-v1/candidates/backgrounds/bg-lr-warm-studio/c1/bg-lr-warm-studio-master.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-lr-warm-studio/c1/variants/focus/bg-lr-warm-studio.webp",
+              "kb": 282.4,
+              "quality": 92,
+              "size": [
+                2048,
+                2731
+              ]
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-lr-warm-studio/c1/variants/standard/bg-lr-warm-studio.webp",
+              "kb": 64.1,
+              "quality": 92,
+              "size": [
+                1080,
+                1440
+              ]
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-lr-warm-studio/c1/variants/mobile/bg-lr-warm-studio.webp",
+              "kb": 30.9,
+              "quality": 92,
+              "size": [
+                720,
+                960
+              ]
+            }
+          },
+          "transparency": {
+            "expectedOpaque": true,
+            "hasAlpha": false
+          },
+          "aspectRatio": {
+            "target": "3:4",
+            "actual": "4096x5461",
+            "ok": true
+          },
+          "editableSurface": null,
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 8,
+            "transparency": 10.0,
+            "focusReadability": 2.51,
+            "editableSurfaceSuitability": 7.0
+          },
+          "totalScore": 37.51,
+          "issues": [],
+          "notes": [
+            "MANUAL: confirm EMPTY stage (no baked furniture) + floor seam in band 0.58\u20130.64."
+          ],
+          "status": "generated"
+        },
+        {
+          "candidate": 2,
+          "masterPng": "public/nests/production-v1/candidates/backgrounds/bg-lr-warm-studio/c2/bg-lr-warm-studio-master.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-lr-warm-studio/c2/variants/focus/bg-lr-warm-studio.webp",
+              "kb": 172.5,
+              "quality": 92,
+              "size": [
+                2048,
+                2731
+              ]
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-lr-warm-studio/c2/variants/standard/bg-lr-warm-studio.webp",
+              "kb": 43.9,
+              "quality": 92,
+              "size": [
+                1080,
+                1440
+              ]
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-lr-warm-studio/c2/variants/mobile/bg-lr-warm-studio.webp",
+              "kb": 21.7,
+              "quality": 92,
+              "size": [
+                720,
+                960
+              ]
+            }
+          },
+          "transparency": {
+            "expectedOpaque": true,
+            "hasAlpha": false
+          },
+          "aspectRatio": {
+            "target": "3:4",
+            "actual": "4096x5461",
+            "ok": true
+          },
+          "editableSurface": null,
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 8,
+            "transparency": 10.0,
+            "focusReadability": 1.54,
+            "editableSurfaceSuitability": 7.0
+          },
+          "totalScore": 36.54,
+          "issues": [],
+          "notes": [
+            "MANUAL: confirm EMPTY stage (no baked furniture) + floor seam in band 0.58\u20130.64."
+          ],
+          "status": "generated"
+        },
+        {
+          "candidate": 3,
+          "masterPng": "public/nests/production-v1/candidates/backgrounds/bg-lr-warm-studio/c3/bg-lr-warm-studio-master.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-lr-warm-studio/c3/variants/focus/bg-lr-warm-studio.webp",
+              "kb": 325.9,
+              "quality": 92,
+              "size": [
+                2048,
+                2731
+              ]
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-lr-warm-studio/c3/variants/standard/bg-lr-warm-studio.webp",
+              "kb": 72.6,
+              "quality": 92,
+              "size": [
+                1080,
+                1440
+              ]
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-lr-warm-studio/c3/variants/mobile/bg-lr-warm-studio.webp",
+              "kb": 29.6,
+              "quality": 92,
+              "size": [
+                720,
+                960
+              ]
+            }
+          },
+          "transparency": {
+            "expectedOpaque": true,
+            "hasAlpha": false
+          },
+          "aspectRatio": {
+            "target": "3:4",
+            "actual": "4096x5461",
+            "ok": true
+          },
+          "editableSurface": null,
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 8,
+            "transparency": 10.0,
+            "focusReadability": 2.59,
+            "editableSurfaceSuitability": 7.0
+          },
+          "totalScore": 37.59,
+          "issues": [],
+          "notes": [
+            "MANUAL: confirm EMPTY stage (no baked furniture) + floor seam in band 0.58\u20130.64."
+          ],
+          "status": "generated"
+        }
+      ],
+      "recommendation": "recommend c3 (37.59/50) \u2014 REVIEW (not approved)",
+      "approved": false
+    },
+    {
+      "assetId": "bg-so-focused-office",
+      "kind": "background",
+      "tier": null,
+      "modelUsed": "gemini-3.1-flash-image",
+      "masterResolution": [
+        4096,
+        5461
+      ],
+      "aspectRatio": "3:4",
+      "transparencyRequired": false,
+      "editableSurfaceSpec": null,
+      "promptUsed": "Cozy handcrafted stylized 3D illustration in the \"Nestudio\" style: warm, premium-matte, rounded, soft-edged forms with thick readable silhouettes. Warm earthy palette \u2014 oiled oak, warm plaster, parchment, oatmeal \u2014 with restrained soft form-shading and subtle ambient occlusion. Soft warm key light from the upper-left, gentle ambient fill, cool-plum shadow (#46365a), never grey. Front-facing cinematic camera, eye-level to slightly elevated, gentle ~5-10 degree downward tilt. Parallel / near-orthographic, no strong perspective convergence. Matte finish, no gloss, no chrome, no plastic sheen. Friendly slightly-exaggerated but grounded proportions. Calm, uncluttered, generous negative space. Crisp and readable at small size.\n\nAn EMPTY front-facing room stage: full front wall + narrow left/right wall slivers + a floor meeting the wall at a seam ~62% down the frame. Completely UNFURNISHED \u2014 no furniture, no props, no people. Calm, low-detail, soft value range, generous empty wall and floor. Opaque background.\n\nAn empty focused home-office stage. Warm plaster walls with a soft olive tint (#e3ddca), warm wood floor, calm and quiet, soft upper-left window daylight. Room left for a desk and shelving.\n\nAvoid entirely: photorealism, photo, harsh gloss, chrome, glass shine, specular highlights, plastic sheen, neon, lens flare, dramatic/sunset/night lighting, hard cast shadows, isometric, 30 degree, top-down, one-point tunnel perspective, dutch tilt, fisheye, vanishing-point convergence, transparency checkerboard pattern, text, letters, watermark, logo, UI, caption, signature, clutter, busy, ornate, baroque, anime, painterly, flat vector, clipart, sticker-art, kawaii, chibi, Animal Crossing, Stardew Valley, The Sims, Dreamlight Valley look.",
+      "candidateCount": 3,
+      "selectedCandidate": 2,
+      "candidates": [
+        {
+          "candidate": 1,
+          "masterPng": "public/nests/production-v1/candidates/backgrounds/bg-so-focused-office/c1/bg-so-focused-office-master.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-so-focused-office/c1/variants/focus/bg-so-focused-office.webp",
+              "kb": 187.2,
+              "quality": 92,
+              "size": [
+                2048,
+                2731
+              ]
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-so-focused-office/c1/variants/standard/bg-so-focused-office.webp",
+              "kb": 48.3,
+              "quality": 92,
+              "size": [
+                1080,
+                1440
+              ]
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-so-focused-office/c1/variants/mobile/bg-so-focused-office.webp",
+              "kb": 24.3,
+              "quality": 92,
+              "size": [
+                720,
+                960
+              ]
+            }
+          },
+          "transparency": {
+            "expectedOpaque": true,
+            "hasAlpha": false
+          },
+          "aspectRatio": {
+            "target": "3:4",
+            "actual": "4096x5461",
+            "ok": true
+          },
+          "editableSurface": null,
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 8,
+            "transparency": 10.0,
+            "focusReadability": 2.72,
+            "editableSurfaceSuitability": 7.0
+          },
+          "totalScore": 37.72,
+          "issues": [],
+          "notes": [
+            "MANUAL: confirm EMPTY stage (no baked furniture) + floor seam in band 0.58\u20130.64."
+          ],
+          "status": "generated"
+        },
+        {
+          "candidate": 2,
+          "masterPng": "public/nests/production-v1/candidates/backgrounds/bg-so-focused-office/c2/bg-so-focused-office-master.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-so-focused-office/c2/variants/focus/bg-so-focused-office.webp",
+              "kb": 653.1,
+              "quality": 92,
+              "size": [
+                2048,
+                2731
+              ]
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-so-focused-office/c2/variants/standard/bg-so-focused-office.webp",
+              "kb": 143.8,
+              "quality": 92,
+              "size": [
+                1080,
+                1440
+              ]
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-so-focused-office/c2/variants/mobile/bg-so-focused-office.webp",
+              "kb": 47.9,
+              "quality": 92,
+              "size": [
+                720,
+                960
+              ]
+            }
+          },
+          "transparency": {
+            "expectedOpaque": true,
+            "hasAlpha": false
+          },
+          "aspectRatio": {
+            "target": "3:4",
+            "actual": "4096x5461",
+            "ok": true
+          },
+          "editableSurface": null,
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 8,
+            "transparency": 10.0,
+            "focusReadability": 3.79,
+            "editableSurfaceSuitability": 7.0
+          },
+          "totalScore": 38.79,
+          "issues": [],
+          "notes": [
+            "MANUAL: confirm EMPTY stage (no baked furniture) + floor seam in band 0.58\u20130.64."
+          ],
+          "status": "generated"
+        },
+        {
+          "candidate": 3,
+          "masterPng": "public/nests/production-v1/candidates/backgrounds/bg-so-focused-office/c3/bg-so-focused-office-master.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-so-focused-office/c3/variants/focus/bg-so-focused-office.webp",
+              "kb": 193.6,
+              "quality": 92,
+              "size": [
+                2048,
+                2731
+              ]
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-so-focused-office/c3/variants/standard/bg-so-focused-office.webp",
+              "kb": 59.4,
+              "quality": 92,
+              "size": [
+                1080,
+                1440
+              ]
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/backgrounds/bg-so-focused-office/c3/variants/mobile/bg-so-focused-office.webp",
+              "kb": 31.0,
+              "quality": 92,
+              "size": [
+                720,
+                960
+              ]
+            }
+          },
+          "transparency": {
+            "expectedOpaque": true,
+            "hasAlpha": false
+          },
+          "aspectRatio": {
+            "target": "3:4",
+            "actual": "4096x5461",
+            "ok": true
+          },
+          "editableSurface": null,
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 8,
+            "transparency": 10.0,
+            "focusReadability": 2.53,
+            "editableSurfaceSuitability": 7.0
+          },
+          "totalScore": 37.53,
+          "issues": [],
+          "notes": [
+            "MANUAL: confirm EMPTY stage (no baked furniture) + floor seam in band 0.58\u20130.64."
+          ],
+          "status": "generated"
+        }
+      ],
+      "recommendation": "recommend c2 (38.79/50) \u2014 REVIEW (not approved)",
+      "approved": false
+    },
+    {
+      "assetId": "ast-lr-media-oak-console",
+      "kind": "object",
+      "tier": "hero",
+      "modelUsed": "gemini-3.1-flash-image",
+      "masterResolution": [
+        2048,
+        2048
+      ],
+      "aspectRatio": "1:1",
+      "transparencyRequired": true,
+      "editableSurfaceSpec": {
+        "kind": "screen",
+        "bounds": {
+          "x": 0.18,
+          "y": 0.05,
+          "width": 0.64,
+          "height": 0.5
+        },
+        "contentType": "video"
+      },
+      "promptUsed": "Cozy handcrafted stylized 3D illustration in the \"Nestudio\" style: warm, premium-matte, rounded, soft-edged forms with thick readable silhouettes. Warm earthy palette \u2014 oiled oak, warm plaster, parchment, oatmeal \u2014 with restrained soft form-shading and subtle ambient occlusion. Soft warm key light from the upper-left, gentle ambient fill, cool-plum shadow (#46365a), never grey. Front-facing cinematic camera, eye-level to slightly elevated, gentle ~5-10 degree downward tilt. Parallel / near-orthographic, no strong perspective convergence. Matte finish, no gloss, no chrome, no plastic sheen. Friendly slightly-exaggerated but grounded proportions. Calm, uncluttered, generous negative space. Crisp and readable at small size.\n\nRender ONE object only, isolated and centered, fully in frame, on a FLAT PLAIN SOLID pure-white background (for a clean cut-out) \u2014 no room, no floor, no wall, no props, and NO cast/contact/floor shadow under the object. Baked self-shading only, lit from the upper-left.\n\nAn oak media console with a wide TV on top, front-facing. The TV SCREEN is an EMPTY flat warm-dark matte panel with a very subtle soft reflection \u2014 NO image, NO video, NO content, a blank warm-off display. The console top is a clean empty surface. Rounded soft body, warm oiled-oak casing, one caramel accent.\n\nAvoid entirely: photorealism, photo, harsh gloss, chrome, glass shine, specular highlights, plastic sheen, neon, lens flare, dramatic/sunset/night lighting, hard cast shadows, isometric, 30 degree, top-down, one-point tunnel perspective, dutch tilt, fisheye, vanishing-point convergence, transparency checkerboard pattern, text, letters, watermark, logo, UI, caption, signature, clutter, busy, ornate, baroque, anime, painterly, flat vector, clipart, sticker-art, kawaii, chibi, Animal Crossing, Stardew Valley, The Sims, Dreamlight Valley look.\n\nAlso avoid: screen content, image on screen, video on screen, app ui, wallpaper on screen, bright white screen, glossy glare.",
+      "candidateCount": 3,
+      "selectedCandidate": 3,
+      "candidates": [
+        {
+          "candidate": 1,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c1/ast-lr-media-oak-console-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c1/ast-lr-media-oak-console-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c1/variants/focus/ast-lr-media-oak-console.webp",
+              "kb": 135.0,
+              "quality": 92,
+              "longest": 2048
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c1/variants/standard/ast-lr-media-oak-console.webp",
+              "kb": 45.2,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c1/variants/mobile/ast-lr-media-oak-console.webp",
+              "kb": 18.6,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1714,
+            1630
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.489,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "16:10",
+            "actual": 1.052,
+            "ok": false
+          },
+          "editableSurface": {
+            "region": [
+              308,
+              81,
+              1405,
+              896
+            ],
+            "stddev": 23.2,
+            "emptyEnough": true
+          },
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 7.92,
+            "transparency": 9.5,
+            "focusReadability": 4.84,
+            "editableSurfaceSuitability": 8.07
+          },
+          "totalScore": 40.33,
+          "issues": [
+            "trimmed aspect 1.05 vs target 16:10 (1.60) beyond 15% tol"
+          ],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 2,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c2/ast-lr-media-oak-console-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c2/ast-lr-media-oak-console-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c2/variants/focus/ast-lr-media-oak-console.webp",
+              "kb": 149.3,
+              "quality": 92,
+              "longest": 2048
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c2/variants/standard/ast-lr-media-oak-console.webp",
+              "kb": 49.7,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c2/variants/mobile/ast-lr-media-oak-console.webp",
+              "kb": 19.6,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1626,
+            1276
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.6,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "16:10",
+            "actual": 1.274,
+            "ok": false
+          },
+          "editableSurface": {
+            "region": [
+              292,
+              63,
+              1333,
+              701
+            ],
+            "stddev": 15.0,
+            "emptyEnough": true
+          },
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 7.88,
+            "transparency": 9.5,
+            "focusReadability": 5.2,
+            "editableSurfaceSuitability": 8.75
+          },
+          "totalScore": 41.33,
+          "issues": [
+            "trimmed aspect 1.27 vs target 16:10 (1.60) beyond 15% tol"
+          ],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 3,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c3/ast-lr-media-oak-console-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c3/ast-lr-media-oak-console-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c3/variants/focus/ast-lr-media-oak-console.webp",
+              "kb": 187.3,
+              "quality": 92,
+              "longest": 2048
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c3/variants/standard/ast-lr-media-oak-console.webp",
+              "kb": 63.1,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-media-oak-console/c3/variants/mobile/ast-lr-media-oak-console.webp",
+              "kb": 25.9,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1708,
+            1452
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.567,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "16:10",
+            "actual": 1.176,
+            "ok": false
+          },
+          "editableSurface": {
+            "region": [
+              307,
+              72,
+              1400,
+              798
+            ],
+            "stddev": 14.0,
+            "emptyEnough": true
+          },
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 7.85,
+            "transparency": 9.5,
+            "focusReadability": 5.46,
+            "editableSurfaceSuitability": 8.83
+          },
+          "totalScore": 41.64,
+          "issues": [
+            "trimmed aspect 1.18 vs target 16:10 (1.60) beyond 15% tol"
+          ],
+          "notes": [],
+          "status": "generated"
+        }
+      ],
+      "recommendation": "recommend c3 (41.64/50) \u2014 REVISE (trimmed aspect 1.18 vs target 16:10 (1.60) beyond 15% tol)",
+      "approved": false
+    },
+    {
+      "assetId": "ast-lr-frame-portrait",
+      "kind": "object",
+      "tier": "medium",
+      "modelUsed": "gemini-3.1-flash-image",
+      "masterResolution": [
+        1536,
+        1536
+      ],
+      "aspectRatio": "1:1",
+      "transparencyRequired": true,
+      "editableSurfaceSpec": {
+        "kind": "photo",
+        "bounds": {
+          "x": 0.12,
+          "y": 0.1,
+          "width": 0.76,
+          "height": 0.7
+        },
+        "contentType": "gallery"
+      },
+      "promptUsed": "Cozy handcrafted stylized 3D illustration in the \"Nestudio\" style: warm, premium-matte, rounded, soft-edged forms with thick readable silhouettes. Warm earthy palette \u2014 oiled oak, warm plaster, parchment, oatmeal \u2014 with restrained soft form-shading and subtle ambient occlusion. Soft warm key light from the upper-left, gentle ambient fill, cool-plum shadow (#46365a), never grey. Front-facing cinematic camera, eye-level to slightly elevated, gentle ~5-10 degree downward tilt. Parallel / near-orthographic, no strong perspective convergence. Matte finish, no gloss, no chrome, no plastic sheen. Friendly slightly-exaggerated but grounded proportions. Calm, uncluttered, generous negative space. Crisp and readable at small size.\n\nRender ONE object only, isolated and centered, fully in frame, on a FLAT PLAIN SOLID pure-white background (for a clean cut-out) \u2014 no room, no floor, no wall, no props, and NO cast/contact/floor shadow under the object. Baked self-shading only, lit from the upper-left.\n\nA single portrait photo frame, front-facing, rounded soft-cornered warm-oak frame with a warm cream mat. The photo APERTURE inside is an EMPTY warm cream mat \u2014 NO photo, NO image, NO picture inside it, just a soft blank inset. One sage accent on the frame edge.\n\nAvoid entirely: photorealism, photo, harsh gloss, chrome, glass shine, specular highlights, plastic sheen, neon, lens flare, dramatic/sunset/night lighting, hard cast shadows, isometric, 30 degree, top-down, one-point tunnel perspective, dutch tilt, fisheye, vanishing-point convergence, transparency checkerboard pattern, text, letters, watermark, logo, UI, caption, signature, clutter, busy, ornate, baroque, anime, painterly, flat vector, clipart, sticker-art, kawaii, chibi, Animal Crossing, Stardew Valley, The Sims, Dreamlight Valley look.\n\nAlso avoid: photo inside frame, picture inside frame, portrait of a person, printed art inside.",
+      "candidateCount": 3,
+      "selectedCandidate": 3,
+      "candidates": [
+        {
+          "candidate": 1,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c1/ast-lr-frame-portrait-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c1/ast-lr-frame-portrait-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c1/variants/focus/ast-lr-frame-portrait.webp",
+              "kb": 203.4,
+              "quality": 92,
+              "longest": 1536
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c1/variants/standard/ast-lr-frame-portrait.webp",
+              "kb": 99.2,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c1/variants/mobile/ast-lr-frame-portrait.webp",
+              "kb": 28.5,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1256,
+            1512
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.568,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "3:4",
+            "actual": 0.831,
+            "ok": true
+          },
+          "editableSurface": {
+            "region": [
+              150,
+              151,
+              1105,
+              1209
+            ],
+            "stddev": 47.7,
+            "emptyEnough": true
+          },
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 9.3,
+            "transparency": 9.5,
+            "focusReadability": 6.29,
+            "editableSurfaceSuitability": 6.03
+          },
+          "totalScore": 41.12,
+          "issues": [],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 2,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c2/ast-lr-frame-portrait-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c2/ast-lr-frame-portrait-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c2/variants/focus/ast-lr-frame-portrait.webp",
+              "kb": 176.8,
+              "quality": 92,
+              "longest": 1536
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c2/variants/standard/ast-lr-frame-portrait.webp",
+              "kb": 86.6,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c2/variants/mobile/ast-lr-frame-portrait.webp",
+              "kb": 25.6,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1256,
+            1448
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.583,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "3:4",
+            "actual": 0.867,
+            "ok": false
+          },
+          "editableSurface": {
+            "region": [
+              150,
+              144,
+              1105,
+              1158
+            ],
+            "stddev": 34.7,
+            "emptyEnough": true
+          },
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 7.93,
+            "transparency": 9.5,
+            "focusReadability": 4.97,
+            "editableSurfaceSuitability": 7.1
+          },
+          "totalScore": 39.5,
+          "issues": [
+            "trimmed aspect 0.87 vs target 3:4 (0.75) beyond 15% tol"
+          ],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 3,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c3/ast-lr-frame-portrait-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c3/ast-lr-frame-portrait-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c3/variants/focus/ast-lr-frame-portrait.webp",
+              "kb": 141.6,
+              "quality": 92,
+              "longest": 1536
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c3/variants/standard/ast-lr-frame-portrait.webp",
+              "kb": 71.3,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-frame-portrait/c3/variants/mobile/ast-lr-frame-portrait.webp",
+              "kb": 23.9,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1334,
+            1641
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.494,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "3:4",
+            "actual": 0.813,
+            "ok": true
+          },
+          "editableSurface": {
+            "region": [
+              160,
+              164,
+              1173,
+              1312
+            ],
+            "stddev": 26.7,
+            "emptyEnough": true
+          },
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 9.6,
+            "transparency": 9.5,
+            "focusReadability": 4.96,
+            "editableSurfaceSuitability": 7.77
+          },
+          "totalScore": 41.83,
+          "issues": [],
+          "notes": [],
+          "status": "generated"
+        }
+      ],
+      "recommendation": "recommend c3 (41.83/50) \u2014 REVIEW (not approved)",
+      "approved": false
+    },
+    {
+      "assetId": "ast-lr-sofa-boucle",
+      "kind": "object",
+      "tier": "hero",
+      "modelUsed": "gemini-3.1-flash-image",
+      "masterResolution": [
+        2048,
+        2048
+      ],
+      "aspectRatio": "1:1",
+      "transparencyRequired": true,
+      "editableSurfaceSpec": null,
+      "promptUsed": "Cozy handcrafted stylized 3D illustration in the \"Nestudio\" style: warm, premium-matte, rounded, soft-edged forms with thick readable silhouettes. Warm earthy palette \u2014 oiled oak, warm plaster, parchment, oatmeal \u2014 with restrained soft form-shading and subtle ambient occlusion. Soft warm key light from the upper-left, gentle ambient fill, cool-plum shadow (#46365a), never grey. Front-facing cinematic camera, eye-level to slightly elevated, gentle ~5-10 degree downward tilt. Parallel / near-orthographic, no strong perspective convergence. Matte finish, no gloss, no chrome, no plastic sheen. Friendly slightly-exaggerated but grounded proportions. Calm, uncluttered, generous negative space. Crisp and readable at small size.\n\nRender ONE object only, isolated and centered, fully in frame, on a FLAT PLAIN SOLID pure-white background (for a clean cut-out) \u2014 no room, no floor, no wall, no props, and NO cast/contact/floor shadow under the object. Baked self-shading only, lit from the upper-left.\n\nA single cozy boucl\u00e9 two-seater sofa in cream/oatmeal, front-facing, rounded plump-but-tailored cushions and soft rounded arms, warm oiled-oak feet. Premium matte boucl\u00e9 upholstery, gentle even drape.\n\nAvoid entirely: photorealism, photo, harsh gloss, chrome, glass shine, specular highlights, plastic sheen, neon, lens flare, dramatic/sunset/night lighting, hard cast shadows, isometric, 30 degree, top-down, one-point tunnel perspective, dutch tilt, fisheye, vanishing-point convergence, transparency checkerboard pattern, text, letters, watermark, logo, UI, caption, signature, clutter, busy, ornate, baroque, anime, painterly, flat vector, clipart, sticker-art, kawaii, chibi, Animal Crossing, Stardew Valley, The Sims, Dreamlight Valley look.",
+      "candidateCount": 3,
+      "selectedCandidate": 2,
+      "candidates": [
+        {
+          "candidate": 1,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c1/ast-lr-sofa-boucle-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c1/ast-lr-sofa-boucle-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c1/variants/focus/ast-lr-sofa-boucle.webp",
+              "kb": 583.6,
+              "quality": 92,
+              "longest": 2048
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c1/variants/standard/ast-lr-sofa-boucle.webp",
+              "kb": 163.5,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c1/variants/mobile/ast-lr-sofa-boucle.webp",
+              "kb": 34.1,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1623,
+            809
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.741,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "16:9",
+            "actual": 2.006,
+            "ok": true
+          },
+          "editableSurface": null,
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 9.55,
+            "transparency": 9.5,
+            "focusReadability": 10.0,
+            "editableSurfaceSuitability": 7.0
+          },
+          "totalScore": 46.05,
+          "issues": [],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 2,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c2/ast-lr-sofa-boucle-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c2/ast-lr-sofa-boucle-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c2/variants/focus/ast-lr-sofa-boucle.webp",
+              "kb": 829.6,
+              "quality": 92,
+              "longest": 2048
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c2/variants/standard/ast-lr-sofa-boucle.webp",
+              "kb": 232.9,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c2/variants/mobile/ast-lr-sofa-boucle.webp",
+              "kb": 52.1,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1643,
+            1006
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.658,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "16:9",
+            "actual": 1.633,
+            "ok": true
+          },
+          "editableSurface": null,
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 9.56,
+            "transparency": 9.5,
+            "focusReadability": 10.0,
+            "editableSurfaceSuitability": 7.0
+          },
+          "totalScore": 46.06,
+          "issues": [],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 3,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c3/ast-lr-sofa-boucle-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c3/ast-lr-sofa-boucle-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c3/variants/focus/ast-lr-sofa-boucle.webp",
+              "kb": 541.5,
+              "quality": 92,
+              "longest": 2048
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c3/variants/standard/ast-lr-sofa-boucle.webp",
+              "kb": 141.1,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-sofa-boucle/c3/variants/mobile/ast-lr-sofa-boucle.webp",
+              "kb": 29.7,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1748,
+            796
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.72,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "16:9",
+            "actual": 2.196,
+            "ok": false
+          },
+          "editableSurface": null,
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 7.71,
+            "transparency": 9.5,
+            "focusReadability": 10.0,
+            "editableSurfaceSuitability": 7.0
+          },
+          "totalScore": 44.21,
+          "issues": [
+            "trimmed aspect 2.20 vs target 16:9 (1.78) beyond 15% tol"
+          ],
+          "notes": [],
+          "status": "generated"
+        }
+      ],
+      "recommendation": "recommend c2 (46.06/50) \u2014 REVIEW (not approved)",
+      "approved": false
+    },
+    {
+      "assetId": "ast-lr-table-oak-round",
+      "kind": "object",
+      "tier": "medium",
+      "modelUsed": "gemini-3.1-flash-image",
+      "masterResolution": [
+        1536,
+        1536
+      ],
+      "aspectRatio": "1:1",
+      "transparencyRequired": true,
+      "editableSurfaceSpec": {
+        "kind": "surface-projection",
+        "bounds": {
+          "x": 0.1,
+          "y": 0,
+          "width": 0.8,
+          "height": 0.35
+        },
+        "contentType": "none"
+      },
+      "promptUsed": "Cozy handcrafted stylized 3D illustration in the \"Nestudio\" style: warm, premium-matte, rounded, soft-edged forms with thick readable silhouettes. Warm earthy palette \u2014 oiled oak, warm plaster, parchment, oatmeal \u2014 with restrained soft form-shading and subtle ambient occlusion. Soft warm key light from the upper-left, gentle ambient fill, cool-plum shadow (#46365a), never grey. Front-facing cinematic camera, eye-level to slightly elevated, gentle ~5-10 degree downward tilt. Parallel / near-orthographic, no strong perspective convergence. Matte finish, no gloss, no chrome, no plastic sheen. Friendly slightly-exaggerated but grounded proportions. Calm, uncluttered, generous negative space. Crisp and readable at small size.\n\nRender ONE object only, isolated and centered, fully in frame, on a FLAT PLAIN SOLID pure-white background (for a clean cut-out) \u2014 no room, no floor, no wall, no props, and NO cast/contact/floor shadow under the object. Baked self-shading only, lit from the upper-left.\n\nA single low round coffee table, front-facing, rounded soft-cornered warm oiled-oak top, tapered soft legs. The top surface is a clean, EMPTY flat plane \u2014 nothing on it.\n\nAvoid entirely: photorealism, photo, harsh gloss, chrome, glass shine, specular highlights, plastic sheen, neon, lens flare, dramatic/sunset/night lighting, hard cast shadows, isometric, 30 degree, top-down, one-point tunnel perspective, dutch tilt, fisheye, vanishing-point convergence, transparency checkerboard pattern, text, letters, watermark, logo, UI, caption, signature, clutter, busy, ornate, baroque, anime, painterly, flat vector, clipart, sticker-art, kawaii, chibi, Animal Crossing, Stardew Valley, The Sims, Dreamlight Valley look.\n\nAlso avoid: objects on table, books on table, cup on table, decor on top.",
+      "candidateCount": 3,
+      "selectedCandidate": 1,
+      "candidates": [
+        {
+          "candidate": 1,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c1/ast-lr-table-oak-round-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c1/ast-lr-table-oak-round-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c1/variants/focus/ast-lr-table-oak-round.webp",
+              "kb": 84.4,
+              "quality": 92,
+              "longest": 1536
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c1/variants/standard/ast-lr-table-oak-round.webp",
+              "kb": 50.0,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c1/variants/mobile/ast-lr-table-oak-round.webp",
+              "kb": 21.7,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1593,
+            934
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.814,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "4:3",
+            "actual": 1.706,
+            "ok": false
+          },
+          "editableSurface": {
+            "region": [
+              159,
+              0,
+              1433,
+              326
+            ],
+            "stddev": 31.5,
+            "emptyEnough": true
+          },
+          "scores": {
+            "dnaAdherence": 8.54,
+            "composition": 7.64,
+            "transparency": 9.5,
+            "focusReadability": 5.7,
+            "editableSurfaceSuitability": 7.38
+          },
+          "totalScore": 38.76,
+          "issues": [
+            "trimmed aspect 1.71 vs target 4:3 (1.33) beyond 15% tol"
+          ],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 2,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c2/ast-lr-table-oak-round-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c2/ast-lr-table-oak-round-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c2/variants/focus/ast-lr-table-oak-round.webp",
+              "kb": 86.9,
+              "quality": 92,
+              "longest": 1536
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c2/variants/standard/ast-lr-table-oak-round.webp",
+              "kb": 49.3,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c2/variants/mobile/ast-lr-table-oak-round.webp",
+              "kb": 19.8,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1717,
+            943
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.725,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "4:3",
+            "actual": 1.821,
+            "ok": false
+          },
+          "editableSurface": {
+            "region": [
+              171,
+              0,
+              1545,
+              330
+            ],
+            "stddev": 71.6,
+            "emptyEnough": false
+          },
+          "scores": {
+            "dnaAdherence": 5.98,
+            "composition": 6.56,
+            "transparency": 9.5,
+            "focusReadability": 6.0,
+            "editableSurfaceSuitability": 4.03
+          },
+          "totalScore": 32.07,
+          "issues": [
+            "trimmed aspect 1.82 vs target 4:3 (1.33) beyond 15% tol"
+          ],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 3,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c3/ast-lr-table-oak-round-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c3/ast-lr-table-oak-round-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c3/variants/focus/ast-lr-table-oak-round.webp",
+              "kb": 84.0,
+              "quality": 92,
+              "longest": 1536
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c3/variants/standard/ast-lr-table-oak-round.webp",
+              "kb": 51.4,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-lr-table-oak-round/c3/variants/mobile/ast-lr-table-oak-round.webp",
+              "kb": 22.4,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1566,
+            916
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.822,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "4:3",
+            "actual": 1.71,
+            "ok": false
+          },
+          "editableSurface": {
+            "region": [
+              156,
+              0,
+              1409,
+              320
+            ],
+            "stddev": 42.3,
+            "emptyEnough": true
+          },
+          "scores": {
+            "dnaAdherence": 8.74,
+            "composition": 7.5,
+            "transparency": 9.5,
+            "focusReadability": 5.46,
+            "editableSurfaceSuitability": 6.47
+          },
+          "totalScore": 37.67,
+          "issues": [
+            "trimmed aspect 1.71 vs target 4:3 (1.33) beyond 15% tol"
+          ],
+          "notes": [],
+          "status": "generated"
+        }
+      ],
+      "recommendation": "recommend c1 (38.76/50) \u2014 REVISE (trimmed aspect 1.71 vs target 4:3 (1.33) beyond 15% tol)",
+      "approved": false
+    },
+    {
+      "assetId": "ast-so-desk-oak",
+      "kind": "object",
+      "tier": "hero",
+      "modelUsed": "gemini-3.1-flash-image",
+      "masterResolution": [
+        2048,
+        2048
+      ],
+      "aspectRatio": "1:1",
+      "transparencyRequired": true,
+      "editableSurfaceSpec": {
+        "kind": "surface-projection",
+        "bounds": {
+          "x": 0.08,
+          "y": 0,
+          "width": 0.84,
+          "height": 0.3
+        },
+        "contentType": "none"
+      },
+      "promptUsed": "Cozy handcrafted stylized 3D illustration in the \"Nestudio\" style: warm, premium-matte, rounded, soft-edged forms with thick readable silhouettes. Warm earthy palette \u2014 oiled oak, warm plaster, parchment, oatmeal \u2014 with restrained soft form-shading and subtle ambient occlusion. Soft warm key light from the upper-left, gentle ambient fill, cool-plum shadow (#46365a), never grey. Front-facing cinematic camera, eye-level to slightly elevated, gentle ~5-10 degree downward tilt. Parallel / near-orthographic, no strong perspective convergence. Matte finish, no gloss, no chrome, no plastic sheen. Friendly slightly-exaggerated but grounded proportions. Calm, uncluttered, generous negative space. Crisp and readable at small size.\n\nRender ONE object only, isolated and centered, fully in frame, on a FLAT PLAIN SOLID pure-white background (for a clean cut-out) \u2014 no room, no floor, no wall, no props, and NO cast/contact/floor shadow under the object. Baked self-shading only, lit from the upper-left.\n\nA single oak writing desk with a slim drawer, front-facing, rounded soft-cornered warm-oak top, clean simple legs. The desktop is a clean EMPTY flat surface \u2014 no laptop, no lamp, no mug, nothing on it.\n\nAvoid entirely: photorealism, photo, harsh gloss, chrome, glass shine, specular highlights, plastic sheen, neon, lens flare, dramatic/sunset/night lighting, hard cast shadows, isometric, 30 degree, top-down, one-point tunnel perspective, dutch tilt, fisheye, vanishing-point convergence, transparency checkerboard pattern, text, letters, watermark, logo, UI, caption, signature, clutter, busy, ornate, baroque, anime, painterly, flat vector, clipart, sticker-art, kawaii, chibi, Animal Crossing, Stardew Valley, The Sims, Dreamlight Valley look.\n\nAlso avoid: laptop, monitor, computer, lamp, mug, books, clutter on desk.",
+      "candidateCount": 3,
+      "selectedCandidate": 2,
+      "candidates": [
+        {
+          "candidate": 1,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c1/ast-so-desk-oak-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c1/ast-so-desk-oak-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c1/variants/focus/ast-so-desk-oak.webp",
+              "kb": 68.6,
+              "quality": 92,
+              "longest": 2048
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c1/variants/standard/ast-so-desk-oak.webp",
+              "kb": 25.8,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c1/variants/mobile/ast-so-desk-oak.webp",
+              "kb": 12.9,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1517,
+            1042
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.835,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "3:2",
+            "actual": 1.456,
+            "ok": true
+          },
+          "editableSurface": {
+            "region": [
+              121,
+              0,
+              1395,
+              312
+            ],
+            "stddev": 38.0,
+            "emptyEnough": true
+          },
+          "scores": {
+            "dnaAdherence": 7.25,
+            "composition": 9.29,
+            "transparency": 9.5,
+            "focusReadability": 4.79,
+            "editableSurfaceSuitability": 6.84
+          },
+          "totalScore": 37.67,
+          "issues": [],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 2,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c2/ast-so-desk-oak-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c2/ast-so-desk-oak-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c2/variants/focus/ast-so-desk-oak.webp",
+              "kb": 101.6,
+              "quality": 92,
+              "longest": 2048
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c2/variants/standard/ast-so-desk-oak.webp",
+              "kb": 38.0,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c2/variants/mobile/ast-so-desk-oak.webp",
+              "kb": 16.1,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1250,
+            782
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.899,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "3:2",
+            "actual": 1.598,
+            "ok": true
+          },
+          "editableSurface": {
+            "region": [
+              100,
+              0,
+              1150,
+              234
+            ],
+            "stddev": 33.5,
+            "emptyEnough": true
+          },
+          "scores": {
+            "dnaAdherence": 7.04,
+            "composition": 9.25,
+            "transparency": 9.5,
+            "focusReadability": 4.94,
+            "editableSurfaceSuitability": 7.21
+          },
+          "totalScore": 37.94,
+          "issues": [],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 3,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c3/ast-so-desk-oak-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c3/ast-so-desk-oak-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c3/variants/focus/ast-so-desk-oak.webp",
+              "kb": 84.4,
+              "quality": 92,
+              "longest": 2048
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c3/variants/standard/ast-so-desk-oak.webp",
+              "kb": 30.9,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-desk-oak/c3/variants/mobile/ast-so-desk-oak.webp",
+              "kb": 14.0,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1527,
+            923
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.844,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "3:2",
+            "actual": 1.654,
+            "ok": true
+          },
+          "editableSurface": {
+            "region": [
+              122,
+              0,
+              1404,
+              276
+            ],
+            "stddev": 49.8,
+            "emptyEnough": true
+          },
+          "scores": {
+            "dnaAdherence": 7.72,
+            "composition": 9.27,
+            "transparency": 9.5,
+            "focusReadability": 4.88,
+            "editableSurfaceSuitability": 5.85
+          },
+          "totalScore": 37.22,
+          "issues": [],
+          "notes": [],
+          "status": "generated"
+        }
+      ],
+      "recommendation": "recommend c2 (37.94/50) \u2014 REVIEW (not approved)",
+      "approved": false
+    },
+    {
+      "assetId": "ast-so-chair-task",
+      "kind": "object",
+      "tier": "medium",
+      "modelUsed": "gemini-3.1-flash-image",
+      "masterResolution": [
+        1536,
+        1536
+      ],
+      "aspectRatio": "1:1",
+      "transparencyRequired": true,
+      "editableSurfaceSpec": null,
+      "promptUsed": "Cozy handcrafted stylized 3D illustration in the \"Nestudio\" style: warm, premium-matte, rounded, soft-edged forms with thick readable silhouettes. Warm earthy palette \u2014 oiled oak, warm plaster, parchment, oatmeal \u2014 with restrained soft form-shading and subtle ambient occlusion. Soft warm key light from the upper-left, gentle ambient fill, cool-plum shadow (#46365a), never grey. Front-facing cinematic camera, eye-level to slightly elevated, gentle ~5-10 degree downward tilt. Parallel / near-orthographic, no strong perspective convergence. Matte finish, no gloss, no chrome, no plastic sheen. Friendly slightly-exaggerated but grounded proportions. Calm, uncluttered, generous negative space. Crisp and readable at small size.\n\nRender ONE object only, isolated and centered, fully in frame, on a FLAT PLAIN SOLID pure-white background (for a clean cut-out) \u2014 no room, no floor, no wall, no props, and NO cast/contact/floor shadow under the object. Baked self-shading only, lit from the upper-left.\n\nA single soft task chair, front-facing three-quarter, rounded soft forms, a rounded matte-fabric back and seat, warm matte frame, one teal accent.\n\nAvoid entirely: photorealism, photo, harsh gloss, chrome, glass shine, specular highlights, plastic sheen, neon, lens flare, dramatic/sunset/night lighting, hard cast shadows, isometric, 30 degree, top-down, one-point tunnel perspective, dutch tilt, fisheye, vanishing-point convergence, transparency checkerboard pattern, text, letters, watermark, logo, UI, caption, signature, clutter, busy, ornate, baroque, anime, painterly, flat vector, clipart, sticker-art, kawaii, chibi, Animal Crossing, Stardew Valley, The Sims, Dreamlight Valley look.",
+      "candidateCount": 3,
+      "selectedCandidate": 2,
+      "candidates": [
+        {
+          "candidate": 1,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c1/ast-so-chair-task-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c1/ast-so-chair-task-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c1/variants/focus/ast-so-chair-task.webp",
+              "kb": 118.3,
+              "quality": 92,
+              "longest": 1536
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c1/variants/standard/ast-so-chair-task.webp",
+              "kb": 60.3,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c1/variants/mobile/ast-so-chair-task.webp",
+              "kb": 26.1,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            924,
+            1357
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.822,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "3:4",
+            "actual": 0.681,
+            "ok": true
+          },
+          "editableSurface": null,
+          "scores": {
+            "dnaAdherence": 9.1,
+            "composition": 9.51,
+            "transparency": 9.5,
+            "focusReadability": 6.29,
+            "editableSurfaceSuitability": 7.0
+          },
+          "totalScore": 41.4,
+          "issues": [],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 2,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c2/ast-so-chair-task-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c2/ast-so-chair-task-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c2/variants/focus/ast-so-chair-task.webp",
+              "kb": 297.8,
+              "quality": 92,
+              "longest": 1536
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c2/variants/standard/ast-so-chair-task.webp",
+              "kb": 152.1,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c2/variants/mobile/ast-so-chair-task.webp",
+              "kb": 45.1,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1108,
+            1608
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.738,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "3:4",
+            "actual": 0.689,
+            "ok": true
+          },
+          "editableSurface": null,
+          "scores": {
+            "dnaAdherence": 9.57,
+            "composition": 9.41,
+            "transparency": 9.5,
+            "focusReadability": 9.22,
+            "editableSurfaceSuitability": 7.0
+          },
+          "totalScore": 44.7,
+          "issues": [],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 3,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c3/ast-so-chair-task-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c3/ast-so-chair-task-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c3/variants/focus/ast-so-chair-task.webp",
+              "kb": 121.5,
+              "quality": 92,
+              "longest": 1536
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c3/variants/standard/ast-so-chair-task.webp",
+              "kb": 64.3,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-chair-task/c3/variants/mobile/ast-so-chair-task.webp",
+              "kb": 28.2,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1320,
+            1471
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.788,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "3:4",
+            "actual": 0.897,
+            "ok": false
+          },
+          "editableSurface": null,
+          "scores": {
+            "dnaAdherence": 6.16,
+            "composition": 7.33,
+            "transparency": 9.5,
+            "focusReadability": 5.95,
+            "editableSurfaceSuitability": 7.0
+          },
+          "totalScore": 35.94,
+          "issues": [
+            "trimmed aspect 0.90 vs target 3:4 (0.75) beyond 15% tol"
+          ],
+          "notes": [],
+          "status": "generated"
+        }
+      ],
+      "recommendation": "recommend c2 (44.7/50) \u2014 REVIEW (not approved)",
+      "approved": false
+    },
+    {
+      "assetId": "ast-so-shelf-tall",
+      "kind": "object",
+      "tier": "hero",
+      "modelUsed": "gemini-3.1-flash-image",
+      "masterResolution": [
+        2048,
+        2048
+      ],
+      "aspectRatio": "1:1",
+      "transparencyRequired": true,
+      "editableSurfaceSpec": {
+        "kind": "surface-projection",
+        "bounds": {
+          "x": 0.08,
+          "y": 0.06,
+          "width": 0.84,
+          "height": 0.8
+        },
+        "contentType": "article"
+      },
+      "promptUsed": "Cozy handcrafted stylized 3D illustration in the \"Nestudio\" style: warm, premium-matte, rounded, soft-edged forms with thick readable silhouettes. Warm earthy palette \u2014 oiled oak, warm plaster, parchment, oatmeal \u2014 with restrained soft form-shading and subtle ambient occlusion. Soft warm key light from the upper-left, gentle ambient fill, cool-plum shadow (#46365a), never grey. Front-facing cinematic camera, eye-level to slightly elevated, gentle ~5-10 degree downward tilt. Parallel / near-orthographic, no strong perspective convergence. Matte finish, no gloss, no chrome, no plastic sheen. Friendly slightly-exaggerated but grounded proportions. Calm, uncluttered, generous negative space. Crisp and readable at small size.\n\nRender ONE object only, isolated and centered, fully in frame, on a FLAT PLAIN SOLID pure-white background (for a clean cut-out) \u2014 no room, no floor, no wall, no props, and NO cast/contact/floor shadow under the object. Baked self-shading only, lit from the upper-left.\n\nA single tall four-shelf bookshelf, front-facing, warm oiled-oak, rounded soft-cornered frame, open shelves that are mostly EMPTY with only a few soft structural books built in \u2014 leave open room on the shelves.\n\nAvoid entirely: photorealism, photo, harsh gloss, chrome, glass shine, specular highlights, plastic sheen, neon, lens flare, dramatic/sunset/night lighting, hard cast shadows, isometric, 30 degree, top-down, one-point tunnel perspective, dutch tilt, fisheye, vanishing-point convergence, transparency checkerboard pattern, text, letters, watermark, logo, UI, caption, signature, clutter, busy, ornate, baroque, anime, painterly, flat vector, clipart, sticker-art, kawaii, chibi, Animal Crossing, Stardew Valley, The Sims, Dreamlight Valley look.",
+      "candidateCount": 3,
+      "selectedCandidate": 3,
+      "candidates": [
+        {
+          "candidate": 1,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c1/ast-so-shelf-tall-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c1/ast-so-shelf-tall-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c1/variants/focus/ast-so-shelf-tall.webp",
+              "kb": 144.1,
+              "quality": 92,
+              "longest": 2048
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c1/variants/standard/ast-so-shelf-tall.webp",
+              "kb": 51.1,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c1/variants/mobile/ast-so-shelf-tall.webp",
+              "kb": 19.3,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            910,
+            1540
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.675,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "1:2",
+            "actual": 0.591,
+            "ok": false
+          },
+          "editableSurface": {
+            "region": [
+              72,
+              92,
+              837,
+              1324
+            ],
+            "stddev": 46.6,
+            "emptyEnough": true
+          },
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 7.92,
+            "transparency": 9.5,
+            "focusReadability": 4.27,
+            "editableSurfaceSuitability": 6.11
+          },
+          "totalScore": 37.8,
+          "issues": [
+            "trimmed aspect 0.59 vs target 1:2 (0.50) beyond 15% tol"
+          ],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 2,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c2/ast-so-shelf-tall-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c2/ast-so-shelf-tall-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c2/variants/focus/ast-so-shelf-tall.webp",
+              "kb": 132.7,
+              "quality": 92,
+              "longest": 2048
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c2/variants/standard/ast-so-shelf-tall.webp",
+              "kb": 49.2,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c2/variants/mobile/ast-so-shelf-tall.webp",
+              "kb": 18.9,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            1031,
+            1717
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.593,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "1:2",
+            "actual": 0.6,
+            "ok": false
+          },
+          "editableSurface": {
+            "region": [
+              82,
+              103,
+              948,
+              1476
+            ],
+            "stddev": 80.5,
+            "emptyEnough": false
+          },
+          "scores": {
+            "dnaAdherence": 8.91,
+            "composition": 7.91,
+            "transparency": 9.5,
+            "focusReadability": 5.58,
+            "editableSurfaceSuitability": 3.29
+          },
+          "totalScore": 35.19,
+          "issues": [
+            "trimmed aspect 0.60 vs target 1:2 (0.50) beyond 15% tol"
+          ],
+          "notes": [],
+          "status": "generated"
+        },
+        {
+          "candidate": 3,
+          "masterPng": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c3/ast-so-shelf-tall-master.png",
+          "cutoutPng": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c3/ast-so-shelf-tall-cutout.png",
+          "variants": {
+            "focus": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c3/variants/focus/ast-so-shelf-tall.webp",
+              "kb": 113.7,
+              "quality": 92,
+              "longest": 2048
+            },
+            "standard": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c3/variants/standard/ast-so-shelf-tall.webp",
+              "kb": 37.2,
+              "quality": 92,
+              "longest": 1024
+            },
+            "mobile": {
+              "path": "public/nests/production-v1/candidates/objects/ast-so-shelf-tall/c3/variants/mobile/ast-so-shelf-tall.webp",
+              "kb": 14.2,
+              "quality": 92,
+              "longest": 512
+            }
+          },
+          "trimmedResolution": [
+            971,
+            1662
+          ],
+          "transparency": {
+            "hasAlpha": true,
+            "transparentFraction": 0.619,
+            "cornersClear": true,
+            "cutoutReliable": true
+          },
+          "aspectRatio": {
+            "target": "1:2",
+            "actual": 0.584,
+            "ok": false
+          },
+          "editableSurface": {
+            "region": [
+              77,
+              99,
+              893,
+              1429
+            ],
+            "stddev": 44.7,
+            "emptyEnough": true
+          },
+          "scores": {
+            "dnaAdherence": 10.0,
+            "composition": 7.9,
+            "transparency": 9.5,
+            "focusReadability": 4.33,
+            "editableSurfaceSuitability": 6.27
+          },
+          "totalScore": 38.0,
+          "issues": [
+            "trimmed aspect 0.58 vs target 1:2 (0.50) beyond 15% tol"
+          ],
+          "notes": [],
+          "status": "generated"
+        }
+      ],
+      "recommendation": "recommend c3 (38.0/50) \u2014 REVISE (trimmed aspect 0.58 vs target 1:2 (0.50) beyond 15% tol)",
+      "approved": false
+    }
+  ]
+}

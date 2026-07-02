@@ -8,3 +8,6 @@ public/uploads/*
 !public/uploads/.gitkeep
 tsconfig.tsbuildinfotsconfig.tsbuildinfo
 tsconfig.tsbuildinfo
+
+# M12: generated candidate art lives in Supabase Storage, not git (~300MB)
+public/nests/*/candidates/
