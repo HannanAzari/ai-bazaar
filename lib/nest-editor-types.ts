@@ -19,6 +19,20 @@ import type { NestDetailScene, NestFocusArea } from "@/lib/nest-focus-types";
 /** The current editor-document schema version. */
 export const NEST_EDITOR_VERSION = 1 as const;
 
+/**
+ * M13 (Task 4B) — a generic creator overlay (a text or image "sticker") placed freely on
+ * the scene. Unlike an asset, an overlay carries its own content and is not backed by a
+ * catalog asset; it reuses the normal object move/resize/rotate machinery. `assetId` is a
+ * synthetic `overlay:text` / `overlay:image` marker (see `OVERLAY_TEXT_ASSET_ID` etc.).
+ */
+export type NestOverlay =
+  | { kind: "text"; text: string; color?: string; align?: "left" | "center" | "right" }
+  | { kind: "image"; src: string; fit?: "cover" | "contain" };
+
+/** Synthetic asset ids that mark an object as a generic overlay (no catalog asset). */
+export const OVERLAY_TEXT_ASSET_ID = "overlay:text";
+export const OVERLAY_IMAGE_ASSET_ID = "overlay:image";
+
 // We reuse the locked `NestPlane` union (`front_wall | left_sliver | right_sliver |
 // floor | foreground`) rather than the sprint's example `left_wall/right_wall`, so
 // edited documents stay renderer-compatible with the Golden Living Nest stage.
@@ -90,6 +104,10 @@ export interface EditableNestObject {
    *  (nest-surface-catalog.ts). Visual personalization only (photo/text/sticker), fully
    *  independent of hotspots/bindings. Optional + backward-compatible. */
   surfaces?: import("@/lib/nest-surface-types").ObjectSurfaceContent;
+
+  /** M13 (Task 4B): a generic text/image overlay carried on this instance. Present only
+   *  when `assetId` is an `overlay:*` marker; absent for asset-backed objects. */
+  overlay?: NestOverlay;
 }
 
 /** M7C.8 — how a child Focus-Scene object projects back into its parent (Main) scene. */
@@ -165,6 +183,16 @@ export function validateEditorObject(obj: EditableNestObject, index = 0): string
   if (obj.rotation != null && !finite(obj.rotation)) errors.push(`${at}: rotation must be a finite number`);
   if (obj.flipX != null && typeof obj.flipX !== "boolean") errors.push(`${at}: flipX must be a boolean`);
   if (obj.hotspots != null) errors.push(...validateHotspots(obj.hotspots).map((e) => `${at}: ${e}`));
+  if (obj.overlay != null) {
+    const ov = obj.overlay;
+    if (ov.kind === "text") {
+      if (typeof ov.text !== "string" || !ov.text.trim()) errors.push(`${at}: text overlay needs non-empty text`);
+    } else if (ov.kind === "image") {
+      if (typeof ov.src !== "string" || !ov.src) errors.push(`${at}: image overlay needs a src`);
+    } else {
+      errors.push(`${at}: unknown overlay kind`);
+    }
+  }
   return errors;
 }
 

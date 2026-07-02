@@ -37,12 +37,23 @@ export const SURFACE_CATALOG: Record<string, EditableSurfaceDef[]> = {
   ],
 };
 
-/** The predefined surface definitions for an asset type (empty when none). */
-export function predefinedSurfacesForAsset(assetId: string): EditableSurfaceDef[] {
-  return SURFACE_CATALOG[assetId] ?? [];
+// M13 (Task 4A): runtime-registered surfaces. Production assets declare their own
+// editable surfaces (`ProductionAsset.editableSurfaces`); the editor bridge converts +
+// registers them here so `predefinedSurfacesForAsset` resolves surfaces for curated
+// assets that aren't in the static SURFACE_CATALOG. The static catalog always wins.
+const RUNTIME_SURFACES: Record<string, EditableSurfaceDef[]> = {};
+
+/** Register an asset type's editable surfaces at runtime (idempotent per id). No-op for empty. */
+export function registerAssetSurfaces(assetId: string, defs: EditableSurfaceDef[]): void {
+  if (defs.length) RUNTIME_SURFACES[assetId] = defs;
 }
 
-/** Whether an asset type declares any editable surface. */
+/** The predefined surface definitions for an asset type (static catalog first). */
+export function predefinedSurfacesForAsset(assetId: string): EditableSurfaceDef[] {
+  return SURFACE_CATALOG[assetId] ?? RUNTIME_SURFACES[assetId] ?? [];
+}
+
+/** Whether an asset type declares any editable surface (static or runtime-registered). */
 export function assetHasSurfaces(assetId: string): boolean {
-  return (SURFACE_CATALOG[assetId]?.length ?? 0) > 0;
+  return predefinedSurfacesForAsset(assetId).length > 0;
 }

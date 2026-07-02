@@ -58,6 +58,17 @@ export const EDITOR_GUARDRAILS: Partial<Record<LivingNestSlotType, EditorGuardra
   // which over-tallened the box, letterboxing the art and floating the shelf hotspots.)
   shelf: { allowedPlanes: FLOOR, minWidth: 0.12, maxWidth: 0.3, recommendedWidth: 0.18, boxAspect: 0.476, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
   books: { allowedPlanes: ["floor", "foreground"], minWidth: 0.06, maxWidth: 0.18, recommendedWidth: 0.1, boxAspect: 1.748, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: false, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
+  // ── Production Pack V1 slot types (M13) ──────────────────────────────────────
+  // The production library tags furniture with the locked NestSlotType taxonomy
+  // (`seat`, `desk`, `window`, `product`, `pinboard`). Without an explicit guardrail
+  // these fell back to DEFAULT_GUARDRAIL, whose first allowed plane is `front_wall` —
+  // so floor furniture (sofas, desks, chairs) was born in the upper wall band. These
+  // entries keep floor furniture on the floor and wall fixtures on the wall.
+  seat: { allowedPlanes: FLOOR, minWidth: 0.2, maxWidth: 0.85, recommendedWidth: 0.6, boxAspect: 2.4, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 4, contactShadow: true, allowFlipX: true, allowRotation: false },
+  desk: { allowedPlanes: FLOOR, minWidth: 0.25, maxWidth: 0.6, recommendedWidth: 0.42, boxAspect: 2.0, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: false },
+  window: { allowedPlanes: WALL, minWidth: 0.15, maxWidth: 0.5, recommendedWidth: 0.3, boxAspect: 0.8, defaultAnchor: { x: 0.5, y: 0.5 }, defaultZ: 0, contactShadow: false, allowFlipX: true, allowRotation: false },
+  pinboard: { allowedPlanes: WALL, minWidth: 0.12, maxWidth: 0.4, recommendedWidth: 0.24, boxAspect: 1.2, defaultAnchor: { x: 0.5, y: 0.5 }, defaultZ: 1, contactShadow: false, allowFlipX: true, allowRotation: false },
+  product: { allowedPlanes: FLOOR_SIDES, minWidth: 0.05, maxWidth: 0.22, recommendedWidth: 0.1, boxAspect: 1.0, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: false },
 };
 
 /** Fallback guardrail for any unlisted slot type. */
@@ -73,6 +84,35 @@ export const DEFAULT_GUARDRAIL: EditorGuardrail = {
   allowFlipX: true,
   allowRotation: false,
 };
+
+/**
+ * M13 (Task 4B) — free-placement guardrail for generic overlays (text/image stickers).
+ * Overlays go anywhere, at any size, and rotate freely; the plane band is bypassed for
+ * them in `clampObject` so they are not pinned to a floor/wall zone.
+ */
+export const DEFAULT_OVERLAY: EditorGuardrail = {
+  allowedPlanes: ["foreground", "front_wall", "floor", "left_sliver", "right_sliver"],
+  minWidth: 0.05,
+  maxWidth: 1.0,
+  recommendedWidth: 0.34,
+  boxAspect: 1.0,
+  defaultAnchor: { x: 0.5, y: 0.5 },
+  defaultZ: 20,
+  contactShadow: false,
+  allowFlipX: true,
+  allowRotation: true,
+  rotationRange: { min: -180, max: 180 },
+};
+
+/** Whether an object is a generic overlay (synthetic `overlay:*` asset id, no catalog asset). */
+export function isOverlayAssetId(assetId: string): boolean {
+  return assetId.startsWith("overlay:");
+}
+
+/** The guardrail for an OBJECT: overlays use the free-placement guardrail, else by asset. */
+export function guardrailForObject(obj: { assetId: string }, asset: LivingNestAsset | undefined): EditorGuardrail {
+  return isOverlayAssetId(obj.assetId) ? DEFAULT_OVERLAY : guardrailForAsset(asset);
+}
 
 /** The advisory safe area (normalized). Objects fully outside it warn. */
 export const EDITOR_SAFE_AREA = { x: 0.0, y: 0.02, width: 1.0, height: 0.96 };
@@ -95,9 +135,10 @@ export function planeBand(plane: EditorPlane): { minY: number; maxY: number } {
   }
 }
 
-/** The slot type that best describes an asset (its first declared compatible type). */
-export function slotTypeForAsset(asset: LivingNestAsset): LivingNestSlotType | undefined {
-  return asset.compatibleSlotTypes[0];
+/** The slot type that best describes an asset (its first declared compatible type).
+ * Null-safe: overlays and objects whose asset isn't in the catalog have no slot type. */
+export function slotTypeForAsset(asset: LivingNestAsset | undefined): LivingNestSlotType | undefined {
+  return asset?.compatibleSlotTypes?.[0];
 }
 
 /** The guardrail for an asset (by slot type), falling back to the default. */
@@ -134,6 +175,24 @@ export function canFlipX(asset: LivingNestAsset | undefined, allowOverride = fal
 /** Whether an asset may be rotated (default false). */
 export function canRotate(asset: LivingNestAsset | undefined): boolean {
   return guardrailForAsset(asset).allowRotation === true;
+}
+
+/** Object-aware rotation availability (overlays rotate freely; assets by policy). */
+export function canRotateObject(obj: { assetId: string }, asset: LivingNestAsset | undefined): boolean {
+  return guardrailForObject(obj, asset).allowRotation === true;
+}
+
+/** Object-aware flip availability (overlays may mirror; assets by policy). */
+export function canFlipObject(obj: { assetId: string }, asset: LivingNestAsset | undefined, allowOverride = false): boolean {
+  return isOverlayAssetId(obj.assetId) ? true : canFlipX(asset, allowOverride);
+}
+
+/** Clamp a rotation into the OBJECT's permitted range (overlay-aware). */
+export function clampRotationForObject(obj: { assetId: string }, asset: LivingNestAsset | undefined, deg: number): number {
+  const g = guardrailForObject(obj, asset);
+  if (g.allowRotation !== true) return 0;
+  const r = g.rotationRange ?? { min: -180, max: 180 };
+  return clamp(deg, r.min, r.max);
 }
 
 /** Clamp a rotation (deg) into the asset's permitted range; 0 when rotation is off. */
@@ -197,9 +256,10 @@ export function clampObject(obj: EditableNestObject, g: EditorGuardrail = DEFAUL
   const visX = clamp(x + vb.x * width, -M, Math.max(-M, 1 + M - vW));
   x += visX - (x + vb.x * width);
 
-  // Y: plane band on the visible base, then keep the visible rect on-canvas.
+  // Y: plane band on the visible base, then keep the visible rect on-canvas. Overlays
+  // (Task 4B) are free — they may sit anywhere vertically, so their band is the full scene.
   let y = obj.y;
-  const band = planeBand(obj.plane);
+  const band = isOverlayAssetId(obj.assetId) ? { minY: 0, maxY: 1 } : planeBand(obj.plane);
   const visBase = y + vb.y * height + vH;
   const clampedBase = clamp(visBase, band.minY, band.maxY);
   y += clampedBase - visBase;

@@ -177,7 +177,7 @@ export function HotspotBindingSheet({
                 <p className="text-[10px] font-bold uppercase tracking-wider text-terracotta">Advanced authoring</p>
                 <label className="block">
                   <span className="text-[9px] font-bold uppercase tracking-wide text-ink/45">Name</span>
-                  <input value={selected.name} onChange={(e) => patch({ name: e.target.value })} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/70 py-1.5 px-2 text-xs text-ink focus:border-teal focus:outline-none" />
+                  <input value={selected.name} onChange={(e) => patch({ name: e.target.value })} style={{ fontSize: 16 }} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/70 py-1.5 px-2 text-ink focus:border-teal focus:outline-none" />
                 </label>
                 <label className="block">
                   <span className="text-[9px] font-bold uppercase tracking-wide text-ink/45">Semantic</span>

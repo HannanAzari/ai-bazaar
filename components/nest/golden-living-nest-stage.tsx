@@ -12,6 +12,7 @@ import type { NestAssetHotspot, NestHotspotSemantic } from "@/lib/nest-hotspot-t
 import { aspectRatioCss } from "@/lib/nest-render";
 import { resolveObjectSurfaces } from "@/lib/nest-surfaces";
 import { SurfaceContentLayer } from "@/components/nest/surface-content-layer";
+import { OverlayContent } from "@/components/nest/overlay-content";
 
 // Golden Living Nest renderer (M5 + M7B hotspots). Renders one premium front-facing
 // living room with LAYERED interactions so only the meaningful part of an object
@@ -261,7 +262,10 @@ function PieceView({
 
   let body: React.ReactNode;
 
-  if (effect === "leaf" && artUrl && leafSplitY != null && !failed) {
+  if (piece.slot.overlay) {
+    // Generic overlay (text/image sticker) — non-interactive content filling the box.
+    body = <div className="relative h-full w-full"><OverlayContent overlay={piece.slot.overlay} /></div>;
+  } else if (effect === "leaf" && artUrl && leafSplitY != null && !failed) {
     body = (
       <div className="relative h-full w-full">
         {piece.slot.contactShadow ? <div className="living-contact-shadow" aria-hidden /> : null}

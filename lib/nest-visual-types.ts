@@ -31,6 +31,8 @@ export type LivingNestSlot = Omit<SceneSlot, "slotType"> & {
   hotspots?: import("@/lib/nest-hotspot-types").NestAssetHotspot[];
   /** Optional editable-surface content for this instance (M8), keyed by surface def id. */
   surfaces?: import("@/lib/nest-surface-types").ObjectSurfaceContent;
+  /** Optional generic overlay (text/image sticker) carried on this slot (M13 · Task 4B). */
+  overlay?: import("@/lib/nest-editor-types").NestOverlay;
 };
 
 /** A NestTemplate whose slots are LivingNestSlots. Otherwise identical. */
@@ -125,6 +127,14 @@ export type LivingNestAsset = Omit<NestAsset, "compatibleSlotTypes"> & {
   placeholder?: boolean;
   /** Short note on what the final art still needs (shown in debug). */
   artNote?: string;
+  /**
+   * M13 (Task 3): Connect hotspots the asset ships with, carried from the production
+   * library (`ProductionAsset.hotspots`) so any curated asset — not just the ones in
+   * the id-keyed `nest-hotspot-catalog.ts` — supports connect metadata. `addObject`
+   * seeds a new instance from these (re-scoped to the instance id), falling back to the
+   * predefined catalog. Asset-local 0..1 geometry, same as instance hotspots.
+   */
+  predefinedHotspots?: import("@/lib/nest-hotspot-types").NestAssetHotspot[];
 };
 
 /** Whether an asset carries an interactive state pack (vs a plain single image). */

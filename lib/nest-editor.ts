@@ -18,15 +18,17 @@ import type {
   LivingNestSlotType,
   LivingNestTemplate,
 } from "@/lib/nest-visual-types";
-import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor-types";
-import { NEST_EDITOR_VERSION, validateEditorDocument } from "@/lib/nest-editor-types";
+import type { EditableNestDocument, EditableNestObject, NestOverlay } from "@/lib/nest-editor-types";
+import { NEST_EDITOR_VERSION, OVERLAY_IMAGE_ASSET_ID, OVERLAY_TEXT_ASSET_ID, validateEditorDocument } from "@/lib/nest-editor-types";
 import {
-  canFlipX,
-  canRotate,
+  canFlipObject,
+  canRotateObject,
   clampObject,
-  clampRotation,
+  clampRotationForObject,
   DEFAULT_GUARDRAIL,
+  DEFAULT_OVERLAY,
   guardrailForAsset,
+  guardrailForObject,
   slotTypeForAsset,
   type EditorGuardrail,
 } from "@/lib/nest-editor-policy";
@@ -163,7 +165,7 @@ export function moveObject(
 ): EditableNestDocument {
   const o = findObj(doc, instanceId);
   if (!o || o.locked) return doc;
-  const g = guardrailForAsset(assetsById[o.assetId]);
+  const g = guardrailForObject(o, assetsById[o.assetId]);
   const moved: EditableNestObject = {
     ...o,
     x: o.x + dx,
@@ -185,7 +187,7 @@ export function resizeObject(
 ): EditableNestDocument {
   const o = findObj(doc, instanceId);
   if (!o || o.locked || o.width <= 0) return doc;
-  const g = guardrailForAsset(assetsById[o.assetId]);
+  const g = guardrailForObject(o, assetsById[o.assetId]);
   const aspect = o.height / o.width; // preserve source aspect (no distortion)
   const w = Math.min(g.maxWidth, Math.max(g.minWidth, newWidth));
   const resized: EditableNestObject = { ...o, width: w, height: w * aspect };
@@ -213,7 +215,13 @@ export function addObject(
   const g = guardrailForAsset(asset);
   const place = defaultPlacement(g);
   const instanceId = nextInstanceId(doc, asset.id);
-  const hotspots = predefinedHotspotsForInstance(asset.id, instanceId);
+  // Prefer the id-keyed predefined catalog (restored golden assets); otherwise seed
+  // from the asset's own carried connect metadata (production `hotspots`), re-scoped
+  // to this instance. Either way an added TV/frame/desk arrives ready to Connect.
+  const catalogHotspots = predefinedHotspotsForInstance(asset.id, instanceId);
+  const hotspots = catalogHotspots.length
+    ? catalogHotspots
+    : (asset.predefinedHotspots ?? []).map((h) => ({ ...h, id: `${instanceId}-${h.id}` }));
   const obj: EditableNestObject = normalize(
     clampObject(
       {
@@ -236,6 +244,58 @@ export function addObject(
 /** Remove exactly the requested instance. */
 export function removeObject(doc: EditableNestDocument, instanceId: string): EditableNestDocument {
   return { ...doc, objects: doc.objects.filter((o) => o.instanceId !== instanceId) };
+}
+
+// ── Generic overlays (M13 · Task 4B) ─────────────────────────────────────────
+// A text/image "sticker" placed freely on the scene. It reuses the same move/resize/
+// rotate ops as assets (via the overlay guardrail); it just carries its own content and
+// renders as text/image instead of a catalog asset. Deterministic (no random/Date).
+
+function addOverlay(
+  doc: EditableNestDocument,
+  overlay: NestOverlay,
+  assetId: string,
+): { doc: EditableNestDocument; instanceId: string } {
+  const g = DEFAULT_OVERLAY;
+  const width = g.recommendedWidth;
+  // Text is wide + short; an image sticker is roughly square. Both centred, upper-middle.
+  const height = overlay.kind === "text" ? width * 0.42 : width;
+  const x = clamp01(0.5 - width / 2);
+  const y = clamp01(0.4 - height / 2);
+  const instanceId = nextInstanceId(doc, assetId.replace(":", "-"));
+  const obj: EditableNestObject = normalize(
+    clampObject(
+      {
+        instanceId,
+        assetId,
+        x,
+        y,
+        width,
+        height,
+        anchor: { x: x + width / 2, y: y + height / 2 },
+        plane: "foreground",
+        zIndex: g.defaultZ,
+        overlay,
+      },
+      g,
+    ),
+  );
+  return { doc: { ...doc, objects: [...doc.objects, obj] }, instanceId };
+}
+
+/** Add a text overlay (defaults to a placeholder string the creator then edits). */
+export function addTextOverlay(doc: EditableNestDocument, text = "Your text"): { doc: EditableNestDocument; instanceId: string } {
+  return addOverlay(doc, { kind: "text", text, align: "center" }, OVERLAY_TEXT_ASSET_ID);
+}
+
+/** Add an image overlay (sticker) from a data-URL / URL src. */
+export function addImageOverlay(doc: EditableNestDocument, src: string): { doc: EditableNestDocument; instanceId: string } {
+  return addOverlay(doc, { kind: "image", src, fit: "contain" }, OVERLAY_IMAGE_ASSET_ID);
+}
+
+/** Update an overlay's content on one instance (no-op for non-overlay objects). */
+export function setOverlayContent(doc: EditableNestDocument, instanceId: string, overlay: NestOverlay): EditableNestDocument {
+  return { ...doc, objects: doc.objects.map((o) => (o.instanceId === instanceId && o.overlay ? { ...o, overlay } : o)) };
 }
 
 export type ReorderOp = "front" | "back" | "forward" | "backward";
@@ -274,11 +334,11 @@ export function setObjectProps(
 ): EditableNestDocument {
   const o = findObj(doc, instanceId);
   if (!o) return doc;
-  const g = guardrailForAsset(assetsById[o.assetId]);
+  const g = guardrailForObject(o, assetsById[o.assetId]);
   const merged: EditableNestObject = { ...o, ...patch };
-  // Keep rotation within the asset's policy even via the advanced precision form.
-  if (patch.rotation != null) merged.rotation = clampRotation(assetsById[o.assetId], patch.rotation);
-  if (patch.flipX === true && !canFlipX(assetsById[o.assetId])) merged.flipX = o.flipX;
+  // Keep rotation within the object's policy even via the advanced precision form.
+  if (patch.rotation != null) merged.rotation = clampRotationForObject(o, assetsById[o.assetId], patch.rotation);
+  if (patch.flipX === true && !canFlipObject(o, assetsById[o.assetId])) merged.flipX = o.flipX;
   const geometryTouched =
     patch.x != null || patch.y != null || patch.width != null || patch.height != null || patch.plane != null || patch.anchor != null;
   return replaceObj(doc, normalize(geometryTouched ? clampObject(merged, g) : merged));
@@ -294,8 +354,8 @@ export function rotateObject(
   const o = findObj(doc, instanceId);
   if (!o || o.locked) return doc;
   const asset = assetsById[o.assetId];
-  if (!canRotate(asset)) return doc; // disallowed rotation leaves the object unchanged
-  return replaceObj(doc, normalize({ ...o, rotation: clampRotation(asset, deg) }));
+  if (!canRotateObject(o, asset)) return doc; // disallowed rotation leaves the object unchanged
+  return replaceObj(doc, normalize({ ...o, rotation: clampRotationForObject(o, asset, deg) }));
 }
 
 /** Toggle horizontal flip when policy allows. `allowOverride` (Advanced) permits a
@@ -308,7 +368,7 @@ export function flipObject(
 ): EditableNestDocument {
   const o = findObj(doc, instanceId);
   if (!o || o.locked) return doc;
-  if (!canFlipX(assetsById[o.assetId], allowOverride)) return doc;
+  if (!canFlipObject(o, assetsById[o.assetId], allowOverride)) return doc;
   return replaceObj(doc, normalize({ ...o, flipX: !o.flipX }));
 }
 
@@ -326,7 +386,7 @@ export function duplicateObject(
 ): { doc: EditableNestDocument; instanceId?: string } {
   const o = findObj(doc, instanceId);
   if (!o) return { doc };
-  const g = guardrailForAsset(assetsById[o.assetId]);
+  const g = guardrailForObject(o, assetsById[o.assetId]);
   const newId = nextInstanceId(doc, o.assetId);
   // Duplicating an asset duplicates its hotspots with fresh, deterministic ids.
   const hotspots = regenerateHotspotIds(o.hotspots, newId);
@@ -432,6 +492,7 @@ export function editorDocumentToStage(
       flipX: o.flipX,
       hotspots: o.hotspots,
       surfaces: o.surfaces,
+      overlay: o.overlay,
     };
   });
 

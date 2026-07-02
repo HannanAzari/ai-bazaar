@@ -91,14 +91,14 @@ export function PublishGate({
             {backend === "local" ? (
               <>
                 <p className="text-sm text-ink-soft">Your work is saved on this device. Pick a username to claim + publish it.</p>
-                <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="username" className="w-full rounded-xl border border-[#c9b98a] bg-white px-3 py-2.5 text-sm" />
+                <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="username" style={{ fontSize: 16 }} className="w-full rounded-xl border border-[#c9b98a] bg-white px-3 py-2.5" />
                 <button onClick={doLocalSignup} disabled={!username.trim()} className="w-full rounded-xl bg-[#d9913c] px-4 py-3 text-sm font-bold text-white disabled:opacity-50">Create account</button>
               </>
             ) : (
               <>
                 <p className="text-sm text-ink-soft">Your draft is saved. Create an account to publish it and keep it on every device.</p>
-                <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email" type="email" className="w-full rounded-xl border border-[#c9b98a] bg-white px-3 py-2.5 text-sm" />
-                <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="password" type="password" className="w-full rounded-xl border border-[#c9b98a] bg-white px-3 py-2.5 text-sm" />
+                <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email" type="email" style={{ fontSize: 16 }} className="w-full rounded-xl border border-[#c9b98a] bg-white px-3 py-2.5" />
+                <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="password" type="password" style={{ fontSize: 16 }} className="w-full rounded-xl border border-[#c9b98a] bg-white px-3 py-2.5" />
                 <button onClick={doEmailSignup} disabled={!email || !password} className="w-full rounded-xl bg-[#d9913c] px-4 py-3 text-sm font-bold text-white disabled:opacity-50">Create account &amp; continue</button>
                 <button onClick={doGoogle} className="w-full rounded-xl border border-[#c9b98a] bg-white px-4 py-3 text-sm font-bold">Continue with Google</button>
                 {error ? <p className="text-center text-xs font-bold text-[#a94f5c]">{error}</p> : null}

@@ -10,11 +10,20 @@ export type NestVisibility = "draft" | "public" | "unlisted" | "followers" | "pr
 export type NestPlacement = {
   id: string;
   assetId: string;
-  /** Normalized base-centre position on the background (0..1). */
+  /** Normalized base-centre position on the background (0..1). For an overlay this is the
+   *  box top-left (overlays are free — see `w`/`h`). */
   x: number;
   y: number;
   scale?: number;
   zIndex?: number;
+  /** Clockwise rotation in degrees (carried so rotated objects survive publish/reload). */
+  rotation?: number;
+  /** M13 (Task 4B): a generic text/image overlay. Present ⇒ this placement is an overlay,
+   *  sized by `w`/`h` (normalized box) rather than `scale`. */
+  overlay?: import("@/lib/nest-editor-types").NestOverlay;
+  /** Normalized overlay box width/height (overlays only). */
+  w?: number;
+  h?: number;
 };
 
 export type NestDocument = {

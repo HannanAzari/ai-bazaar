@@ -20,7 +20,8 @@ import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import { aspectRatioCss } from "@/lib/nest-render";
 import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor-types";
 import { moveObject, resizeObject, rotateObject, type ReorderOp } from "@/lib/nest-editor";
-import { canFlipX, canRotate, snapRotation } from "@/lib/nest-editor-policy";
+import { canFlipObject, canRotateObject, snapRotation } from "@/lib/nest-editor-policy";
+import { OverlayContent } from "@/components/nest/overlay-content";
 import type { NestAssetHotspot } from "@/lib/nest-hotspot-types";
 import { isInternalSemantic as hsInternal } from "@/lib/nest-hotspot-types";
 import { moveHotspot, resizeHotspot } from "@/lib/nest-hotspots";
@@ -319,7 +320,7 @@ export function EditorCanvas(props: Props) {
   const barPlacement: ToolbarPlacement = (() => {
     if (!selected || !selectedVr) return { side: "above", offsetPx: 8 };
     const ss = sceneSize();
-    const rotatable = canRotate(selectedAsset) && !selected.locked;
+    const rotatable = canRotateObject(selected, selectedAsset) && !selected.locked;
     if (!ss || ss.height <= 0) {
       // Pre-layout fallback: keep the historical heuristic but clear the rotation handle.
       return { side: selected.y > 0.16 ? "above" : "below", offsetPx: rotatable ? 70 : 8 };
@@ -378,10 +379,12 @@ export function EditorCanvas(props: Props) {
                 className="editor-piece absolute touch-none"
                 style={{ left: pctOf(o.x), top: pctOf(o.y), width: pctOf(o.width), height: pctOf(o.height), zIndex: o.zIndex, transform: t || undefined, transformOrigin: "center" }}
                 onPointerDown={(e) => onObjectDown(e, o)}
-                aria-label={`${asset?.name ?? o.assetId}${o.locked ? " (locked)" : ""}`}
+                aria-label={`${o.overlay ? (o.overlay.kind === "text" ? `Text: ${o.overlay.text}` : "Image sticker") : asset?.name ?? o.assetId}${o.locked ? " (locked)" : ""}`}
               >
                 {o.contactShadow ? <div className="editor-contact-shadow" aria-hidden /> : null}
-                {asset?.imageUrl ? (
+                {o.overlay ? (
+                  <OverlayContent overlay={o.overlay} />
+                ) : asset?.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={asset.imageUrl} alt="" draggable={false} className={`pointer-events-none h-full w-full object-contain ${floor ? "object-bottom" : "object-center"}`} />
                 ) : (
@@ -620,7 +623,7 @@ function SurfaceHighlightLayer({ object, selectedSurfaceId, onSelect }: { object
 
 function TransformFrame({ o, asset, advanced, onHandleDown }: { o: EditableNestObject; asset?: LivingNestAsset; advanced: boolean; onHandleDown: (e: React.PointerEvent, o: EditableNestObject, kind: "resize" | "rotate", dirX?: number) => void }) {
   const t = transformOf(o);
-  const rotatable = canRotate(asset) && !o.locked;
+  const rotatable = canRotateObject(o, asset) && !o.locked;
   // The selection frame wraps the VISIBLE content (not the transparent PNG padding),
   // so padded assets (avatar, lamp) get a tight, believable selection box.
   const vr = visibleRect(o, o.assetId);
@@ -665,7 +668,7 @@ function TransformFrame({ o, asset, advanced, onHandleDown }: { o: EditableNestO
 function ContextBar({ o, vr, placement, asset, layerOpen, setLayerOpen, onDuplicate, onReorder, onFlip, onToggleLock, onDelete, onOpenLayerPicker }: { o: EditableNestObject; vr: NormalizedRect; placement: ToolbarPlacement; asset?: LivingNestAsset; layerOpen: boolean; setLayerOpen: (v: boolean) => void; onDuplicate: () => void; onReorder: (op: ReorderOp) => void; onFlip: () => void; onToggleLock: () => void; onDelete: () => void; onOpenLayerPicker: () => void }) {
   // Centre on the VISIBLE rect; pick the side + offset that clears the resize/rotation handles.
   const cx = (vr.x + vr.width / 2) * 100;
-  const flippable = canFlipX(asset);
+  const flippable = canFlipObject(o, asset);
   const pos: React.CSSProperties = { left: `${Math.min(80, Math.max(20, cx))}%` };
   if (placement.side === "above") {
     pos.top = `${vr.y * 100}%`;

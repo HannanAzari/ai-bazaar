@@ -35,7 +35,9 @@ import { productionEditorCatalog } from "@/lib/nest-editor-bridge";
 import { PublishGate } from "@/components/nest/editor/publish-gate";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import {
+  addImageOverlay,
   addObject,
+  addTextOverlay,
   createEditorDocumentFromTemplate,
   duplicateObject,
   editorDocumentToStage,
@@ -47,8 +49,12 @@ import {
   serializeEditorDocument,
   setObjectHotspots,
   setObjectProps,
+  setOverlayContent,
   type ReorderOp,
 } from "@/lib/nest-editor";
+import { downscaleImageFile } from "@/lib/nest-surface-gallery";
+import { OverlayEditorSheet } from "@/components/nest/editor/overlay-editor-sheet";
+import type { NestOverlay } from "@/lib/nest-editor-types";
 import type { NestAssetHotspot } from "@/lib/nest-hotspot-types";
 import { HotspotBindingSheet } from "@/components/nest/editor/hotspot-binding-sheet";
 import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor-types";
@@ -90,6 +96,7 @@ import { SurfaceEditorSheet } from "@/components/nest/editor/surface-editor-shee
 import { resolveObjectSurfaces, setObjectSurfaceContent } from "@/lib/nest-surfaces";
 import { ImagePlus } from "lucide-react";
 import { Maximize2 } from "lucide-react";
+import { Type } from "lucide-react";
 
 /** A default fixed-ratio (square = 3:4 on-screen) focus rectangle for new areas. */
 const DEFAULT_FOCUS_RECT = fitRectToAspectRatio({ x: 0.34, y: 0.34, width: 0.32, height: 0.32 });
@@ -136,13 +143,30 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
   // M8: the surface being edited on the selected object (Surface mode).
   const [selectedSurfaceId, setSelectedSurfaceId] = useState<string | undefined>(undefined);
   const [surfaceSnap, setSurfaceSnap] = useState<BottomSheetSnapPoint>("half");
+  // M13 (Task 4B): generic overlays (text/image stickers).
+  const [overlaySnap, setOverlaySnap] = useState<BottomSheetSnapPoint>("half");
+  const [overlaySheetOpen, setOverlaySheetOpen] = useState(false);
   // M7C.5: Preview uses the real NestSceneNavigator. `previewFocusId` (set by the Focus
   // sheet's "Preview focus" shortcut) auto-enters that area through the same navigator.
   const [previewFocusId, setPreviewFocusId] = useState<string | undefined>(undefined);
   const [mounted, setMounted] = useState(false);
   const caps = capabilitiesFor(role);
   useEffect(() => setMounted(true), []);
+  // M13 (Task 5): the editor is a full-screen fixed surface — lock page scroll while it's
+  // mounted so the canvas can't rubber-band/scroll the page underneath on mobile.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+    };
+  }, []);
   const fileRef = useRef<HTMLInputElement>(null);
+  const overlayFileRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const firstRun = useRef(true);
 
@@ -313,6 +337,25 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
     setSelectedId(instanceId);
     setMode("arrange");
   };
+  // ── Generic overlays (M13 · Task 4B): text / image stickers ──
+  const onAddText = () => {
+    const { doc: next, instanceId } = addTextOverlay(activeDoc);
+    commitActive(next);
+    setSelectedId(instanceId);
+    setMode("arrange");
+    setOverlaySheetOpen(true);
+  };
+  const onAddImageOverlayFile = async (file: File) => {
+    const src = await downscaleImageFile(file);
+    const { doc: next, instanceId } = addImageOverlay(activeDoc, src);
+    commitActive(next);
+    setSelectedId(instanceId);
+    setMode("arrange");
+    setOverlaySheetOpen(true);
+  };
+  const onChangeOverlay = (overlay: NestOverlay) => {
+    if (selectedId) commitActive(setOverlayContent(activeDoc, selectedId, overlay));
+  };
   const onDuplicate = () => {
     if (!selectedId) return;
     const { doc: next, instanceId } = duplicateObject(activeDoc, selectedId, ASSETS);
@@ -465,7 +508,7 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
   const saveLabel = saveState === "saving" ? "Saving…" : saveState === "unsaved" ? "Unsaved" : saveState === "saved" ? "Saved ✓" : "";
 
   const ui = (
-    <div className="fixed inset-0 z-[110] flex flex-col bg-parchment" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <div className="fixed inset-0 z-[110] flex flex-col overflow-hidden overscroll-none bg-parchment" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)", touchAction: "none" }}>
       {/* PREVIEW: the EXACT visitor experience — the same NestSceneNavigator + cinematic
           stage + focus-first resolution. Authored Focus Areas work here just like the
           visitor route (no static stage, no separate preview renderer). */}
@@ -495,7 +538,7 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
           {/* Top toolbar (~56px) */}
           <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-ink/10 px-2">
             <div className="flex items-center gap-1">
-              <a href="/design" aria-label="Back" className="flex h-10 w-10 items-center justify-center rounded-full text-ink/70 hover:bg-ink/5"><ArrowLeft className="h-5 w-5" /></a>
+              <a href="/studio" aria-label="Back to your profile" className="flex h-10 w-10 items-center justify-center rounded-full text-ink/70 hover:bg-ink/5"><ArrowLeft className="h-5 w-5" /></a>
               <ToolIcon label="Undo" onClick={() => setHistory(undoHistory(history))} disabled={!canUndo(history)}><RotateCcw className="h-5 w-5 -scale-x-100" /></ToolIcon>
               <ToolIcon label="Redo" onClick={() => setHistory(redoHistory(history))} disabled={!canRedo(history)}><Redo2 className="h-5 w-5" /></ToolIcon>
             </div>
@@ -530,8 +573,9 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
                   />
                 ) : null}
               </div>
-              <button type="button" onClick={() => setShowPublish(true)} className="ml-1 inline-flex h-9 items-center gap-1 rounded-full bg-[#d9913c] px-3 text-xs font-bold text-white hover:brightness-95"><Upload className="h-4 w-4" /> Publish</button>
-              <button type="button" onClick={() => { saveNow(); window.location.href = "/design"; }} className="ml-1 inline-flex h-9 items-center gap-1 rounded-full bg-ink px-3 text-xs font-bold text-parchment hover:bg-ink/85"><Check className="h-4 w-4" /> Done</button>
+              <button type="button" onClick={() => setShowPublish(true)} className="ml-1.5 inline-flex h-9 items-center gap-1 rounded-full bg-[#d9913c] px-3.5 text-xs font-bold text-white hover:brightness-95"><Upload className="h-4 w-4" /> Publish</button>
+              {/* Done saves + returns the creator to their profile (Task 5). */}
+              <button type="button" onClick={() => { saveNow(); window.location.href = "/studio"; }} className="ml-2 inline-flex h-9 items-center gap-1 rounded-full bg-ink px-3.5 text-xs font-bold text-parchment hover:bg-ink/85"><Check className="h-4 w-4" /> Done</button>
             </div>
             <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onImportFile(f); e.target.value = ""; }} />
           </header>
@@ -554,7 +598,14 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
               assetsById={ASSETS}
               ambience={ambience}
               selectedId={mode === "focus" ? undefined : selectedId}
-              onSelect={(id) => { setSelectedId(id); setSelectedSurfaceId(undefined); if (id) { setSelectedInheritedId(undefined); setSelectedInheritedHotspotId(undefined); } }}
+              onSelect={(id) => {
+                setSelectedId(id);
+                setSelectedSurfaceId(undefined);
+                // Open the sticker editor when a generic overlay is selected; close otherwise.
+                const obj = id ? activeDoc.objects.find((o) => o.instanceId === id) : undefined;
+                setOverlaySheetOpen(Boolean(obj?.overlay));
+                if (id) { setSelectedInheritedId(undefined); setSelectedInheritedHotspotId(undefined); }
+              }}
               onCommit={commitActive}
               surface={mode === "surface"}
               selectedSurfaceId={selectedSurfaceId}
@@ -608,6 +659,28 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
               <button type="button" onClick={() => caps.showPrecision && setAdvancedOpen(true)} className="absolute bottom-2 left-1/2 z-20 -translate-x-1/2 rounded-full border border-amber-400/50 bg-amber-50/95 px-3 py-1 text-[11px] font-bold text-amber-800 shadow">
                 {selectedWarnings[0].message}{caps.showPrecision ? " · Details" : ""}
               </button>
+            ) : null}
+
+            {/* Sticker (overlay) quick-add — Arrange mode (Task 4B). Text + image stickers
+                that move/resize/rotate like any object and are stored in the document. */}
+            {mode === "arrange" && !overlaySheetOpen ? (
+              <div className="absolute bottom-2 left-2 z-20 flex gap-1.5">
+                <button type="button" onClick={onAddText} className="inline-flex items-center gap-1 rounded-full border border-ink/15 bg-parchment/95 px-3 py-1.5 text-[11px] font-bold text-ink/70 shadow hover:bg-ink/5"><Type className="h-3.5 w-3.5" /> Text</button>
+                <button type="button" onClick={() => overlayFileRef.current?.click()} className="inline-flex items-center gap-1 rounded-full border border-ink/15 bg-parchment/95 px-3 py-1.5 text-[11px] font-bold text-ink/70 shadow hover:bg-ink/5"><ImagePlus className="h-3.5 w-3.5" /> Sticker</button>
+              </div>
+            ) : null}
+            <input ref={overlayFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onAddImageOverlayFile(f); e.target.value = ""; }} />
+
+            {/* Sticker editor — text/image content (move/resize/rotate happen on the canvas) */}
+            {selected?.overlay && overlaySheetOpen ? (
+              <OverlayEditorSheet
+                overlay={selected.overlay}
+                snap={overlaySnap}
+                onSnapChange={setOverlaySnap}
+                onChange={onChangeOverlay}
+                onClose={() => setOverlaySheetOpen(false)}
+                onSaved={() => { flash("Saved ✓"); setOverlaySheetOpen(false); }}
+              />
             ) : null}
 
             {/* Asset drawer — shared bottom sheet (canvas remains visible above) */}
