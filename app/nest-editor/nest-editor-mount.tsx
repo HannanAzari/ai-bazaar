@@ -25,5 +25,5 @@ export function NestEditorMount({ documentId }: { documentId?: string }) {
   }, [documentId]);
 
   if (!ready) return null; // brief: wait for the document before mounting the editor
-  return <NestEditor seed={seed} />;
+  return <NestEditor seed={seed} documentId={documentId} />;
 }

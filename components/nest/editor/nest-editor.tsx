@@ -26,13 +26,14 @@ import {
   ZoomOut,
 } from "lucide-react";
 import {
-  GOLDEN_LIVING_NEST_ASSETS,
-  GOLDEN_LIVING_NEST_ASSETS_BY_ID,
   GOLDEN_LIVING_NEST_COMPOSED,
   GOLDEN_LIVING_NEST_INTERACTIONS,
   GOLDEN_LIVING_NEST_INTERACTIONS_BY_ID,
   GOLDEN_LIVING_NEST_TEMPLATE,
 } from "@/lib/fixtures/golden-living-nest";
+import { productionEditorCatalog } from "@/lib/nest-editor-bridge";
+import { PublishGate } from "@/components/nest/editor/publish-gate";
+import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import {
   addObject,
   createEditorDocumentFromTemplate,
@@ -93,15 +94,22 @@ import { Maximize2 } from "lucide-react";
 /** A default fixed-ratio (square = 3:4 on-screen) focus rectangle for new areas. */
 const DEFAULT_FOCUS_RECT = fitRectToAspectRatio({ x: 0.34, y: 0.34, width: 0.32, height: 0.32 });
 
-const ASSETS = GOLDEN_LIVING_NEST_ASSETS_BY_ID;
 type Mode = "arrange" | "assets" | "connect" | "focus" | "surface" | "preview";
 type SaveState = "idle" | "unsaved" | "saving" | "saved";
 
 const freshDocument = (): EditableNestDocument =>
   createEditorDocumentFromTemplate({ template: GOLDEN_LIVING_NEST_TEMPLATE, composed: GOLDEN_LIVING_NEST_COMPOSED });
 
-export function NestEditor() {
-  const [history, setHistory] = useState<History<EditableNestDocument>>(() => createHistory(freshDocument(), 50));
+export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; documentId?: string } = {}) {
+  // `seed` (M12.x bridge): open on a document created by onboarding (production
+  // background + placements) instead of the built-in Golden Living Nest fixture.
+  // The catalog IS the production library: `ASSETS` (all statuses, so placements
+  // resolve) + `trayAssets` (approved/featured → the Assets tray). No golden-living art.
+  const editorCatalog = useMemo(() => productionEditorCatalog(), []);
+  const ASSETS = editorCatalog.assetsById;
+  const trayAssets = editorCatalog.assets;
+  const [showPublish, setShowPublish] = useState(false);
+  const [history, setHistory] = useState<History<EditableNestDocument>>(() => createHistory(seed ?? freshDocument(), 50));
   const [mode, setMode] = useState<Mode>("arrange");
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [showGrid, setShowGrid] = useState(false);
@@ -185,7 +193,7 @@ export function NestEditor() {
         interactive={false}
       />
     );
-  }, [isMainActive, activeScene, doc, activeSceneId]);
+  }, [isMainActive, activeScene, doc, activeSceneId, ASSETS]);
 
   // M7C.8: inherited parent objects (read-only interaction proxies) for the active child
   // Focus Scene, and the read-only overlay drawn over the canvas (Main projections in the
@@ -254,7 +262,7 @@ export function NestEditor() {
     // Composition overlap advisories (avatar-in-furniture, covers window/niche, …).
     const overlaps = overlapAdvisories(activeDoc.objects, ASSETS).map((a) => ({ instanceId: a.instanceId, kind: a.kind as string, message: a.message }));
     return [...base.map((b) => ({ instanceId: b.instanceId, kind: b.kind as string, message: b.message })), ...placement, ...overlaps];
-  }, [activeDoc.objects, caps.showProductionWarnings]);
+  }, [activeDoc.objects, caps.showProductionWarnings, ASSETS]);
   const selectedWarnings = warnings.filter((w) => w.instanceId === selectedId);
   const selectedIsPlaceholder = Boolean(selectedAsset?.placeholder);
 
@@ -264,7 +272,7 @@ export function NestEditor() {
     const floats = warnings.some((w) => w.instanceId === selected.instanceId && w.kind === "support");
     if (!floats) return undefined;
     return supportCandidates(selected, activeDoc.objects, ASSETS)[0];
-  }, [selected, activeDoc.objects, warnings]);
+  }, [selected, activeDoc.objects, warnings, ASSETS]);
   const onPlaceOnSupport = () => {
     if (selectedId && supportSuggestion) commitActive(placeOnSupport(activeDoc, selectedId, supportSuggestion.instanceId, ASSETS));
   };
@@ -298,7 +306,7 @@ export function NestEditor() {
   };
 
   // Object operations (operate on the ACTIVE scene)
-  const onAdd = (asset: (typeof GOLDEN_LIVING_NEST_ASSETS)[number]) => {
+  const onAdd = (asset: LivingNestAsset) => {
     const { doc: next, instanceId } = addObject(activeDoc, asset);
     commitActive(next);
     pushRecent(asset.id);
@@ -522,6 +530,7 @@ export function NestEditor() {
                   />
                 ) : null}
               </div>
+              <button type="button" onClick={() => setShowPublish(true)} className="ml-1 inline-flex h-9 items-center gap-1 rounded-full bg-[#d9913c] px-3 text-xs font-bold text-white hover:brightness-95"><Upload className="h-4 w-4" /> Publish</button>
               <button type="button" onClick={() => { saveNow(); window.location.href = "/design"; }} className="ml-1 inline-flex h-9 items-center gap-1 rounded-full bg-ink px-3 text-xs font-bold text-parchment hover:bg-ink/85"><Check className="h-4 w-4" /> Done</button>
             </div>
             <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onImportFile(f); e.target.value = ""; }} />
@@ -603,7 +612,7 @@ export function NestEditor() {
 
             {/* Asset drawer — shared bottom sheet (canvas remains visible above) */}
             {mode === "assets" ? (
-              <AssetDrawer assets={GOLDEN_LIVING_NEST_ASSETS} advanced={caps.showProductionWarnings} onAdd={onAdd} onClose={() => setMode("arrange")} snap={assetSnap} onSnapChange={setAssetSnap} />
+              <AssetDrawer assets={trayAssets} advanced={caps.showProductionWarnings} onAdd={onAdd} onClose={() => setMode("arrange")} snap={assetSnap} onSnapChange={setAssetSnap} />
             ) : null}
 
             {/* Connect hint / binding sheet — shared bottom sheet (canvas stays interactive) */}
@@ -749,6 +758,8 @@ export function NestEditor() {
       ) : null}
 
       {toast ? <div className="pointer-events-none absolute bottom-20 left-1/2 z-[70] -translate-x-1/2 rounded-full bg-ink/90 px-4 py-2 text-xs font-bold text-parchment shadow-lg">{toast}</div> : null}
+
+      {showPublish ? <PublishGate documentId={documentId} objects={doc.objects} onClose={() => setShowPublish(false)} /> : null}
     </div>
   );
 
