@@ -5,6 +5,13 @@
 > metadata + generation prompts only** — no final images are generated, no editor
 > features are built, no Supabase, no auth, no AI generation runs. Stop for review.
 >
+> **M13 update (2026-07-02):** the Golden Nest assets specified here are back in the live
+> production library under their catalog-aligned ids (`ast-tv`, `ast-framed-photo`,
+> `ast-floor-lamp`, `ast-side-plant`, `ast-avatar`, `ast-desk`, `ast-stacked-books`,
+> `ast-bookshelf`), with deployable WEBP built by
+> [`scripts/build-library-golden-art.mjs`](../scripts/build-library-golden-art.mjs). Three
+> lower-quality oak candidates were set to `hidden`. See
+> [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md).
 > **✅ M9.1 (contract alignment, done):** the four M9 decisions are approved and now live in
 > the contract — 4 slot types added, 2 interactions added, cover/photo skins modeled as
 > standalone `surface` assets, output paths confirmed. See §5. Still **no images generated.**

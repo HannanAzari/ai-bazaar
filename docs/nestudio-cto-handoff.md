@@ -3,6 +3,9 @@
 > Self-contained orientation for a new CTO. You should be able to continue without re-reading prior
 > decisions. Master architecture: [nestudio-production-pipeline.md](nestudio-production-pipeline.md).
 > Pivot rationale: **ADR-027**; **camera lock: ADR-028** in [decision-log.md](decision-log.md).
+> Latest sprint: **M13 mobile stabilisation** — [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md)
+> + **ADR-032** (single editor `/nest-editor`; production library reunited with the restored
+> Golden Nest assets; generic overlays; mobile UX). Shipped on `m12-nest-platform` (preview only).
 >
 > **Camera decision (ADR-028, locked 2026-06-26):** V2 uses **front-facing cinematic Nests, not
 > isometric rooms.** The Nest camera is front-facing, eye-level/slightly-elevated (~5–10° tilt):

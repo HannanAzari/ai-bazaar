@@ -65,13 +65,19 @@ by generating visuals per creator.**
 | Pilot Hardening V1 | 2026-06-24 | Reliability/safety/polish for friends & family pilot (no new features): shared validation, centralized friendly errors (no raw Supabase leaks), loading/double-submit guards, internal funnel events (`20260624_*`), draft legal pages (`/privacy`,`/terms`,`/safety`,`/contact`), pilot-readiness/ops/analytics docs; demo + production unchanged; 200 tests |
 | Analytics + Discovery V1 | 2026-06-25 | Mode-aware **durable analytics** (`SupabaseEventsRepository` implemented; `trackEvent` writes Supabase in production, local fallback), **anonymous visitor sessions** (first/returning, duration), **creator insights dashboard** (visits, unique visitors, room entries, avg session, top objects/room/day), per-object + **visitor funnel** analytics, **Featured Nests** discovery (Trending/New/Recently active) on `/discover`; `visitor_sessions` table + owner-read events RLS (`20260625_*`); demo unchanged; 236 tests |
 
+| M13 — Mobile Stabilisation | 2026-07-02 | Reunited the single Nest editor with the restored Golden Nest assets after the M12 library cutover: catalog-aligned asset ids (Connect + Surfaces work), `seat`/`desk` floor guardrails, generic text/image overlays, mobile UX (Done→/studio, scroll-lock, 16px inputs, safe-area), null-safe `slotTypeForAsset` (focus-scene crash fix), `/nest-admin` redirect, flawed oak assets hidden + templates repointed. Preview only (`m12-nest-platform`); 319 tests. See [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md) + ADR-032. |
+
 All sprints ship green: `typecheck · lint · test · build`.
 
 ---
 
 ## In Progress
 
-No feature sprint active. **Analytics + Discovery V1 shipped 2026-06-25** —
+**M13 mobile stabilisation shipped 2026-07-02** on `m12-nest-platform` (preview only; **not
+merged to `main`, not deployed to production**) and is **awaiting on-device mobile testing**
+before M14 is scoped — see [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md) and
+[m12-preview-mobile-test-checklist.md](m12-preview-mobile-test-checklist.md). Earlier,
+**Analytics + Discovery V1 shipped 2026-06-25** —
 durable mode-aware analytics, anonymous visitor sessions, a creator insights
 dashboard, per-object + funnel analytics, and Featured Nests discovery; demo
 unchanged, 236 tests. The app remains **safe for a friends & family pilot** (not

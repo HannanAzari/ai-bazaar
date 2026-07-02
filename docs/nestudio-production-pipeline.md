@@ -4,6 +4,14 @@
 > Wall-Pack architecture (ADR-021/022/025/026) and is the source of truth for everything that
 > follows. Pivot recorded in **ADR-027**. New-CTO orientation: [nestudio-cto-handoff.md](nestudio-cto-handoff.md).
 >
+> **M13 update (2026-07-02):** the curated **production library**
+> ([`lib/fixtures/nest-production-library-v1.ts`](../lib/fixtures/nest-production-library-v1.ts))
+> now includes the restored Golden Nest assets under their catalog-aligned ids (so Connect
+> hotspots + editable Surfaces resolve by id), and the flawed oak TV/desk/chair are `hidden`
+> (never deleted — still resolvable by id). The editor consumes the library through the
+> bridge ([`lib/nest-editor-bridge.ts`](../lib/nest-editor-bridge.ts)), which now also carries
+> `hotspots` + `editableSurfaces`. See [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md)
+> + ADR-032.
 > **Status:** architecture (documentation-first). No implementation has happened against it yet.
 > Earlier docs are preserved as history with "superseded" banners.
 

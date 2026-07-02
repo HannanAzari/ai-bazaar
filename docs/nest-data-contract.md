@@ -7,6 +7,13 @@
 > renderer — but **M1 builds the contract only**: no Composer, no editor UI, no Supabase
 > tables, no asset generation.
 >
+> **M13 update (2026-07-02):** the shipped editor extends this contract in two additive ways:
+> Connect **hotspots** + editable **Surfaces** resolve by asset **id** (the editor bridge now
+> carries `ProductionAsset.hotspots`/`editableSurfaces`), and a generic **overlay** (text/image
+> sticker) is an `EditableNestObject` with a synthetic `overlay:*` id + free-placement guardrail,
+> persisted via new optional `NestPlacement.overlay/w/h/rotation`. See
+> [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md) + decision-log ADR-032.
+>
 > **Source of truth for the types:** [`lib/nest-types.ts`](../lib/nest-types.ts). Worked example:
 > [`lib/fixtures/golden-nest.ts`](../lib/fixtures/golden-nest.ts). Tests:
 > [`test/nest-types.test.ts`](../test/nest-types.test.ts). Masters:

@@ -100,3 +100,16 @@ Applying DDL, uploading assets, OAuth redirect flows, and the cross-device accep
 were **authored but not executed here** (no live-DB / network / secrets access in the build
 environment). Gates (typecheck · lint · test · build) pass and the **local backend path is
 browser-verified** (M11 behavior unchanged with the flag off).
+
+## M13 addendum (2026-07-02)
+
+M13 (mobile stabilisation, [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md)) runs on
+top of this cutover and changes **no schema**. Relevant notes:
+
+- The curated library now includes the **restored Golden Nest assets** (catalog-aligned ids) and
+  **hides** the flawed oak TV/desk/chair. `scripts/upload-nest-library.mjs` still uploads the
+  committed `public/nests/library-v1/**` art (now including the golden WEBP) to Storage.
+- Generic **overlays** persist via new optional `NestPlacement.overlay/w/h/rotation` (local mode +
+  `?c=` link). The Supabase `nest_objects` schema has **no overlay columns yet** — overlays do not
+  persist through the Supabase backend until that follow-up lands. Everything else works in either
+  backend.

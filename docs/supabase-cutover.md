@@ -1,5 +1,13 @@
 # Supabase Cutover Runbook
 
+> **M13 note (2026-07-02):** M13 introduced generic editor **overlays** persisted via new
+> optional `NestPlacement` fields (`overlay`/`w`/`h`/`rotation`). These round-trip in **local
+> mode** (localStorage + `?c=` link). The Supabase `nest_objects` table has **no overlay
+> columns yet**, so overlays don't persist through the Supabase backend — a schema follow-up
+> before the preview is flipped to `NEXT_PUBLIC_NEST_BACKEND=supabase`. See
+> [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md). (The M12 Nest cutover runbook is
+> [m12-supabase-cutover.md](m12-supabase-cutover.md).)
+
 How to move AI Bazaar from the **localStorage demo** to a real **Supabase**
 backend — without breaking demo mode. This is the prep/runbook; the actual data
 wiring (the Supabase repository implementations) is still pending. See

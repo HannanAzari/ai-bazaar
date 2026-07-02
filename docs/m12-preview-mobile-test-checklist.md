@@ -108,4 +108,33 @@ localStorage + `?c=` behavior with no data migration. The `nest_*` tables/bucket
 
 ---
 
+## I. M13 mobile-stabilisation checks (commit `a3c2ca9`)
+
+Added by the M13 sprint ([m13-mobile-stabilisation.md](m13-mobile-stabilisation.md)). Run
+these on the phone alongside the loop above. Preview builds from `a3c2ca9` are live at the
+`*-hannanazaris-projects.vercel.app` URLs (both linked Vercel projects, Preview env).
+
+1. **Tray content** — open the editor → Assets. The tray shows the restored Golden Nest
+   assets (Media Unit/TV, Framed Photo, Floor Lamp, Potted Plant, Avatar, Writing Desk,
+   Stacked Books, Bookshelf) **plus** the clean production sofa/table/shelf. The flawed oak
+   TV/desk/chair are **absent**.
+2. **Floor placement** — add a sofa or desk → it lands **on the floor**, not stuck in the
+   upper wall band.
+3. **Connect** — Connect mode → tap the TV/frame/bookshelf → its hotspot region(s) appear
+   and can be bound to a URL.
+4. **Surfaces** — Surface mode → the TV screen / frame photo are editable.
+5. **Overlays** — Arrange mode → **Text** / **Sticker** → the overlay appears; move, resize,
+   rotate it; edit text/colour; it stays put after Save + reload (local mode).
+6. **Focus** — Focus → add an area → Enter → add an asset inside; the focus crop stays
+   **sharp** (no error/blur) and only the selected object is highlighted.
+7. **Mobile UX** — the editor doesn't scroll the page; tapping an input doesn't zoom; the
+   header/nav respect the notch + home indicator; **Done → `/studio`**, Back → `/studio`.
+8. **Admin route** — `/nest-admin` and `/design/nest-admin` both load (admin-mode gate).
+
+> Overlay persistence is verified in **local mode**. If you set
+> `NEXT_PUBLIC_NEST_BACKEND=supabase` in Preview, overlays won't persist through Supabase yet
+> (schema follow-up) — everything else works in both backends.
+
+---
+
 *Preview testing only. No production deploy, no merge to `main`.*

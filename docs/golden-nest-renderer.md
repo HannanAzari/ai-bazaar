@@ -5,6 +5,11 @@
 > (unlinked, noindex). No Composer, no editor, no Supabase, no asset generation — structure +
 > interaction only.
 >
+> **M13 update (2026-07-02):** the shared stage (`GoldenLivingNestStage` / `PieceView`) and the
+> editor canvas now also render **generic overlays** (text/image stickers) via
+> [`components/nest/overlay-content.tsx`](../components/nest/overlay-content.tsx), carried on the
+> slot as `overlay`. See [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md).
+>
 > Contract: [`lib/nest-types.ts`](../lib/nest-types.ts) · fixture:
 > [`lib/fixtures/golden-nest.ts`](../lib/fixtures/golden-nest.ts) · render helpers:
 > [`lib/nest-render.ts`](../lib/nest-render.ts) · stage:

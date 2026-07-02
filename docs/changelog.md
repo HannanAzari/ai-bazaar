@@ -8,6 +8,115 @@ for technical detail.
 
 ---
 
+## 2026-07-02 — M13: mobile stabilisation (Nest editor)
+
+Polish/stabilisation sprint on `m12-nest-platform` (preview only; **no merge to `main`,
+no production deploy**). Fixes the fallout from the M12 library cutover, where the editor's
+id-keyed Connect/Surface catalogs and slot-type guardrails no longer matched the new
+production asset ids. Full record: [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md);
+rationale in [decision-log.md](decision-log.md) ADR-032.
+
+### Added
+- Restored the approved **Golden Nest assets** to the production library under their
+  catalog-aligned ids (`ast-tv`, `ast-framed-photo`, `ast-floor-lamp`, `ast-side-plant`,
+  `ast-avatar`, `ast-desk`, `ast-stacked-books`, `ast-bookshelf`); deployable WEBP built by
+  `scripts/build-library-golden-art.mjs` under `public/nests/library-v1/assets/`.
+- `seat`/`desk` (+`window`/`pinboard`/`product`) placement guardrails (floor-first).
+- Generic **overlays** — text/image stickers that move/resize/rotate/place anywhere and
+  persist in the document (`overlay:*` objects; `NestPlacement.overlay/w/h/rotation`).
+- Top-level `/nest-admin` route (redirects to `/design/nest-admin`).
+- `test/nest-editor-m13.test.ts` (8 tests); 319 total.
+
+### Changed
+- Editor bridge carries `ProductionAsset.hotspots`/`editableSurfaces` into the editor so any
+  curated asset supports Connect + Surfaces (not just golden ids).
+- Editor mobile UX: Done/Back → `/studio`, body scroll-lock, ≥16px inputs (no iOS zoom),
+  `viewport-fit=cover` for safe-area insets.
+- Hid the flawed oak TV/desk/chair (resolvable by id) and repointed the affected templates.
+
+### Fixed
+- `slotTypeForAsset` is null-safe — removes the `overlapAdvisories` crash that surfaced as
+  the Next.js error overlay ("focus blurs when adding assets"); the focus crop stays sharp.
+
+### Gates
+- `typecheck · lint · test (319) · build` green (Node 20); browser-verified on mobile viewport.
+
+---
+
+## 2026-06-25 — Nestudio visual kit: template architecture + first shells
+
+Pilot product pivot (ADR-022): stop drawing houses/rooms with CSS geometry; compose
+**curated/generated image templates** with interactive assets layered on top. This
+sprint is **architecture + one room shell + one exterior shell** (no procedural
+generation, no full designer, no extra shells).
+
+### Added
+- **Template types** (`lib/types.ts`): a shared `VisualTemplate` base (`id, name,
+  imageUrl, width, height, styleFamily, personalityTags, compatibleUseCases,
+  safeArea, placementZones, version`) with `RoomShellTemplate`,
+  `ExteriorShellTemplate`, and a reserved `VillageTileTemplate`.
+- **Static registries**: `lib/templates/room-shells.ts` (moved from `lib/room-shells.ts`,
+  now with full metadata) and `lib/templates/exterior-shells.ts`. `getRoomShell`/
+  `listRoomShells`, `getExteriorShell`/`listExteriorShells`.
+- **One room shell** `nestudio-cozy-v1` (3-wall dollhouse, timber floor, skirting,
+  painted walls, window+door, warm lighting; `/room-shells/nestudio-cozy-v1.svg`).
+- **One exterior shell** `nestudio-cottage-v1` (cozy premium village cottage;
+  `/exterior-shells/nestudio-cottage-v1.svg`).
+- **`/design/exterior-v1`** — renders the exterior shell + a template-metadata debug
+  panel. `/design/interior-v1` continues to render the room shell + real Supabase
+  furniture on calibrated zones + debug panel.
+- Tests (suite **258**): room + exterior registries load, shared-metadata presence,
+  room placement zones + bounds, exterior door/sign metadata, interior renders real
+  assets above the shell, existing rooms unaffected.
+
+### Notes
+- Committed shell SVGs are **temporary placeholders**; the Asset Factory will
+  generate the real template library next. Swapping a final image is a one-line
+  `imageUrl` change + recalibration + `version` bump.
+- The custom CSS "premium stage" was removed; the layered stage now renders the
+  template image as the background. Docs: `docs/visual-kit.md`, ADR-022.
+- Not committed (per direction). No Asset Factory changes. Existing app flow intact.
+
+---
+
+## 2026-06-25 — Room Engine: real Style Lab art + Nestudio dollhouse slice
+
+The first bridge from the **Asset Factory** to the room engine (ADR-021), rendering
+a room from the **28 real approved OpenAI Style Lab assets** in a premium Nestudio
+"cozy dollhouse" stage. A vertical slice — not full procedural generation, not
+runtime Supabase asset loading.
+
+### Added
+- **Secure service-role export** `scripts/export-style-lab-catalog.mjs`: reads the
+  Factory's `asset_candidates` (`source='style_lab'`, `status='approved'`) with the
+  service-role key (anon is RLS-blocked) and writes the static catalog artifact
+  `lib/asset-catalogs/nestudio-interior-v1.json` (**28 real assets, public Supabase
+  image URLs**). Refuses to write rows lacking a public http(s) URL — no fabrication.
+- **Catalog merge**: typed loader `lib/asset-catalogs/index.ts` maps the artifact into
+  `lib/assets.ts`, so `getAsset()` / `roomReadyAssets()` expose the real assets.
+- **Image-first rendering** in `components/room/room-object.tsx`: a real asset image
+  renders as the object; on missing/placeholder/sample URL or load error it falls
+  back to the CSS sprite (pure helper `renderableAssetImage()` in `lib/room-visuals.ts`).
+  Click/hover/selection/transform/label/action/a11y and the frame `actionData` image
+  path are unchanged — existing icon-sprite rooms don't regress.
+- **Premium dollhouse stage** `components/room/interior-stage.tsx`: a mobile-first
+  three-wall cutaway with a large warm-wood floor, deep-green / warm wall toggle, soft
+  lighting + contact shadows, and the real furniture placed large and layered. It is a
+  standalone debug surface — it does **not** touch the production room shell.
+- **Curated layout + test room** `lib/asset-catalogs/interior-v1-room.ts` (role-based
+  picks robust to id churn) and an internal debug page **`/design/interior-v1`**
+  (stage + a layout panel: asset id · role · x/y · scale · z · imageUrl · visible).
+- Tests (suite **249**): catalog merge of the real assets + public-URL assertion,
+  hero-piece resolution, `roomReadyAssets` placeability, image-first vs placeholder
+  fallback, no regression of originals, deterministic test room, stage layout.
+
+### Notes
+- The earlier stand-in PNGs + their generator were removed once the real export ran.
+- Runtime Supabase asset loading + an anon-read policy remain deferred (next step).
+- No Asset Factory changes; no asset generation. Docs: room-engine-spec §7.2a, ADR-021.
+
+---
+
 ## 2026-06-25 — Analytics + Discovery V1
 
 Durable, mode-aware analytics + anonymous visitor sessions, a creator insights

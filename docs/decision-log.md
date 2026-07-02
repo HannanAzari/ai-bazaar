@@ -1315,6 +1315,41 @@ Library, so treat it as immutable without a superseding ADR.
 
 ---
 
+## ADR-032 — M13: reunite the editor catalogs with the restored Golden Nest assets
+
+**Status:** Accepted · 2026-07-02
+
+### Context
+The M12/M12.1 library cutover repointed the single editor (`/nest-editor`) from the Golden
+Living Nest fixture to the production library, swapping tray asset ids to `ast-lr-*`/`ast-so-*`.
+But the editor's Connect hotspot catalog (`lib/nest-hotspot-catalog.ts`) and Surface catalog
+(`lib/nest-surface-catalog.ts`) are keyed by asset **id**, and placement guardrails
+(`lib/nest-editor-policy.ts`) by **slot type** — none of which matched the new ids/types. So
+Connect, Surfaces, and floor placement silently broke, and the clean catalog-aligned art fell
+out of the tray. Three oak assets were also visibly flawed (angled TV, off desk, artifacted chair).
+
+### Decision
+Rather than re-key every catalog to the oak ids, **restore the approved Golden Nest assets under
+their catalog-aligned ids** (`ast-tv`, `ast-framed-photo`, `ast-floor-lamp`, `ast-side-plant`,
+`ast-avatar`, `ast-desk`, `ast-stacked-books`, `ast-bookshelf`) so hotspots + surfaces resolve by
+id for free; add `seat`/`desk` (+`window`/`pinboard`/`product`) guardrails; carry
+`ProductionAsset.hotspots`/`editableSurfaces` through the bridge for any other curated asset; and
+**hide** (never delete) the flawed oak assets, repointing templates to the golden equivalents.
+Add generic text/image **overlays** as `EditableNestObject`s (synthetic `overlay:*` id, free
+`DEFAULT_OVERLAY` guardrail) that persist via new optional `NestPlacement.overlay/w/h/rotation`.
+
+### Alternatives Considered
+- Re-key hotspot/surface catalogs to the oak ids — more churn, and the oak art was lower quality.
+- A second lightweight editor for overlays — violates the single-editor rule (carried from M11).
+
+### Consequences
+- (+) Connect, Surfaces, and floor placement work again; the tray shows clean art; single editor preserved.
+- (+) `slotTypeForAsset` is now null-safe — fixes the crash (via `overlapAdvisories`) that manifested as "focus blurs when adding assets."
+- (−) Overlay persistence is local-mode only until the Supabase `nest_objects` schema gains overlay columns (follow-up).
+- Full record: [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md). Shipped on `m12-nest-platform` (preview only; no merge to `main`).
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

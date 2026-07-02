@@ -5,6 +5,12 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
+> **Latest Nest sprint — M13 mobile stabilisation (2026-07-02):** the single editor
+> (`/nest-editor`) reunited with the restored Golden Nest assets after the M12 library cutover
+> (Connect + Surfaces + floor placement fixed), generic text/image overlays, and mobile UX.
+> Shipped on `m12-nest-platform` (**preview only — not merged to `main`**), awaiting on-device
+> testing. See [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md) + decision-log ADR-032.
+
 **Before closing any sprint, follow [sprint-checklist.md](sprint-checklist.md)
 (definition of done): update all source-of-truth docs, then pass typecheck +
 lint + test + build.**
