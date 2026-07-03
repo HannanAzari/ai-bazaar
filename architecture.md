@@ -249,13 +249,14 @@ has a graceful fallback.
 
 | Route | Type | Notes |
 |---|---|---|
-| `/` | redirect | → `/home` (M15). `VillageWorld` preserved in-tree for the future Village tab |
-| `/home` | client | **Home — discovery feed** (M17/M17.1: immersive vertical **snap feed**; each card renders the **composed room** via `NestPreview`, creator row + engagement bar; `lib/nest-discovery.ts`) |
+| `/` | redirect | → `/home` (M15). `VillageWorld` preserved in-tree (V1 map, distinct from the M19 Nest Village) |
+| `/home` | client | **Home — discovery feed** (M17/M17.1: immersive vertical **snap feed**; each card renders the **composed room** via `NestPreview`, creator row + engagement bar; M19 leads a real creator with **Visit House** / **Peek inside** + a **Village** entry pill; `lib/nest-discovery.ts`) |
+| `/village` | client | **The Village (M19)** — a pannable hex neighborhood of storybook SVG **Houses** (`components/nest/village/*`, `lib/nest-house.ts` + `lib/nest-village.ts`); tap a house → arrival panel (`HouseFront`) → **Enter Nest** door transition. Real creators centered + deterministic generated neighbors |
 | `/explore` | client | **Explore — search/discovery** (M17: search by title/creator/tags + category/trending chips + grid/list toggle; composed thumbnails) |
 | `/create` | client | **Create** — the single creation entry (Quick Start / Build My Own → editor) |
 | `/notifications` | client | **Notifications** — M18 real inbox (likes/follows/comments) + nav unread badge (`lib/nest-social.ts` + `lib/nest-notifications-store.ts`). `/updates` redirects here |
 | `/profile` | client | **Profile — private dashboard** (summary · Continue creating · Published · Create New) |
-| `/@<handle>` → `/profile/[handle]` | client (rewrite) | Public creator profile (username + published Nests) |
+| `/@<handle>` → `/profile/[handle]` | client (rewrite) | **House arrival (M19)** — house hero + **Enter Nest** over identity details (M16) + social (M18); published Nests read as **"Rooms in this house"** |
 | `/bazaar` | static | Alias of the map |
 | `/bazaar/[slug]` | SSG (10) | Village street (`StreetWalk`); claim flow |
 | `/shop/[address]` | SSG (10) + dynamic | Public room (`ShopPageClient` → `RoomExperience` or legacy). Resolves owner-claimed addresses client-side via `useAllShops` |

@@ -27,8 +27,15 @@ The world map is a **hexagon district map**: ten villages laid out as a connecte
 > with a nav unread badge, an owner **"Today" activity** line, and owner **Views/Likes/Comments/
 > Followers** analytics — so a creator opens the app and knows someone visited. Local social store
 > (`lib/nest-social.ts`) that emits notifications; guests are gated in place; Supabase social tables
-> are authored for the cutover. See [docs/m18-social-foundation.md](docs/m18-social-foundation.md) +
-> decision-log ADR-033–ADR-038.
+> are authored for the cutover. **M19** adds the first **spatial** layer so *"I visit a place, not a
+> profile"*: every creator owns a **House** (derived deterministically from persona/identity —
+> `lib/nest-house.ts`, no editor, nothing stored), Houses gather into a pannable hex **Village**
+> (`/village`, real creators centered + generated neighbors — `lib/nest-village.ts`), and entering a
+> Nest means stepping through a **door** (`DoorTransition`). **`/@<handle>` is re-framed as a house
+> arrival** (house hero → **Enter Nest** → "Rooms in this house") over the preserved identity +
+> social; discovery leads with **Visit House**. A pure presentation layer — no tables/migrations/
+> flags. See [docs/m19-villages-houses-arrival.md](docs/m19-villages-houses-arrival.md) +
+> decision-log ADR-033–ADR-039.
 
 ## Experience
 

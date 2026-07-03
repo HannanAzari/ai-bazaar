@@ -8,6 +8,63 @@ for technical detail.
 
 ---
 
+## 2026-07-03 — M19: villages, houses & the arrival experience
+
+The first spatial layer on `m12-nest-platform` (preview only; **no merge to `main`, no production
+deploy**). Turns "visiting a profile" into "arriving at a place": every creator now owns a **House**,
+Houses gather into a **Village**, and entering a Nest means stepping through a **door**. Builds
+**on top** of M15–M18 — identity, editor, discovery, and social are untouched. No house editor / no
+stored houses / no world coordinates / no marketplace / no AI. Full record:
+[m19-villages-houses-arrival.md](m19-villages-houses-arrival.md); rationale ADR-039.
+
+### Added
+- **House model** (`lib/nest-house.ts`) — a creator's identity as a *place*, **derived
+  deterministically** from their persona + handle (`HOUSE_STYLES`, `deriveHouse`, `houseFromItems`,
+  FNV-1a `hashSeed`; no `Math.random`/`Date.now`). Six cozy styles (Cottage/Creator/Gamer/Writer/
+  Minimalist/Garden). No house editor, nothing stored.
+- **Village model** (`lib/nest-village.ts`) — `hexSpiral` layout (real creators centered) +
+  `buildVillage` filling out to ~20 with **deterministic generated neighbors** (cozy names/personas)
+  so a fresh village feels lived-in; `neighborOf` next/prev navigation (wraps).
+- **Village tab** (`/village`) — a pannable hex neighborhood of storybook SVG cottages
+  (`HouseExterior`: glowing windows, chimney smoke when "home", trees, name plates) that "descends"
+  into place on load (`nest-arrive`). Tap a house → arrival.
+- **Arrival experience** (`HouseFront`) — walk up to a house (exterior + door plate: avatar · name ·
+  style · @handle · bio · latest-nest peek · presence) with prev/next/back navigation.
+- **Enter Nest transition** (`DoorTransition`) — a door opens + warm light floods before fading into
+  the Nest (respects `prefers-reduced-motion`).
+- **`/@handle` is now an arrival** — the profile leads with the **House hero** (Enter Nest) over the
+  identity details (M16) + social (M18), and the published Nests read as **"Rooms in this house."**
+- **Discovery — Visit House** — feed cards lead with **Visit House** + **Peek inside** (house = entry
+  point, Nest = a room); grid cards gain a "Visit house" link. Village entry points on Home + Explore.
+- **CSS scene animations** (`app/globals.css`) — `nest-arrive`/`nest-approach`/`nest-door-open`/
+  `nest-door-flood`/`nest-smoke`/`nest-window-lit`/`nest-drift`/`nest-fade`; all reduced-motion safe.
+- Tests: `test/nest-house.test.ts` + `test/nest-village.test.ts` (24 new; **389 total**).
+
+### Changed
+- `app/profile/[handle]/profile-client.tsx` — profile re-framed as a house arrival (hero + Enter +
+  "Rooms in this house"); M16 identity + M18 follow/links/stats preserved beneath it.
+- `components/nest/app-shell/discovery.tsx` — `VisitHouseButton`; feed/grid cards lead with the House.
+- `components/site-header.tsx` — `/village` added to the nest-app routes that hide the legacy V1 header.
+
+### Database
+- **None.** House + Village are a pure presentation layer derived from existing data (no tables, no
+  migrations, no schema change).
+
+### Flags
+- **None.** The Village is always on (no new `ENABLE_*` flag).
+
+### Verification (browser, mobile 375×812)
+- Village renders (cozy hex neighborhood, no V1 header); tap house → arrival panel; **Enter Nest →
+  door transition → inside the composed Nest**; `/@hannan` shows the house hero + Enter + "Rooms in
+  this house"; Home feed leads a real creator with **Visit House** / **Peek inside**; no house →
+  friendly empty state. No console errors.
+
+### Notes
+- Houses are **derived, not editable** (no house editor yet); the village is **local per browser**
+  (built from local discovery). A custom-house editor + a global/server-side village are future work.
+
+---
+
 ## 2026-07-03 — M18: social foundation
 
 The first real social layer on `m12-nest-platform` (preview only; **no merge to `main`, no

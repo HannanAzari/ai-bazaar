@@ -1583,6 +1583,56 @@ registry) or followed creator, never for yourself. Guests are gated **in place**
 
 ---
 
+## ADR-039 — Villages & Houses: the discovery layer as a *place* (M19)
+
+**Status:** Accepted · 2026-07-03 · preview only on `m12-nest-platform`
+
+### Context
+Through M18 the top of the hierarchy was a **feed** and a creator was a **profile card**. The
+documented V2 vision (ADR-027) is `Village → House → Nest`, but no spatial layer had been built —
+opening `/@handle` felt like "another profile page," not "arriving somewhere." M19's mission:
+*"I don't visit a profile. I visit a place."* The constraint (as every Nest sprint): build **on
+top** of identity/editor/discovery/social/publishing — rewrite nothing — and stay verifiable in
+preview with no live Supabase.
+
+### Decision
+Insert **House** between Creator and Nest as a **deterministically-derived** presentation layer —
+**no house editor, nothing stored.** `lib/nest-house.ts` maps a creator's persona + identity to a
+cozy `HouseStyle` + seed (FNV-1a hash → stable exterior variations; no `Math.random`/`Date.now`).
+`lib/nest-village.ts` lays Houses on a **hex spiral** (real creators centered) and fills out to ~20
+with **deterministic generated neighbors**, so a fresh village still feels lived-in. Houses render
+as **SVG storybook cottages** (`HouseExterior`), the Village is a **pannable hex scene**
+(`/village`) that "descends" into place, and tapping a house opens a shared **arrival panel**
+(`HouseFront`: exterior + door plate + bio + Enter). **Enter Nest** plays a **door-opening
+transition** (`DoorTransition`) then routes into the composed Nest. `/@handle` is re-framed from a
+profile into the same **arrival** (house hero → Enter → "Rooms in this house"), preserving M16
+identity + M18 social below it. Discovery gains **Visit House** (the House is the entry point; the
+Nest is a room inside it).
+
+### Alternatives Considered
+- **A stored/editable House model + house-editor** — too big for one sprint; the mission is the
+  *feeling* of arrival, which composition-from-persona delivers now. Deferred.
+- **Real per-route house pages for every neighbor** — generated neighbors have no `/@handle`; the
+  village handles next/prev/back as in-page state instead (no route friction, wraps around).
+- **A 6th bottom-nav tab for the Village** — would disturb the M15.1 IA (5 icon tabs); instead the
+  Village is reached via prominent entry points (Home/Explore header, `/@handle` "The village",
+  discovery "Visit House").
+- **A motion library (framer-motion)** for transitions — avoided a new dependency; CSS keyframes
+  (`nest-arrive`/`nest-approach`/`nest-door-open`/`nest-smoke`) carry the feeling and respect
+  `prefers-reduced-motion`.
+
+### Consequences
+- (+) Opening `hannan.nestud.io` (→ `/@hannan`) now reads as **a place** (house + door + Enter), not
+  a profile page; the Village makes discovery spatial without an infinite feed.
+- (+) Zero new data/schema/migrations; identity, editor, publishing, discovery, and social are
+  untouched — House/Village are a pure presentation layer composed from existing data.
+- (+) Fully deterministic ⇒ hydration-safe + unit-testable (`nest-house` / `nest-village`).
+- (−) Houses are **derived, not customizable** (no house editor yet) and the village is **local per
+  browser** (built from local discovery) — a global, server-side village + custom houses are future
+  work. Generated neighbors are cosmetic (empty lots, not enterable).
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

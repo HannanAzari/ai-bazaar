@@ -465,6 +465,66 @@ body::before {
   animation: pond-ripple 3.2s ease-out infinite;
 }
 
+/* ── M19 Village / arrival ─────────────────────────────────────────────────── */
+
+/* Chimney smoke drifts up and dissolves. */
+@keyframes nest-smoke {
+  0%   { transform: translateY(2px) scale(0.9); opacity: 0; }
+  30%  { opacity: 0.55; }
+  100% { transform: translateY(-14px) scale(1.3); opacity: 0; }
+}
+.nest-smoke { animation: nest-smoke 4.2s ease-out infinite; }
+
+/* A lit window breathes ever so slightly. */
+@keyframes nest-window-lit {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.82; }
+}
+.nest-window-lit { animation: nest-window-lit 5s ease-in-out infinite; }
+
+/* Arriving in the village: the world settles into place (world → zoom → village). */
+@keyframes nest-arrive {
+  0%   { transform: scale(1.14); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.nest-arrive { animation: nest-arrive 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Walking up to a single house — a gentler settle. */
+@keyframes nest-approach {
+  0%   { transform: scale(0.86) translateY(10px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.nest-approach { animation: nest-approach 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Overlay fade-in (arrival panel). */
+@keyframes nest-fade {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+.nest-fade { animation: nest-fade 0.3s ease-out both; }
+
+/* Soft drifting clouds behind the village. */
+@keyframes nest-drift {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(40px); }
+}
+.nest-drift { animation: nest-drift 22s ease-in-out infinite alternate; }
+
+/* Entering a Nest: the door opens and light floods out, then we fade inside. */
+@keyframes nest-door-open {
+  0%   { transform: scaleX(1); opacity: 1; }
+  55%  { transform: scaleX(0.05); opacity: 1; }
+  100% { transform: scaleX(0.05); opacity: 0; }
+}
+.nest-door-open { animation: nest-door-open 0.9s ease-in both; transform-origin: left center; }
+
+@keyframes nest-door-flood {
+  0%   { opacity: 0; }
+  55%  { opacity: 0; }
+  100% { opacity: 1; }
+}
+.nest-door-flood { animation: nest-door-flood 0.9s ease-in both; }
+
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto !important;

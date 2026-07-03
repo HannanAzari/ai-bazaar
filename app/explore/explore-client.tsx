@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { LayoutGrid, Rows3, Search } from "lucide-react";
+import { LayoutGrid, Rows3, Search, Trees } from "lucide-react";
 import { useDiscovery } from "@/components/nest/app-shell/use-discovery";
 import { DiscoveryNestCard } from "@/components/nest/app-shell/discovery";
 import { collectCategories, collectTags, filterByTag, searchDiscovery } from "@/lib/nest-discovery";
@@ -31,9 +31,14 @@ export function ExploreClient() {
 
   return (
     <div className="space-y-4 pt-1">
-      <header>
-        <h1 className="display text-3xl">Explore</h1>
-        <p className="mt-1 text-sm text-ink/55">Search cozy Nests, creators, and themes.</p>
+      <header className="flex items-start justify-between gap-2">
+        <div>
+          <h1 className="display text-3xl">Explore</h1>
+          <p className="mt-1 text-sm text-ink/55">Search cozy Nests, creators, and themes.</p>
+        </div>
+        <Link href="/village" className="mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-full bg-terracotta px-3.5 py-2 text-xs font-black text-parchment shadow-soft active:scale-95">
+          <Trees className="size-4" /> Village
+        </Link>
       </header>
 
       <div className="flex items-center gap-2 rounded-2xl border border-timber/20 bg-white px-3 shadow-soft">

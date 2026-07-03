@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, Share2, Sparkles } from "lucide-react";
+import { Home, Plus, Share2, Sparkles } from "lucide-react";
 import { creatorLabel, type DiscoveryCreator, type DiscoveryItem } from "@/lib/nest-discovery";
 import { NestPreview } from "@/components/nest/app-shell/nest-preview";
 import { LikeButton } from "@/components/nest/social/like-button";
@@ -110,6 +110,21 @@ export function VisitNestButton({ href, className = "" }: { href: string; classN
   );
 }
 
+// ── VisitHouseButton (M19 — the house is the entry point; the Nest is a room in it) ──
+export function VisitHouseButton({ handle, tone = "ink", className = "" }: { handle: string; tone?: "ink" | "light"; className?: string }) {
+  const light = tone === "light";
+  return (
+    <Link
+      href={`/@${handle}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold shadow-soft transition active:scale-95 ${
+        light ? "bg-white/90 text-ink" : "bg-terracotta text-parchment"
+      } ${className}`}
+    >
+      <Home className="size-4" /> Visit House
+    </Link>
+  );
+}
+
 // ── DiscoveryNestCard (grid / row — Explore) ─────────────────────────────────--
 export function DiscoveryNestCard({ item, layout = "grid" }: { item: DiscoveryItem; layout?: "grid" | "row" }) {
   if (layout === "row") {
@@ -137,6 +152,11 @@ export function DiscoveryNestCard({ item, layout = "grid" }: { item: DiscoveryIt
         <Link href={item.href} className="block truncate text-sm font-black text-ink hover:underline">{item.title}</Link>
         <CreatorBadge creator={item.creator} />
         <NestTags tags={item.tags} max={2} />
+        {item.creator.username ? (
+          <Link href={`/@${item.creator.username}`} className="inline-flex items-center gap-1 pt-0.5 text-[11px] font-bold text-terracotta hover:underline">
+            <Home className="size-3" /> Visit house
+          </Link>
+        ) : null}
       </div>
     </div>
   );
@@ -186,8 +206,18 @@ function FeedCard({ item }: { item: DiscoveryItem }) {
         <div className="pointer-events-auto"><NestTags tags={item.tags} tone="light" /></div>
         <div className="pointer-events-auto"><EngagementBar id={item.id} href={item.href} /></div>
         <div className="pointer-events-auto flex items-center gap-2 pt-0.5">
-          <VisitNestButton href={item.href} />
-          <Link href="/create" className="rounded-full border border-white/40 px-4 py-2 text-sm font-bold text-white/90 backdrop-blur-sm transition active:scale-95">Create your own</Link>
+          {item.creator.username ? (
+            <>
+              {/* The House is the entry point; the Nest is a room you peek into. */}
+              <VisitHouseButton handle={item.creator.username} />
+              <Link href={item.href} className="rounded-full border border-white/40 px-4 py-2 text-sm font-bold text-white/90 backdrop-blur-sm transition active:scale-95">Peek inside</Link>
+            </>
+          ) : (
+            <>
+              <VisitNestButton href={item.href} />
+              <Link href="/create" className="rounded-full border border-white/40 px-4 py-2 text-sm font-bold text-white/90 backdrop-blur-sm transition active:scale-95">Create your own</Link>
+            </>
+          )}
         </div>
       </div>
     </article>

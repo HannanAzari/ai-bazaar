@@ -71,6 +71,7 @@ by generating visuals per creator.**
 | M16 — Real Identity & Authentication | 2026-07-03 | Replace the temporary browser-local identity with a **real account system**: email sign-up/sign-in/sign-out + session restore (Nest account facade — local multi-account demo \| Supabase Auth), **unique/immutable usernames**, profile completion (bio/avatar/socials), **ownership enforcement** (only owners edit/republish/delete; editor denies others; Supabase RLS server-side), **local-work migration** on sign-in (no Nest loss), and public `/@username` profiles. Infrastructure only. Preview runs the local backend; Supabase goes live via cutover. Preview only (`m12-nest-platform`); 344 tests. See [m16-identity-auth.md](m16-identity-auth.md) + ADR-035. |
 | M17 — Discovery Feed | 2026-07-03 | The first real discovery experience: a shared `DiscoveryItem` model over **published + curated** Nests (`lib/nest-discovery.ts`); **Home = immersive vertical snap feed** leading with creator identity, title, tags, Visit/Create CTAs; **Explore** search (title/creator/tags) + category/trending chips + grid/list toggle; **visitor page** with real creator badge + tags + "wander more" CTA; empty states everywhere. Published Nests borrow tags/persona from their source template. No follows/comments/real likes/villages/marketplace/AI. Preview only (`m12-nest-platform`); 356 tests. See [m17-discovery-feed.md](m17-discovery-feed.md) + ADR-036. |
 | M17.1 — Discovery Polish & Identity | 2026-07-03 | UX/identity polish (no backend): **composed Nest thumbnails** (`NestPreview` — real furniture, launch-critical) everywhere; immersive Home feed with creator row + engagement bar (❤/💬 disabled · ↗ Share); **owner vs visitor view** on `/nest/[slug]` (owner: stats + Edit + Share; visitor: Follow + Create + More); **Nest naming** at publish + **same-tab** open; Create tab **active state**; profile **Followers/Following/Nests** placeholders; **app-screen layouts** (fixed-height, internal scroll). Deterministic placeholder engagement (`lib/nest-engagement.ts`). Preview only (`m12-nest-platform`); 360 tests. See [m17.1-discovery-polish.md](m17.1-discovery-polish.md) + ADR-037. |
+| M19 — Villages, Houses & Arrival | 2026-07-03 | The first **spatial** layer: `Village → House → Nest` made real so *"I visit a place, not a profile."* Deterministic **House** model derived from persona/identity (`lib/nest-house.ts`, no editor/no storage); **Village** hex layout with generated neighbors (`lib/nest-village.ts`); a pannable **`/village`** of storybook SVG cottages; an **arrival** panel (`HouseFront`) + **Enter Nest door transition**; **`/@handle` re-framed as a house arrival** (hero + Enter + "Rooms in this house") preserving M16 identity + M18 social; discovery **Visit House** entry point. Pure presentation layer (no tables/migrations/flags). Preview only (`m12-nest-platform`); 389 tests. See [m19-villages-houses-arrival.md](m19-villages-houses-arrival.md) + ADR-039. |
 | M18 — Social Foundation | 2026-07-03 | The first **real** social layer so a creator feels visited: **real likes** (`LikeButton`), **real follows** (`FollowButton`, real follower/following counts), **Comments V1** (`CommentSheet` — slide-up, add/delete-own/newest-first/creator badge), **Notifications V1** (real inbox + nav unread badge), owner **"Today" activity**, and owner **Views/Likes/Comments/Followers** analytics. Local store (`lib/nest-social.ts` + `lib/nest-notifications-store.ts`) that emits notifications; guests gated in place with a sign-in sheet. Supabase schema authored (`20260703_01_nest_social.sql`) for the cutover. No algorithms/villages/marketplace/DMs/AI. Preview only (`m12-nest-platform`); 365 tests. See [m18-social-foundation.md](m18-social-foundation.md) + ADR-038. |
 
 All sprints ship green: `typecheck · lint · test · build`.
@@ -79,8 +80,17 @@ All sprints ship green: `typecheck · lint · test · build`.
 
 ## In Progress
 
-**M18 social foundation shipped 2026-07-03** on `m12-nest-platform` (preview only; **not merged to
-`main`, not deployed to production**): the first **real** social layer — real **likes**, **follows**
+**M19 villages, houses & arrival shipped 2026-07-03** on `m12-nest-platform` (preview only; **not
+merged to `main`, not deployed to production**): the first **spatial** layer that turns "visiting a
+profile" into "arriving at a place." Every creator now owns a **House** (derived deterministically
+from persona/identity — no editor, nothing stored), Houses gather into a pannable hex **Village**
+(`/village`, real creators centered + generated neighbors), and entering a Nest means stepping
+through a **door** (`DoorTransition`). **`/@handle` is re-framed as a house arrival** (hero + Enter +
+"Rooms in this house") over the preserved M16 identity + M18 social; discovery leads with **Visit
+House**. A pure presentation layer built on top of M15–M18 — no tables/migrations/flags; identity,
+editor, discovery, and social untouched. See [m19-villages-houses-arrival.md](m19-villages-houses-arrival.md)
++ ADR-039. **Next:** a custom-house editor + a global/server-side village (currently derived + local
+per browser). This builds on **M18 social foundation shipped 2026-07-03**: the first **real** social layer — real **likes**, **follows**
 (with real follower/following counts), **Comments V1** in a slide-up sheet, **Notifications V1**
 (real inbox + nav unread badge), owner **"Today" activity**, and owner **Views/Likes/Comments/
 Followers** analytics — so a creator opens the app and immediately knows someone interacted. Local

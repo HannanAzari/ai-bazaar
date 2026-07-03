@@ -5,7 +5,25 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest Nest sprint — M18 social foundation (2026-07-03):** the first **real** social layer.
+> **Latest Nest sprint — M19 villages, houses & arrival (2026-07-03):** the first **spatial** layer —
+> `Village → House → Nest` made real so *"I visit a place, not a profile."* **`lib/nest-house.ts`**
+> derives a creator's **House** deterministically from persona + handle (`HOUSE_STYLES` · `deriveHouse`
+> · FNV-1a `hashSeed`; no editor, nothing stored, no `Math.random`/`Date.now`). **`lib/nest-village.ts`**
+> lays Houses on a **hex spiral** (real creators centered) + fills to ~20 with deterministic generated
+> neighbors (`buildVillage` · `neighborOf`). UI: **`/village`** is a pannable hex neighborhood of
+> storybook SVG cottages (`components/nest/village/house-exterior.tsx`: glowing windows, chimney smoke,
+> trees, name plates) that "descends" in on load; tapping a house opens the shared **arrival panel**
+> (`HouseFront`: exterior + door plate + bio + latest peek + prev/next/back); **Enter Nest** plays a
+> **door transition** (`DoorTransition`) then routes into the composed Nest. **`/@handle` is re-framed
+> as an arrival** (house hero → Enter → "Rooms in this house") over the preserved M16 identity + M18
+> social; discovery leads with **Visit House** (house = entry point, Nest = a room). Village entry
+> points on Home + Explore. CSS scene animations in `app/globals.css` (`nest-arrive`/`nest-approach`/
+> `nest-door-open`/`nest-smoke`…, all reduced-motion safe). **No tables / migrations / flags** — a pure
+> presentation layer; editor/publishing/discovery/social/identity untouched. Houses are **derived, not
+> editable**; the village is **local per browser** (a custom-house editor + global village are future).
+> Preview only (`m12-nest-platform`); 389 tests. See [m19-villages-houses-arrival.md](m19-villages-houses-arrival.md) + ADR-039.
+>
+> **M18 social foundation (2026-07-03):** the first **real** social layer.
 > `lib/nest-social.ts` (likes/follows/comments/views, keyed by account id / slug) + `lib/
 > nest-notifications-store.ts` (recipient inbox) — durable localStorage that emits notifications to
 > the Nest owner / followed creator (never yourself). UI in `components/nest/social/*`: `LikeButton`

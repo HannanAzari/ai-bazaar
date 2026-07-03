@@ -17,6 +17,8 @@ npm run typecheck && npm run lint && npm run test && npm run build
 | Route | Flag | Expected |
 |-------|------|----------|
 | `/` | — | Hex district map; 10 village hexes + frontier plots; drag to roam; tap a hex → village street |
+| `/village` | — | **M19 Nest Village** — pannable hex neighborhood of cozy Houses (no V1 header); tap a house → arrival panel (exterior · door plate · bio · Enter); prev/next/back; **Enter Nest → door transition → composed Nest**. Real creators centered + generated neighbors |
+| `/@<handle>` | — | **M19 house arrival** — house hero (Enter Nest) + identity/social details + "Rooms in this house"; unknown handle → friendly "No house here yet" (Build / Visit the village) |
 | `/bazaar/[slug]` | — | Horizontal street of 24 houses; arrows scroll; claim flow on open houses |
 | `/shop/[address]` | `ENABLE_ROOM_ENGINE` | Full-screen room; objects clickable; owner/guestbook drawers; corner actions (off → legacy room) |
 | `/studio` | — | Owner editor (needs a claimed house); Room engine, exterior, tags, details |

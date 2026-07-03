@@ -9,7 +9,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 // M15.1: the Nestudio app shell (Home · Explore · Create · Notifications · Profile ·
 // /@handle) and the full-screen editor own their own chrome, so this legacy V1 header
 // steps out of the way there. It only renders on the remaining V1 routes.
-const NEST_APP_PREFIXES = ["/home", "/explore", "/create", "/notifications", "/updates", "/profile", "/nest-editor", "/nest/", "/@"];
+const NEST_APP_PREFIXES = ["/home", "/explore", "/create", "/notifications", "/updates", "/profile", "/village", "/nest-editor", "/nest/", "/@"];
 
 export function SiteHeader() {
   const { user, ownedShop, logout } = useDemo();

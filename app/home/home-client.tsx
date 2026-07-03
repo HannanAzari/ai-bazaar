@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { Trees } from "lucide-react";
 import { BottomNav } from "@/components/nest/app-shell/bottom-nav";
 import { DiscoveryFeed } from "@/components/nest/app-shell/discovery";
 import { useDiscovery } from "@/components/nest/app-shell/use-discovery";
@@ -21,8 +23,16 @@ export function HomeClient() {
         }}
       >
         <header className="flex-none px-4 pb-2">
-          <p className="eyebrow text-terracotta">Nestudio</p>
-          <h1 className="display text-2xl leading-tight">Wander cozy Nests</h1>
+          <div className="flex items-end justify-between gap-2">
+            <div>
+              <p className="eyebrow text-terracotta">Nestudio</p>
+              <h1 className="display text-2xl leading-tight">Wander cozy Nests</h1>
+            </div>
+            {/* The village is the map behind the feed — one tap to explore it as a place. */}
+            <Link href="/village" className="mb-0.5 inline-flex shrink-0 items-center gap-1.5 rounded-full bg-terracotta px-3.5 py-2 text-xs font-black text-parchment shadow-soft active:scale-95">
+              <Trees className="size-4" /> Village
+            </Link>
+          </div>
         </header>
         <div className="min-h-0 flex-1 px-3">
           <DiscoveryFeed items={items} />
