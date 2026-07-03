@@ -1,23 +1,32 @@
-// ── Nestudio — Nest profile + username ownership (M15) ───────────────────────
+// ── Nestudio — Nest profile + username ownership (M15 · M16) ─────────────────
 //
-// The identity spine for the app shell (Home · profile summary · /@handle). It is
-// keyed by the **nest-auth** userId — the same identity that owns NestDocuments and
-// published nests — NOT the V1 AuthProvider account. This is deliberately a light
-// localStorage store (no auth rewrite): it owns the canonical username (with
-// uniqueness), a bio, and an avatar. Real server persistence lands with Supabase.
+// The profile attached to a Nest account (see lib/nest-account.ts), keyed by the
+// account id. It owns the **username** (unique, validated, immutable once claimed)
+// plus display name, bio, avatar, and optional social links. This is the local layer;
+// the Supabase layer is the `profiles` table (username has a unique index) reached via
+// lib/repos — both share these validation rules.
 
 const PROFILES_KEY = "nestudio-profiles"; // Record<userId, NestProfile>
 export const NEST_PROFILES_CHANGED = "nestudio-profiles-changed";
 
 const isBrowser = () => typeof window !== "undefined";
 
+export type NestSocials = {
+  website?: string;
+  github?: string;
+  twitter?: string;
+  youtube?: string;
+};
+
 export type NestProfile = {
+  /** = the Nest account id. */
   userId: string;
-  /** Canonical, lowercase, unique handle used at /@<username>. */
-  username: string;
+  /** Canonical, lowercase, unique handle at /@<username>. Claimed once, then immutable. */
+  username?: string;
   displayName?: string;
   bio?: string;
   avatarUrl?: string;
+  socials?: NestSocials;
 };
 
 function read(): Record<string, NestProfile> {
@@ -40,25 +49,25 @@ function write(store: Record<string, NestProfile>) {
   }
 }
 
-// ── Username rules ─────────────────────────────────────────────────────────────
+// ── Username rules (Phase 3: lowercase · 3–20 · letters/numbers/underscore) ────
 const USERNAME_MIN = 3;
 const USERNAME_MAX = 20;
-const RESERVED = new Set(["home", "explore", "create", "updates", "nest", "admin", "api", "studio", "onboarding", "design", "u", "auth"]);
+const RESERVED = new Set(["home", "explore", "create", "updates", "notifications", "nest", "admin", "api", "studio", "onboarding", "design", "u", "auth", "profile", "signin", "signup", "login"]);
 
-/** Normalize any input toward a legal handle (lowercase, [a-z0-9_-]). */
+/** Normalize any input toward a legal handle (lowercase, [a-z0-9_]). */
 export function normalizeUsername(input: string): string {
-  return input.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, USERNAME_MAX);
+  return input.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, USERNAME_MAX);
 }
 
 /** null when valid; otherwise a human-readable reason. Ignores case. */
 export function validateUsername(input: string): string | null {
   const u = normalizeUsername(input);
-  if (u.length < USERNAME_MIN) return `Use at least ${USERNAME_MIN} characters.`;
+  if (u.length < USERNAME_MIN) return `Use at least ${USERNAME_MIN} characters (letters, numbers, underscore).`;
   if (RESERVED.has(u)) return "That username is reserved.";
   return null;
 }
 
-// ── Reads ──────────────────────────────────────────────────────────────────────
+// ── Reads ──────────────────────────────────────────────────────────────────--
 export function getNestProfile(userId: string): NestProfile | null {
   return read()[userId] ?? null;
 }
@@ -76,44 +85,80 @@ export function isUsernameAvailable(input: string, forUserId?: string): boolean 
   return !owner || owner.userId === forUserId;
 }
 
-// ── Writes ───────────────────────────────────────────────────────────────────--
+// ── Writes ───────────────────────────────────────────────────────────────────
 export type ClaimResult = { ok: true; profile: NestProfile } | { ok: false; error: string };
 
-/** Claim (or re-claim) a username for a user. Enforces validity + uniqueness. */
+/**
+ * Claim a username for an account. Enforces validity + uniqueness, and — because
+ * usernames are **immutable for now** — refuses to change one that's already set.
+ */
 export function claimUsername(userId: string, input: string): ClaimResult {
   const reason = validateUsername(input);
   if (reason) return { ok: false, error: reason };
   const u = normalizeUsername(input);
-  if (!isUsernameAvailable(u, userId)) return { ok: false, error: "That username is taken." };
   const store = read();
   const current = store[userId];
-  store[userId] = { userId, username: u, displayName: current?.displayName, bio: current?.bio, avatarUrl: current?.avatarUrl };
+  if (current?.username && current.username !== u) {
+    return { ok: false, error: "Your username is permanent for now and can't be changed." };
+  }
+  if (!isUsernameAvailable(u, userId)) return { ok: false, error: "That username is taken." };
+  store[userId] = { ...(current ?? { userId }), userId, username: u };
   write(store);
   return { ok: true, profile: store[userId] };
 }
 
-/** Ensure a profile row exists for a session, giving it a starter username if empty. */
-export function ensureNestProfile(userId: string, fallbackUsername: string): NestProfile {
+/** Ensure a profile row exists for an account (username stays UNCLAIMED until chosen). */
+export function ensureNestProfile(userId: string, displayName?: string): NestProfile {
   const store = read();
   if (store[userId]) return store[userId];
-  // Derive a free username from the fallback (append a suffix if the base is taken).
-  let candidate = normalizeUsername(fallbackUsername) || "creator";
-  if (candidate.length < USERNAME_MIN) candidate = `${candidate}-nest`.slice(0, USERNAME_MAX);
-  if (!isUsernameAvailable(candidate, userId)) candidate = `${candidate}-${Math.random().toString(36).slice(2, 5)}`.slice(0, USERNAME_MAX);
-  const profile: NestProfile = { userId, username: candidate };
+  const profile: NestProfile = { userId, displayName: displayName?.trim() || undefined };
   store[userId] = profile;
   write(store);
   return profile;
 }
 
-/** Patch display fields (not the username — use claimUsername for that). */
-export function updateNestProfile(userId: string, patch: Partial<Pick<NestProfile, "displayName" | "bio" | "avatarUrl">>): NestProfile {
+/** Patch mutable profile fields (NOT the username — use claimUsername for that). */
+export function updateNestProfile(
+  userId: string,
+  patch: Partial<Pick<NestProfile, "displayName" | "bio" | "avatarUrl" | "socials">>,
+): NestProfile {
   const store = read();
-  const current = store[userId] ?? ensureNestProfile(userId, "creator");
-  const next: NestProfile = { ...current, ...patch, userId, username: current.username };
+  const current = store[userId] ?? { userId };
+  const next: NestProfile = {
+    ...current,
+    ...patch,
+    userId,
+    username: current.username, // never mutated here
+    socials: patch.socials ? { ...current.socials, ...patch.socials } : current.socials,
+  };
   store[userId] = next;
   write(store);
   return next;
+}
+
+/**
+ * Move a legacy profile (M15 stub identity) onto a real account id, keeping the
+ * username + fields and removing the old row so uniqueness stays intact. Used by the
+ * sign-in migration. No-op if the account already has a username.
+ */
+export function adoptLegacyProfile(accountId: string, legacyUserId: string): NestProfile | null {
+  if (accountId === legacyUserId) return getNestProfile(accountId);
+  const store = read();
+  const legacy = store[legacyUserId];
+  if (!legacy) return store[accountId] ?? null;
+  const account = store[accountId] ?? { userId: accountId };
+  const merged: NestProfile = {
+    userId: accountId,
+    username: account.username ?? legacy.username,
+    displayName: account.displayName ?? legacy.displayName,
+    bio: account.bio ?? legacy.bio,
+    avatarUrl: account.avatarUrl ?? legacy.avatarUrl,
+    socials: account.socials ?? legacy.socials,
+  };
+  store[accountId] = merged;
+  delete store[legacyUserId]; // free the username from the stub id
+  write(store);
+  return merged;
 }
 
 export function onNestProfilesChanged(cb: () => void): () => void {

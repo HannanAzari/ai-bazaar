@@ -1427,6 +1427,51 @@ their own dashboard to claim identity / manage Nests. Home must be discovery, no
 
 ---
 
+## ADR-035 — Real identity via a Nest account facade (local demo | Supabase Auth) (M16)
+
+**Status:** Accepted (2026-07-03). Branch `m12-nest-platform`, preview only.
+Record: [m16-identity-auth.md](m16-identity-auth.md). **Resolves the two-identity split flagged by
+ADR-033** (the M15 stub was always meant to be replaced here).
+
+### Context
+M15 built the app shell on a temporary `nest-auth-stub` browser session; ownership was "whoever
+holds this localStorage." M16's goal is **ownership**: a real account that owns username, profile,
+drafts, and published Nests. Constraints: use Supabase Auth (present + already live in this env for
+V1), don't build custom auth, preserve the single editor + all NestDocument flows + local draft
+recovery, and **keep the preview verifiable** — but applying migrations, enabling email auth, and
+setting Vercel env are human ops I can't perform.
+
+### Decision
+Model identity as a **backend facade** (like `nest-repo` / `nest-auth`), keyed by
+`NEXT_PUBLIC_NEST_BACKEND`:
+- **local (default, preview):** a faithful multi-account localStorage layer (email + password +
+  session) — the demo stand-in for Supabase Auth, exactly as `DemoAuthClient` is for V1. Fully
+  verifiable with no external deps and no email round-trip.
+- **supabase (cutover):** the existing real `SupabaseAuthClient` + `profiles` (unique username
+  index) + `nests` RLS (owner-only writes already server-side).
+Username is unique/validated/**immutable** for now. On sign-in, `migrateLocalWorkToAccount` adopts
+un-owned + legacy-stub work (drafts, publishes, stickers, links, username) idempotently. The editor
+enforces ownership; visitors view/share.
+
+### Alternatives Considered
+- **Unify onto the V1 `AuthProvider`/`useSession`** directly — it doesn't own NestDocuments and its
+  local demo client is single-user (`demo-user`, no password), so it can't demonstrate multi-owner
+  in preview. The facade reuses the same real Supabase pieces without that limitation.
+- **Flip `NEST_BACKEND=supabase` now** — requires human ops (migrations, email-confirm settings,
+  Vercel env) and would leave the preview unverifiable/broken until provisioned.
+- **Keep the stub, harden locally only** — doesn't deliver a real, Supabase-ready account.
+
+### Consequences
+- (+) Real ownership + accounts + migration, verifiable on the preview today; single editor +
+  persistence + draft recovery preserved; no Nest loss on sign-in.
+- (+) One env flip (after the documented cutover) makes auth + ownership fully server-side.
+- (−) Preview auth is the **local demo layer** (non-secure password hash); real credentials only on
+  the Supabase backend.
+- (−) Social profile columns + Supabase `/@handle` resolution need a follow-up migration; username
+  immutability is a product choice a later ADR may revisit.
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

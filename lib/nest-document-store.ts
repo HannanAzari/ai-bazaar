@@ -72,11 +72,12 @@ function withPlacementIds(placements: Omit<NestPlacement, "id">[]): NestPlacemen
 }
 
 /** Create a draft doc pre-populated from a template (templates are just docs). */
-export function createDocFromTemplate(templateId: string): NestDocument | undefined {
+export function createDocFromTemplate(templateId: string, ownerId?: string): NestDocument | undefined {
   const tpl = resolveTemplate(templateId);
   if (!tpl) return undefined;
   const doc: NestDocument = {
     id: rid("nest"),
+    ownerId,
     backgroundId: tpl.backgroundId,
     placements: withPlacementIds(tpl.objectPlacements),
     title: tpl.name,
@@ -89,9 +90,10 @@ export function createDocFromTemplate(templateId: string): NestDocument | undefi
 }
 
 /** Create an empty draft doc on a chosen background. */
-export function createDocFromBackground(backgroundId: string, title = "My Nest"): NestDocument {
+export function createDocFromBackground(backgroundId: string, title = "My Nest", ownerId?: string): NestDocument {
   const doc: NestDocument = {
     id: rid("nest"),
+    ownerId,
     backgroundId,
     placements: [],
     title,
@@ -148,11 +150,17 @@ export function resolvePublishedBySlug(slug: string): { doc: NestDocument; ref: 
 // PublishedRef. Continue-Creating shows drafts; Published shows the published refs
 // resolved back to their (possibly newer) doc. All newest-first.
 
-/** Drafts the creator can keep working on (never-published docs), newest first. */
-export function listDrafts(): NestDocument[] {
+/**
+ * Drafts the creator can keep working on (never-published docs), newest first.
+ * Owner-aware: pass an ownerId to get that account's drafts PLUS any un-owned guest
+ * drafts in this browser (which get adopted on the next sign-in). No ownerId → only
+ * un-owned guest drafts.
+ */
+export function listDrafts(ownerId?: string): NestDocument[] {
   const pubDocIds = new Set(Object.values(published()).map((r) => r.docId));
   return getAllLocalDocs()
     .filter((d) => d.visibility === "draft" && !pubDocIds.has(d.id))
+    .filter((d) => (d.ownerId ? d.ownerId === ownerId : true))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -172,6 +180,59 @@ export function publishedUrl(entry: PublishedNest): string {
   return isShareable(entry.ref.visibility)
     ? `/nest/${entry.ref.slug}?c=${encodeDoc(entry.doc)}`
     : `/nest/${entry.ref.slug}`;
+}
+
+// ── Ownership + migration (M16) ───────────────────────────────────────────────
+
+/** Whether an account may edit/publish/delete a doc: owner, or an un-owned guest draft. */
+export function canEditDoc(doc: Pick<NestDocument, "ownerId">, ownerId?: string): boolean {
+  return !doc.ownerId || doc.ownerId === ownerId;
+}
+
+/** Stamp/replace a doc's owner. */
+export function setDocOwner(id: string, ownerId: string): void {
+  const doc = getDoc(id);
+  if (doc) saveDoc({ ...doc, ownerId });
+}
+
+/**
+ * Adopt this browser's local work into a signed-in account (Phase 4 migration).
+ * Re-stamps ownerId on every un-owned doc/publish AND anything left by the legacy
+ * `nest-auth-stub` session (`legacyOwnerId`), so no draft, publish, sticker, or link
+ * is lost. Idempotent. Returns how much moved.
+ */
+export function adoptLocalWork(ownerId: string, legacyOwnerId?: string): { drafts: number; published: number } {
+  const shouldAdopt = (owner?: string) => !owner || owner === legacyOwnerId || owner === ownerId;
+  const docs = allDocs();
+  let drafts = 0;
+  for (const doc of Object.values(docs)) {
+    if (doc.ownerId !== ownerId && shouldAdopt(doc.ownerId)) {
+      docs[doc.id] = { ...doc, ownerId };
+      if (doc.visibility === "draft") drafts += 1;
+    }
+  }
+  write(DOCS_KEY, docs);
+
+  const refs = published();
+  let publishedCount = 0;
+  for (const ref of Object.values(refs)) {
+    if (ref.ownerId !== ownerId && shouldAdopt(ref.ownerId)) {
+      refs[ref.slug] = { ...ref, ownerId };
+      publishedCount += 1;
+    }
+  }
+  write(PUB_KEY, refs);
+
+  return { drafts, published: publishedCount };
+}
+
+/** How much local work would be adopted (for the "import your drafts?" prompt). */
+export function countAdoptableWork(ownerId: string, legacyOwnerId?: string): { drafts: number; published: number } {
+  const shouldAdopt = (owner?: string) => (!owner || owner === legacyOwnerId) && owner !== ownerId;
+  const pubDocIds = new Set(Object.values(published()).map((r) => r.docId));
+  const drafts = getAllLocalDocs().filter((d) => d.visibility === "draft" && !pubDocIds.has(d.id) && shouldAdopt(d.ownerId)).length;
+  const publishedCount = Object.values(published()).filter((r) => shouldAdopt(r.ownerId)).length;
+  return { drafts, published: publishedCount };
 }
 
 // ── Encoding (self-contained shareable links) ────────────────────────────────

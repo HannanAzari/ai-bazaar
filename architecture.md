@@ -235,14 +235,17 @@ has a graceful fallback.
 
 ## 6. Route map
 
-> **M15 app shell (2026-07-02, ADR-033) + M15.1 nav correction (2026-07-03, ADR-034).** Nestudio
+> **M15 app shell (ADR-033) + M15.1 nav (ADR-034) + M16 identity (2026-07-03, ADR-035).** Nestudio
 > opens into a real app shell with a permanent mobile bottom nav — **5 icon-only tabs**:
 > `Home · Explore · Create · Notifications · Profile` (`components/nest/app-shell/*`). These routes
 > own their own chrome (the V1 `SiteHeader` hides itself there). **Home = discovery**, **Profile =
-> the private dashboard** (the public profile is `/@<handle>`, served from `/profile/[handle]` via a
-> `next.config` rewrite). Identity is the **nest-auth** session joined with `lib/nest-profile-store.ts`
-> (username ownership). `/`→`/home`; `/studio`+`/design/nest-onboarding`→ shell; `/updates`→
-> `/notifications`. See [m15-app-shell.md](docs/m15-app-shell.md).
+> the private dashboard** (public profile `/@<handle>` → `/profile/[handle]` via a `next.config`
+> rewrite). **M16:** identity is a **real Nest account** — `lib/nest-account.ts` is a backend facade
+> (multi-account local demo | Supabase Auth, by `NEXT_PUBLIC_NEST_BACKEND`) owning a unique/immutable
+> username + profile (`lib/nest-profile-store.ts`) and **Nests via `ownerId`** (owner-only
+> edit/publish/delete; Supabase RLS server-side). Sign-in **adopts** local + legacy-stub work
+> (`lib/nest-migration.ts`). `/`→`/home`; `/studio`+`/design/nest-onboarding`→ shell; `/updates`→
+> `/notifications`. See [m15-app-shell.md](docs/m15-app-shell.md) + [m16-identity-auth.md](docs/m16-identity-auth.md).
 
 | Route | Type | Notes |
 |---|---|---|

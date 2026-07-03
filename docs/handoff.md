@@ -5,19 +5,19 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest Nest sprint — M15.1 navigation meaning correction (2026-07-03):** the app shell now
-> uses **5 icon-only tabs** — `Home · Explore · Create · Notifications · Profile`. **Home is
-> discovery** (a feed of published + curated Nests); **Profile (`/profile`) is the private
-> dashboard** (profile summary · Continue creating · Published · Create New — the old `/home`
-> content); Explore gained search + trending tag chips; `/updates`→`/notifications`; and the
-> editor + publish gate + `/studio` return to **`/profile`**. Correction sprint (no new features),
-> ADR-034. This builds on **M15 real app shell (2026-07-02, ADR-033)**: permanent bottom nav,
-> username ownership at `/@<handle>` (served from `/profile/[handle]` via a `next.config` rewrite),
-> the **nest-auth identity** (`lib/nest-profile-store.ts` + `useNestIdentity`, no auth rewrite),
-> single editor + persistence preserved. Identity is **local-mode** for now. Shipped on
-> `m12-nest-platform` (**preview only — not merged to `main`**). See
-> [m15-app-shell.md](m15-app-shell.md) + decision-log ADR-033/ADR-034. Prior: M13 mobile
-> stabilisation ([m13-mobile-stabilisation.md](m13-mobile-stabilisation.md), ADR-032).
+> **Latest Nest sprint — M16 real identity & authentication (2026-07-03):** the temporary
+> browser-local identity is now a **real account system**. `lib/nest-account.ts` is a backend
+> facade (like `nest-repo`) — a **multi-account local demo** (email + password + session, verifiable
+> in preview) or real **Supabase Auth** (`SupabaseAuthClient`), keyed by `NEXT_PUBLIC_NEST_BACKEND`.
+> Accounts own a **unique, immutable username** + profile (bio/avatar/socials) and their **Nests**;
+> `ownerId` gates edit/republish/delete (the editor denies others; Supabase RLS enforces it
+> server-side). On sign-in, `lib/nest-migration.ts` **adopts** un-owned + legacy M15-stub work
+> (drafts, publishes, stickers, links, username) with no Nest loss. The shell reads it all via
+> `useNestIdentity`. Public profiles at `/@username`. **Preview runs the local backend;** Supabase
+> auth/RLS/tables go live via the cutover (apply migrations · enable email auth · set the flag).
+> Shipped on `m12-nest-platform` (**preview only — not merged to `main`**). See
+> [m16-identity-auth.md](m16-identity-auth.md) + decision-log ADR-035. Prior: M15 / M15.1 app shell
+> ([m15-app-shell.md](m15-app-shell.md), ADR-033/ADR-034).
 
 **Before closing any sprint, follow [sprint-checklist.md](sprint-checklist.md)
 (definition of done): update all source-of-truth docs, then pass typecheck +

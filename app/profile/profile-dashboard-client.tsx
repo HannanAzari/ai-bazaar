@@ -20,18 +20,18 @@ import type { NestDocument } from "@/lib/nest-document-types";
 // where the editor + publish flow return to. Home is now discovery (see app/home).
 
 export function ProfileDashboardClient() {
-  const { session, signedIn } = useNestIdentity();
+  const { ownerId, signedIn } = useNestIdentity();
   const [drafts, setDrafts] = useState<NestDocument[]>([]);
   const [published, setPublished] = useState<PublishedNest[]>([]);
 
   useEffect(() => {
     const load = () => {
-      setDrafts(listDrafts());
-      setPublished(listPublished(session?.userId));
+      setDrafts(listDrafts(ownerId));
+      setPublished(listPublished(ownerId));
     };
     load();
     return onDocsChanged(load);
-  }, [session?.userId]);
+  }, [ownerId]);
 
   const empty = drafts.length === 0 && published.length === 0;
 

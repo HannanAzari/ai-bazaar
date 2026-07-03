@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Palette, Sparkles } from "lucide-react";
 import { getBackgrounds, getTemplates, hydrateLibrary, onProductionChanged } from "@/lib/nest-production-library";
 import { createFromBackground, createFromTemplate } from "@/lib/nest-repo";
+import { setDocOwner } from "@/lib/nest-document-store";
+import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import type { ProductionBackground, ProductionTemplate } from "@/lib/nest-production-types";
 
 // Phase 2 — the Create tab, the single creation entry point. Quick Start (a ready
@@ -16,6 +18,7 @@ type Step = "entry" | "quick" | "build";
 
 export function CreateClient() {
   const router = useRouter();
+  const { ownerId } = useNestIdentity();
   const [step, setStep] = useState<Step>("entry");
   const [templates, setTemplates] = useState<ProductionTemplate[]>([]);
   const [backgrounds, setBackgrounds] = useState<ProductionBackground[]>([]);
@@ -40,12 +43,13 @@ export function CreateClient() {
   async function startTemplate(id: string) {
     setBusy(true);
     const doc = await createFromTemplate(id);
-    if (doc) router.push(`/nest-editor?document=${doc.id}`);
+    if (doc) { if (ownerId) setDocOwner(doc.id, ownerId); router.push(`/nest-editor?document=${doc.id}`); }
     else setBusy(false);
   }
   async function startBackground(id: string, name?: string) {
     setBusy(true);
     const doc = await createFromBackground(id, name ? `My ${name}` : "My Nest");
+    if (ownerId) setDocOwner(doc.id, ownerId);
     router.push(`/nest-editor?document=${doc.id}`);
   }
 

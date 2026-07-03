@@ -1,8 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getNestSession, localSignUp, type NestSession } from "@/lib/nest-auth";
-import { nestBackend } from "@/lib/nest-repo";
+import {
+  getCurrentAccount,
+  onAccountChange,
+  signIn as accountSignIn,
+  signOut as accountSignOut,
+  signUp as accountSignUp,
+  type AuthResult,
+  type NestAccount,
+} from "@/lib/nest-account";
 import {
   claimUsername as claimUsernameStore,
   ensureNestProfile,
@@ -11,68 +18,97 @@ import {
   updateNestProfile,
   type ClaimResult,
   type NestProfile,
+  type NestSocials,
 } from "@/lib/nest-profile-store";
+import { migrateLocalWorkToAccount } from "@/lib/nest-migration";
 
-// One hook the app shell (Home · Create · profile · /@handle) reads to answer
-// "who is signed in, and what's their Nest identity". It joins the nest-auth
-// session with the local nest-profile store and keeps them in sync.
+// M16 — the one hook the app shell reads for identity. It joins the real Nest
+// account (lib/nest-account: local multi-account | Supabase Auth) with the account's
+// profile, and runs the local-work migration on sign-in so no draft/publish is lost.
 export function useNestIdentity() {
-  const [session, setSession] = useState<NestSession | null>(null);
+  const [account, setAccount] = useState<NestAccount | null>(null);
   const [profile, setProfile] = useState<NestProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Adopt local work + ensure a profile whenever an account becomes active.
+  const onAuthed = useCallback((acct: NestAccount) => {
+    migrateLocalWorkToAccount(acct.id, acct.email);
+    setAccount(acct);
+    setProfile(ensureNestProfile(acct.id, acct.email.split("@")[0]));
+  }, []);
+
+  // Restore the session on mount (Supabase token or local session).
   useEffect(() => {
     let alive = true;
-    getNestSession().then((s) => {
+    getCurrentAccount().then((acct) => {
       if (!alive) return;
-      setSession(s);
-      if (s && !s.isGuest) setProfile(ensureNestProfile(s.userId, s.username));
+      if (acct) onAuthed(acct);
       setLoading(false);
     });
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
+  }, [onAuthed]);
+
+  // React to external auth changes (other tabs, Supabase refresh, sign-out).
+  useEffect(() => {
+    return onAccountChange(() => {
+      getCurrentAccount().then((acct) => {
+        if (acct) onAuthed(acct);
+        else { setAccount(null); setProfile(null); }
+      });
+    });
+  }, [onAuthed]);
+
+  // Keep the profile fresh when it changes (claim, edit).
+  useEffect(() => {
+    if (!account) return;
+    return onNestProfilesChanged(() => setProfile(getNestProfile(account.id)));
+  }, [account]);
+
+  const signUp = useCallback(async (email: string, password: string): Promise<AuthResult> => {
+    const r = await accountSignUp(email, password);
+    if (r.ok) onAuthed(r.account);
+    return r;
+  }, [onAuthed]);
+
+  const signIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
+    const r = await accountSignIn(email, password);
+    if (r.ok) onAuthed(r.account);
+    return r;
+  }, [onAuthed]);
+
+  const signOut = useCallback(async () => {
+    await accountSignOut();
+    setAccount(null);
+    setProfile(null);
   }, []);
 
-  // Reflect external profile edits (e.g. another tab, or the claim flow).
-  useEffect(() => {
-    if (!session || session.isGuest) return;
-    const sync = () => setProfile(getNestProfile(session.userId));
-    return onNestProfilesChanged(sync);
-  }, [session]);
-
-  const claimUsername = useCallback(
-    (username: string): ClaimResult => {
-      if (!session) return { ok: false, error: "Sign in to claim a username." };
-      const r = claimUsernameStore(session.userId, username);
-      if (r.ok) setProfile(r.profile);
-      return r;
-    },
-    [session],
-  );
+  const claimUsername = useCallback((username: string): ClaimResult => {
+    if (!account) return { ok: false, error: "Sign in to claim a username." };
+    const r = claimUsernameStore(account.id, username);
+    if (r.ok) setProfile(r.profile);
+    return r;
+  }, [account]);
 
   const updateProfile = useCallback(
-    (patch: Partial<Pick<NestProfile, "displayName" | "bio" | "avatarUrl">>) => {
-      if (!session) return;
-      setProfile(updateNestProfile(session.userId, patch));
+    (patch: Partial<Pick<NestProfile, "displayName" | "bio" | "avatarUrl" | "socials">>) => {
+      if (!account) return;
+      setProfile(updateNestProfile(account.id, patch));
     },
-    [session],
+    [account],
   );
 
-  // Guest → signed-in on the local backend: claim a username without leaving Home.
-  // (On the Supabase backend, identity is created through the publish gate's real
-  // sign-up, so this is intentionally local-only.)
-  const startLocalIdentity = useCallback((username: string): ClaimResult => {
-    if (nestBackend() !== "local") return { ok: false, error: "Sign up from the editor to publish." };
-    const s = localSignUp(username);
-    const r = claimUsernameStore(s.userId, username);
-    if (r.ok) {
-      setSession({ userId: s.userId, username: r.profile.username, isGuest: false });
-      setProfile(r.profile);
-    }
-    return r;
-  }, []);
-
-  const signedIn = !!session && !session.isGuest;
-  return { session, profile, loading, signedIn, claimUsername, updateProfile, startLocalIdentity };
+  return {
+    account,
+    profile,
+    loading,
+    signedIn: !!account,
+    ownerId: account?.id,
+    signUp,
+    signIn,
+    signOut,
+    claimUsername,
+    updateProfile,
+  };
 }
+
+export type { NestSocials };

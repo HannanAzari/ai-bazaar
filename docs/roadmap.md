@@ -68,6 +68,7 @@ by generating visuals per creator.**
 | M13 — Mobile Stabilisation | 2026-07-02 | Reunited the single Nest editor with the restored Golden Nest assets after the M12 library cutover: catalog-aligned asset ids (Connect + Surfaces work), `seat`/`desk` floor guardrails, generic text/image overlays, mobile UX (Done→/studio, scroll-lock, 16px inputs, safe-area), null-safe `slotTypeForAsset` (focus-scene crash fix), `/nest-admin` redirect, flawed oak assets hidden + templates repointed. Preview only (`m12-nest-platform`); 319 tests. See [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md) + ADR-032. |
 | M15 — Real App Shell & Nest Home | 2026-07-02 | Nestudio becomes a real app: permanent mobile bottom nav (`Home · Explore · Create · Updates`), real **Home** (profile summary · drafts · published), **username ownership** + `/@<handle>` public profile, Create tab as the single creation entry, Explore + Updates placeholders. Built on the **nest-auth identity** (no auth rewrite); single editor + persistence preserved. `/studio`,`/`,`/design/nest-onboarding` redirect into the shell; editor/publish return to `/home` (login wall removed). Preview only (`m12-nest-platform`); 335 tests. See [m15-app-shell.md](m15-app-shell.md) + ADR-033. |
 | M15.1 — Navigation Meaning Correction | 2026-07-03 | Fix the app's IA before preview testing: **5 icon-only tabs** (`Home · Explore · Create · Notifications · Profile`); **Home = discovery feed**, **Profile = the private dashboard** (was `/home`); Explore gains search + trending chips; `/updates`→`/notifications`; editor/publish/`/studio` return to `/profile`. Correction sprint (no new features). Preview only (`m12-nest-platform`); 335 tests. See [m15-app-shell.md](m15-app-shell.md) + ADR-034. |
+| M16 — Real Identity & Authentication | 2026-07-03 | Replace the temporary browser-local identity with a **real account system**: email sign-up/sign-in/sign-out + session restore (Nest account facade — local multi-account demo \| Supabase Auth), **unique/immutable usernames**, profile completion (bio/avatar/socials), **ownership enforcement** (only owners edit/republish/delete; editor denies others; Supabase RLS server-side), **local-work migration** on sign-in (no Nest loss), and public `/@username` profiles. Infrastructure only. Preview runs the local backend; Supabase goes live via cutover. Preview only (`m12-nest-platform`); 344 tests. See [m16-identity-auth.md](m16-identity-auth.md) + ADR-035. |
 
 All sprints ship green: `typecheck · lint · test · build`.
 
@@ -75,16 +76,17 @@ All sprints ship green: `typecheck · lint · test · build`.
 
 ## In Progress
 
-**M15.1 navigation meaning correction shipped 2026-07-03** on `m12-nest-platform` (preview only;
-**not merged to `main`, not deployed to production**): **5 icon-only tabs** (`Home · Explore ·
-Create · Notifications · Profile`), **Home = discovery**, **Profile = the private dashboard**
-(the old `/home`), Explore search + trending chips, `/updates`→`/notifications`, and
-editor/publish/`/studio` returning to `/profile`. See ADR-034. This corrects **M15 real app shell
-& Nest Home shipped 2026-07-02** (permanent mobile bottom nav, real Home, username ownership
-`/@handle`, Create as the single creation entry), built on the nest-auth identity; single editor +
-persistence preserved. See [m15-app-shell.md](m15-app-shell.md) + ADR-033. **Next:** back the
-identity + `/@handle` with the Supabase backend (currently local-mode), unify the nest-auth and V1
-AuthProvider sessions, and bring back Village as a real tab. Earlier, **M13 mobile
+**M16 real identity & authentication shipped 2026-07-03** on `m12-nest-platform` (preview only;
+**not merged to `main`, not deployed to production**): a **real Nest account system** (email
+sign-up/sign-in/sign-out + session restore), **unique/immutable usernames**, profile completion,
+**ownership enforcement**, **local-work migration** on sign-in (no Nest loss), and public
+`/@username` profiles. Built as a backend facade — a verifiable local multi-account demo in
+preview, with real **Supabase Auth** + RLS ownership behind the documented cutover. See
+[m16-identity-auth.md](m16-identity-auth.md) + ADR-035. **Next (cutover):** apply the `nest_*`
+migrations, enable Supabase email auth, set `NEXT_PUBLIC_NEST_BACKEND=supabase`; add server-side
+social columns + `/@handle` resolution. Earlier, **M15 / M15.1** built the app shell + corrected
+its IA (5 icon-only tabs; Home = discovery, Profile = dashboard); see
+[m15-app-shell.md](m15-app-shell.md) + ADR-033/ADR-034. Earlier still, **M13 mobile
 stabilisation shipped 2026-07-02** (single editor reunited with the Golden Nest assets); see
 [m13-mobile-stabilisation.md](m13-mobile-stabilisation.md) and
 [m12-preview-mobile-test-checklist.md](m12-preview-mobile-test-checklist.md). Earlier still,

@@ -86,7 +86,9 @@ export async function persistDoc(doc: NestDocument): Promise<NestDocument> {
 }
 
 // ── Publish ────────────────────────────────────────────────────────────────--
-export async function publish(id: string, visibility: NestVisibility): Promise<PublishResult | undefined> {
+// `ownerId` stamps ownership on the published nest (M16). Supabase enforces owner via
+// RLS + the session; the local path records it so listPublished/@handle resolve by owner.
+export async function publish(id: string, visibility: NestVisibility, ownerId?: string): Promise<PublishResult | undefined> {
   if (isSupabaseBackend()) {
     try {
       const r = await sbRepo.publishNest(id, visibility);
@@ -95,8 +97,7 @@ export async function publish(id: string, visibility: NestVisibility): Promise<P
       /* fall back to the self-contained local URL */
     }
   }
-  const session = localSession();
-  return localPublish(id, visibility, session?.userId ?? "local-owner");
+  return localPublish(id, visibility, ownerId ?? localSession()?.userId ?? "local-owner");
 }
 
 // ── Visitor resolution ─────────────────────────────────────────────────────--

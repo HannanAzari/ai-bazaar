@@ -8,6 +8,38 @@ for technical detail.
 
 ---
 
+## 2026-07-03 — M16: real identity & authentication
+
+Infrastructure sprint on `m12-nest-platform` (preview only; **no merge to `main`, no production
+deploy**). Replaces the temporary browser-local identity with a **real account system** that owns
+usernames, profiles, drafts, and published Nests. No social systems / villages / marketplace / AI.
+Full record: [m16-identity-auth.md](m16-identity-auth.md); rationale ADR-035.
+
+### Added
+- **Nest account facade** (`lib/nest-account.ts`) — email sign-up / sign-in / sign-out, session
+  persistence + restoration, chosen by `NEXT_PUBLIC_NEST_BACKEND`: a **multi-account local layer**
+  (verifiable in preview, no external deps) and the real **Supabase Auth** path (existing
+  `SupabaseAuthClient`). Email-confirmation handled gracefully both ways.
+- **Username ownership** — unique, validated (`[a-z0-9_]`, 3–20), reserved-word list, **immutable
+  once claimed** (`lib/nest-profile-store.ts`; Supabase `profiles` has a unique index on
+  `lower(username)`).
+- **Profile completion** — display name, bio, avatar + optional website / github / twitter / youtube.
+- **Ownership enforcement** — `ownerId` on every NestDocument; only the owner edits/republishes/
+  deletes; the editor denies opening another creator's Nest; visitors view/share. Supabase RLS
+  enforces the same server-side.
+- **Local-work migration** (`lib/nest-migration.ts`) — on sign-in, adopt un-owned + legacy M15-stub
+  drafts, published history, overlays/stickers, links, and the stub username into the account.
+  Idempotent, no Nest loss, other accounts untouched.
+- **Public profile** `/@username` hero (avatar · name · @handle · bio · links) + published Nests.
+- Auth panel + reworked publish gate (delayed sign-up → claim username → publish → back to Profile).
+- Tests: `nest-account.test.ts`, `nest-ownership-migration.test.ts`, updated `nest-profile-store.test.ts` (344 total).
+
+### Notes
+- Preview runs the **local backend**; real Supabase Auth + RLS ownership + `profiles`/`nests` tables
+  go live after the documented cutover (apply migrations · enable email auth · set the flag).
+
+---
+
 ## 2026-07-03 — M15.2: pre-M16 cleanup pass
 
 Small cleanup on `m12-nest-platform` (preview only; **no merge to `main`, no production

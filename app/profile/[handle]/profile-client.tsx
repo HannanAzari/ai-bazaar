@@ -5,16 +5,16 @@ import Link from "next/link";
 import { Avatar } from "@/components/nest/app-shell/profile-summary";
 import { NestCard } from "@/components/nest/app-shell/nest-card";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
-import { getNestProfile, onNestProfilesChanged, resolveByUsername, type NestProfile } from "@/lib/nest-profile-store";
+import { getNestProfile, onNestProfilesChanged, resolveByUsername, type NestProfile, type NestSocials } from "@/lib/nest-profile-store";
 import { listPublished, onDocsChanged, publishedUrl, type PublishedNest } from "@/lib/nest-document-store";
 
-// Phase 4 — the public creator profile at /@<handle> (served from /profile/<handle>
-// via a rewrite). Resolves the handle to a nest-profile and lists that creator's
-// published Nests. Resolution is local (this browser) in the current backend — see
-// the M15 known limitations.
+// M16 — the public creator profile at /@<handle> (served from /profile/<handle> via a
+// rewrite): profile hero (avatar · display name · @username · bio · links) + the
+// creator's published Nests. Resolution is local in the current backend; the Supabase
+// path resolves it from the `profiles` table by the cutover (see M16 known limitations).
 
 export function ProfileClient({ handle }: { handle: string }) {
-  const { session } = useNestIdentity();
+  const { ownerId } = useNestIdentity();
   const [profile, setProfile] = useState<NestProfile | null | undefined>(undefined); // undefined = resolving
   const [published, setPublished] = useState<PublishedNest[]>([]);
 
@@ -46,9 +46,10 @@ export function ProfileClient({ handle }: { handle: string }) {
     );
   }
 
-  const isOwn = session?.userId === profile.userId;
-  // Refresh from the store so a just-saved bio shows immediately for the owner.
+  const isOwn = ownerId === profile.userId;
+  // Refresh from the store so a just-saved bio/link shows immediately for the owner.
   const live = getNestProfile(profile.userId) ?? profile;
+  const links = socialLinks(live.socials);
 
   return (
     <div className="space-y-6 pt-1">
@@ -56,10 +57,18 @@ export function ProfileClient({ handle }: { handle: string }) {
         <div className="flex items-center gap-3">
           <Avatar username={live.username} size={64} />
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl font-black text-ink">@{live.username}</h1>
+            <h1 className="truncate text-xl font-black text-ink">{live.displayName ?? `@${live.username}`}</h1>
+            {live.displayName ? <p className="truncate text-sm text-ink/45">@{live.username}</p> : null}
             <p className="truncate text-sm text-ink/50">{live.bio ?? "A cozy corner on Nestudio."}</p>
           </div>
         </div>
+        {links.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {links.map((l) => (
+              <a key={l.label} href={l.href} target="_blank" rel="noreferrer" className="rounded-full border border-timber/20 bg-parchment px-3 py-1.5 text-xs font-bold text-ink/70 hover:text-ink">{l.label} ↗</a>
+            ))}
+          </div>
+        ) : null}
         <div className="mt-4 flex items-center gap-6 border-t border-timber/10 pt-3">
           <div>
             <p className="text-lg font-black text-ink">{published.length}</p>
@@ -69,7 +78,7 @@ export function ProfileClient({ handle }: { handle: string }) {
         </div>
       </header>
 
-      <section>
+      <section aria-label="Published Nests">
         <h2 className="mb-2 text-lg font-black text-ink">Published Nests</h2>
         {published.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-timber/25 bg-white/60 p-6 text-center text-sm text-ink/50">No published Nests yet.</p>
@@ -83,4 +92,16 @@ export function ProfileClient({ handle }: { handle: string }) {
       </section>
     </div>
   );
+}
+
+/** Turn stored social handles/URLs into labelled outbound links. */
+function socialLinks(socials?: NestSocials): { label: string; href: string }[] {
+  if (!socials) return [];
+  const ensureUrl = (v: string) => (/^https?:\/\//i.test(v) ? v : `https://${v.replace(/^@/, "")}`);
+  const out: { label: string; href: string }[] = [];
+  if (socials.website) out.push({ label: "Website", href: ensureUrl(socials.website) });
+  if (socials.github) out.push({ label: "GitHub", href: ensureUrl(socials.github.includes("/") ? socials.github : `github.com/${socials.github.replace(/^@/, "")}`) });
+  if (socials.twitter) out.push({ label: "Twitter", href: ensureUrl(socials.twitter.includes("/") ? socials.twitter : `x.com/${socials.twitter.replace(/^@/, "")}`) });
+  if (socials.youtube) out.push({ label: "YouTube", href: ensureUrl(socials.youtube) });
+  return out;
 }
