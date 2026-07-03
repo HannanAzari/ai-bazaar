@@ -8,6 +8,60 @@ for technical detail.
 
 ---
 
+## 2026-07-03 — M19.1: arrival magic & atmosphere
+
+Pure polish + atmosphere on `m12-nest-platform` (preview only; **no merge to `main`, no production
+deploy**). Not a feature sprint — a *feeling* sprint: the M19 village + arrival now have a **time of
+day**, **weather**, **house life**, a **cinematic camera**, and a **round-trip door**, so opening a
+Nest feels like *arriving at someone's place*. No auth / marketplace / AI / multiplayer / migrations.
+Full record: [m19.1-arrival-magic.md](m19.1-arrival-magic.md); rationale ADR-040.
+
+### Added
+- **Time of day** (`lib/nest-atmosphere.ts`) — Morning / Afternoon / Evening / Night from the
+  visitor's clock (computed after mount → hydration-safe); the sky, sun/moon + stars, light, and
+  hills re-colour, and windows glow stronger at night (`SKY_THEMES`, `timeOfDay`).
+- **Weather** — a deterministic **daily rotation** (one sky for the whole village): sunny / cloudy /
+  rain / snow, with subtle CSS particles + overcast wash (`weatherForDay`, `WEATHER_THEMES`).
+- **House life** — chimney smoke (when home), softly breathing lit windows, a swaying tree, drifting
+  clouds, and the occasional bird across the sky (skipped at night / in rain). Restraint over motion.
+- **Deeper house identity** (`houseFeatures`) — seed-derived **roof shape · window shape · door type
+  · garden decoration · mailbox**, so two same-persona houses still feel like different homes.
+- **Cinematic camera** — tapping a house **zooms the board toward it** (CSS transform + blur) while
+  the neighborhood softens, then the arrival panel rises (`nest-arrive`/`nest-approach`).
+- **Arrival polish** (`HouseFront`) — creator avatar · bio · **now-showing Nest** · **followers** ·
+  **nests** · online indicator · a live **time · weather** chip · Enter — under the living sky.
+- **Door round trip** — **Enter** opens the door, floods warm light, and **pushes the camera
+  forward** before the Nest loads; **Exit** (new, on the Nest page) **closes the door** and returns
+  you to the house / village (`DoorTransition` gains `mode: "enter" | "exit"` + `nest-cam-forward`).
+- **Ambient audio ARCHITECTURE** (`lib/nest-ambience.ts`) — a scene registry + deterministic resolver
+  behind **`ENABLE_NEST_AUDIO`** (default **OFF**). **No sound files, nothing plays** — the seam only.
+- **CSS scene animations** (`app/globals.css`) — `nest-twinkle`/`nest-birds`/`nest-flap`/`nest-rain`/
+  `nest-snow`/`nest-sway`/`nest-cam-forward`/`nest-door-close`; all reduced-motion safe.
+- Tests: `test/nest-atmosphere.test.ts` + `test/nest-house-features.test.ts` (13 new; **402 total**).
+
+### Changed
+- `SceneBackdrop` / `HouseExterior` / `VillageScene` / `HouseFront` / `village-client` take the sky +
+  weather; the profile house + village houses carry a `nestCount`. `useAtmosphere` is the shared hook.
+- The Nest visitor page swaps "More Nests" for an **Exit** door-close return.
+
+### Database
+- **None.** Atmosphere is a pure derived presentation layer (no tables / migrations / schema change).
+
+### Flags
+- **`ENABLE_NEST_AUDIO`** (default **OFF**) — reserves the ambient-audio seam; nothing plays yet.
+
+### Verification (browser, mobile 375×812)
+- Village renders with a live **Afternoon · Rain** sky (rain particles, overcast) and varied house
+  features; tap a house → camera softens the neighborhood → arrival panel; **Enter → door + camera
+  push → composed Nest**; **Exit → door closes → back to the village**; forcing the clock to 21:00
+  shows the **Night** village (moon, all windows glowing, lit lanterns). No console errors.
+
+### Notes
+- Time of day is the **visitor's** local clock; weather is cosmetic (deterministic rotation). Ambient
+  audio is **architecture only** (flag off, no files) until a later sprint.
+
+---
+
 ## 2026-07-03 — M19: villages, houses & the arrival experience
 
 The first spatial layer on `m12-nest-platform` (preview only; **no merge to `main`, no production

@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Compass, Eye, Heart, Lock, MessageCircle, Pencil, UserRound } from "lucide-react";
+import { DoorClosed, Eye, Heart, Lock, MessageCircle, Pencil, UserRound } from "lucide-react";
+import { styleFor } from "@/lib/nest-house";
+import { DoorTransition } from "@/components/nest/village/enter-transition";
 import { resolveTemplate } from "@/lib/nest-production-library";
 import { resolvePublished } from "@/lib/nest-repo";
 import { resolvePublishedBySlug } from "@/lib/nest-document-store";
@@ -55,7 +58,9 @@ function Gate({ icon, title, body }: { icon: React.ReactNode; title: string; bod
 }
 
 function VisitorView({ doc, slug }: { doc: NestDocument; slug: string }) {
+  const router = useRouter();
   const { ownerId } = useNestIdentity();
+  const [leaving, setLeaving] = useState(false);
   const localRef = resolvePublishedBySlug(slug);
   const ownerFromDoc = doc.ownerId ?? localRef?.ref.ownerId;
   const localDoc = localRef?.doc;
@@ -64,6 +69,18 @@ function VisitorView({ doc, slug }: { doc: NestDocument; slug: string }) {
   const templateId = doc.sourceTemplateId ?? localDoc?.sourceTemplateId;
   const tpl = templateId ? resolveTemplate(templateId) : undefined;
   const tags = tpl?.tags ?? [];
+  const style = styleFor(tpl?.persona);
+
+  // M19.1 return journey — the door closes behind you, then back to where you came
+  // (the house front / the village), not an abrupt jump.
+  function leave() {
+    setLeaving(true);
+  }
+  function afterLeave() {
+    if (typeof window !== "undefined" && window.history.length > 1) router.back();
+    else if (creator.username) router.push(`/@${creator.username}`);
+    else router.push("/village");
+  }
   const isOwner = !!ownerId && ownerFromDoc === ownerId;
   const editDocId = localDoc?.id ?? doc.id;
 
@@ -78,10 +95,11 @@ function VisitorView({ doc, slug }: { doc: NestDocument; slug: string }) {
       {/* You're stepping into someone's identity space — lead with who lives here. */}
       <div className="mb-3 flex items-center justify-between gap-3">
         <CreatorBadge creator={creator} />
-        <Link href="/home" className="inline-flex items-center gap-1 rounded-full border border-timber/20 bg-white px-3 py-1.5 text-xs font-bold text-ink/60 hover:text-ink">
-          <Compass className="size-3.5" /> More Nests
-        </Link>
+        <button onClick={leave} className="inline-flex items-center gap-1 rounded-full border border-timber/20 bg-white px-3 py-1.5 text-xs font-bold text-ink/60 hover:text-ink active:scale-95">
+          <DoorClosed className="size-3.5" /> Exit
+        </button>
       </div>
+      {leaving ? <DoorTransition style={style} mode="exit" onDone={afterLeave} label="Heading back out…" /> : null}
 
       {/* the composed room */}
       <NestPreview doc={doc} className="aspect-[3/4] w-full" rounded="rounded-3xl border border-[#e0d5b8] shadow-sm" />

@@ -525,6 +525,64 @@ body::before {
 }
 .nest-door-flood { animation: nest-door-flood 0.9s ease-in both; }
 
+/* ── M19.1 Atmosphere & cinematics ─────────────────────────────────────────── */
+
+/* Stars twinkle at night. */
+@keyframes nest-twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50%      { opacity: 1; transform: scale(1.15); }
+}
+.nest-twinkle { animation: nest-twinkle 3.5s ease-in-out infinite; }
+
+/* Birds drift across the sky, bobbing gently. */
+@keyframes nest-birds {
+  0%   { transform: translate(0, 0); }
+  50%  { transform: translate(60vw, -14px); }
+  100% { transform: translate(120vw, 0); }
+}
+.nest-birds { animation: nest-birds 26s linear infinite; }
+@keyframes nest-flap {
+  0%, 100% { transform: scaleY(1); }
+  50%      { transform: scaleY(0.55); }
+}
+.nest-flap { animation: nest-flap 0.5s ease-in-out infinite; }
+
+/* Rain falls; snow falls and drifts. */
+@keyframes nest-rain {
+  0%   { transform: translateY(-10%); opacity: 0; }
+  10%  { opacity: 0.7; }
+  100% { transform: translateY(1000%); opacity: 0.2; }
+}
+.nest-rain { animation: nest-rain linear infinite; }
+@keyframes nest-snow {
+  0%   { transform: translate(0, -10%); opacity: 0; }
+  10%  { opacity: 0.9; }
+  100% { transform: translate(var(--drift, 0), 2200%); opacity: 0.5; }
+}
+.nest-snow { animation: nest-snow linear infinite; }
+
+/* A tree/house detail sways in the breeze. */
+@keyframes nest-sway {
+  0%, 100% { transform: rotate(-1.4deg); }
+  50%      { transform: rotate(1.4deg); }
+}
+.nest-sway { animation: nest-sway 5.5s ease-in-out infinite; transform-origin: 50% 100%; }
+
+/* Camera pushes forward through the door before the Nest loads. */
+@keyframes nest-cam-forward {
+  0%   { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.nest-cam-forward { animation: nest-cam-forward 0.5s cubic-bezier(0.4, 0, 1, 1) both; }
+
+/* Leaving a Nest: the door closes back over the light. */
+@keyframes nest-door-close {
+  0%   { transform: scaleX(0.05); opacity: 0; }
+  35%  { transform: scaleX(0.05); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 1; }
+}
+.nest-door-close { animation: nest-door-close 0.7s ease-out both; }
+
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto !important;

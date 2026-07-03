@@ -14,7 +14,8 @@ export type FeatureFlag =
   | "ENABLE_ACTIVITY_FEED"
   | "ENABLE_ASSET_CATALOG"
   | "ENABLE_ROOM_ENGINE"
-  | "ENABLE_AI_DESIGNER";
+  | "ENABLE_AI_DESIGNER"
+  | "ENABLE_NEST_AUDIO";
 
 const defaults: Record<FeatureFlag, boolean> = {
   // Sprint 1 — implemented, on by default
@@ -29,6 +30,8 @@ const defaults: Record<FeatureFlag, boolean> = {
   ENABLE_ROOM_ENGINE: true,
   // AI Room Designer V1 — on by default; off hides the studio "Design" mode
   ENABLE_AI_DESIGNER: true,
+  // M19.1 — ambient audio architecture only; OFF until sound files ship
+  ENABLE_NEST_AUDIO: false,
 };
 
 // next/font + Next inlines NEXT_PUBLIC_* at build time, so this lookup must use
@@ -42,6 +45,7 @@ const overrides: Record<FeatureFlag, string | undefined> = {
   ENABLE_ASSET_CATALOG: process.env.NEXT_PUBLIC_ENABLE_ASSET_CATALOG,
   ENABLE_ROOM_ENGINE: process.env.NEXT_PUBLIC_ENABLE_ROOM_ENGINE,
   ENABLE_AI_DESIGNER: process.env.NEXT_PUBLIC_ENABLE_AI_DESIGNER,
+  ENABLE_NEST_AUDIO: process.env.NEXT_PUBLIC_ENABLE_NEST_AUDIO,
 };
 
 export function isEnabled(flag: FeatureFlag): boolean {
@@ -59,4 +63,5 @@ export const flags = {
   assetCatalog: isEnabled("ENABLE_ASSET_CATALOG"),
   roomEngine: isEnabled("ENABLE_ROOM_ENGINE"),
   aiDesigner: isEnabled("ENABLE_AI_DESIGNER"),
+  nestAudio: isEnabled("ENABLE_NEST_AUDIO"),
 };

@@ -1633,6 +1633,49 @@ Nest is a room inside it).
 
 ---
 
+## ADR-040 — Arrival magic: atmosphere as deterministic, dependency-free polish (M19.1)
+
+**Status:** Accepted · 2026-07-03 · preview only on `m12-nest-platform`
+
+### Context
+M19 built the spatial layer (`Village → House → Nest`) but arrival was a *cut*: tap → instant
+overlay → instant door → jump into the Nest, under a village that looks identical every visit. The
+M19.1 mission is purely **feeling** — "does opening a Nest feel magical?" No new features, no auth,
+no marketplace, no AI, no migrations. It must stay smooth on mobile and respect reduced motion.
+
+### Decision
+Add atmosphere + cinematics as a **pure, deterministic, dependency-free** layer (no motion library —
+CSS transforms/keyframes only; no audio files; no APIs; no storage; no `Math.random`/`Date.now` in
+render). `lib/nest-atmosphere.ts` gives the village a **time of day** (from the visitor's clock,
+computed after mount so SSR agrees → no hydration mismatch) and a **deterministic daily weather**
+(one sky for the whole village). `lib/nest-ambience.ts` is an **audio architecture only** — a scene
+registry + resolver behind `ENABLE_NEST_AUDIO` (default OFF); **nothing plays** until sound ships.
+House identity deepens via seed-derived `houseFeatures` (roof/window/door/garden/mailbox). The
+camera is **cinematic**: tapping a house zooms the board toward it (CSS transform + blur) while the
+neighborhood softens, then the arrival panel rises; **Enter** opens the door + floods light + pushes
+the camera forward; **Exit** closes the door back for a real round trip.
+
+### Alternatives Considered
+- **Framer Motion** for the camera/transitions — rejected to avoid a runtime dependency + bundle
+  cost; CSS transforms + a handful of keyframes deliver the feel and are reduced-motion-safe.
+- **A weather/time API** — rejected; a deterministic daily rotation + the local clock need no network
+  and stay stable within a render (hydration-safe).
+- **Shipping audio now** — rejected; audio is heavy + needs a gesture-gated player + assets. We ship
+  only the seam (flag + resolver) so it drops in later without touching the scene.
+- **Per-house weather** — rejected for the village (one place = one sky); the seed-weather helper
+  exists for future single-house moods.
+
+### Consequences
+- (+) Opening a creator now *feels* like arriving somewhere: the sky changes through the day, the
+  houses breathe (glow/smoke/sway/birds), the camera moves with intent, and leaving is a round trip.
+- (+) Zero dependencies / schema / migrations; the atmosphere is derived, so it's unit-testable and
+  can't drift the data model. Everything degrades gracefully under `prefers-reduced-motion`.
+- (−) Time of day is the **visitor's** local clock (not the creator's), and weather is cosmetic
+  (deterministic rotation, not real). Ambient audio is **architecture only** until files + a gesture-
+  gated player ship. The cinematic zoom is a transform (not a true scene-graph camera).
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

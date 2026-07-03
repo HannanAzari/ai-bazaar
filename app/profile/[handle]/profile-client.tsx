@@ -56,13 +56,16 @@ export function ProfileClient({ handle }: { handle: string }) {
     if (!live) return null;
     const newest = published[0];
     const tpl = newest?.doc.sourceTemplateId ? resolveTemplate(newest.doc.sourceTemplateId) : undefined;
-    return deriveHouse({
-      creator: { id: live.userId, username: live.username, displayName: live.displayName },
-      persona: tpl?.persona,
-      bio: live.bio,
-      nestHref: newest ? publishedUrl(newest) : undefined,
-      latestNestTitle: newest?.doc.title,
-    });
+    return {
+      ...deriveHouse({
+        creator: { id: live.userId, username: live.username, displayName: live.displayName },
+        persona: tpl?.persona,
+        bio: live.bio,
+        nestHref: newest ? publishedUrl(newest) : undefined,
+        latestNestTitle: newest?.doc.title,
+      }),
+      nestCount: published.length,
+    };
   }, [live, published]);
 
   if (profile === undefined) {

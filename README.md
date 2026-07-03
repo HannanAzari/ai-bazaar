@@ -34,8 +34,13 @@ The world map is a **hexagon district map**: ten villages laid out as a connecte
 > Nest means stepping through a **door** (`DoorTransition`). **`/@<handle>` is re-framed as a house
 > arrival** (house hero → **Enter Nest** → "Rooms in this house") over the preserved identity +
 > social; discovery leads with **Visit House**. A pure presentation layer — no tables/migrations/
-> flags. See [docs/m19-villages-houses-arrival.md](docs/m19-villages-houses-arrival.md) +
-> decision-log ADR-033–ADR-039.
+> flags. **M19.1** makes arrival *magical*: a live **time of day** (morning→night sky/light/window
+> glow; `lib/nest-atmosphere.ts`) + deterministic **daily weather**, **house life** (smoke/glow/sway/
+> birds), a **cinematic camera** (tap zooms toward the house), richer **arrival** (avatar/bio/
+> followers/nests/online), and a **round-trip door** (Enter pushes forward · **Exit** closes back).
+> Deterministic + CSS-only (no motion lib); ambient audio is architecture-only behind
+> `ENABLE_NEST_AUDIO` (off). See [docs/m19.1-arrival-magic.md](docs/m19.1-arrival-magic.md) +
+> decision-log ADR-033–ADR-040.
 
 ## Experience
 

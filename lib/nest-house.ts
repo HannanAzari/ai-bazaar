@@ -138,7 +138,52 @@ export type House = {
   nestHref?: string;
   /** The creator's latest Nest title, for the "latest activity" line. */
   latestNestTitle?: string;
+  /** How many Nests ("rooms") this house has, when known. */
+  nestCount?: number;
 };
+
+// ── House identity features (M19.1 — deterministic, no editor) ─────────────────
+//
+// The style sets the palette; these give each house its own *shape + trimmings* so
+// two "Creator" houses still feel like different homes. All derived from the seed —
+// same creator ⇒ same house, forever.
+
+export type RoofShape = "gable" | "hip";
+export type WindowShape = "square" | "round" | "arch";
+export type DoorType = "round" | "arch" | "square";
+export type GardenDecor = "flowers" | "bush" | "lantern" | "path";
+
+export type HouseFeatures = {
+  roof: RoofShape;
+  windowShape: WindowShape;
+  windowCount: 1 | 2;
+  door: DoorType;
+  garden: GardenDecor;
+  mailbox: boolean;
+  chimney: boolean;
+  /** -1 = left, 1 = right. */
+  treeSide: -1 | 1;
+};
+
+const WINDOW_SHAPES: WindowShape[] = ["square", "round", "arch"];
+const DOOR_TYPES: DoorType[] = ["round", "arch", "square"];
+const GARDEN_DECOR: GardenDecor[] = ["flowers", "bush", "lantern", "path"];
+
+/** Decode the seed into a house's physical features. Pure + deterministic. */
+export function houseFeatures(seed: number): HouseFeatures {
+  // Unsigned shifts throughout — a seed ≥ 2³¹ would sign-extend under `>>` and
+  // produce a negative modulo (→ undefined index).
+  return {
+    roof: ((seed >>> 3) & 1) === 0 ? "gable" : "hip",
+    windowShape: WINDOW_SHAPES[(seed >>> 4) % WINDOW_SHAPES.length],
+    windowCount: ((seed % 2) + 1) as 1 | 2,
+    door: DOOR_TYPES[(seed >>> 6) % DOOR_TYPES.length],
+    garden: GARDEN_DECOR[(seed >>> 8) % GARDEN_DECOR.length],
+    mailbox: ((seed >>> 10) & 1) === 0,
+    chimney: ((seed >>> 1) & 1) === 0,
+    treeSide: ((seed >>> 2) & 1) === 0 ? -1 : 1,
+  };
+}
 
 /** A friendly first initial for the door plate / avatar. */
 export function houseInitial(house: Pick<House, "name" | "handle">): string {
@@ -189,10 +234,13 @@ export function deriveHouse(input: {
 export function houseFromItems(items: DiscoveryItem[]): House | null {
   if (items.length === 0) return null;
   const primary = items[0]; // useDiscovery lists newest-first per creator
-  return deriveHouse({
-    creator: primary.creator,
-    persona: primary.category,
-    nestHref: primary.href,
-    latestNestTitle: primary.title,
-  });
+  return {
+    ...deriveHouse({
+      creator: primary.creator,
+      persona: primary.category,
+      nestHref: primary.href,
+      latestNestTitle: primary.title,
+    }),
+    nestCount: items.length,
+  };
 }

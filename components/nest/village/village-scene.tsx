@@ -3,14 +3,27 @@
 import { useEffect, useRef } from "react";
 import type { Village, VillageHouse } from "@/lib/nest-village";
 import { houseInitial } from "@/lib/nest-house";
+import type { SkyTheme, WeatherTheme } from "@/lib/nest-atmosphere";
 import { HouseExterior } from "@/components/nest/village/house-exterior";
 import { SceneBackdrop } from "@/components/nest/village/scene-backdrop";
 
-// M19 — the Village: a hex neighborhood of houses you can pan around and tap to arrive
-// at. The world "descends" into place on mount (nest-arrive), the sky sits still behind
-// while the houses pan, and real creators wear a name plate so the village reads as a
-// real place, not a grid of dummies.
-export function VillageScene({ village, onSelect }: { village: Village; onSelect: (house: VillageHouse) => void }) {
+// M19.1 — the Village, now with a sky (time of day + weather) and a cinematic camera:
+// tapping a house zooms the board toward it while the neighborhood softens, then the
+// arrival panel appears. The world "descends" into place on mount (nest-arrive).
+export function VillageScene({
+  village,
+  onSelect,
+  sky,
+  wx,
+  zoomingId = null,
+}: {
+  village: Village;
+  onSelect: (house: VillageHouse) => void;
+  sky: SkyTheme;
+  wx: WeatherTheme;
+  /** When set, the board zooms toward this house (camera push into the arrival). */
+  zoomingId?: string | null;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Settle the camera on the heart of the village.
@@ -22,19 +35,32 @@ export function VillageScene({ village, onSelect }: { village: Village; onSelect
   }, [village]);
 
   const nodeSize = village.hexSize * 1.35;
+  const zoomHouse = zoomingId ? village.houses.find((h) => h.id === zoomingId) : null;
+  const origin = zoomHouse
+    ? { x: (zoomHouse.x / village.width) * 100, y: (zoomHouse.y / village.height) * 100 }
+    : { x: 50, y: 50 };
 
   return (
     <div className="relative h-full w-full overflow-hidden">
-      <SceneBackdrop className="absolute inset-0" />
+      <SceneBackdrop sky={sky} wx={wx} birds className="absolute inset-0" />
 
-      <div ref={scrollRef} className="relative h-full w-full overflow-auto overscroll-contain [scrollbar-width:none]">
-        <div className="nest-arrive relative" style={{ width: village.width, height: village.height }}>
+      <div ref={scrollRef} className={`relative h-full w-full overflow-auto overscroll-contain [scrollbar-width:none] ${zoomHouse ? "pointer-events-none" : ""}`}>
+        <div
+          className="nest-arrive relative transition-[transform,filter,opacity] duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{
+            width: village.width,
+            height: village.height,
+            transform: zoomHouse ? "scale(1.85)" : "scale(1)",
+            transformOrigin: `${origin.x}% ${origin.y}%`,
+            filter: zoomHouse ? "blur(2px) brightness(0.85)" : "none",
+            opacity: zoomHouse ? 0.55 : 1,
+          }}
+        >
           {/* soft village clearing under the houses */}
           <div className="pointer-events-none absolute left-1/2 top-1/2 size-[70%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#b7d195]/40 blur-2xl" />
 
           {[...village.houses]
-            // paint back-to-front so nearer houses overlap farther ones
-            .sort((a, b) => a.y - b.y)
+            .sort((a, b) => a.y - b.y) // back-to-front so nearer houses overlap
             .map((house) => (
               <button
                 key={house.id}
@@ -43,7 +69,7 @@ export function VillageScene({ village, onSelect }: { village: Village; onSelect
                 style={{ left: house.x, top: house.y, width: nodeSize, transform: "translate(-50%, -86%)", zIndex: Math.round(house.y) }}
                 aria-label={`${house.name}${house.isReal ? " (creator)" : ""}`}
               >
-                <HouseExterior house={house} className="w-full" interactive />
+                <HouseExterior house={house} className="w-full" interactive glow={sky.glow} night={sky.night} />
                 <span
                   className={`-mt-1 max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-bold shadow-soft ${
                     house.isReal ? "bg-terracotta text-parchment" : "bg-white/85 text-ink/60"

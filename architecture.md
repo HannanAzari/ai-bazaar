@@ -226,6 +226,7 @@ server + client). Blank → built-in default. Access via the `flags` object
 | `ENABLE_ASSET_CATALOG` | `assetCatalog` | on | `/assets` (internal) | route 404 |
 | `ENABLE_ROOM_ENGINE` | `roomEngine` | on | full-screen room + room editor | **falls back to legacy room** (no 404) |
 | `ENABLE_AI_DESIGNER` | `aiDesigner` | on | studio **Design** mode (AI room designer) | Design tab hidden (needs `roomEngine`) |
+| `ENABLE_NEST_AUDIO` | `nestAudio` | **off** | M19.1 ambient-audio architecture seam (`lib/nest-ambience.ts`) | nothing plays (default); no sound files ship yet |
 
 Pattern: gate the route (`if (!flags.x) notFound()`), the nav/UI entry points,
 and any data recording. All six listed routes are 404-gated; only the room engine
@@ -251,7 +252,7 @@ has a graceful fallback.
 |---|---|---|
 | `/` | redirect | → `/home` (M15). `VillageWorld` preserved in-tree (V1 map, distinct from the M19 Nest Village) |
 | `/home` | client | **Home — discovery feed** (M17/M17.1: immersive vertical **snap feed**; each card renders the **composed room** via `NestPreview`, creator row + engagement bar; M19 leads a real creator with **Visit House** / **Peek inside** + a **Village** entry pill; `lib/nest-discovery.ts`) |
-| `/village` | client | **The Village (M19)** — a pannable hex neighborhood of storybook SVG **Houses** (`components/nest/village/*`, `lib/nest-house.ts` + `lib/nest-village.ts`); tap a house → arrival panel (`HouseFront`) → **Enter Nest** door transition. Real creators centered + deterministic generated neighbors |
+| `/village` | client | **The Village (M19 · atmosphere M19.1)** — a pannable hex neighborhood of storybook SVG **Houses** (`components/nest/village/*`, `lib/nest-house.ts` + `lib/nest-village.ts`) under a live sky: **time of day + weather** (`lib/nest-atmosphere.ts` + `use-atmosphere`), house life (smoke/glow/sway/birds), a **cinematic camera** (tap zooms toward the house), and a **round-trip door** (Enter pushes forward · Exit closes back). Real creators centered + deterministic generated neighbors |
 | `/explore` | client | **Explore — search/discovery** (M17: search by title/creator/tags + category/trending chips + grid/list toggle; composed thumbnails) |
 | `/create` | client | **Create** — the single creation entry (Quick Start / Build My Own → editor) |
 | `/notifications` | client | **Notifications** — M18 real inbox (likes/follows/comments) + nav unread badge (`lib/nest-social.ts` + `lib/nest-notifications-store.ts`). `/updates` redirects here |

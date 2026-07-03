@@ -5,7 +5,23 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest Nest sprint — M19 villages, houses & arrival (2026-07-03):** the first **spatial** layer —
+> **Latest Nest sprint — M19.1 arrival magic & atmosphere (2026-07-03):** pure polish/feeling on the
+> M19 spatial layer. **`lib/nest-atmosphere.ts`** gives the village a **time of day** (morning/
+> afternoon/evening/night from the visitor's clock, computed after mount → hydration-safe; sky, sun/
+> moon + stars, light, hills, and window-glow all re-colour) + a deterministic **daily weather**
+> (sunny/cloudy/rain/snow). **`lib/nest-ambience.ts`** is an **audio ARCHITECTURE only** — a scene
+> registry + resolver behind **`ENABLE_NEST_AUDIO`** (default OFF); nothing plays, no files.
+> `houseFeatures(seed)` in `lib/nest-house.ts` adds **roof/window/door/garden/mailbox** identity.
+> `components/nest/village/use-atmosphere.ts` is the shared hook; `SceneBackdrop`/`HouseExterior`/
+> `VillageScene`/`HouseFront` consume the sky+weather. The camera is **cinematic** (tap zooms the
+> board toward the house, neighborhood softens → arrival panel), the arrival panel gained **avatar ·
+> bio · followers · nests · online · time·weather chip**, and the door is a **round trip**
+> (`DoorTransition` `mode:"enter"|"exit"` — Enter pushes the camera forward, **Exit** on the Nest page
+> closes the door back to the house/village). CSS-only (no motion lib), all reduced-motion safe; **no
+> tables/migrations/deps**. Time of day is the *visitor's* clock, weather is cosmetic, audio is the
+> seam only. Preview only (`m12-nest-platform`); 402 tests. See [m19.1-arrival-magic.md](m19.1-arrival-magic.md) + ADR-040.
+>
+> **M19 villages, houses & arrival (2026-07-03):** the first **spatial** layer —
 > `Village → House → Nest` made real so *"I visit a place, not a profile."* **`lib/nest-house.ts`**
 > derives a creator's **House** deterministically from persona + handle (`HOUSE_STYLES` · `deriveHouse`
 > · FNV-1a `hashSeed`; no editor, nothing stored, no `Math.random`/`Date.now`). **`lib/nest-village.ts`**
@@ -178,6 +194,7 @@ decorate a **room**, and visitors discover you by exploring spaces, not a feed.
 | `ENABLE_ASSET_CATALOG` | on | `/assets` (internal) | route 404 |
 | `ENABLE_ROOM_ENGINE` | on | full-screen room + room editor | **legacy room (no 404)** |
 | `ENABLE_AI_DESIGNER` | on | studio **Design** mode (AI room designer) | Design tab hidden (needs `roomEngine`) |
+| `ENABLE_NEST_AUDIO` | **off** | M19.1 ambient-audio **architecture** seam (no files yet) | nothing plays (default); village ambience chip hidden |
 
 ---
 
