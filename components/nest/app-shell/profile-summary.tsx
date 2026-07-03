@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, LogOut, Pencil, UserRound, X } from "lucide-react";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { AuthPanel } from "@/components/nest/app-shell/auth-panel";
+import { formatCount, placeholderSocial } from "@/lib/nest-engagement";
 import type { NestSocials } from "@/lib/nest-profile-store";
 
 // M16 — the Profile dashboard header. States: signed-out (sign up / sign in) →
@@ -59,6 +60,7 @@ export function ProfileSummary({ nestCount }: { nestCount: number }) {
   }
 
   const username = profile?.username;
+  const social = username ? placeholderSocial(username) : { followers: 0, following: 0 };
 
   // Signed in but no username yet → claim it (immutable).
   if (!username) {
@@ -132,13 +134,21 @@ export function ProfileSummary({ nestCount }: { nestCount: number }) {
         <button onClick={() => { setDisplayName(""); setBio(profile?.bio ?? ""); setSocials(profile?.socials ?? {}); setEditing(true); }} aria-label="Edit profile" className="flex size-9 items-center justify-center rounded-full text-ink/50 hover:bg-parchment"><Pencil className="size-4" /></button>
         <SignOutButton onSignOut={signOut} />
       </div>
-      <div className="mt-4 flex items-center gap-6 border-t border-timber/10 pt-3">
-        <div>
-          <p className="text-lg font-black text-ink">{nestCount}</p>
-          <p className="text-[11px] font-bold uppercase tracking-wide text-ink/45">{nestCount === 1 ? "Nest" : "Nests"}</p>
-        </div>
-        <Link href={`/@${username}`} className="ml-auto self-center text-xs font-bold text-terracotta hover:underline">View public profile →</Link>
+      <div className="mt-4 flex items-center gap-5 border-t border-timber/10 pt-3">
+        <Stat value={social.followers} label="Followers" />
+        <Stat value={social.following} label="Following" />
+        <Stat value={nestCount} label={nestCount === 1 ? "Nest" : "Nests"} />
+        <Link href={`/@${username}`} className="ml-auto self-center text-xs font-bold text-terracotta hover:underline">Public →</Link>
       </div>
+    </div>
+  );
+}
+
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <div>
+      <p className="text-lg font-black leading-none text-ink">{formatCount(value)}</p>
+      <p className="mt-0.5 text-[11px] font-bold uppercase tracking-wide text-ink/45">{label}</p>
     </div>
   );
 }

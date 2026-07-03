@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
 import { loadDoc, persistDoc, publish, type PublishResult } from "@/lib/nest-repo";
 import { setDocOwner } from "@/lib/nest-document-store";
@@ -24,6 +24,7 @@ export function PublishGate({
 }) {
   const { account, profile, loading, signedIn, ownerId, claimUsername } = useNestIdentity();
   const [username, setUsername] = useState("");
+  const [name, setName] = useState("");
   const [visibility, setVisibility] = useState<NestPublishVisibility>("public");
   const [result, setResult] = useState<PublishResult>();
   const [copied, setCopied] = useState(false);
@@ -33,15 +34,25 @@ export function PublishGate({
   const hasUsername = !!profile?.username;
   const fullUrl = result ? (typeof window !== "undefined" ? window.location.origin + result.url : result.url) : "";
 
+  // Seed the name field from the current draft title (a template/default) so the
+  // creator can personalise it — identity over generic template names (Phase 8).
+  useEffect(() => {
+    if (!documentId) return;
+    let alive = true;
+    loadDoc(documentId).then((doc) => { if (alive && doc) setName(doc.title); });
+    return () => { alive = false; };
+  }, [documentId]);
+
   async function doPublish() {
     if (!documentId) { setError("No document to publish."); return; }
     if (!ownerId) { setError("Sign in to publish."); return; }
     setBusy(true);
     setError(undefined);
     try {
-      // Sync the editor's current layout into the doc + stamp ownership, then publish.
+      // Sync the editor's current layout + the chosen name into the doc + stamp ownership.
       const doc = await loadDoc(documentId);
-      if (doc) await persistDoc({ ...doc, ownerId, placements: editableObjectsToPlacements(objects) });
+      const title = name.trim() || doc?.title || "My Nest";
+      if (doc) await persistDoc({ ...doc, ownerId, title, placements: editableObjectsToPlacements(objects) });
       setDocOwner(documentId, ownerId);
       const r = await publish(documentId, visibility, ownerId);
       if (r) setResult(r); else setError("Publish failed.");
@@ -80,7 +91,8 @@ export function PublishGate({
                 {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{copied ? "Copied!" : "Copy"}
               </button>
             </div>
-            <a href={result.url} target="_blank" rel="noreferrer" className="block rounded-xl bg-[#d9913c] px-4 py-3 text-center text-sm font-bold text-white transition hover:brightness-95">View my Nest ↗</a>
+            {/* Enter visitor mode in the SAME tab — no new browser windows (Phase 5). */}
+            <button onClick={() => { window.location.href = result.url; }} className="block w-full rounded-xl bg-[#d9913c] px-4 py-3 text-center text-sm font-bold text-white transition hover:brightness-95">Open my Nest →</button>
             <button onClick={() => { window.location.href = "/profile"; }} className="block w-full rounded-xl border border-[#c9b98a] bg-white px-4 py-3 text-center text-sm font-bold text-ink transition hover:bg-[#f0e9d4]">Back to Profile</button>
             <p className="text-center text-[11px] text-ink-soft">Visibility: {result.visibility}</p>
           </div>
@@ -100,7 +112,12 @@ export function PublishGate({
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm text-ink-soft">Publishing as <strong>@{profile?.username}</strong>. Choose who can see it:</p>
+            <p className="text-sm text-ink-soft">Publishing as <strong>@{profile?.username}</strong>.</p>
+            <label className="block">
+              <span className="mb-1 block text-xs font-black uppercase tracking-wider text-ink/45">Name your Nest</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Coffee & Code · Minimal Escape · The Reading Corner" aria-label="Nest name" style={{ fontSize: 16 }} className="w-full rounded-xl border border-[#c9b98a] bg-white px-3 py-2.5" />
+            </label>
+            <p className="text-xs font-bold text-ink/50">Who can see it?</p>
             <div className="grid gap-2">
               {PUBLISH_VISIBILITY_OPTIONS.map((o) => (
                 <button key={o.id} onClick={() => setVisibility(o.id)} className={`flex items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition ${visibility === o.id ? "border-[#4d7358] bg-[#e7efe3]" : "border-[#c9b98a] bg-white hover:bg-[#f0e9d4]"}`}>

@@ -18,8 +18,12 @@ The world map is a **hexagon district map**: ten villages laid out as a connecte
 > the creator's identity, title, tags, and Visit/Create CTAs), **Explore** gains search by
 > title/creator/tags + category & trending chips + grid/list, and the public Nest page leads with a
 > real creator badge + "wander more Nests" — one shared discovery model over published + curated
-> Nests (`lib/nest-discovery.ts`). See [docs/m17-discovery-feed.md](docs/m17-discovery-feed.md) +
-> decision-log ADR-033–ADR-036.
+> Nests (`lib/nest-discovery.ts`). **M17.1** polishes it into "walking through cozy worlds":
+> **composed Nest thumbnails** (real furniture, not empty shells) everywhere, an immersive one-Nest-
+> per-screen feed with a creator row + engagement bar, an **owner-vs-visitor view** on the public
+> Nest page, **Nest naming** + **same-tab** publish, and true fixed-height **app-screen** tabs
+> (engagement/social counts are UI-only placeholders). See
+> [docs/m17.1-discovery-polish.md](docs/m17.1-discovery-polish.md) + decision-log ADR-033–ADR-037.
 
 ## Experience
 

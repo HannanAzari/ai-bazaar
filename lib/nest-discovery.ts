@@ -19,7 +19,8 @@ export type DiscoveryItem = {
   id: string;
   title: string;
   creator: DiscoveryCreator;
-  thumbnail?: string;
+  /** The composed document (background + placements) so cards can render the REAL Nest. */
+  doc: NestDocument;
   tags: string[];
   /** Persona / theme (e.g. "Creator", "Gamer"). */
   category?: string;
@@ -47,13 +48,13 @@ export function templateToExample(t: ProductionTemplate): { doc: NestDocument; h
 /** Build discovery items for the curated example Nests. */
 export function curatedItems(templates: ProductionTemplate[]): DiscoveryItem[] {
   return templates.map((t) => {
-    const { href } = templateToExample(t);
+    const { href, doc } = templateToExample(t);
     return {
       key: `ex-${t.id}`,
       id: t.id,
       title: t.name,
       creator: { displayName: "Nestudio" },
-      thumbnail: t.previewImage,
+      doc,
       tags: t.tags ?? [],
       category: t.persona,
       visibility: "public" as const,
@@ -63,14 +64,14 @@ export function curatedItems(templates: ProductionTemplate[]): DiscoveryItem[] {
   });
 }
 
-/** Build a discovery item from a published Nest (creator/thumbnail/tags resolved by the caller). */
+/** Build a discovery item from a published Nest (creator/tags resolved by the caller). */
 export function publishedItem(input: {
   slug: string;
   title: string;
   visibility: NestVisibility;
   href: string;
   creator: DiscoveryCreator;
-  thumbnail?: string;
+  doc: NestDocument;
   tags?: string[];
   category?: string;
 }): DiscoveryItem {
@@ -79,7 +80,7 @@ export function publishedItem(input: {
     id: input.slug,
     title: input.title,
     creator: input.creator,
-    thumbnail: input.thumbnail,
+    doc: input.doc,
     tags: input.tags ?? [],
     category: input.category,
     visibility: input.visibility,

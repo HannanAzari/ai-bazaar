@@ -36,16 +36,19 @@ export function ProfileDashboardClient() {
   const empty = drafts.length === 0 && published.length === 0;
 
   return (
-    <div className="space-y-6 pt-1">
-      <header className="flex items-center justify-between">
-        <h1 className="display text-3xl">Profile</h1>
-        <Link href="/create" aria-label="Create a new Nest" className="flex items-center gap-1 rounded-full bg-terracotta px-3.5 py-2 text-xs font-black text-parchment shadow-soft active:scale-95">
-          <Plus className="size-4" /> New
-        </Link>
-      </header>
+    <div className="pt-1">
+      {/* Identity stays pinned while your Nests scroll underneath — "this place is mine". */}
+      <div className="sticky top-0 z-10 -mx-4 space-y-3 bg-parchment/95 px-4 pb-3 backdrop-blur">
+        <header className="flex items-center justify-between">
+          <h1 className="display text-3xl">Profile</h1>
+          <Link href="/create" aria-label="Create a new Nest" className="flex items-center gap-1 rounded-full bg-terracotta px-3.5 py-2 text-xs font-black text-parchment shadow-soft active:scale-95">
+            <Plus className="size-4" /> New
+          </Link>
+        </header>
+        <ProfileSummary nestCount={published.length} />
+      </div>
 
-      <ProfileSummary nestCount={published.length} />
-
+      <div className="space-y-6 pt-4">
       {empty ? (
         <div className="rounded-3xl border border-dashed border-timber/25 bg-white/60 p-8 text-center">
           <p className="display text-2xl">Your Nest awaits</p>
@@ -78,6 +81,7 @@ export function ProfileDashboardClient() {
           </Grid>
         </Section>
       ) : null}
+      </div>
     </div>
   );
 }

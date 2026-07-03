@@ -8,6 +8,37 @@ for technical detail.
 
 ---
 
+## 2026-07-03 — M17.1: discovery polish & identity
+
+UX + identity polish on `m12-nest-platform` (preview only; **no merge to `main`, no production
+deploy**). Turns discovery from "a list of cards" into "walking through cozy worlds." No auth
+rewrites / DB migrations / social / notifications backend. Full record:
+[m17.1-discovery-polish.md](m17.1-discovery-polish.md); rationale ADR-037.
+
+### Added
+- **`NestPreview`** — composed Nest thumbnail (background + the creator's real placed furniture),
+  used in the feed, Explore, profile cards, and the visitor page (launch-critical — cards show
+  what the creator MADE, not an empty shell).
+- **Immersive Home feed** — one Nest ~fills the viewport, next peeks below, warm cream (not
+  TikTok-black); creator row (avatar → `/@username` · name · @username · Follow) + engagement bar
+  (❤ likes · 💬 comments disabled · ↗ Share copies the link).
+- **`lib/nest-engagement.ts`** — deterministic placeholder likes/comments/shares/views + follower/
+  following counts (UI only, no backend).
+- **Owner vs visitor view** on `/nest/[slug]` — owner: Views/Likes/Comments/Shares + Edit Nest +
+  Share; visitor: Follow + Create your own + More Nests. Owner recognised even via a `?c=` link.
+- **Nest naming** at publish (stored with the Nest); **same-tab** "Open my Nest" (no new windows).
+- **Create tab active state** (dark, elevated) on `/create`.
+- **Profile social placeholders** — Followers · Following · Nests.
+- **App-screen layouts** — each tab is a fixed-height screen with internal scroll (not an infinite
+  document); Profile pins the identity header while Nests scroll under it.
+- Tests: `nest-engagement.test.ts` (360 total).
+
+### Notes
+- All engagement/social numbers are deterministic **placeholders**; controls are disabled or local
+  (Share). No tables, no backend.
+
+---
+
 ## 2026-07-03 — M17: discovery feed
 
 Feature sprint on `m12-nest-platform` (preview only; **no merge to `main`, no production

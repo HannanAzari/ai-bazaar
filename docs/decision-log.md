@@ -1510,6 +1510,44 @@ leads with the creator badge + tags + a "more Nests" CTA. Save/Like is present b
 
 ---
 
+## ADR-037 — Discovery polish: composed thumbnails, owner/visitor split, placeholder engagement (M17.1)
+
+**Status:** Accepted (2026-07-03). Branch `m12-nest-platform`, preview only.
+Record: [m17.1-discovery-polish.md](m17.1-discovery-polish.md). Refines ADR-036 (discovery) + M16.
+
+### Context
+M17 proved discovery but felt like a card list: cards showed empty shells (destroying creator
+identity), Home wasn't immersive, the owner saw "Follow"/"Create your own" on their OWN Nest,
+publishing opened a new browser tab, published Nests were all named after their template, and pages
+were long documents rather than app screens. This sprint is UX/identity only — no backend.
+
+### Decision
+- **`NestPreview`** renders the composed room (background + placements) everywhere, so a card shows
+  the creator's real work (launch-critical).
+- **Placeholder engagement** (`lib/nest-engagement.ts`) is **deterministic** from a stable id/handle
+  and always attached to a **disabled/local** control — visual affordance without a social backend.
+- **Owner vs visitor view** on `/nest/[slug]`: ownership resolves from `doc.ownerId` OR the **local
+  published record by slug**, so the owner is recognised even on a `?c=` share link.
+- **Publish opens the Nest in the same tab** (visitor mode); the flow **asks for a Nest name**
+  (stored, sensible fallback).
+- **App-screen layout**: `NestAppChrome` is a fixed-height frame with internal scroll; Profile pins
+  its identity header. Home keeps its own full-height feed.
+
+### Alternatives Considered
+- **Render a mini live editor for thumbnails** — heavy; a static composed `NestPreview` is enough.
+- **Fake but random engagement** — flickers + implies live data; deterministic placeholders are
+  honest-by-construction and paired with disabled controls.
+- **Encode ownerId into the `?c=` link** — bloats the URL and leaks owner id publicly; resolving the
+  local slug record is sufficient for the owner's own browser.
+
+### Consequences
+- (+) Discovery feels like wandering cozy rooms; cards show real creations; the owner never sees
+  "Follow yourself"; publishing stays in-session and names the Nest; tabs feel like app screens.
+- (−) Engagement + follower counts are placeholders until a social backend; a *cross-browser* visitor
+  of a curated `?c=` link still sees the default creator (no owner/template in the compact payload).
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

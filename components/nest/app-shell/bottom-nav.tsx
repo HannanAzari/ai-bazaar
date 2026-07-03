@@ -40,7 +40,15 @@ export function BottomNav() {
             return (
               <li key={tab.href} className="flex flex-1 items-center justify-center">
                 <Link href={tab.href} aria-label={tab.label} aria-current={active ? "page" : undefined} className="py-1.5">
-                  <span className="grid size-12 -translate-y-3 place-items-center rounded-full bg-terracotta text-parchment shadow-lift ring-4 ring-parchment transition active:scale-95">
+                  {/* Active on /create: darker fill, elevated + glow, so the tab reads as "you are here". */}
+                  <span
+                    className={cn(
+                      "grid size-12 -translate-y-3 place-items-center rounded-full text-parchment ring-4 ring-parchment transition active:scale-95",
+                      active
+                        ? "-translate-y-4 scale-105 bg-ink shadow-[0_0_0_4px_rgba(199,110,74,0.35),0_10px_24px_-6px_rgba(0,0,0,0.4)]"
+                        : "bg-terracotta shadow-lift",
+                    )}
+                  >
                     <Icon size={24} strokeWidth={2.4} />
                   </span>
                 </Link>

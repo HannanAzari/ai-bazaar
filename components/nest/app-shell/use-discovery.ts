@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { getTemplates, hydrateLibrary, onProductionChanged, resolveTemplate } from "@/lib/nest-production-library";
 import { listPublished, onDocsChanged, publishedUrl } from "@/lib/nest-document-store";
 import { getNestProfile, onNestProfilesChanged } from "@/lib/nest-profile-store";
-import { nestThumb } from "@/components/nest/app-shell/nest-card";
 import { curatedItems, publishedItem, type DiscoveryItem } from "@/lib/nest-discovery";
 
 // M17 — assembles live discovery items from the two sources we have: a creator's
@@ -27,7 +26,7 @@ export function useDiscovery(): { items: DiscoveryItem[]; published: DiscoveryIt
             visibility: entry.ref.visibility,
             href: publishedUrl(entry),
             creator: { username: profile?.username, displayName: profile?.displayName },
-            thumbnail: nestThumb(entry.doc),
+            doc: entry.doc,
             tags: tpl?.tags,
             category: tpl?.persona,
           });

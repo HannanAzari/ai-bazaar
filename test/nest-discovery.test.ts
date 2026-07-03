@@ -11,6 +11,12 @@ import {
   type DiscoveryItem,
 } from "@/lib/nest-discovery";
 import type { ProductionTemplate } from "@/lib/nest-production-types";
+import type { NestDocument } from "@/lib/nest-document-types";
+
+const pubDoc = (over: Partial<NestDocument> = {}): NestDocument => ({
+  id: "d1", ownerId: "acct-1", backgroundId: "bg-loft", title: "My Loft",
+  visibility: "public", placements: [], createdAt: "", updatedAt: "", ...over,
+});
 
 const tpl = (over: Partial<ProductionTemplate> = {}): ProductionTemplate => ({
   id: "loft",
@@ -47,7 +53,7 @@ describe("discovery item generation", () => {
       title: "My Loft",
       visibility: "public",
       href: "/nest/my-loft-ab12?c=xyz",
-      creator: { username: "hannan", displayName: "Hannan" },
+      creator: { username: "hannan", displayName: "Hannan" }, doc: pubDoc(),
       tags: ["cozy"],
       category: "Creator",
     });
@@ -61,7 +67,7 @@ describe("discovery item generation", () => {
 describe("published nest inclusion", () => {
   it("a published Nest and curated examples coexist in one list", () => {
     const items: DiscoveryItem[] = [
-      publishedItem({ slug: "p1", title: "Mine", visibility: "public", href: "/nest/p1", creator: { username: "hannan" }, tags: [] }),
+      publishedItem({ slug: "p1", title: "Mine", visibility: "public", href: "/nest/p1", creator: { username: "hannan" }, doc: pubDoc(), tags: [] }),
       ...curatedItems([tpl(), tpl({ id: "cave", name: "Gamer Cave", persona: "Gamer", tags: ["gamer"] })]),
     ];
     expect(items).toHaveLength(3);
@@ -72,7 +78,7 @@ describe("published nest inclusion", () => {
 
 describe("search + filtering", () => {
   const items: DiscoveryItem[] = [
-    publishedItem({ slug: "p1", title: "Ceramics Studio", visibility: "public", href: "/nest/p1", creator: { username: "hannan", displayName: "Hannan" }, tags: ["pottery"], category: "Artist" }),
+    publishedItem({ slug: "p1", title: "Ceramics Studio", visibility: "public", href: "/nest/p1", creator: { username: "hannan", displayName: "Hannan" }, doc: pubDoc(), tags: ["pottery"], category: "Artist" }),
     ...curatedItems([tpl(), tpl({ id: "cave", name: "Gamer Cave", persona: "Gamer", tags: ["gamer", "neon"] })]),
   ];
 

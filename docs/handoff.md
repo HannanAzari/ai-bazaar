@@ -5,7 +5,21 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest Nest sprint — M17 discovery feed (2026-07-03):** the first real discovery experience.
+> **Latest Nest sprint — M17.1 discovery polish & identity (2026-07-03):** UX/identity polish (no
+> backend). **`NestPreview`** (`components/nest/app-shell/nest-preview.tsx`) renders the **composed
+> room** (background + the creator's real furniture) in the feed, Explore, profile cards, and the
+> visitor page — cards show what they made. Home is a true immersive feed (one Nest ~per screen,
+> creator row: avatar→`/@username` · name · @username · Follow-disabled; engagement bar ❤/💬 disabled
+> + ↗ Share copies the link). **Owner vs visitor view** on `/nest/[slug]`: owner sees Views/Likes/
+> Comments/Shares + Edit + Share; visitor sees Follow + Create + More (owner recognised even on a
+> `?c=` link via the local slug record). Publishing **asks for a Nest name** and opens the Nest in
+> the **same tab**. Create tab has an **active state**; profile shows **Followers/Following/Nests**
+> placeholders. Every tab is a fixed-height **app screen** (`NestAppChrome`) with internal scroll.
+> All engagement/social numbers are **deterministic placeholders** (`lib/nest-engagement.ts`) on
+> disabled/local controls — no tables, no backend. Preview only (`m12-nest-platform`). See
+> [m17.1-discovery-polish.md](m17.1-discovery-polish.md) + ADR-037.
+>
+> **M17 discovery feed (2026-07-03):** the first real discovery experience.
 > `lib/nest-discovery.ts` is a shared `DiscoveryItem` model over **published + curated** Nests
 > (published resolve their M16 creator from `ownerId` and **borrow tags/persona from their source
 > template**); `useDiscovery` assembles it. **Home** is now an immersive vertical **snap feed**

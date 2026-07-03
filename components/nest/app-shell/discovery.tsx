@@ -1,20 +1,34 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { Heart, Plus, Sparkles } from "lucide-react";
+import { Heart, MessageCircle, Plus, Share2, Sparkles } from "lucide-react";
 import { creatorLabel, type DiscoveryCreator, type DiscoveryItem } from "@/lib/nest-discovery";
+import { formatCount, placeholderEngagement } from "@/lib/nest-engagement";
+import { NestPreview } from "@/components/nest/app-shell/nest-preview";
 
-// M17 — reusable discovery UI shared by Home (immersive feed) and Explore (grid).
-// Cozy + identity-first: every Nest leads with WHO lives there, not a metric.
+// M17.1 — reusable discovery UI shared by Home (immersive feed) and Explore (grid).
+// Cozy + identity-first: every Nest leads with WHO lives there, shows the creator's real
+// composed room, and exposes engagement affordances (UI only — no social backend yet).
 
-// ── CreatorBadge ──────────────────────────────────────────────────────────────
+// ── Avatar ────────────────────────────────────────────────────────────────────
+export function CreatorAvatar({ creator, size = 24, tone = "ink" }: { creator: DiscoveryCreator; size?: number; tone?: "ink" | "light" }) {
+  const initial = (creator.username ?? creator.displayName ?? "N").trim().charAt(0).toUpperCase();
+  const light = tone === "light";
+  return (
+    <span className={`grid shrink-0 place-items-center rounded-full font-black ${light ? "bg-white/90 text-terracotta" : "bg-terracotta text-parchment"}`} style={{ width: size, height: size, fontSize: size * 0.42 }}>
+      {initial}
+    </span>
+  );
+}
+
+// ── CreatorBadge (compact — grid cards / visitor) ─────────────────────────────
 export function CreatorBadge({ creator, tone = "ink" }: { creator: DiscoveryCreator; tone?: "ink" | "light" }) {
   const label = creatorLabel(creator);
-  const initial = (creator.username ?? creator.displayName ?? "N").trim().charAt(0).toUpperCase();
   const light = tone === "light";
   const inner = (
     <>
-      <span className={`grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-black ${light ? "bg-white/90 text-terracotta" : "bg-terracotta text-parchment"}`}>{initial}</span>
+      <CreatorAvatar creator={creator} size={24} tone={tone} />
       <span className={`truncate text-xs font-bold ${light ? "text-white" : "text-ink/70"}`}>{label}</span>
     </>
   );
@@ -22,6 +36,27 @@ export function CreatorBadge({ creator, tone = "ink" }: { creator: DiscoveryCrea
   return creator.username
     ? <Link href={`/@${creator.username}`} className={`${cls} ${light ? "" : "hover:underline"}`}>{inner}</Link>
     : <span className={cls}>{inner}</span>;
+}
+
+// ── CreatorRow (feed — avatar opens profile · name · @username · Follow) ───────
+export function CreatorRow({ creator }: { creator: DiscoveryCreator }) {
+  const hasProfile = !!creator.username;
+  const name = creator.displayName ?? (creator.username ? `@${creator.username}` : "A Nestudio creator");
+  const identity = (
+    <span className="flex min-w-0 items-center gap-2">
+      <CreatorAvatar creator={creator} size={34} tone="light" />
+      <span className="min-w-0 leading-tight">
+        <span className="block truncate text-sm font-black text-white drop-shadow-sm">{name}</span>
+        {creator.username ? <span className="block truncate text-xs text-white/70">@{creator.username}</span> : null}
+      </span>
+    </span>
+  );
+  return (
+    <div className="flex items-center justify-between gap-2">
+      {hasProfile ? <Link href={`/@${creator.username}`} className="min-w-0">{identity}</Link> : identity}
+      <button disabled title="Following arrives in a later sprint" className="shrink-0 cursor-not-allowed rounded-full border border-white/40 px-3.5 py-1.5 text-xs font-bold text-white/90 opacity-80">Follow</button>
+    </div>
+  );
 }
 
 // ── NestTags ──────────────────────────────────────────────────────────────────
@@ -37,6 +72,32 @@ export function NestTags({ tags, max = 3, tone = "ink" }: { tags: string[]; max?
   );
 }
 
+// ── EngagementBar (UI only — like/comment disabled, share copies the link) ────
+export function EngagementBar({ id, href }: { id: string; href: string }) {
+  const { likes, comments } = placeholderEngagement(id);
+  const [copied, setCopied] = useState(false);
+  async function share() {
+    const url = typeof window !== "undefined" ? window.location.origin + href : href;
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) await navigator.share({ url });
+      else { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1400); }
+    } catch { /* dismissed */ }
+  }
+  return (
+    <div className="flex items-center gap-4 text-white">
+      <button disabled title="Likes arrive in a later sprint" className="flex cursor-not-allowed items-center gap-1.5 text-sm font-bold opacity-90">
+        <Heart className="size-5" /> {formatCount(likes)}
+      </button>
+      <button disabled title="Comments arrive in a later sprint" className="flex cursor-not-allowed items-center gap-1.5 text-sm font-bold opacity-90">
+        <MessageCircle className="size-5" /> {formatCount(comments)}
+      </button>
+      <button onClick={share} className="flex items-center gap-1.5 text-sm font-bold transition active:scale-95">
+        <Share2 className="size-5" /> {copied ? "Copied!" : "Share"}
+      </button>
+    </div>
+  );
+}
+
 // ── VisitNestButton ───────────────────────────────────────────────────────────
 export function VisitNestButton({ href, className = "" }: { href: string; className?: string }) {
   return (
@@ -46,13 +107,13 @@ export function VisitNestButton({ href, className = "" }: { href: string; classN
   );
 }
 
-// ── DiscoveryNestCard (grid — Explore) ───────────────────────────────────────--
+// ── DiscoveryNestCard (grid / row — Explore) ─────────────────────────────────--
 export function DiscoveryNestCard({ item, layout = "grid" }: { item: DiscoveryItem; layout?: "grid" | "row" }) {
   if (layout === "row") {
     return (
       <div className="flex gap-3 overflow-hidden rounded-2xl border border-timber/15 bg-white p-2 shadow-soft">
-        <Link href={item.href} className="relative block h-24 w-20 shrink-0 overflow-hidden rounded-xl bg-[#e9e0c8]">
-          <Thumb src={item.thumbnail} alt={item.title} />
+        <Link href={item.href} className="block h-24 w-20 shrink-0">
+          <NestPreview doc={item.doc} rounded="rounded-xl" className="h-full w-full" />
         </Link>
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
           <Link href={item.href} className="truncate text-sm font-black text-ink hover:underline">{item.title}</Link>
@@ -65,8 +126,8 @@ export function DiscoveryNestCard({ item, layout = "grid" }: { item: DiscoveryIt
   }
   return (
     <div className="group overflow-hidden rounded-2xl border border-timber/15 bg-white shadow-soft">
-      <Link href={item.href} className="relative block aspect-[4/5] w-full bg-[#e9e0c8]">
-        <Thumb src={item.thumbnail} alt={item.title} />
+      <Link href={item.href} className="relative block">
+        <NestPreview doc={item.doc} className="aspect-[4/5] w-full" />
         <SourceBadge source={item.source} />
       </Link>
       <div className="space-y-1 p-2.5">
@@ -82,12 +143,14 @@ export function DiscoveryNestCard({ item, layout = "grid" }: { item: DiscoveryIt
 export function DiscoveryFeed({ items }: { items: DiscoveryItem[] }) {
   if (items.length === 0) {
     return (
-      <div className="mt-8 flex flex-col items-center gap-3 rounded-3xl border border-dashed border-timber/25 bg-white/60 p-10 text-center">
-        <p className="display text-2xl">No Nests to wander yet</p>
-        <p className="max-w-xs text-sm text-ink/50">Be the first — make a cozy place that feels like you.</p>
-        <div className="mt-2 flex gap-2">
-          <Link href="/create" className="rounded-xl bg-terracotta px-5 py-3 text-sm font-bold text-parchment">Create a Nest</Link>
-          <Link href="/explore" className="rounded-xl border border-timber/20 bg-white px-5 py-3 text-sm font-bold text-ink/70">Explore examples</Link>
+      <div className="grid h-full place-items-center">
+        <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-timber/25 bg-white/60 p-10 text-center">
+          <p className="display text-2xl">No Nests to wander yet</p>
+          <p className="max-w-xs text-sm text-ink/50">Be the first — make a cozy place that feels like you.</p>
+          <div className="mt-2 flex gap-2">
+            <Link href="/create" className="rounded-xl bg-terracotta px-5 py-3 text-sm font-bold text-parchment">Create a Nest</Link>
+            <Link href="/explore" className="rounded-xl border border-timber/20 bg-white px-5 py-3 text-sm font-bold text-ink/70">Explore examples</Link>
+          </div>
         </div>
       </div>
     );
@@ -102,26 +165,24 @@ export function DiscoveryFeed({ items }: { items: DiscoveryItem[] }) {
 
 function FeedCard({ item }: { item: DiscoveryItem }) {
   return (
-    <article className="relative h-[90%] snap-start overflow-hidden rounded-[2rem] border border-timber/15 bg-[#e9e0c8] shadow-lift">
-      {/* Full-bleed preview; tapping it visits the Nest. */}
+    <article className="relative h-[94%] snap-start overflow-hidden rounded-[2rem] border border-timber/15 shadow-lift">
+      {/* Full-bleed composed room; tapping it visits the Nest. */}
       <Link href={item.href} className="absolute inset-0" aria-label={`Visit ${item.title}`}>
-        <Thumb src={item.thumbnail} alt={item.title} />
+        <NestPreview doc={item.doc} className="size-full" />
       </Link>
       {/* Warm bottom gradient so overlay text stays legible (cozy, not TikTok-black). */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-[#2a1c14]/85 via-[#2a1c14]/35 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-[#2a1c14]/90 via-[#2a1c14]/40 to-transparent" />
 
-      <div className="pointer-events-none absolute left-3 right-3 top-3 flex items-start justify-between">
+      <div className="pointer-events-none absolute left-3 top-3">
         <span className="pointer-events-auto"><SourceBadge source={item.source} floating /></span>
-        <button disabled title="Saving arrives in a later sprint" aria-label="Save (coming soon)" className="pointer-events-auto grid size-9 cursor-not-allowed place-items-center rounded-full bg-white/85 text-ink/40 shadow-soft">
-          <Heart className="size-4" />
-        </button>
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 space-y-2 p-4">
-        <span className="pointer-events-auto inline-block"><CreatorBadge creator={item.creator} tone="light" /></span>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 space-y-2.5 p-4">
+        <div className="pointer-events-auto"><CreatorRow creator={item.creator} /></div>
         <h2 className="text-2xl font-black leading-tight text-white drop-shadow-sm">{item.title}</h2>
         <div className="pointer-events-auto"><NestTags tags={item.tags} tone="light" /></div>
-        <div className="pointer-events-auto flex items-center gap-2 pt-1">
+        <div className="pointer-events-auto"><EngagementBar id={item.id} href={item.href} /></div>
+        <div className="pointer-events-auto flex items-center gap-2 pt-0.5">
           <VisitNestButton href={item.href} />
           <Link href="/create" className="rounded-full border border-white/40 px-4 py-2 text-sm font-bold text-white/90 backdrop-blur-sm transition active:scale-95">Create your own</Link>
         </div>
@@ -132,7 +193,7 @@ function FeedCard({ item }: { item: DiscoveryItem }) {
 
 function CreateCard() {
   return (
-    <article className="grid h-[90%] snap-start place-items-center rounded-[2rem] border border-timber/15 bg-gradient-to-br from-[#f6e7c6] to-[#ecd9ad] p-6 text-center shadow-lift">
+    <article className="grid h-[94%] snap-start place-items-center rounded-[2rem] border border-timber/15 bg-gradient-to-br from-[#f6e7c6] to-[#ecd9ad] p-6 text-center shadow-lift">
       <div>
         <div className="mb-1 flex items-center justify-center gap-1.5 text-terracotta"><Sparkles className="size-4" /><span className="text-xs font-black uppercase tracking-wider">Your turn</span></div>
         <p className="display text-3xl">Make a place that feels like you</p>
@@ -141,13 +202,6 @@ function CreateCard() {
       </div>
     </article>
   );
-}
-
-// ── Shared bits ───────────────────────────────────────────────────────────────
-function Thumb({ src, alt }: { src?: string; alt: string }) {
-  if (!src) return <div className="grid size-full place-items-center text-xs text-ink/40">No preview</div>;
-  // eslint-disable-next-line @next/next/no-img-element -- local curated art; next/image adds no value here
-  return <img src={src} alt={alt} className="size-full object-cover" loading="lazy" />;
 }
 
 function SourceBadge({ source, floating }: { source: DiscoveryItem["source"]; floating?: boolean }) {

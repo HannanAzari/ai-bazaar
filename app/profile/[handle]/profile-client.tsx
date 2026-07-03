@@ -7,6 +7,7 @@ import { NestCard } from "@/components/nest/app-shell/nest-card";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { getNestProfile, onNestProfilesChanged, resolveByUsername, type NestProfile, type NestSocials } from "@/lib/nest-profile-store";
 import { listPublished, onDocsChanged, publishedUrl, type PublishedNest } from "@/lib/nest-document-store";
+import { formatCount, placeholderSocial } from "@/lib/nest-engagement";
 
 // M16 — the public creator profile at /@<handle> (served from /profile/<handle> via a
 // rewrite): profile hero (avatar · display name · @username · bio · links) + the
@@ -50,6 +51,7 @@ export function ProfileClient({ handle }: { handle: string }) {
   // Refresh from the store so a just-saved bio/link shows immediately for the owner.
   const live = getNestProfile(profile.userId) ?? profile;
   const links = socialLinks(live.socials);
+  const social = placeholderSocial(live.username ?? handle);
 
   return (
     <div className="space-y-6 pt-1">
@@ -69,12 +71,11 @@ export function ProfileClient({ handle }: { handle: string }) {
             ))}
           </div>
         ) : null}
-        <div className="mt-4 flex items-center gap-6 border-t border-timber/10 pt-3">
-          <div>
-            <p className="text-lg font-black text-ink">{published.length}</p>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-ink/45">{published.length === 1 ? "Nest" : "Nests"}</p>
-          </div>
-          {isOwn ? <Link href="/profile" className="ml-auto self-center text-xs font-bold text-terracotta hover:underline">Manage in Profile →</Link> : null}
+        <div className="mt-4 flex items-center gap-5 border-t border-timber/10 pt-3">
+          <ProfileStat value={formatCount(social.followers)} label="Followers" />
+          <ProfileStat value={formatCount(social.following)} label="Following" />
+          <ProfileStat value={String(published.length)} label={published.length === 1 ? "Nest" : "Nests"} />
+          {isOwn ? <Link href="/profile" className="ml-auto self-center text-xs font-bold text-terracotta hover:underline">Manage →</Link> : null}
         </div>
       </header>
 
@@ -90,6 +91,15 @@ export function ProfileClient({ handle }: { handle: string }) {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function ProfileStat({ value, label }: { value: string; label: string }) {
+  return (
+    <div>
+      <p className="text-lg font-black leading-none text-ink">{value}</p>
+      <p className="mt-0.5 text-[11px] font-bold uppercase tracking-wide text-ink/45">{label}</p>
     </div>
   );
 }
