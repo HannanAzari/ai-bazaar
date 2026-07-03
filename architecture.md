@@ -250,8 +250,8 @@ has a graceful fallback.
 | Route | Type | Notes |
 |---|---|---|
 | `/` | redirect | → `/home` (M15). `VillageWorld` preserved in-tree for the future Village tab |
-| `/home` | client | **Home — discovery feed** (published + curated Nest cards; future swipe/village) |
-| `/explore` | client | **Explore — search/discovery** (search + trending tag chips; placeholder) |
+| `/home` | client | **Home — discovery feed** (M17: immersive vertical **snap feed** of published + curated Nests via `lib/nest-discovery.ts`; creator badge · tags · Visit/Create) |
+| `/explore` | client | **Explore — search/discovery** (M17: search by title/creator/tags + category/trending chips + grid/list toggle) |
 | `/create` | client | **Create** — the single creation entry (Quick Start / Build My Own → editor) |
 | `/notifications` | client | **Notifications** — friendly empty state (no backend). `/updates` redirects here |
 | `/profile` | client | **Profile — private dashboard** (summary · Continue creating · Published · Create New) |

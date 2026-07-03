@@ -8,6 +8,38 @@ for technical detail.
 
 ---
 
+## 2026-07-03 — M17: discovery feed
+
+Feature sprint on `m12-nest-platform` (preview only; **no merge to `main`, no production
+deploy**). The first real discovery experience — makes Nestudio feel alive so a visitor wants to
+wander into another Nest. No villages / social graph / real likes / marketplace / AI. Full
+record: [m17-discovery-feed.md](m17-discovery-feed.md); rationale ADR-036.
+
+### Added
+- **Discovery model** (`lib/nest-discovery.ts`) — one `DiscoveryItem` shape unifying published +
+  curated Nests, with `searchDiscovery` / `filterByTag` / `collectTags` / `collectCategories` /
+  `creatorLabel`. Pure + unit-tested. `templateToExample` moved here (`curated.ts` re-exports).
+- **`useDiscovery`** — assembles live items: published Nests with the real M16 creator resolved
+  from `ownerId`, tags/persona **borrowed from the source template**; plus curated examples.
+- **Home = immersive vertical snap feed** (`DiscoveryFeed`) — near-full-screen Nest previews with
+  creator badge · title · tags · Visit + Create CTAs · disabled Save (coming-soon). Cozy, warm,
+  not TikTok/Rooms.xyz.
+- **Reusable components** — `DiscoveryFeed`, `DiscoveryNestCard` (grid/row), `CreatorBadge`,
+  `NestTags`, `VisitNestButton`.
+- **Explore upgrade** — search by title/creator/tags, category (persona) chips, trending chips,
+  grid/list toggle.
+- **Visitor UX** — `/nest/[slug]` leads with the real creator badge (→ `/@username`), title, tags,
+  and "Wander more Nests" + "Create your own"; Follow/likes hidden.
+- **Empty states** everywhere offer Create + Explore.
+- Tests: `nest-discovery.test.ts` (356 total).
+
+### Notes
+- Curated/`?c=` links decode a compact doc (no owner/template) → default creator + no tags on
+  those; locally-published Nests resolve both. Discovery is local per browser until the Supabase
+  cutover.
+
+---
+
 ## 2026-07-03 — M16: real identity & authentication
 
 Infrastructure sprint on `m12-nest-platform` (preview only; **no merge to `main`, no production

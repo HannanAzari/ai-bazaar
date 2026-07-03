@@ -13,8 +13,13 @@ The world map is a **hexagon district map**: ten villages laid out as a connecte
 > delete); signing in **adopts** your existing local drafts with no loss. Built as a backend facade:
 > a verifiable local multi-account demo in preview, with **Supabase Auth** + RLS ownership behind the
 > documented cutover (`NEXT_PUBLIC_NEST_BACKEND=supabase`). The single Nest editor (`/nest-editor`)
-> and publishing return to `/profile`; the V1 village below is preserved. See
-> [docs/m16-identity-auth.md](docs/m16-identity-auth.md) + decision-log ADR-033–ADR-035.
+> and publishing return to `/profile`; the V1 village below is preserved. **M17** adds the first
+> **discovery experience**: **Home** is an immersive vertical **swipe feed** of Nests (leading with
+> the creator's identity, title, tags, and Visit/Create CTAs), **Explore** gains search by
+> title/creator/tags + category & trending chips + grid/list, and the public Nest page leads with a
+> real creator badge + "wander more Nests" — one shared discovery model over published + curated
+> Nests (`lib/nest-discovery.ts`). See [docs/m17-discovery-feed.md](docs/m17-discovery-feed.md) +
+> decision-log ADR-033–ADR-036.
 
 ## Experience
 

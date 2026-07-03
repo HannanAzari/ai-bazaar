@@ -1472,6 +1472,44 @@ enforces ownership; visitors view/share.
 
 ---
 
+## ADR-036 — Discovery as one backend-free model over published + curated Nests (M17)
+
+**Status:** Accepted (2026-07-03). Branch `m12-nest-platform`, preview only.
+Record: [m17-discovery-feed.md](m17-discovery-feed.md).
+
+### Context
+M17 needs a discovery experience that makes the app feel alive without a recommendation engine,
+social graph, real likes, or backend feed — and without villages/marketplace/AI. The data we have
+is a creator's **published** Nests (M16, owned via `ownerId`) and the **curated** example Nests
+(templates). `NestDocument` has no tags field.
+
+### Decision
+Introduce a single **`DiscoveryItem`** model (`lib/nest-discovery.ts`) that both sources map into,
+with pure search/filter/tag/category helpers. `useDiscovery` assembles live items: published Nests
+resolve their creator from `ownerId` → the M16 profile and **borrow tags + persona from their
+`sourceTemplateId` template** (so published Nests are searchable by theme without a tags column);
+curated examples come from templates. **Home** becomes an immersive vertical snap feed
+(`DiscoveryFeed`); **Explore** becomes search + category/tag chips + grid/list; the **visitor page**
+leads with the creator badge + tags + a "more Nests" CTA. Save/Like is present but disabled.
+
+### Alternatives Considered
+- **A ranked/recommended feed or a real likes backend** — out of scope (no social graph yet); we
+  order published-first, curated-fill instead.
+- **Add a tags column to `NestDocument` now** — unnecessary; borrowing from the source template
+  covers it until the Supabase cutover adds a real column.
+- **A separate discovery data source per screen** — duplication; one shared model keeps Home,
+  Explore, and the visitor page consistent.
+
+### Consequences
+- (+) Home/Explore/visitor share one tested model; every Nest leads with **who lives there**
+  (identity-first), not a metric; new tests cover generation/search/empty states.
+- (+) Publishing immediately surfaces a Nest in discovery with the real creator + tags.
+- (−) Discovery is **local per browser**; trending is frequency over the visible set, not global.
+- (−) Curated/`?c=` share links lack owner/template in their compact payload → default creator +
+  no tags on those until Supabase resolves them server-side.
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

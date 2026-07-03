@@ -50,9 +50,12 @@ export function ProfileDashboardClient() {
         <div className="rounded-3xl border border-dashed border-timber/25 bg-white/60 p-8 text-center">
           <p className="display text-2xl">Your Nest awaits</p>
           <p className="mx-auto mt-1 max-w-xs text-sm text-ink/50">Make your first Nest — a cozy space that feels like you. It only takes a couple of minutes.</p>
-          <Link href="/create" className="mt-4 inline-flex items-center gap-1 rounded-xl bg-terracotta px-5 py-3 text-sm font-bold text-parchment">
-            <Plus className="size-4" /> Create a Nest
-          </Link>
+          <div className="mt-4 flex justify-center gap-2">
+            <Link href="/create" className="inline-flex items-center gap-1 rounded-xl bg-terracotta px-5 py-3 text-sm font-bold text-parchment">
+              <Plus className="size-4" /> Create a Nest
+            </Link>
+            <Link href="/home" className="inline-flex items-center rounded-xl border border-timber/20 bg-white px-5 py-3 text-sm font-bold text-ink/70">Explore examples</Link>
+          </div>
         </div>
       ) : null}
 

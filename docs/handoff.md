@@ -5,7 +5,19 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest Nest sprint — M16 real identity & authentication (2026-07-03):** the temporary
+> **Latest Nest sprint — M17 discovery feed (2026-07-03):** the first real discovery experience.
+> `lib/nest-discovery.ts` is a shared `DiscoveryItem` model over **published + curated** Nests
+> (published resolve their M16 creator from `ownerId` and **borrow tags/persona from their source
+> template**); `useDiscovery` assembles it. **Home** is now an immersive vertical **snap feed**
+> (`DiscoveryFeed`) leading with the creator badge · title · tags · Visit/Create CTAs (Save/Like
+> present but disabled). **Explore** gained search by title/creator/tags + category/trending chips
+> + grid/list toggle. The **visitor page** leads with the real creator badge + tags + "wander more
+> Nests". Reusable `CreatorBadge`/`NestTags`/`VisitNestButton`/`DiscoveryNestCard` in
+> `components/nest/app-shell/discovery.tsx`. No follows/comments/real likes/villages/marketplace/AI;
+> single editor + M16 ownership + migration untouched. Preview only (`m12-nest-platform`). See
+> [m17-discovery-feed.md](m17-discovery-feed.md) + ADR-036.
+>
+> **M16 real identity & authentication (2026-07-03):** the temporary
 > browser-local identity is now a **real account system**. `lib/nest-account.ts` is a backend
 > facade (like `nest-repo`) — a **multi-account local demo** (email + password + session, verifiable
 > in preview) or real **Supabase Auth** (`SupabaseAuthClient`), keyed by `NEXT_PUBLIC_NEST_BACKEND`.
