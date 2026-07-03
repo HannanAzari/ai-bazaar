@@ -1,9 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, Compass, Home, Plus, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
+import { onNotificationsChanged, unreadCount } from "@/lib/nest-notifications-store";
 
 // The permanent mobile app shell nav (M15.1). Five cozy tabs, **icons only** —
 // Home (discovery) · Explore (search) · Create · Notifications · Profile (dashboard).
@@ -26,6 +29,16 @@ function isActive(pathname: string, href: string): boolean {
 
 export function BottomNav() {
   const pathname = usePathname() ?? "";
+  const { ownerId } = useNestIdentity();
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    if (!ownerId) { setUnread(0); return; }
+    const refresh = () => setUnread(unreadCount(ownerId));
+    refresh();
+    return onNotificationsChanged(refresh);
+  }, [ownerId]);
+
   return (
     <nav
       aria-label="Primary"
@@ -55,18 +68,26 @@ export function BottomNav() {
               </li>
             );
           }
+          const showBadge = tab.href === "/notifications" && unread > 0;
           return (
             <li key={tab.href} className="flex flex-1">
               <Link
                 href={tab.href}
-                aria-label={tab.label}
+                aria-label={showBadge ? `${tab.label} (${unread} unread)` : tab.label}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex min-h-14 flex-1 items-center justify-center py-2 transition",
                   active ? "text-ink" : "text-ink/40 hover:text-ink/70",
                 )}
               >
-                <Icon size={24} strokeWidth={active ? 2.6 : 2} />
+                <span className="relative">
+                  <Icon size={24} strokeWidth={active ? 2.6 : 2} />
+                  {showBadge ? (
+                    <span className="absolute -right-1.5 -top-1 grid min-w-4 place-items-center rounded-full bg-terracotta px-1 text-[9px] font-black leading-4 text-parchment ring-2 ring-parchment">
+                      {unread > 9 ? "9+" : unread}
+                    </span>
+                  ) : null}
+                </span>
               </Link>
             </li>
           );

@@ -10,7 +10,7 @@ import type { NestDocument, NestVisibility } from "@/lib/nest-document-types";
 import type { ProductionTemplate } from "@/lib/nest-production-types";
 
 export type DiscoverySource = "published" | "curated" | "demo";
-export type DiscoveryCreator = { username?: string; displayName?: string };
+export type DiscoveryCreator = { id?: string; username?: string; displayName?: string };
 
 export type DiscoveryItem = {
   /** Stable React key. */

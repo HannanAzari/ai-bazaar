@@ -22,8 +22,13 @@ The world map is a **hexagon district map**: ten villages laid out as a connecte
 > **composed Nest thumbnails** (real furniture, not empty shells) everywhere, an immersive one-Nest-
 > per-screen feed with a creator row + engagement bar, an **owner-vs-visitor view** on the public
 > Nest page, **Nest naming** + **same-tab** publish, and true fixed-height **app-screen** tabs
-> (engagement/social counts are UI-only placeholders). See
-> [docs/m17.1-discovery-polish.md](docs/m17.1-discovery-polish.md) + decision-log ADR-033–ADR-037.
+> (engagement/social counts are UI-only placeholders). **M18** makes it social & real: **likes**,
+> **follows** (real follower counts), **Comments V1** in a slide-up sheet, a **Notifications** inbox
+> with a nav unread badge, an owner **"Today" activity** line, and owner **Views/Likes/Comments/
+> Followers** analytics — so a creator opens the app and knows someone visited. Local social store
+> (`lib/nest-social.ts`) that emits notifications; guests are gated in place; Supabase social tables
+> are authored for the cutover. See [docs/m18-social-foundation.md](docs/m18-social-foundation.md) +
+> decision-log ADR-033–ADR-038.
 
 ## Experience
 

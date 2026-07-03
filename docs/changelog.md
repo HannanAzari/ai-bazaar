@@ -8,6 +8,38 @@ for technical detail.
 
 ---
 
+## 2026-07-03 — M18: social foundation
+
+The first real social layer on `m12-nest-platform` (preview only; **no merge to `main`, no
+production deploy**) — likes, follows, comments, notifications, activity, and owner analytics so a
+creator feels "someone visited my Nest." No algorithms / villages / marketplace / DMs / AI. Full
+record: [m18-social-foundation.md](m18-social-foundation.md); rationale ADR-038.
+
+### Added
+- **Real likes** — `LikeButton` (toggle, one-per-user, instant count, animated); guest → sign-in sheet.
+- **Real follows** — `FollowButton` (instant); real follower/following counts on profiles.
+- **Comments V1** — `CommentSheet` (slide-up, Instagram-style): add · delete own · newest-first ·
+  creator badge beside the owner's comments · auth required. Flat, no threads.
+- **Notifications V1** — likes/follows/comments → a real recipient inbox (`/notifications`) with an
+  **unread badge** on the nav (cleared on open). `lib/nest-notifications-store.ts`. No push/email.
+- **Profile activity** — owner-only "Today: +N followers · +N likes · +N comments".
+- **Visitor analytics** — owner Nest view shows real **Views · Likes · Comments · Followers** (own
+  visits don't inflate views).
+- **`lib/nest-social.ts`** — the local social store (likes/follows/comments/views) that emits
+  notifications; **`AuthGateSheet`** gates guests in place (no navigation).
+- **Supabase schema** — `supabase/migrations/20260703_01_nest_social.sql`
+  (`nest_likes`/`creator_follows`/`nest_comments`/`notifications` + RLS) for the cutover.
+- Tests: `nest-social.test.ts`; trimmed the M17.1 placeholder engagement (now real). 365 total.
+
+### Changed
+- The M17.1 placeholder like/comment/follower numbers are now **real** everywhere (feed, visitor,
+  profile). `lib/nest-engagement.ts` keeps only `formatCount`.
+
+### Notes
+- Social data is **local per browser** (durable) until the Supabase social tables are provisioned.
+
+---
+
 ## 2026-07-03 — M17.1: discovery polish & identity
 
 UX + identity polish on `m12-nest-platform` (preview only; **no merge to `main`, no production

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, LogOut, Pencil, UserRound, X } from "lucide-react";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { AuthPanel } from "@/components/nest/app-shell/auth-panel";
-import { formatCount, placeholderSocial } from "@/lib/nest-engagement";
+import { formatCount } from "@/lib/nest-engagement";
+import { followerCount, followingCount, onSocialChanged } from "@/lib/nest-social";
 import type { NestSocials } from "@/lib/nest-profile-store";
 
 // M16 — the Profile dashboard header. States: signed-out (sign up / sign in) →
@@ -40,6 +41,14 @@ export function ProfileSummary({ nestCount }: { nestCount: number }) {
   const [bio, setBio] = useState("");
   const [socials, setSocials] = useState<NestSocials>({});
   const [error, setError] = useState<string>();
+  const [social, setSocial] = useState({ followers: 0, following: 0 });
+
+  useEffect(() => {
+    if (!account) return;
+    const refresh = () => setSocial({ followers: followerCount(account.id), following: followingCount(account.id) });
+    refresh();
+    return onSocialChanged(refresh);
+  }, [account]);
 
   if (loading) return <div className="h-24 animate-pulse rounded-3xl border border-timber/15 bg-white/60" />;
 
@@ -60,7 +69,6 @@ export function ProfileSummary({ nestCount }: { nestCount: number }) {
   }
 
   const username = profile?.username;
-  const social = username ? placeholderSocial(username) : { followers: 0, following: 0 };
 
   // Signed in but no username yet → claim it (immutable).
   if (!username) {

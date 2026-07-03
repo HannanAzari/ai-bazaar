@@ -1548,6 +1548,41 @@ were long documents rather than app screens. This sprint is UX/identity only —
 
 ---
 
+## ADR-038 — Social foundation: real likes/follows/comments/notifications via the local facade (M18)
+
+**Status:** Accepted (2026-07-03). Branch `m12-nest-platform`, preview only.
+Record: [m18-social-foundation.md](m18-social-foundation.md). Makes the M17.1 engagement placeholders
+(ADR-037) real.
+
+### Context
+M17.1 shipped engagement affordances as UI placeholders. M18 must make them **real** (persist, count,
+notify) so a creator feels visited — but without a social/ranking backend, and (as with every Nest
+sprint) I can't provision the live Supabase project.
+
+### Decision
+Build the social layer as **real, durable persistence via the backend facade** (like M16 auth / M17
+discovery): a working **local** store (`lib/nest-social.ts` for likes/follows/comments/views;
+`lib/nest-notifications-store.ts` for the inbox) keyed by account id, plus the **Supabase** schema
+(`nest_likes` · `creator_follows` · `nest_comments` · `notifications` + RLS) authored for the cutover.
+Social actions create/remove notifications for the Nest owner (resolved from the local publish
+registry) or followed creator, never for yourself. Guests are gated **in place** with a sign-in sheet
+(no navigation). Comments open as a bottom **sheet**, not a page.
+
+### Alternatives Considered
+- **Keep placeholders / fake counts** — fails the mission ("someone visited my Nest" must be true).
+- **Flip to live Supabase now** — needs human ops (migrations, a SECURITY DEFINER notify function,
+  env) and would leave the preview unverifiable; deferred to the documented cutover.
+- **Comments as a page** — violates the "no navigation away / Instagram feel" rule.
+
+### Consequences
+- (+) Real, verifiable social loop end-to-end (like → notify → badge → inbox → activity → owner
+  stats); optimistic, no refreshes; editor/publishing/discovery/ownership untouched.
+- (+) One env flip after the cutover makes it server-side + cross-device (schema already authored).
+- (−) Social data is **local per browser** until then; cross-browser like/comment notification routing
+  needs the Supabase tables. No push/email (out of scope).
+
+---
+
 ## Future decisions
 
 Append new ADRs below as `ADR-0NN`. When a decision changes, add a new ADR that

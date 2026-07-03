@@ -14,6 +14,7 @@ import {
   type PublishedNest,
 } from "@/lib/nest-document-store";
 import type { NestDocument } from "@/lib/nest-document-types";
+import { onNotificationsChanged, todayCounts } from "@/lib/nest-notifications-store";
 
 // M15.1 — the creator's private Profile / My Place dashboard (was `/home`). Profile
 // summary + Continue creating (drafts) + Published Nests + Create-New shortcut. This is
@@ -49,6 +50,7 @@ export function ProfileDashboardClient() {
       </div>
 
       <div className="space-y-6 pt-4">
+      <ActivityToday ownerId={ownerId} />
       {empty ? (
         <div className="rounded-3xl border border-dashed border-timber/25 bg-white/60 p-8 text-center">
           <p className="display text-2xl">Your Nest awaits</p>
@@ -82,6 +84,31 @@ export function ProfileDashboardClient() {
         </Section>
       ) : null}
       </div>
+    </div>
+  );
+}
+
+// Owner-only "someone interacted with your work today" summary — the M18 retention hook.
+function ActivityToday({ ownerId }: { ownerId?: string }) {
+  const [t, setT] = useState({ likes: 0, follows: 0, comments: 0 });
+  useEffect(() => {
+    if (!ownerId) return;
+    const refresh = () => setT(todayCounts(ownerId));
+    refresh();
+    return onNotificationsChanged(refresh);
+  }, [ownerId]);
+
+  const parts = [
+    t.follows ? `+${t.follows} follower${t.follows === 1 ? "" : "s"}` : null,
+    t.likes ? `+${t.likes} like${t.likes === 1 ? "" : "s"}` : null,
+    t.comments ? `+${t.comments} comment${t.comments === 1 ? "" : "s"}` : null,
+  ].filter(Boolean);
+  if (parts.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-timber/15 bg-gradient-to-br from-[#f6e7c6] to-[#ecd9ad] px-4 py-3 shadow-soft">
+      <p className="text-[11px] font-black uppercase tracking-wider text-terracotta">Today</p>
+      <p className="mt-0.5 text-sm font-bold text-ink">{parts.join(" · ")}</p>
     </div>
   );
 }

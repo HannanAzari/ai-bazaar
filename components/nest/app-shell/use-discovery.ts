@@ -25,7 +25,7 @@ export function useDiscovery(): { items: DiscoveryItem[]; published: DiscoveryIt
             title: entry.doc.title,
             visibility: entry.ref.visibility,
             href: publishedUrl(entry),
-            creator: { username: profile?.username, displayName: profile?.displayName },
+            creator: { id: entry.ref.ownerId, username: profile?.username, displayName: profile?.displayName },
             doc: entry.doc,
             tags: tpl?.tags,
             category: tpl?.persona,

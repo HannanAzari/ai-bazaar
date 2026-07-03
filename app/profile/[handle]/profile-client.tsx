@@ -7,7 +7,9 @@ import { NestCard } from "@/components/nest/app-shell/nest-card";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { getNestProfile, onNestProfilesChanged, resolveByUsername, type NestProfile, type NestSocials } from "@/lib/nest-profile-store";
 import { listPublished, onDocsChanged, publishedUrl, type PublishedNest } from "@/lib/nest-document-store";
-import { formatCount, placeholderSocial } from "@/lib/nest-engagement";
+import { formatCount } from "@/lib/nest-engagement";
+import { followerCount, followingCount, onSocialChanged } from "@/lib/nest-social";
+import { FollowButton } from "@/components/nest/social/follow-button";
 
 // M16 — the public creator profile at /@<handle> (served from /profile/<handle> via a
 // rewrite): profile hero (avatar · display name · @username · bio · links) + the
@@ -18,12 +20,20 @@ export function ProfileClient({ handle }: { handle: string }) {
   const { ownerId } = useNestIdentity();
   const [profile, setProfile] = useState<NestProfile | null | undefined>(undefined); // undefined = resolving
   const [published, setPublished] = useState<PublishedNest[]>([]);
+  const [social, setSocial] = useState({ followers: 0, following: 0 });
 
   useEffect(() => {
     const resolve = () => setProfile(resolveByUsername(handle) ?? null);
     resolve();
     return onNestProfilesChanged(resolve);
   }, [handle]);
+
+  useEffect(() => {
+    if (!profile) return;
+    const refresh = () => setSocial({ followers: followerCount(profile.userId), following: followingCount(profile.userId) });
+    refresh();
+    return onSocialChanged(refresh);
+  }, [profile]);
 
   useEffect(() => {
     if (!profile) return;
@@ -51,7 +61,6 @@ export function ProfileClient({ handle }: { handle: string }) {
   // Refresh from the store so a just-saved bio/link shows immediately for the owner.
   const live = getNestProfile(profile.userId) ?? profile;
   const links = socialLinks(live.socials);
-  const social = placeholderSocial(live.username ?? handle);
 
   return (
     <div className="space-y-6 pt-1">
@@ -75,7 +84,7 @@ export function ProfileClient({ handle }: { handle: string }) {
           <ProfileStat value={formatCount(social.followers)} label="Followers" />
           <ProfileStat value={formatCount(social.following)} label="Following" />
           <ProfileStat value={String(published.length)} label={published.length === 1 ? "Nest" : "Nests"} />
-          {isOwn ? <Link href="/profile" className="ml-auto self-center text-xs font-bold text-terracotta hover:underline">Manage →</Link> : null}
+          {isOwn ? <Link href="/profile" className="ml-auto self-center text-xs font-bold text-terracotta hover:underline">Manage →</Link> : <span className="ml-auto self-center"><FollowButton creatorId={profile.userId} /></span>}
         </div>
       </header>
 

@@ -253,7 +253,7 @@ has a graceful fallback.
 | `/home` | client | **Home — discovery feed** (M17/M17.1: immersive vertical **snap feed**; each card renders the **composed room** via `NestPreview`, creator row + engagement bar; `lib/nest-discovery.ts`) |
 | `/explore` | client | **Explore — search/discovery** (M17: search by title/creator/tags + category/trending chips + grid/list toggle; composed thumbnails) |
 | `/create` | client | **Create** — the single creation entry (Quick Start / Build My Own → editor) |
-| `/notifications` | client | **Notifications** — friendly empty state (no backend). `/updates` redirects here |
+| `/notifications` | client | **Notifications** — M18 real inbox (likes/follows/comments) + nav unread badge (`lib/nest-social.ts` + `lib/nest-notifications-store.ts`). `/updates` redirects here |
 | `/profile` | client | **Profile — private dashboard** (summary · Continue creating · Published · Create New) |
 | `/@<handle>` → `/profile/[handle]` | client (rewrite) | Public creator profile (username + published Nests) |
 | `/bazaar` | static | Alias of the map |

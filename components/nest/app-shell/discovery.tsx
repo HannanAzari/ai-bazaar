@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Heart, MessageCircle, Plus, Share2, Sparkles } from "lucide-react";
+import { Plus, Share2, Sparkles } from "lucide-react";
 import { creatorLabel, type DiscoveryCreator, type DiscoveryItem } from "@/lib/nest-discovery";
-import { formatCount, placeholderEngagement } from "@/lib/nest-engagement";
 import { NestPreview } from "@/components/nest/app-shell/nest-preview";
+import { LikeButton } from "@/components/nest/social/like-button";
+import { CommentButton } from "@/components/nest/social/comment-button";
+import { FollowButton } from "@/components/nest/social/follow-button";
 
 // M17.1 — reusable discovery UI shared by Home (immersive feed) and Explore (grid).
 // Cozy + identity-first: every Nest leads with WHO lives there, shows the creator's real
@@ -54,7 +56,7 @@ export function CreatorRow({ creator }: { creator: DiscoveryCreator }) {
   return (
     <div className="flex items-center justify-between gap-2">
       {hasProfile ? <Link href={`/@${creator.username}`} className="min-w-0">{identity}</Link> : identity}
-      <button disabled title="Following arrives in a later sprint" className="shrink-0 cursor-not-allowed rounded-full border border-white/40 px-3.5 py-1.5 text-xs font-bold text-white/90 opacity-80">Follow</button>
+      <FollowButton creatorId={creator.id} tone="light" compact />
     </div>
   );
 }
@@ -72,9 +74,18 @@ export function NestTags({ tags, max = 3, tone = "ink" }: { tags: string[]; max?
   );
 }
 
-// ── EngagementBar (UI only — like/comment disabled, share copies the link) ────
-export function EngagementBar({ id, href }: { id: string; href: string }) {
-  const { likes, comments } = placeholderEngagement(id);
+// ── EngagementBar (real likes + comments; share copies the link) ─────────────--
+export function EngagementBar({ id, href, tone = "light" }: { id: string; href: string; tone?: "ink" | "light" }) {
+  return (
+    <div className={`flex items-center gap-4 ${tone === "light" ? "text-white" : "text-ink/70"}`}>
+      <LikeButton nestId={id} tone={tone} />
+      <CommentButton nestId={id} tone={tone} />
+      <ShareButton href={href} tone={tone} />
+    </div>
+  );
+}
+
+export function ShareButton({ href, tone = "light" }: { href: string; tone?: "ink" | "light" }) {
   const [copied, setCopied] = useState(false);
   async function share() {
     const url = typeof window !== "undefined" ? window.location.origin + href : href;
@@ -84,17 +95,9 @@ export function EngagementBar({ id, href }: { id: string; href: string }) {
     } catch { /* dismissed */ }
   }
   return (
-    <div className="flex items-center gap-4 text-white">
-      <button disabled title="Likes arrive in a later sprint" className="flex cursor-not-allowed items-center gap-1.5 text-sm font-bold opacity-90">
-        <Heart className="size-5" /> {formatCount(likes)}
-      </button>
-      <button disabled title="Comments arrive in a later sprint" className="flex cursor-not-allowed items-center gap-1.5 text-sm font-bold opacity-90">
-        <MessageCircle className="size-5" /> {formatCount(comments)}
-      </button>
-      <button onClick={share} className="flex items-center gap-1.5 text-sm font-bold transition active:scale-95">
-        <Share2 className="size-5" /> {copied ? "Copied!" : "Share"}
-      </button>
-    </div>
+    <button onClick={share} className={`flex items-center gap-1.5 text-sm font-bold transition active:scale-95 ${tone === "light" ? "text-white" : "text-ink/70"}`}>
+      <Share2 className="size-5" /> {copied ? "Copied!" : "Share"}
+    </button>
   );
 }
 

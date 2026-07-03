@@ -5,7 +5,22 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest Nest sprint — M17.1 discovery polish & identity (2026-07-03):** UX/identity polish (no
+> **Latest Nest sprint — M18 social foundation (2026-07-03):** the first **real** social layer.
+> `lib/nest-social.ts` (likes/follows/comments/views, keyed by account id / slug) + `lib/
+> nest-notifications-store.ts` (recipient inbox) — durable localStorage that emits notifications to
+> the Nest owner / followed creator (never yourself). UI in `components/nest/social/*`: `LikeButton`
+> (animated), `FollowButton` (instant), `CommentButton` + `CommentSheet` (Instagram-style slide-up:
+> add/delete-own/newest-first/creator badge), `AuthGateSheet` (guests gated in place — no
+> navigation). Notifications tab (`/notifications`) is a real inbox with an **unread badge** on the
+> nav (cleared on open); Profile shows owner **"Today: +N followers · +N likes · +N comments"**; the
+> owner Nest view shows real **Views/Likes/Comments/Followers** (own visits don't inflate views). The
+> M17.1 placeholder engagement is gone — counts are real everywhere. **Supabase schema authored**
+> (`supabase/migrations/20260703_01_nest_social.sql`: nest_likes/creator_follows/nest_comments/
+> notifications + RLS) for the cutover; social data is **local per browser** until then. No
+> algorithms/villages/marketplace/DMs/AI; editor/publishing/discovery/ownership untouched. Preview
+> only (`m12-nest-platform`). See [m18-social-foundation.md](m18-social-foundation.md) + ADR-038.
+>
+> **M17.1 discovery polish & identity (2026-07-03):** UX/identity polish (no
 > backend). **`NestPreview`** (`components/nest/app-shell/nest-preview.tsx`) renders the **composed
 > room** (background + the creator's real furniture) in the feed, Explore, profile cards, and the
 > visitor page — cards show what they made. Home is a true immersive feed (one Nest ~per screen,
