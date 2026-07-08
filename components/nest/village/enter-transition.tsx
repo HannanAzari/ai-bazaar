@@ -20,7 +20,7 @@ export function DoorTransition({
 }) {
   useEffect(() => {
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const t = setTimeout(onDone, reduce ? 120 : mode === "enter" ? 900 : 720);
+    const t = setTimeout(onDone, reduce ? 120 : mode === "enter" ? 1000 : 760);
     return () => clearTimeout(t);
   }, [onDone, mode]);
 
@@ -29,7 +29,8 @@ export function DoorTransition({
   const text = label ?? (entering ? "Stepping inside…" : "Heading out…");
 
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center overflow-hidden bg-[#241811]" role="status" aria-label={text}>
+    // Fade the overlay in so entering/leaving eases in rather than cutting to black.
+    <div className="nest-fade fixed inset-0 z-[70] grid place-items-center overflow-hidden bg-[#241811]" role="status" aria-label={text}>
       {/* warm light flooding out from behind the door */}
       <div
         className={entering ? "nest-door-flood absolute inset-0" : "absolute inset-0"}

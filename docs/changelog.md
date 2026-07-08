@@ -8,6 +8,45 @@ for technical detail.
 
 ---
 
+## 2026-07-03 — Beta Polish 3: arrival experience
+
+Pure polish on the Nest arrival on `m12-nest-platform` (preview only; **no merge to `main`, no
+production deploy**). **No functionality changes** — declutters the arrival panel to what matters,
+adds Instagram-Stories swiping, and makes the house feel alive. Also **fixes a hydration bug** from
+Beta Polish 2. Full record: [beta-polish-3-arrival-experience.md](beta-polish-3-arrival-experience.md).
+
+### Removed (arrival panel clutter)
+- The **"Home" / "Out" presence chip**, the **"Online / Away"** stat, the **"Now showing: …"** peek,
+  and the **duplicate time label** in the corner (the sky/weather chip is the single atmosphere label).
+
+### Kept
+- **Creator** (avatar · name · @handle), **Followers**, **Nest count**, **Enter** — nothing else.
+
+### Changed
+- **Instagram-Stories swipe** — horizontal swipe (pointer/touch) on the arrival navigates prev/next
+  house (swipe left → next, right → prev); the arrows still work. `HouseFront` (`house-front.tsx`).
+- **The house feels alive** — a barely-there idle float (`nest-idle`), softer **pooled light** behind
+  it, a **grounded shadow** under it, and a **larger, better-proportioned** scale; it re-settles
+  (keyed) on each swipe.
+- **Smoother door** — the door transition eases in (overlay fade + a gentler open curve, ~1s).
+
+### Fixed
+- **Hydration mismatch** (introduced in Beta Polish 2): `VillageTerrain` + `SceneBackdrop` used a
+  `Math.sin`-based scatter PRNG, and `Math.sin` isn't bit-identical between the Node server and the
+  browser — SSR vs client SVG coordinates differed by ~1e-7 and mismatched on hydration. Replaced with
+  an **integer hash** PRNG (bit-identical everywhere). Only surfaced on a full SSR load of `/village`.
+
+### Database / Flags
+- **None.** Visual/interaction polish only; no tables, migrations, flags, or dependencies.
+
+### Verification (browser, mobile 375×812)
+- Arrival shows only Creator · Followers · Nest count · Enter (no Home/Online/Now-showing/duplicate
+  time); swipe left/right changes house (arrows too); Enter still plays the door and lands inside the
+  Nest. Full SSR load of `/village` has **no console errors** (hydration fixed). typecheck · lint ·
+  test (402) · build green.
+
+---
+
 ## 2026-07-03 — Beta Polish 2: village realism
 
 Pure visual polish on `m12-nest-platform` (preview only; **no merge to `main`, no production

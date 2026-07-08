@@ -5,7 +5,19 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest — Beta Polish 2: village realism (2026-07-03):** pure visual polish (no features, no
+> **Latest — Beta Polish 3: arrival experience (2026-07-03):** pure polish on the Nest arrival (no
+> functionality change). `HouseFront` (`components/nest/village/house-front.tsx`) is decluttered to
+> **Creator · Followers · Nest count · Enter** — removed the Home/Out presence chip, the Online/Away
+> stat, the "Now showing" peek, and the duplicate corner time label (the sky/weather chip is the one
+> atmosphere label). Added **Instagram-Stories swipe** (horizontal pointer/touch → prev/next house;
+> arrows still work), and made the house **feel alive** (idle float `nest-idle`, softer pooled light,
+> a grounded shadow, larger scale, re-settles on each swipe). The **door transition is smoother**
+> (overlay fade + gentler ~1s open). **Fixed a hydration mismatch** from Beta Polish 2: `VillageTerrain`
+> + `SceneBackdrop` used a `Math.sin` scatter PRNG (not bit-identical server↔browser) → replaced with
+> an integer-hash PRNG. Visual/interaction only — no tables/migrations/flags/deps. See
+> [beta-polish-3-arrival-experience.md](beta-polish-3-arrival-experience.md).
+>
+> **Beta Polish 2: village realism (2026-07-03):** pure visual polish (no features, no
 > navigation change) so the village feels like a believable town, not floating stickers. New
 > **`components/nest/village/village-terrain.tsx`** draws the ground the village sits on — a rolling
 > grass valley with elevation contours, a horizon that blends into the sky backdrop, a **winding dirt

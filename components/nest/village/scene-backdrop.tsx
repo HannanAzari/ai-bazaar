@@ -7,10 +7,14 @@ import type { SkyTheme, WeatherTheme } from "@/lib/nest-atmosphere";
 // (no Math.random → hydration-safe). Restraint over spectacle — a Ghibli town at dusk,
 // not a weather demo.
 
-// Deterministic 0..1 from an index (a tiny hash — never Math.random).
+// Deterministic 0..1 from an index — an *integer* hash (no Math.random, and no
+// Math.sin: trig isn't bit-identical between the Node server and the browser, which
+// would mismatch SSR vs client particle positions during hydration).
 function rnd(i: number, salt = 1): number {
-  const x = Math.sin((i + 1) * 12.9898 * salt) * 43758.5453;
-  return x - Math.floor(x);
+  let h = Math.imul(i + 1, 374761393) + Math.imul(salt, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
 }
 
 const STARS = Array.from({ length: 26 }, (_, i) => ({

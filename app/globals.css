@@ -496,6 +496,13 @@ body::before {
 }
 .nest-approach { animation: nest-approach 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
+/* The arrival house breathes — a barely-there float so it feels alive. */
+@keyframes nest-idle {
+  0%, 100% { transform: translateY(0) rotate(-0.15deg); }
+  50%      { transform: translateY(-4px) rotate(0.15deg); }
+}
+.nest-idle { animation: nest-idle 5s ease-in-out infinite; will-change: transform; }
+
 /* Overlay fade-in (arrival panel). */
 @keyframes nest-fade {
   0%   { opacity: 0; }
@@ -516,7 +523,7 @@ body::before {
   55%  { transform: scaleX(0.05); opacity: 1; }
   100% { transform: scaleX(0.05); opacity: 0; }
 }
-.nest-door-open { animation: nest-door-open 0.9s ease-in both; transform-origin: left center; }
+.nest-door-open { animation: nest-door-open 1s cubic-bezier(0.65, 0, 0.35, 1) both; transform-origin: left center; }
 
 @keyframes nest-door-flood {
   0%   { opacity: 0; }
