@@ -5,7 +5,19 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest — Beta Polish 1: fullscreen experience (2026-07-03):** pure UX/layout polish (no new
+> **Latest — Beta Polish 2: village realism (2026-07-03):** pure visual polish (no features, no
+> navigation change) so the village feels like a believable town, not floating stickers. New
+> **`components/nest/village/village-terrain.tsx`** draws the ground the village sits on — a rolling
+> grass valley with elevation contours, a horizon that blends into the sky backdrop, a **winding dirt
+> road** + walking paths, neighbourhood greens, and scattered **trees/bushes/flowers/rocks** (seeded,
+> avoids houses, organic). It re-lights with the time of day + weather. `village-scene.tsx` adds
+> **perspective** (lower houses bigger/closer + fully lit, upper smaller/further/hazier, growing from
+> the base) and each house gets a **contact shadow** (`HouseExterior`) so it sits on the ground.
+> `houseFeatures` (`lib/nest-house.ts`) gained seed-derived **`fence`** (none/picket/hedge/stone) +
+> **`porch`**. Visual only — no tables/migrations/flags/deps; navigation untouched. See
+> [beta-polish-2-village-realism.md](beta-polish-2-village-realism.md).
+>
+> **Beta Polish 1: fullscreen experience (2026-07-03):** pure UX/layout polish (no new
 > features) so Nestudio feels like a native app, not a scrolling website — every Nest surface is **one
 > phone screen, no page scroll**. **Home feed** = true snap-mandatory **one-Nest-per-viewport** paging
 > (`DiscoveryFeed`, full-bleed pages, no peek). **Visitor + owner Nest** (`app/nest/[slug]/visitor-client.tsx`)

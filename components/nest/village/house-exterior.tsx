@@ -46,7 +46,13 @@ export function HouseExterior({
           <stop offset="0%" stopColor={s.glow} stopOpacity={lit ? 0.6 + g * 0.4 : 0} />
           <stop offset="100%" stopColor={s.glow} stopOpacity="0" />
         </radialGradient>
+        <filter id={`sh-${uid}`} x="-20%" y="-40%" width="140%" height="200%">
+          <feGaussianBlur stdDeviation="2.4" />
+        </filter>
       </defs>
+
+      {/* soft contact shadow so the house sits ON the ground, not floating */}
+      <ellipse cx="61" cy="108" rx="43" ry="7" fill="#241811" opacity="0.17" filter={`url(#sh-${uid})`} />
 
       {/* garden patch */}
       <ellipse cx="60" cy="106" rx="46" ry="10" fill={s.ground} />
@@ -87,8 +93,9 @@ export function HouseExterior({
       )}
       <path d="M96 54 L60 30 L60 34 L92 55 Z" fill={s.roofShade} opacity="0.85" />
 
-      {/* door */}
+      {/* door + optional porch awning */}
       <Door type={f.door} style={s} lit={lit} />
+      {f.porch ? <Porch style={s} /> : null}
 
       {/* windows */}
       {f.windowCount === 2 ? (
@@ -102,7 +109,53 @@ export function HouseExterior({
 
       {/* garden decoration */}
       <Garden decor={f.garden} style={s} lit={lit} />
+
+      {/* a little front fence / hedge (frontmost) */}
+      {f.fence !== "none" ? <Fence kind={f.fence} style={s} /> : null}
     </svg>
+  );
+}
+
+function Porch({ style }: { style: HouseStyle }) {
+  return (
+    <g>
+      <rect x="47" y="65" width="26" height="4" rx="1.5" fill={style.roofShade} />
+      <rect x="47" y="64" width="26" height="2" rx="1" fill={style.roof} />
+      <rect x="48.5" y="69" width="2" height="29" rx="1" fill={style.trim} opacity="0.7" />
+      <rect x="69.5" y="69" width="2" height="29" rx="1" fill={style.trim} opacity="0.7" />
+    </g>
+  );
+}
+
+function Fence({ kind, style }: { kind: "picket" | "hedge" | "stone"; style: HouseStyle }) {
+  const xs = [22, 30, 38, 82, 90, 98]; // skip the centre so the path/door stays open
+  if (kind === "hedge") {
+    return (
+      <g>
+        {[20, 30, 40, 80, 90, 100].map((x) => (
+          <circle key={x} cx={x} cy={100} r="4.5" fill={style.ground} />
+        ))}
+      </g>
+    );
+  }
+  if (kind === "stone") {
+    return (
+      <g>
+        {xs.map((x) => (
+          <rect key={x} x={x - 3} y={98} width="6" height="5" rx="1.5" fill="#b7a888" stroke="#9c8d6d" strokeWidth="0.5" />
+        ))}
+      </g>
+    );
+  }
+  // picket
+  return (
+    <g>
+      <line x1="18" y1="100" x2="42" y2="100" stroke={style.trim} strokeWidth="1.4" opacity="0.75" />
+      <line x1="78" y1="100" x2="102" y2="100" stroke={style.trim} strokeWidth="1.4" opacity="0.75" />
+      {[20, 26, 32, 38, 80, 86, 92, 98].map((x) => (
+        <rect key={x} x={x - 1} y={96} width="2" height="8" rx="1" fill="#efe6cf" stroke={style.trim} strokeWidth="0.5" />
+      ))}
+    </g>
   );
 }
 

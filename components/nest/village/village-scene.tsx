@@ -6,6 +6,7 @@ import { houseInitial } from "@/lib/nest-house";
 import type { SkyTheme, WeatherTheme } from "@/lib/nest-atmosphere";
 import { HouseExterior } from "@/components/nest/village/house-exterior";
 import { SceneBackdrop } from "@/components/nest/village/scene-backdrop";
+import { VillageTerrain } from "@/components/nest/village/village-terrain";
 
 // M19.1 — the Village, now with a sky (time of day + weather) and a cinematic camera:
 // tapping a house zooms the board toward it while the neighborhood softens, then the
@@ -56,17 +57,23 @@ export function VillageScene({
             opacity: zoomHouse ? 0.55 : 1,
           }}
         >
-          {/* soft village clearing under the houses */}
-          <div className="pointer-events-none absolute left-1/2 top-1/2 size-[70%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#b7d195]/40 blur-2xl" />
+          {/* the ground the village sits on — grass valley, road, greenery */}
+          <VillageTerrain village={village} sky={sky} wx={wx} />
 
           {[...village.houses]
             .sort((a, b) => a.y - b.y) // back-to-front so nearer houses overlap
-            .map((house) => (
+            .map((house) => {
+              // Perspective: lower houses read as closer (bigger + fully lit), upper
+              // houses as further (smaller + a touch hazier). Grows from the base.
+              const depth = house.y / village.height;
+              const scale = 0.74 + depth * 0.5;
+              const nodeOpacity = 0.82 + depth * 0.18;
+              return (
               <button
                 key={house.id}
                 onClick={() => onSelect(house)}
                 className="group absolute flex flex-col items-center"
-                style={{ left: house.x, top: house.y, width: nodeSize, transform: "translate(-50%, -86%)", zIndex: Math.round(house.y) }}
+                style={{ left: house.x, top: house.y, width: nodeSize, transform: `translate(-50%, -100%) scale(${scale})`, transformOrigin: "50% 100%", opacity: nodeOpacity, zIndex: Math.round(house.y) }}
                 aria-label={`${house.name}${house.isReal ? " (creator)" : ""}`}
               >
                 <HouseExterior house={house} className="w-full" interactive glow={sky.glow} night={sky.night} />
@@ -88,7 +95,8 @@ export function VillageScene({
                   </span>
                 ) : null}
               </button>
-            ))}
+              );
+            })}
         </div>
       </div>
 

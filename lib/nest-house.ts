@@ -152,6 +152,7 @@ export type RoofShape = "gable" | "hip";
 export type WindowShape = "square" | "round" | "arch";
 export type DoorType = "round" | "arch" | "square";
 export type GardenDecor = "flowers" | "bush" | "lantern" | "path";
+export type FenceStyle = "none" | "picket" | "hedge" | "stone";
 
 export type HouseFeatures = {
   roof: RoofShape;
@@ -163,11 +164,16 @@ export type HouseFeatures = {
   chimney: boolean;
   /** -1 = left, 1 = right. */
   treeSide: -1 | 1;
+  /** A little front fence / hedge — visual only (Beta Polish 2). */
+  fence: FenceStyle;
+  /** A small porch awning over the door — visual only (Beta Polish 2). */
+  porch: boolean;
 };
 
 const WINDOW_SHAPES: WindowShape[] = ["square", "round", "arch"];
 const DOOR_TYPES: DoorType[] = ["round", "arch", "square"];
 const GARDEN_DECOR: GardenDecor[] = ["flowers", "bush", "lantern", "path"];
+const FENCE_STYLES: FenceStyle[] = ["none", "picket", "hedge", "stone"];
 
 /** Decode the seed into a house's physical features. Pure + deterministic. */
 export function houseFeatures(seed: number): HouseFeatures {
@@ -182,6 +188,8 @@ export function houseFeatures(seed: number): HouseFeatures {
     mailbox: ((seed >>> 10) & 1) === 0,
     chimney: ((seed >>> 1) & 1) === 0,
     treeSide: ((seed >>> 2) & 1) === 0 ? -1 : 1,
+    fence: FENCE_STYLES[(seed >>> 12) % FENCE_STYLES.length],
+    porch: ((seed >>> 15) & 1) === 0,
   };
 }
 

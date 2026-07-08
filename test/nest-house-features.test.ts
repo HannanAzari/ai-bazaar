@@ -17,6 +17,8 @@ describe("houseFeatures", () => {
       expect(typeof f.mailbox).toBe("boolean");
       expect(typeof f.chimney).toBe("boolean");
       expect([-1, 1]).toContain(f.treeSide);
+      expect(["none", "picket", "hedge", "stone"]).toContain(f.fence);
+      expect(typeof f.porch).toBe("boolean");
     }
   });
 

@@ -8,6 +8,42 @@ for technical detail.
 
 ---
 
+## 2026-07-03 — Beta Polish 2: village realism
+
+Pure visual polish on `m12-nest-platform` (preview only; **no merge to `main`, no production
+deploy**). **No new features, no navigation changes** — the village stops looking like floating
+stickers on a flat field and becomes a believable little town. Full record:
+[beta-polish-2-village-realism.md](beta-polish-2-village-realism.md).
+
+### Added
+- **`VillageTerrain`** (`components/nest/village/village-terrain.tsx`) — the ground the village sits
+  on: a rolling grass valley with **elevation contours**, a **horizon** that blends into the sky
+  backdrop, a **winding dirt road** + branch + short walking paths, soft **neighbourhood greens**
+  under the house clusters, and **scattered trees / bushes / flowers / rocks** placed organically
+  (seeded, avoids houses + no perfect grid). Re-lit by the **time of day + weather** (shares the sky's
+  wash), so it reads morning→night and clear/rain/snow.
+- **House variety** — `houseFeatures` gains seed-derived **`fence`** (none / picket / hedge / stone)
+  and **`porch`** (a door awning), rendered in `HouseExterior` alongside the existing roof / chimney /
+  window / door / garden / mailbox variety. Visual only — no functional change.
+
+### Changed
+- **Perspective + grounding** (`village-scene.tsx`) — houses now **scale with depth** (lower = closer
+  + fully lit, upper = further + smaller + a touch hazier) and grow from their base; the old flat
+  "clearing" blob is replaced by the terrain. Each house gained a **soft contact shadow** (`HouseExterior`)
+  so it sits ON the ground instead of floating.
+
+### Database / Flags
+- **None.** Visual-only; no tables, migrations, flags, or dependencies. **Navigation is unchanged.**
+
+### Verification (browser, mobile 375×812)
+- Screenshotted the village in **Morning · Clear**, **Afternoon · Clear**, **Night · Clear**,
+  **Afternoon · Rain**, and **Afternoon · Snow** — a winding road through rolling grass, grounded
+  houses with depth/perspective, scattered greenery, and visible per-house variety (porches, picket/
+  stone fences, roofs, chimneys). Tapping a house still opens the arrival (navigation intact). No
+  console errors. typecheck · lint · test (402) · build green.
+
+---
+
 ## 2026-07-03 — Beta Polish 1: fullscreen experience
 
 Pure UX/layout polish on `m12-nest-platform` (preview only; **no merge to `main`, no production
