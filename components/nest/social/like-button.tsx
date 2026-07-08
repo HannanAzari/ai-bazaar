@@ -26,7 +26,7 @@ export function LikeButton({ nestId, tone = "ink" }: { nestId: string; tone?: "i
   function onTap() {
     if (!ownerId) { setGate(true); return; }
     const nowLiked = toggleLike(nestId, ownerId);
-    if (nowLiked) { setPop(true); setTimeout(() => setPop(false), 320); }
+    if (nowLiked) { setPop(true); setTimeout(() => setPop(false), 440); }
   }
 
   const light = tone === "light";
@@ -37,7 +37,7 @@ export function LikeButton({ nestId, tone = "ink" }: { nestId: string; tone?: "i
           <Heart className={`size-5 transition ${liked ? "fill-terracotta text-terracotta" : ""}`} />
         </span>
         {formatCount(count)}
-        <style>{`@keyframes like-pop { 0% { transform: scale(1) } 45% { transform: scale(1.35) } 100% { transform: scale(1) } } .like-pop { display: inline-flex; animation: like-pop .32s cubic-bezier(.22,.61,.36,1) } @media (prefers-reduced-motion: reduce) { .like-pop { animation: none } }`}</style>
+        <style>{`@keyframes like-pop { 0% { transform: scale(1) } 30% { transform: scale(1.28) } 58% { transform: scale(0.95) } 100% { transform: scale(1) } } .like-pop { display: inline-flex; animation: like-pop .44s cubic-bezier(.34,1.26,.5,1) } @media (prefers-reduced-motion: reduce) { .like-pop { animation: none } }`}</style>
       </button>
       <AuthGateSheet open={gate} onClose={() => setGate(false)} action="like this Nest" />
     </>

@@ -72,28 +72,31 @@ export function VillageScene({
               <button
                 key={house.id}
                 onClick={() => onSelect(house)}
-                className="group absolute flex flex-col items-center"
+                className="group absolute"
                 style={{ left: house.x, top: house.y, width: nodeSize, transform: `translate(-50%, -100%) scale(${scale})`, transformOrigin: "50% 100%", opacity: nodeOpacity, zIndex: Math.round(house.y) }}
                 aria-label={`${house.name}${house.isReal ? " (creator)" : ""}`}
               >
-                <HouseExterior house={house} className="w-full" interactive glow={sky.glow} night={sky.night} />
-                <span
-                  className={`-mt-1 max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-bold shadow-soft ${
-                    house.isReal ? "bg-terracotta text-parchment" : "bg-white/85 text-ink/60"
-                  }`}
-                >
-                  {house.isReal && house.handle ? `@${house.handle}` : house.name}
-                </span>
-                {house.online ? (
-                  <span className="absolute right-3 top-2 flex items-center gap-1 rounded-full bg-white/85 px-1.5 py-0.5 shadow-soft">
-                    <span className="size-1.5 rounded-full bg-meadow-shade" />
+                {/* barely-there float so the village feels alive (staggered per house) */}
+                <div className="nest-float-map relative flex flex-col items-center" style={{ animationDelay: `${(house.seed % 60) / 10}s` }}>
+                  <HouseExterior house={house} className="w-full" interactive glow={sky.glow} night={sky.night} />
+                  <span
+                    className={`-mt-1 max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-bold shadow-soft ${
+                      house.isReal ? "bg-terracotta text-parchment" : "bg-white/85 text-ink/60"
+                    }`}
+                  >
+                    {house.isReal && house.handle ? `@${house.handle}` : house.name}
                   </span>
-                ) : null}
-                {house.isReal ? (
-                  <span className="absolute -top-1 left-2 grid size-5 place-items-center rounded-full bg-white text-[9px] font-black text-terracotta shadow-soft ring-1 ring-terracotta/30">
-                    {houseInitial(house)}
-                  </span>
-                ) : null}
+                  {house.online ? (
+                    <span className="absolute right-3 top-2 flex items-center gap-1 rounded-full bg-white/85 px-1.5 py-0.5 shadow-soft">
+                      <span className="size-1.5 rounded-full bg-meadow-shade" />
+                    </span>
+                  ) : null}
+                  {house.isReal ? (
+                    <span className="absolute -top-1 left-2 grid size-5 place-items-center rounded-full bg-white text-[9px] font-black text-terracotta shadow-soft ring-1 ring-terracotta/30">
+                      {houseInitial(house)}
+                    </span>
+                  ) : null}
+                </div>
               </button>
               );
             })}

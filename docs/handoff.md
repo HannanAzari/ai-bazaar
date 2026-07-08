@@ -5,7 +5,17 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest — Beta Polish 4: discovery feed (2026-07-03):** pure visual polish (no discovery-logic or
+> **Latest — Beta Polish 5: micro-animations (2026-07-03):** calm, cozy, premium micro-animations
+> (CSS-only, 60fps, reduced-motion respected; no features, no new libraries). A global soft-spring on
+> tap-scaling buttons (`[class*="active:scale"]`), a softer heart-pop (`like-button`), a Follow
+> **morph** (`follow-button`), a softer comment-sheet slide + backdrop fade (`bottom-sheet`), a
+> barely-there **village house float** (`nest-float-map`, ±1.5px, staggered — shadows stay grounded),
+> **terrain tree sway** (canopies only), smoother **clouds** (`nest-drift`) + more natural **snow**
+> (`nest-snow` sway), and a subtle **room ambient light pulse** (`nest-ambient`) on the visitor Nest.
+> All keyframes are disabled under `prefers-reduced-motion`. Animation-only — no tables/migrations/
+> flags/deps/logic. See [beta-polish-5-micro-animations.md](beta-polish-5-micro-animations.md).
+>
+> **Beta Polish 4: discovery feed (2026-07-03):** pure visual polish (no discovery-logic or
 > backend change) so every Nest card feels premium. In `components/nest/app-shell/discovery.tsx`:
 > serif `display` title + tighter type, **CTA hierarchy** (dominant Visit House/Nest + quiet glassy
 > secondary), ringed creator avatar, top scrim + deeper bottom gradient + a soft **vignette**, grid

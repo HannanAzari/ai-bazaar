@@ -119,9 +119,12 @@ export function VillageTerrain({ village, sky, wx }: { village: Village; sky: Sk
           {d.type === "tree" ? (
             <>
               <rect x="-2" y="-14" width="4" height="15" rx="2" fill={treeShade} />
-              <circle cx="0" cy="-20" r="12" fill={treeGreen} />
-              <circle cx="-7" cy="-15" r="8" fill={treeShade} />
-              <circle cx="7" cy="-15" r="8" fill={treeGreen} />
+              {/* canopy sways gently in the breeze (trunk stays put) */}
+              <g className="nest-sway" style={{ transformBox: "fill-box", transformOrigin: "50% 100%", animationDelay: `${(d.seed % 40) / 10}s` }}>
+                <circle cx="0" cy="-20" r="12" fill={treeGreen} />
+                <circle cx="-7" cy="-15" r="8" fill={treeShade} />
+                <circle cx="7" cy="-15" r="8" fill={treeGreen} />
+              </g>
             </>
           ) : d.type === "bush" ? (
             <>

@@ -503,6 +503,28 @@ body::before {
 }
 .nest-idle { animation: nest-idle 5s ease-in-out infinite; will-change: transform; }
 
+/* ── Beta Polish 5 — calm micro-animations ─────────────────────────────────── */
+
+/* Any button that scales on tap gets a gentle spring on release — calm, not bouncy. */
+[class*="active:scale"] {
+  transition-timing-function: cubic-bezier(0.34, 1.26, 0.5, 1);
+  transition-duration: 220ms;
+}
+
+/* Houses on the village map breathe with a barely-there float (staggered per house). */
+@keyframes nest-float-map {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-1.5px); }
+}
+.nest-float-map { animation: nest-float-map 8.5s ease-in-out infinite; will-change: transform; }
+
+/* A room's warm light breathes very subtly. */
+@keyframes nest-ambient {
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 0.07; }
+}
+.nest-ambient { animation: nest-ambient 8s ease-in-out infinite; }
+
 /* Loading shimmer for Nest cards while the room art paints in. */
 @keyframes nest-shimmer {
   0%   { background-position: -150% 0; }
@@ -521,12 +543,13 @@ body::before {
 }
 .nest-fade { animation: nest-fade 0.3s ease-out both; }
 
-/* Soft drifting clouds behind the village. */
+/* Soft drifting clouds behind the village — slower, with a gentle vertical lull. */
 @keyframes nest-drift {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(40px); }
+  0%   { transform: translate(0, 0); }
+  50%  { transform: translate(24px, -3px); }
+  100% { transform: translate(48px, 0); }
 }
-.nest-drift { animation: nest-drift 22s ease-in-out infinite alternate; }
+.nest-drift { animation: nest-drift 34s ease-in-out infinite alternate; }
 
 /* Entering a Nest: the door opens and light floods out, then we fade inside. */
 @keyframes nest-door-open {
@@ -575,7 +598,9 @@ body::before {
 @keyframes nest-snow {
   0%   { transform: translate(0, -10%); opacity: 0; }
   10%  { opacity: 0.9; }
-  100% { transform: translate(var(--drift, 0), 2200%); opacity: 0.5; }
+  35%  { transform: translate(calc(var(--drift, 0px) * -0.5), 750%); }
+  70%  { transform: translate(calc(var(--drift, 0px) * 0.8), 1550%); }
+  100% { transform: translate(var(--drift, 0px), 2200%); opacity: 0.4; }
 }
 .nest-snow { animation: nest-snow linear infinite; }
 

@@ -111,6 +111,8 @@ function VisitorView({ doc, slug }: { doc: NestDocument; slug: string }) {
       {/* CENTER — the composed room fills the space; title + tags sit on its base */}
       <div className="relative min-h-0 flex-1">
         <NestPreview doc={doc} className="size-full" rounded="rounded-3xl border border-[#e0d5b8] shadow-sm" safe={{ bottom: 0.12 }} />
+        {/* the room's warm light breathes very subtly */}
+        <div className="nest-ambient pointer-events-none absolute inset-0 rounded-3xl" style={{ background: "radial-gradient(60% 45% at 50% 38%, rgba(255,222,160,0.65), transparent 70%)" }} />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-3xl bg-gradient-to-t from-black/60 via-black/25 to-transparent p-4 pt-12">
           <h1 className="display text-2xl leading-tight text-white drop-shadow-sm">{doc.title}</h1>
           {tags.length > 0 ? <div className="mt-1.5"><NestTags tags={tags} max={4} tone="light" /></div> : null}

@@ -12,6 +12,7 @@ export function FollowButton({ creatorId, tone = "ink", compact = false }: { cre
   const { ownerId } = useNestIdentity();
   const [following, setFollowing] = useState(false);
   const [gate, setGate] = useState(false);
+  const [morph, setMorph] = useState(false);
 
   useEffect(() => {
     if (!creatorId) return;
@@ -26,18 +27,21 @@ export function FollowButton({ creatorId, tone = "ink", compact = false }: { cre
   function onTap() {
     if (!ownerId) { setGate(true); return; }
     setFollowing(toggleFollow(ownerId, creatorId!));
+    setMorph(true);
+    setTimeout(() => setMorph(false), 360);
   }
 
   const light = tone === "light";
-  const base = "inline-flex items-center justify-center gap-1.5 rounded-full font-bold transition active:scale-95";
+  const base = "inline-flex items-center justify-center gap-1.5 rounded-full font-bold transition-[background-color,color,border-color,transform] duration-300 active:scale-95";
   const size = compact ? "px-3.5 py-1.5 text-xs" : "px-4 py-2 text-sm";
   const style = following
     ? light ? "border border-white/40 text-white/90" : "border border-timber/25 bg-white text-ink/60"
     : light ? "bg-white text-terracotta" : "bg-terracotta text-parchment";
   return (
     <>
-      <button onClick={onTap} aria-pressed={following} className={`${base} ${size} ${style}`}>
+      <button onClick={onTap} aria-pressed={following} className={`${base} ${size} ${style} ${morph ? "follow-morph" : ""}`}>
         {following ? <><Check className="size-3.5" /> Following</> : <><UserPlus className="size-3.5" /> Follow</>}
+        <style>{`@keyframes follow-morph { 0% { transform: scale(1) } 40% { transform: scale(1.07) } 100% { transform: scale(1) } } .follow-morph { animation: follow-morph .36s cubic-bezier(.34,1.26,.5,1) } @media (prefers-reduced-motion: reduce) { .follow-morph { animation: none } }`}</style>
       </button>
       <AuthGateSheet open={gate} onClose={() => setGate(false)} action="follow this creator" />
     </>

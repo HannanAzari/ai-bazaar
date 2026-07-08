@@ -8,6 +8,42 @@ for technical detail.
 
 ---
 
+## 2026-07-03 — Beta Polish 5: micro-animations
+
+Pure animation polish on `m12-nest-platform` (preview only; **no merge to `main`, no production
+deploy**). **No features, no new libraries** — calm, cozy, premium micro-animations (CSS only, 60fps,
+reduced-motion respected). Full record: [beta-polish-5-micro-animations.md](beta-polish-5-micro-animations.md).
+
+### Changed (delight only)
+- **Buttons** — every tap-scaling button gets a **soft spring** on release (one global rule keyed off
+  `active:scale`; a gentle overshoot easing, not bouncy).
+- **Like** — the heart **pops and settles** (calmer curve + a soft overshoot-back).
+- **Follow** — a **smooth morph** on toggle (colour transition + a subtle scale confirm).
+- **Comment sheet** — a **softer slide** (slower, smoother easing) with a **backdrop fade-in**.
+- **Village** — houses **breathe** with a barely-there float (±1.5px, staggered per house; grounded
+  shadows stay).
+- **House (arrival)** — subtle breathing (existing `nest-idle`, kept).
+- **Trees** — the terrain tree canopies **sway gently** in the breeze (staggered; trunks stay put).
+- **Clouds** — **smoother** drift (slower, with a gentle vertical lull).
+- **Weather** — **more natural** snow (it sways left↔right as it falls).
+- **Room** — a **very subtle ambient light pulse** breathes over the visitor's composed room.
+- **Door** — smoother easing (kept from Beta Polish 3).
+
+### Performance / accessibility
+- **CSS-only** transforms/opacity (`will-change` on the moving layers) — no JS animation loops, no
+  new dependencies. All keyframe animations are disabled under **`prefers-reduced-motion: reduce`**
+  (the global rule + per-component guards on like/follow/sheet).
+
+### Database / Flags
+- **None.** Animation polish only; no tables, migrations, flags, dependencies, or logic changes.
+
+### Verification (browser, mobile 375×812)
+- Village + arrival + feed render unchanged in layout; 20 house-float layers + terrain tree sways run
+  with **no console errors**; gates green. Motion is intentionally subtle (calm, not game-like).
+  typecheck · lint · test (402) · build green.
+
+---
+
 ## 2026-07-03 — Beta Polish 4: discovery feed
 
 Pure visual polish on the discovery feed + Explore cards on `m12-nest-platform` (preview only; **no

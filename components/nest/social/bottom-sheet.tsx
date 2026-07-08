@@ -16,8 +16,8 @@ export function BottomSheet({ open, onClose, title, children }: { open: boolean;
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
-      <style>{`@keyframes sheet-up { from { transform: translateY(100%) } to { transform: translateY(0) } } .sheet-up { animation: sheet-up .26s cubic-bezier(.22,.61,.36,1) both } @media (prefers-reduced-motion: reduce) { .sheet-up { animation: none } }`}</style>
+    <div className="sheet-fade fixed inset-0 z-[70] flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
+      <style>{`@keyframes sheet-up { from { transform: translateY(100%) } to { transform: translateY(0) } } .sheet-up { animation: sheet-up .38s cubic-bezier(.32,.72,0,1) both } @keyframes sheet-fade { from { opacity: 0 } to { opacity: 1 } } .sheet-fade { animation: sheet-fade .3s ease-out both } @media (prefers-reduced-motion: reduce) { .sheet-up, .sheet-fade { animation: none } }`}</style>
       <div
         className="sheet-up flex max-h-[85dvh] w-full max-w-md flex-col rounded-t-3xl border border-timber/15 bg-parchment shadow-lift sm:rounded-3xl"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
