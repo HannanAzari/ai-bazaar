@@ -5,7 +5,18 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest Nest sprint — M19.1 arrival magic & atmosphere (2026-07-03):** pure polish/feeling on the
+> **Latest — Beta Polish 1: fullscreen experience (2026-07-03):** pure UX/layout polish (no new
+> features) so Nestudio feels like a native app, not a scrolling website — every Nest surface is **one
+> phone screen, no page scroll**. **Home feed** = true snap-mandatory **one-Nest-per-viewport** paging
+> (`DiscoveryFeed`, full-bleed pages, no peek). **Visitor + owner Nest** (`app/nest/[slug]/visitor-client.tsx`)
+> = fixed `h-[100dvh]` flex column (identity top · room center · actions bottom) — visitor: like/
+> comment/share + Follow + Create/Wander; owner: Views/Likes/Comments/Followers + Edit — all on one
+> screen. **Asset safe zones:** `NestPreview` gained `safe={{top?,bottom?}}` that insets the whole room
+> stage (bg + furniture together) into a band so furniture **never overlaps the identity/action UI**
+> (`overflow-hidden` clips it). Layout-only — no tables/migrations/flags/deps; village/editor/
+> publishing/auth/discovery untouched. See [beta-polish-1-fullscreen.md](beta-polish-1-fullscreen.md).
+>
+> **M19.1 arrival magic & atmosphere (2026-07-03):** pure polish/feeling on the
 > M19 spatial layer. **`lib/nest-atmosphere.ts`** gives the village a **time of day** (morning/
 > afternoon/evening/night from the visitor's clock, computed after mount → hydration-safe; sky, sun/
 > moon + stars, light, hills, and window-glow all re-colour) + a deterministic **daily weather**

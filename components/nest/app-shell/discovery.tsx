@@ -179,7 +179,8 @@ export function DiscoveryFeed({ items }: { items: DiscoveryItem[] }) {
     );
   }
   return (
-    <div className="h-full snap-y snap-mandatory space-y-3 overflow-y-auto overscroll-contain pb-1 [scrollbar-width:none]">
+    // True vertical paging: one Nest per viewport, snap-mandatory, no peek of the next.
+    <div className="h-full snap-y snap-mandatory overflow-y-auto overscroll-contain [scrollbar-width:none]">
       {items.map((item) => <FeedCard key={item.key} item={item} />)}
       <CreateCard />
     </div>
@@ -188,13 +189,14 @@ export function DiscoveryFeed({ items }: { items: DiscoveryItem[] }) {
 
 function FeedCard({ item }: { item: DiscoveryItem }) {
   return (
-    <article className="relative h-[94%] snap-start overflow-hidden rounded-[2rem] border border-timber/15 shadow-lift">
-      {/* Full-bleed composed room; tapping it visits the Nest. */}
+    <article className="relative h-full w-full snap-start snap-always overflow-hidden bg-[#e9e0c8]">
+      {/* Full-bleed composed room, kept clear of the bottom action zone (safe area).
+          Tapping it visits the Nest. */}
       <Link href={item.href} className="absolute inset-0" aria-label={`Visit ${item.title}`}>
-        <NestPreview doc={item.doc} className="size-full" />
+        <NestPreview doc={item.doc} className="size-full" safe={{ bottom: 0.3 }} />
       </Link>
-      {/* Warm bottom gradient so overlay text stays legible (cozy, not TikTok-black). */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-[#2a1c14]/90 via-[#2a1c14]/40 to-transparent" />
+      {/* Warm bottom gradient so overlay text stays legible over the room + safe zone. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-[#2a1c14]/95 via-[#2a1c14]/60 to-transparent" />
 
       <div className="pointer-events-none absolute left-3 top-3">
         <span className="pointer-events-auto"><SourceBadge source={item.source} floating /></span>
@@ -226,7 +228,7 @@ function FeedCard({ item }: { item: DiscoveryItem }) {
 
 function CreateCard() {
   return (
-    <article className="grid h-[94%] snap-start place-items-center rounded-[2rem] border border-timber/15 bg-gradient-to-br from-[#f6e7c6] to-[#ecd9ad] p-6 text-center shadow-lift">
+    <article className="grid h-full w-full snap-start snap-always place-items-center bg-gradient-to-br from-[#f6e7c6] to-[#ecd9ad] p-6 text-center">
       <div>
         <div className="mb-1 flex items-center justify-center gap-1.5 text-terracotta"><Sparkles className="size-4" /><span className="text-xs font-black uppercase tracking-wider">Your turn</span></div>
         <p className="display text-3xl">Make a place that feels like you</p>

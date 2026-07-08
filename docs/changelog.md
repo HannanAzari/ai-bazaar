@@ -8,6 +8,45 @@ for technical detail.
 
 ---
 
+## 2026-07-03 — Beta Polish 1: fullscreen experience
+
+Pure UX/layout polish on `m12-nest-platform` (preview only; **no merge to `main`, no production
+deploy**). **No new features** — makes Nestudio feel like a native mobile app instead of a scrolling
+website: every Nest surface is now **one phone screen** with no page scroll, and furniture can never
+overlap the UI. No changes to village / editor / publishing / auth / discovery logic. Full record:
+[beta-polish-1-fullscreen.md](beta-polish-1-fullscreen.md).
+
+### Changed
+- **Home feed — true vertical paging.** `DiscoveryFeed` is now snap-mandatory **one-Nest-per-viewport**
+  paging (full-bleed pages, `snap-start snap-always`, no `space-y` gap) — exactly one Nest fills the
+  screen, no peek of the next (TikTok/Reels). The room stays static; only the page changes.
+- **Visitor Nest — single screen.** `NestVisitorClient` is a fixed `h-[100dvh]` flex column with **no
+  page scroll**: identity (top) · room (center, fills) · like/comment/share + Follow + Create/Wander
+  (bottom). Title + tags overlay the room base.
+- **Owner Nest — single screen.** Views · Likes · Comments · Followers (4-up) + **Edit Nest** fit one
+  screen, no scroll.
+- **Asset safe zones.** `NestPreview` gains an optional `safe={{ top?, bottom? }}` inset that confines
+  the whole room stage (background + furniture together, so nothing detaches from the floor) to a
+  band, reserving the top/bottom as UI zones — furniture **never overlaps the identity header or the
+  action buttons** (`overflow-hidden` clips the stage). Applied to the feed; the visitor/owner flex
+  layouts reserve their zones by construction.
+- Home header compacted to a single line; the feed is edge-to-edge.
+
+### Fixed
+- Feed caption gradient used an invalid Tailwind opacity step (`/92`, `/45` → transparent), leaving
+  white overlay text on a light background; restored to valid steps (`/95`, `/60`) so captions stay
+  legible over the room + safe zone.
+
+### Database / Flags
+- **None.** Layout-only; no tables, migrations, flags, or dependencies.
+
+### Verification (browser, mobile 375×812)
+- Home feed pages exactly one Nest per screen (snap, no peek); furniture stays clear of the caption/
+  action zone. Visitor + owner Nests each fit one screen with **no scroll** (`scrollHeight == 812`).
+  No console errors. typecheck · lint · test (402) · build green.
+
+---
+
 ## 2026-07-03 — M19.1: arrival magic & atmosphere
 
 Pure polish + atmosphere on `m12-nest-platform` (preview only; **no merge to `main`, no production

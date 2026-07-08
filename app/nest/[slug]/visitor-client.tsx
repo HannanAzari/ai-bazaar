@@ -91,36 +91,52 @@ function VisitorView({ doc, slug }: { doc: NestDocument; slug: string }) {
   }, [slug, isOwner, ownerId]);
 
   return (
-    <div className="mx-auto min-h-[100dvh] w-full max-w-[460px] px-4 pb-8 pt-4">
-      {/* You're stepping into someone's identity space — lead with who lives here. */}
-      <div className="mb-3 flex items-center justify-between gap-3">
+    // Beta Polish 1 — one phone screen, no page scroll: identity (top) · room (center) ·
+    // actions (bottom). The room is a bounded middle region, so furniture can never overlap
+    // the header or the action buttons.
+    <div
+      className="mx-auto flex h-[100dvh] w-full max-w-[460px] flex-col overflow-hidden px-4"
+      style={{ paddingTop: "max(env(safe-area-inset-top), 0.5rem)", paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
+    >
+      {leaving ? <DoorTransition style={style} mode="exit" onDone={afterLeave} label="Heading back out…" /> : null}
+
+      {/* TOP — who lives here */}
+      <header className="flex flex-none items-center justify-between gap-3 py-2.5">
         <CreatorBadge creator={creator} />
         <button onClick={leave} className="inline-flex items-center gap-1 rounded-full border border-timber/20 bg-white px-3 py-1.5 text-xs font-bold text-ink/60 hover:text-ink active:scale-95">
           <DoorClosed className="size-3.5" /> Exit
         </button>
-      </div>
-      {leaving ? <DoorTransition style={style} mode="exit" onDone={afterLeave} label="Heading back out…" /> : null}
+      </header>
 
-      {/* the composed room */}
-      <NestPreview doc={doc} className="aspect-[3/4] w-full" rounded="rounded-3xl border border-[#e0d5b8] shadow-sm" />
-
-      {/* title + tags below the room */}
-      <div className="mt-4 space-y-2">
-        <h1 className="display text-2xl leading-tight">{doc.title}</h1>
-        <NestTags tags={tags} max={4} />
-      </div>
-
-      {/* real like · comment · share — anyone can react */}
-      <div className="mt-4 border-y border-timber/10 py-3">
-        <EngagementBar id={slug} href={`/nest/${slug}`} tone="ink" />
+      {/* CENTER — the composed room fills the space; title + tags sit on its base */}
+      <div className="relative min-h-0 flex-1">
+        <NestPreview doc={doc} className="size-full" rounded="rounded-3xl border border-[#e0d5b8] shadow-sm" safe={{ bottom: 0.12 }} />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-3xl bg-gradient-to-t from-black/60 via-black/25 to-transparent p-4 pt-12">
+          <h1 className="display text-2xl leading-tight text-white drop-shadow-sm">{doc.title}</h1>
+          {tags.length > 0 ? <div className="mt-1.5"><NestTags tags={tags} max={4} tone="light" /></div> : null}
+        </div>
       </div>
 
-      {isOwner ? <OwnerPanel slug={slug} editDocId={editDocId} ownerId={ownerFromDoc!} /> : <VisitorPanel creatorId={creator.id} />}
+      {/* BOTTOM — actions */}
+      {isOwner ? (
+        <OwnerPanel slug={slug} editDocId={editDocId} ownerId={ownerFromDoc!} />
+      ) : (
+        <footer className="flex-none space-y-2 pt-2.5">
+          <div className="flex items-center justify-between gap-3 border-y border-timber/10 py-2">
+            <EngagementBar id={slug} href={`/nest/${slug}`} tone="ink" />
+            {creator.id ? <FollowButton creatorId={creator.id} /> : null}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Link href="/create" className="rounded-xl bg-terracotta px-4 py-2.5 text-center text-sm font-bold text-parchment active:scale-95">Create your own</Link>
+            <Link href="/home" className="rounded-xl border border-timber/20 bg-white px-4 py-2.5 text-center text-sm font-bold text-ink/70 active:scale-95">Wander Nests →</Link>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }
 
-// Owner sees their own place's real stats + management — never "Follow yourself".
+// Owner sees their own place's real stats + management on one screen — never "Follow yourself".
 function OwnerPanel({ slug, editDocId, ownerId }: { slug: string; editDocId: string; ownerId: string }) {
   const [n, setN] = useState({ views: 0, likes: 0, comments: 0, followers: 0 });
   useEffect(() => {
@@ -136,28 +152,17 @@ function OwnerPanel({ slug, editDocId, ownerId }: { slug: string; editDocId: str
     { icon: <UserRound className="size-4" />, label: "Followers", value: n.followers },
   ];
   return (
-    <div className="mt-5 space-y-3">
+    <footer className="flex-none space-y-2 pt-2.5">
       <div className="grid grid-cols-4 gap-2">
         {stats.map((s) => (
-          <div key={s.label} className="rounded-2xl border border-timber/15 bg-white p-2.5 text-center shadow-soft">
-            <span className="mx-auto flex size-6 items-center justify-center text-terracotta">{s.icon}</span>
-            <p className="mt-1 text-sm font-black text-ink">{formatCount(s.value)}</p>
+          <div key={s.label} className="rounded-2xl border border-timber/15 bg-white p-2 text-center shadow-soft">
+            <span className="mx-auto flex size-5 items-center justify-center text-terracotta">{s.icon}</span>
+            <p className="mt-0.5 text-sm font-black text-ink">{formatCount(s.value)}</p>
             <p className="text-[10px] font-bold uppercase tracking-wide text-ink/45">{s.label}</p>
           </div>
         ))}
       </div>
-      <Link href={`/nest-editor?document=${editDocId}`} className="flex items-center justify-center gap-1.5 rounded-xl bg-ink px-4 py-3 text-sm font-bold text-parchment"><Pencil className="size-4" /> Edit Nest</Link>
-    </div>
-  );
-}
-
-// Visitors can follow the creator, make their own, or wander on.
-function VisitorPanel({ creatorId }: { creatorId?: string }) {
-  return (
-    <div className="mt-5 space-y-2">
-      {creatorId ? <div className="flex justify-center"><FollowButton creatorId={creatorId} /></div> : null}
-      <Link href="/create" className="block rounded-xl bg-terracotta px-4 py-3 text-center text-sm font-bold text-parchment">Create your own Nest</Link>
-      <Link href="/home" className="block rounded-xl border border-timber/20 bg-white px-4 py-3 text-center text-sm font-bold text-ink/70">Wander more Nests →</Link>
-    </div>
+      <Link href={`/nest-editor?document=${editDocId}`} className="flex items-center justify-center gap-1.5 rounded-xl bg-ink px-4 py-2.5 text-sm font-bold text-parchment active:scale-95"><Pencil className="size-4" /> Edit Nest</Link>
+    </footer>
   );
 }

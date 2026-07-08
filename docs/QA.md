@@ -19,6 +19,8 @@ npm run typecheck && npm run lint && npm run test && npm run build
 | `/` | — | Hex district map; 10 village hexes + frontier plots; drag to roam; tap a hex → village street |
 | `/village` | — | **M19 Nest Village + M19.1 atmosphere** — pannable hex neighborhood of cozy Houses (no V1 header) under a live **time-of-day + weather** sky (window glow stronger at night; rain/snow particles); tap a house → **camera zooms** toward it → arrival panel (avatar · bio · followers · nests · online · Enter); prev/next/back; **Enter → door + camera-forward → Nest**; **Exit → door closes → back**. Real creators centered + generated neighbors |
 | `/@<handle>` | — | **M19 house arrival** — house hero (Enter Nest) + identity/social details + "Rooms in this house"; unknown handle → friendly "No house here yet" (Build / Visit the village) |
+| `/home` (Beta Polish 1) | — | **True vertical paging** — exactly one Nest fills the viewport, swipe to page, **no peek** of the next; furniture stays clear of the caption/action zone (safe area) |
+| `/nest/[slug]` (Beta Polish 1) | — | **One screen, no scroll** — visitor: identity (top) · room (center) · like/comment/share + Follow + Create/Wander (bottom); owner: Views/Likes/Comments/Followers + **Edit Nest**. Furniture never overlaps the buttons |
 | `/bazaar/[slug]` | — | Horizontal street of 24 houses; arrows scroll; claim flow on open houses |
 | `/shop/[address]` | `ENABLE_ROOM_ENGINE` | Full-screen room; objects clickable; owner/guestbook drawers; corner actions (off → legacy room) |
 | `/studio` | — | Owner editor (needs a claimed house); Room engine, exterior, tags, details |

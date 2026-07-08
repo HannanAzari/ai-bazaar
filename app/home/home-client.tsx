@@ -23,18 +23,15 @@ export function HomeClient() {
         }}
       >
         <header className="flex-none px-4 pb-2">
-          <div className="flex items-end justify-between gap-2">
-            <div>
-              <p className="eyebrow text-terracotta">Nestudio</p>
-              <h1 className="display text-2xl leading-tight">Wander cozy Nests</h1>
-            </div>
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="display text-xl leading-none">Wander cozy Nests</h1>
             {/* The village is the map behind the feed — one tap to explore it as a place. */}
-            <Link href="/village" className="mb-0.5 inline-flex shrink-0 items-center gap-1.5 rounded-full bg-terracotta px-3.5 py-2 text-xs font-black text-parchment shadow-soft active:scale-95">
+            <Link href="/village" className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-terracotta px-3 py-1.5 text-xs font-black text-parchment shadow-soft active:scale-95">
               <Trees className="size-4" /> Village
             </Link>
           </div>
         </header>
-        <div className="min-h-0 flex-1 px-3">
+        <div className="min-h-0 flex-1">
           <DiscoveryFeed items={items} />
         </div>
       </div>
