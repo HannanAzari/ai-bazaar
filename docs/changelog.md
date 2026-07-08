@@ -8,6 +8,43 @@ for technical detail.
 
 ---
 
+## 2026-07-03 — Beta Polish 4: discovery feed
+
+Pure visual polish on the discovery feed + Explore cards on `m12-nest-platform` (preview only; **no
+merge to `main`, no production deploy**). **No discovery-logic or backend changes** — makes every
+Nest card feel premium. Full record: [beta-polish-4-discovery-feed.md](beta-polish-4-discovery-feed.md).
+
+### Changed (visual only — `components/nest/app-shell/discovery.tsx`)
+- **Typography** — feed title now uses the `display` serif at a larger size with tighter leading + a
+  soft text-shadow; creator name is bolder; tags are uppercase/tracked. Grid card titles enlarged.
+- **CTA hierarchy** — one **dominant** primary (Visit House / Visit Nest, `flex-1`, larger, `shadow-lift`)
+  beside a **quiet** glassy secondary (Peek in / Create). Consistent `rounded-2xl` button sizing.
+- **Avatar positioning** — the light-tone creator avatar gains a white ring + soft shadow so it reads
+  crisply over the room.
+- **Lighting / gradient overlays** — a top scrim for the badge, a deeper multi-stop bottom gradient
+  for legible text, and a soft **vignette** for premium depth (feed); a subtle bottom scrim on grid
+  images.
+- **Image framing** — grid cards go `rounded-3xl`; the feed stays full-bleed with the room clear of
+  the controls.
+- **Asset placement** — the feed's safe zone is deepened (`safe={{ bottom: 0.34 }}`) so **furniture
+  never sits under the buttons**.
+- **Swipe smoothness** — the feed scroller adds `scroll-smooth` + iOS momentum
+  (`-webkit-overflow-scrolling: touch`) + `overscroll-y-contain`.
+- **Loading** — a shared **shimmer** while a room's art paints in (`NestPreview` fades the background
+  image in on load), plus a **full-screen skeleton** so the feed never flashes the empty state during
+  the first ~600ms of loading.
+- Source badges (`Live` / `Example`) gain a status dot + ring for a more finished look.
+
+### Database / Flags
+- **None.** Visual polish only; no tables, migrations, flags, dependencies, or discovery-logic changes.
+
+### Verification (browser, mobile 375×812)
+- Feed cards read premium (serif title, ringed avatar, uppercase tags, dominant/quiet CTA pair,
+  vignette); one-Nest paging still snaps with no peek; furniture stays clear of the CTAs; images fade
+  in; the Explore grid matches. No console errors. typecheck · lint · test (402) · build green.
+
+---
+
 ## 2026-07-03 — Beta Polish 3: arrival experience
 
 Pure polish on the Nest arrival on `m12-nest-platform` (preview only; **no merge to `main`, no

@@ -5,7 +5,16 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest — Beta Polish 3: arrival experience (2026-07-03):** pure polish on the Nest arrival (no
+> **Latest — Beta Polish 4: discovery feed (2026-07-03):** pure visual polish (no discovery-logic or
+> backend change) so every Nest card feels premium. In `components/nest/app-shell/discovery.tsx`:
+> serif `display` title + tighter type, **CTA hierarchy** (dominant Visit House/Nest + quiet glassy
+> secondary), ringed creator avatar, top scrim + deeper bottom gradient + a soft **vignette**, grid
+> cards `rounded-3xl`, deepened feed safe zone (`NestPreview safe bottom 0.34`) so **furniture never
+> covers the buttons**, smoother swipe (`scroll-smooth` + iOS momentum), and better **loading** — a
+> `NestPreview` image fade-in + `nest-shimmer` skeleton so the empty state never flashes. Visual only
+> — no tables/migrations/flags/deps. See [beta-polish-4-discovery-feed.md](beta-polish-4-discovery-feed.md).
+>
+> **Beta Polish 3: arrival experience (2026-07-03):** pure polish on the Nest arrival (no
 > functionality change). `HouseFront` (`components/nest/village/house-front.tsx`) is decluttered to
 > **Creator · Followers · Nest count · Enter** — removed the Home/Out presence chip, the Online/Away
 > stat, the "Now showing" peek, and the duplicate corner time label (the sky/weather chip is the one

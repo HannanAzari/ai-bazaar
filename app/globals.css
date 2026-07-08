@@ -503,6 +503,17 @@ body::before {
 }
 .nest-idle { animation: nest-idle 5s ease-in-out infinite; will-change: transform; }
 
+/* Loading shimmer for Nest cards while the room art paints in. */
+@keyframes nest-shimmer {
+  0%   { background-position: -150% 0; }
+  100% { background-position: 250% 0; }
+}
+.nest-shimmer {
+  background-image: linear-gradient(100deg, #e5dbc0 20%, #f2ead6 40%, #e5dbc0 60%);
+  background-size: 220% 100%;
+  animation: nest-shimmer 1.5s ease-in-out infinite;
+}
+
 /* Overlay fade-in (arrival panel). */
 @keyframes nest-fade {
   0%   { opacity: 0; }

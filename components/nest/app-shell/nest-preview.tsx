@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { resolveAsset, resolveBackground } from "@/lib/nest-production-library";
 import type { NestDocument } from "@/lib/nest-document-types";
 
@@ -24,16 +25,25 @@ export function NestPreview({
   safe?: { top?: number; bottom?: number };
 }) {
   const background = resolveBackground(doc.backgroundId);
+  const [loaded, setLoaded] = useState(false);
   const stageStyle: React.CSSProperties = safe
     ? { top: `${(safe.top ?? 0) * 100}%`, bottom: `${(safe.bottom ?? 0) * 100}%`, left: 0, right: 0 }
     : { inset: 0 };
 
   return (
     <div className={`relative overflow-hidden bg-[#e9e0c8] ${rounded} ${className}`}>
+      {/* soft shimmer until the room's background paints in — no blank pop */}
+      {background && !loaded ? <div className="nest-shimmer absolute inset-0" /> : null}
       <div className="absolute overflow-hidden" style={stageStyle}>
         {background ? (
           // eslint-disable-next-line @next/next/no-img-element -- local curated art; next/image adds no value here
-          <img src={background.variants.standard ?? background.imageUrl} alt={background.name} className="absolute inset-0 size-full object-cover" loading="lazy" />
+          <img
+            src={background.variants.standard ?? background.imageUrl}
+            alt={background.name}
+            className={`absolute inset-0 size-full object-cover transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+            loading="lazy"
+            onLoad={() => setLoaded(true)}
+          />
         ) : (
           <div className="grid size-full place-items-center text-xs text-ink/40">No preview</div>
         )}
