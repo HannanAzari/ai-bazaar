@@ -532,8 +532,6 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
   const zoomIn = () => setZoom((z) => clampZoom(z + 0.15));
   const zoomOut = () => setZoom((z) => clampZoom(z - 0.15));
 
-  const saveLabel = saveState === "saving" ? "Saving…" : saveState === "unsaved" ? "Unsaved" : saveState === "saved" ? "Saved ✓" : "";
-
   const ui = (
     <div className="fixed inset-0 z-[110] flex flex-col overflow-hidden overscroll-none bg-parchment" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)", touchAction: "none" }}>
       {/* PREVIEW: the EXACT visitor experience — the same NestSceneNavigator + cinematic
@@ -571,8 +569,9 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
               <ToolIcon label="Undo" onClick={() => setHistory(undoHistory(history))} disabled={!canUndo(history)}><RotateCcw className="h-5 w-5 -scale-x-100" /></ToolIcon>
               <ToolIcon label="Redo" onClick={() => setHistory(redoHistory(history))} disabled={!canRedo(history)}><Redo2 className="h-5 w-5" /></ToolIcon>
             </div>
-            <span className={`text-[11px] font-bold ${saveState === "unsaved" ? "text-terracotta" : "text-ink/45"}`}>{saveLabel}</span>
-            <div className="flex items-center gap-1">
+            {/* Autosave stays internal (no wide "Saved" label that shifts the bar and can
+                push Done off a narrow screen); its state only hints Done's tooltip. */}
+            <div className="flex shrink-0 items-center gap-1">
               <div className="relative">
                 <ToolIcon label="More" onClick={() => setMoreOpen((v) => !v)} active={moreOpen}>
                   <MoreHorizontal className="h-5 w-5" />
@@ -602,9 +601,10 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
                   />
                 ) : null}
               </div>
-              <button type="button" onClick={() => setShowPublish(true)} className="ml-1.5 inline-flex h-9 items-center gap-1 rounded-full bg-[#d9913c] px-3.5 text-xs font-bold text-white hover:brightness-95"><Upload className="h-4 w-4" /> Publish</button>
-              {/* Done saves + returns the creator to their Profile (M15.1). */}
-              <button type="button" onClick={() => { saveNow(); window.location.href = "/profile"; }} className="ml-2 inline-flex h-9 items-center gap-1 rounded-full bg-ink px-3.5 text-xs font-bold text-parchment hover:bg-ink/85"><Check className="h-4 w-4" /> Done</button>
+              <button type="button" onClick={() => setShowPublish(true)} className="ml-1 inline-flex h-9 items-center gap-1 rounded-full bg-[#d9913c] px-3 text-xs font-bold text-white hover:brightness-95"><Upload className="h-4 w-4" /> Publish</button>
+              {/* Done saves + returns the creator to their Profile (M15.1). Always fully
+                  visible — the top bar no longer carries a width-shifting save label. */}
+              <button type="button" title={saveState === "saved" ? "All changes saved" : "Save & finish"} onClick={() => { saveNow(); window.location.href = "/profile"; }} className="ml-1.5 inline-flex h-9 shrink-0 items-center gap-1 rounded-full bg-ink px-3 text-xs font-bold text-parchment hover:bg-ink/85"><Check className="h-4 w-4" /> Done</button>
             </div>
             <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onImportFile(f); e.target.value = ""; }} />
           </header>

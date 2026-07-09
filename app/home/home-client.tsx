@@ -15,12 +15,12 @@ export function HomeClient() {
 
   return (
     <>
+      {/* No bottom reserve — the feed runs full-bleed to the viewport edge under the
+          translucent BottomNav (each card lifts its own controls clear of the nav), so
+          there's no empty cream gap between the last card and the nav. */}
       <div
         className="flex h-[100dvh] flex-col bg-parchment"
-        style={{
-          paddingTop: "max(env(safe-area-inset-top), 0.5rem)",
-          paddingBottom: "calc(4.75rem + env(safe-area-inset-bottom))",
-        }}
+        style={{ paddingTop: "max(env(safe-area-inset-top), 0.5rem)" }}
       >
         <header className="flex-none px-4 pb-2">
           <div className="flex items-center justify-between gap-2">

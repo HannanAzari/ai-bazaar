@@ -46,10 +46,9 @@ export function VillageClient() {
 
   return (
     <>
-      <div
-        className="relative flex h-[100dvh] flex-col bg-parchment"
-        style={{ paddingBottom: "calc(4.75rem + env(safe-area-inset-bottom))" }}
-      >
+      {/* Full-bleed: the curved ground runs to the viewport edge under the translucent
+          nav — no cream gap between the world and the nav. */}
+      <div className="relative flex h-[100dvh] flex-col bg-parchment">
         <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between p-4" style={{ paddingTop: "max(env(safe-area-inset-top), 0.75rem)" }}>
           <div className="pointer-events-auto rounded-2xl bg-white/80 px-3 py-2 shadow-soft backdrop-blur">
             <p className="eyebrow text-terracotta">Nestudio</p>
@@ -75,7 +74,7 @@ export function VillageClient() {
 
       {/* Arrival overlay — walking up to the selected house. */}
       {selected ? (
-        <div className="nest-fade fixed inset-0 z-50 bg-parchment" style={{ paddingBottom: "calc(4.75rem + env(safe-area-inset-bottom))" }}>
+        <div className="nest-fade fixed inset-0 z-50 bg-parchment">
           <HouseFront
             house={selected}
             className="h-full"

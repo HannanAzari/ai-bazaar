@@ -5,7 +5,20 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest — Beta Polish 5: micro-animations (2026-07-03):** calm, cozy, premium micro-animations
+> **Latest — Beta Polish Final: mobile layout & village globe (2026-07-09):** visual/mobile
+> polish only (no features; no backend/auth/publishing/social/editor logic). The **village is now a
+> curved little world** (`components/nest/village/village-scene.tsx`): the living sky (sun/moon, stars,
+> birds, weather) fills the **upper half**, a **soft globe-limb ground** fills the **lower half** (~56%)
+> with **curved lanes you orbit left↔right** (front houses closer/larger, back smaller/hazier) — **2.5D
+> CSS/SVG, no 3D / Three.js / new libs**; ground reuses `VillageTerrain`, zoom-into-arrival unchanged.
+> **Bottom cream gaps removed** on Home/Village/arrival (content runs full-bleed under the translucent
+> nav). **Home feed cards** (`discovery.tsx` `FeedCard`) are room-first: soft shallow gradient (no heavy
+> dark block), a **Reels-style vertical action rail** (like·comment·share; `ShareButton` `iconOnly`),
+> **one CTA = Visit House** (Visit Nest/Peek in/Create removed), minimised title/tags. The **editor
+> top bar** (`nest-editor.tsx`) dropped the width-shifting Saved label so **Done is always visible**.
+> No tables/migrations/flags/deps. See [beta-polish-final-mobile-village.md](beta-polish-final-mobile-village.md).
+>
+> **Beta Polish 5: micro-animations (2026-07-03):** calm, cozy, premium micro-animations
 > (CSS-only, 60fps, reduced-motion respected; no features, no new libraries). A global soft-spring on
 > tap-scaling buttons (`[class*="active:scale"]`), a softer heart-pop (`like-button`), a Follow
 > **morph** (`follow-button`), a softer comment-sheet slide + backdrop fade (`bottom-sheet`), a

@@ -8,6 +8,38 @@ for technical detail.
 
 ---
 
+## 2026-07-09 — Beta Polish Final: mobile layout & village globe
+
+Visual / mobile polish on `m12-nest-platform` (preview only; **no merge to `main`, no production
+deploy**). **No features; no backend / auth / publishing / social / editor logic** — layout, CSS, and
+the village presentation only. Full record:
+[beta-polish-final-mobile-village.md](beta-polish-final-mobile-village.md).
+
+### Changed
+- **Village — curved little world** (`components/nest/village/village-scene.tsx`): the living sky
+  (sun/moon, stars, birds, weather) now fills the **upper half**; the ground is a **soft globe limb**
+  across the **lower half** (~56%) with a convex clipped horizon + **curved lanes** + limb shading —
+  **2.5D CSS/SVG, no 3D / Three.js / new libs**. Houses ride three lanes on a strip you **orbit
+  left↔right** (front closer/larger, back smaller/hazier); real creators lead; ground reuses
+  `VillageTerrain` (grass/road/greenery, relit by time-of-day + weather); zoom-into-arrival unchanged.
+- **Bottom gaps removed** on Home (`app/home/home-client.tsx`), Village (`app/village/village-client.tsx`)
+  and the House arrival overlay — content runs **full-bleed to the viewport edge** under the
+  translucent BottomNav (no empty cream strip).
+- **Home feed card cleanup** (`discovery.tsx` `FeedCard`): dropped the heavy dark block for a soft
+  shallow gradient (room breathes); **engagement moved to a vertical Reels-style right rail** (like ·
+  comment · share; `ShareButton` gains `iconOnly`); **one CTA — Visit House** (Visit Nest / Peek in /
+  Create removed; tapping the room visits the Nest); title + tags minimised.
+- **Editor top bar** (`nest-editor.tsx`): removed the width-shifting "Saved/Saving…/Unsaved" label
+  (autosave internal; state hints Done's tooltip; manual save still toasts) and tightened the bar so
+  the **Done button is always fully visible** (375px: `scrollWidth` 375, Done right 367; was 401).
+- **House arrival**: confirmed single time/weather label, one screen, Enter Nest obvious, no bottom gap.
+
+### Verified
+`/village`, house tap → arrival, `/home` feed, `/explore`, `/nest-editor` — **no console errors**, no
+regressions. `typecheck · lint · test (402) · build` all green (Node 20).
+
+---
+
 ## 2026-07-03 — Beta Polish 5: micro-animations
 
 Pure animation polish on `m12-nest-platform` (preview only; **no merge to `main`, no production

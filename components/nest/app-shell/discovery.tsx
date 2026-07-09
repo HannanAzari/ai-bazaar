@@ -85,7 +85,7 @@ export function EngagementBar({ id, href, tone = "light" }: { id: string; href: 
   );
 }
 
-export function ShareButton({ href, tone = "light" }: { href: string; tone?: "ink" | "light" }) {
+export function ShareButton({ href, tone = "light", iconOnly = false }: { href: string; tone?: "ink" | "light"; iconOnly?: boolean }) {
   const [copied, setCopied] = useState(false);
   async function share() {
     const url = typeof window !== "undefined" ? window.location.origin + href : href;
@@ -95,8 +95,8 @@ export function ShareButton({ href, tone = "light" }: { href: string; tone?: "in
     } catch { /* dismissed */ }
   }
   return (
-    <button onClick={share} className={`flex items-center gap-1.5 text-sm font-bold transition active:scale-95 ${tone === "light" ? "text-white" : "text-ink/70"}`}>
-      <Share2 className="size-5" /> {copied ? "Copied!" : "Share"}
+    <button onClick={share} aria-label="Share" className={`flex items-center gap-1.5 text-sm font-bold transition active:scale-95 ${tone === "light" ? "text-white" : "text-ink/70"}`}>
+      <Share2 className="size-5" /> {iconOnly ? (copied ? "✓" : "") : copied ? "Copied!" : "Share"}
     </button>
   );
 }
@@ -222,46 +222,51 @@ function FeedSkeleton() {
   );
 }
 
+// Bottom padding that lifts feed controls clear of the translucent BottomNav, so the
+// composed room can run full-bleed underneath it (no cream gap, Reels-style).
+const NAV_CLEAR = "calc(4.75rem + env(safe-area-inset-bottom))";
+
 function FeedCard({ item }: { item: DiscoveryItem }) {
+  // The Nest is already visible in the feed, so the room itself is the primary tap
+  // target (visit the Nest). The one explicit CTA is Visit House; engagement lives in a
+  // light Reels-style rail. Kept minimal so the room breathes — no heavy dark block.
   return (
     <article className="relative h-full w-full snap-start snap-always overflow-hidden bg-[#e9e0c8]">
-      {/* Full-bleed composed room, kept clear of the bottom action zone (safe area).
-          Tapping it visits the Nest. */}
+      {/* Full-bleed composed room, kept clear of the bottom action zone. Tapping visits it. */}
       <Link href={item.href} className="absolute inset-0" aria-label={`Visit ${item.title}`}>
-        <NestPreview doc={item.doc} className="size-full" safe={{ bottom: 0.34 }} />
+        <NestPreview doc={item.doc} className="size-full" safe={{ bottom: 0.3 }} />
       </Link>
 
-      {/* Lighting — a soft top scrim for the badge, a deep warm bottom gradient for
-          the text, and a gentle vignette so the card reads with premium depth. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/25 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[68%] bg-gradient-to-t from-[#130c07] via-[#241811]/70 via-40% to-transparent" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_75%_at_50%_18%,transparent_55%,rgba(19,12,7,0.34))]" />
+      {/* Lighting — only enough for legibility: a whisper at the top for the badge and a
+          soft, shallow bottom gradient for the text. No opaque block over the room. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/20 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/55 via-black/25 to-transparent" />
 
       <div className="pointer-events-none absolute left-4 top-4">
         <span className="pointer-events-auto"><SourceBadge source={item.source} floating /></span>
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 space-y-3 p-5 pb-6">
-        <div className="pointer-events-auto"><CreatorRow creator={item.creator} /></div>
-        <h2 className="display text-[27px] font-black leading-[1.08] tracking-tight text-white [text-shadow:0_2px_14px_rgba(0,0,0,0.4)]">{item.title}</h2>
-        <div className="pointer-events-auto"><NestTags tags={item.tags} tone="light" /></div>
-        <div className="pointer-events-auto pt-0.5"><EngagementBar id={item.id} href={item.href} /></div>
-        {/* CTA hierarchy — one dominant primary, one quiet secondary. */}
-        <div className="pointer-events-auto flex items-stretch gap-2 pt-1">
-          {item.creator.username ? (
-            <>
-              <Link href={`/@${item.creator.username}`} className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-terracotta px-5 py-3 text-[15px] font-black text-parchment shadow-lift transition active:scale-[0.98]">
-                <Home className="size-4" /> Visit House
-              </Link>
-              <Link href={item.href} className="flex items-center justify-center rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-sm font-bold text-white/90 backdrop-blur-md transition active:scale-95">Peek in</Link>
-            </>
-          ) : (
-            <>
-              <Link href={item.href} className="flex flex-1 items-center justify-center rounded-2xl bg-terracotta px-5 py-3 text-[15px] font-black text-parchment shadow-lift transition active:scale-[0.98]">Visit Nest →</Link>
-              <Link href="/create" className="flex items-center justify-center rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-sm font-bold text-white/90 backdrop-blur-md transition active:scale-95">Create</Link>
-            </>
-          )}
+      {/* Reels-style vertical action rail (like · comment · share), lifted above the nav. */}
+      <div className="pointer-events-none absolute right-3 bottom-0" style={{ paddingBottom: NAV_CLEAR }}>
+        <div className="pointer-events-auto flex flex-col items-center gap-4 pb-2 [&_button]:[text-shadow:0_1px_6px_rgba(0,0,0,0.55)]">
+          <LikeButton nestId={item.id} tone="light" />
+          <CommentButton nestId={item.id} tone="light" />
+          <ShareButton href={item.href} tone="light" iconOnly />
         </div>
+      </div>
+
+      {/* Identity + title + one CTA, kept compact and clear of the nav + the rail. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 space-y-2.5 px-5 pr-16 pt-5" style={{ paddingBottom: NAV_CLEAR }}>
+        <div className="pointer-events-auto"><CreatorRow creator={item.creator} /></div>
+        <h2 className="display text-[21px] font-black leading-[1.12] tracking-tight text-white [text-shadow:0_2px_14px_rgba(0,0,0,0.45)]">{item.title}</h2>
+        {item.tags.length ? <div className="pointer-events-auto"><NestTags tags={item.tags} tone="light" max={2} /></div> : null}
+        {item.creator.username ? (
+          <div className="pointer-events-auto pt-0.5">
+            <Link href={`/@${item.creator.username}`} className="inline-flex items-center justify-center gap-1.5 rounded-full bg-terracotta px-4 py-2 text-sm font-black text-parchment shadow-lift transition active:scale-95">
+              <Home className="size-4" /> Visit House
+            </Link>
+          </div>
+        ) : null}
       </div>
     </article>
   );
