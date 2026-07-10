@@ -5,18 +5,46 @@ Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·
 room contract: [room-engine-spec.md](room-engine-spec.md).
 
-> **Latest — Beta Polish Final: mobile layout & village globe (2026-07-09):** visual/mobile
-> polish only (no features; no backend/auth/publishing/social/editor logic). The **village is now a
-> curved little world** (`components/nest/village/village-scene.tsx`): the living sky (sun/moon, stars,
-> birds, weather) fills the **upper half**, a **soft globe-limb ground** fills the **lower half** (~56%)
-> with **curved lanes you orbit left↔right** (front houses closer/larger, back smaller/hazier) — **2.5D
-> CSS/SVG, no 3D / Three.js / new libs**; ground reuses `VillageTerrain`, zoom-into-arrival unchanged.
-> **Bottom cream gaps removed** on Home/Village/arrival (content runs full-bleed under the translucent
-> nav). **Home feed cards** (`discovery.tsx` `FeedCard`) are room-first: soft shallow gradient (no heavy
-> dark block), a **Reels-style vertical action rail** (like·comment·share; `ShareButton` `iconOnly`),
-> **one CTA = Visit House** (Visit Nest/Peek in/Create removed), minimised title/tags. The **editor
-> top bar** (`nest-editor.tsx`) dropped the width-shifting Saved label so **Done is always visible**.
-> No tables/migrations/flags/deps. See [beta-polish-final-mobile-village.md](beta-polish-final-mobile-village.md).
+> **Latest — Village Projection Rebuild: pseudo-3D curved world (2026-07-10):** Village
+> presentation only (**no features; no auth/publishing/social-backend/editor-data-model/marketplace
+> changes**). The Village moved from a single-axis **orbit** to a **virtual 2D world + a movable
+> camera** you roam in **any direction** (left/right/up/down/diagonal, with fling inertia). New pure
+> math in **`lib/village-projection.ts`** (19 unit tests): houses own stable `{worldX, worldY}`, a
+> `Camera{x,y}` moves over them, **horizontal wrapping** (houses leave one side and re-enter the
+> other), **finite depth** (vertical camera slides houses foreground↔horizon), and a **convex dome**
+> (`horizontalCurve·relativeX²`) so the sides fall away — centre reads closest. Gestures + camera in
+> **`components/nest/village/use-curved-world.ts`** (native Pointer Events + rAF; camera in refs,
+> per-frame transforms written **straight to the DOM — no React render per frame**; blur only at rest;
+> reduced-motion → no inertia; tap-vs-drag keeps houses tappable). **`village-scene.tsx`** rewritten to
+> use them with real `HouseExterior` houses — **same props contract** (`village-client.tsx` unchanged),
+> curved ground matched to the projection, and **zoom-into-arrival (`HouseFront`) preserved**. Sky/≥1/3
+> preserved; the **moon** is now a clean **soft full moon** (blur-only glow, no ring). Tuned first in an
+> isolated bench, **`/village-projection-lab`** (noindex; live sliders; safe to delete). **DOM/CSS/SVG —
+> no Three.js / Canvas / new libs.** No tables/migrations/flags/deps. See
+> [village-projection-rebuild.md](village-projection-rebuild.md).
+>
+> **Beta Polish: fullscreen Nest viewer & real orbital village (2026-07-09):**
+> visual/mobile polish only (**no features; no auth/publishing/social-backend/editor-data-model/
+> marketplace changes**). The **Nest viewer is now fullscreen** for both visitors and the owner
+> (`app/nest/[slug]/visitor-client.tsx`): the room fills the screen, only floating overlays sit on top
+> — **creator top-left** (opens a lightweight **left drawer**: avatar · name · @username · bio ·
+> Nests/Followers/Following · Follow · Visit House), **Exit top-right**, **like/comment/share** right
+> rail, title + **Visit House** bottom-left; **no page scroll**; the visitor's Create/Wander buttons
+> are gone; the **owner** gets **Edit Nest + View House + a Stats bottom sheet** instead of analytics
+> cards over the room. The **village is a real orbital world** (`village-scene.tsx`): each house has a
+> **longitude + depth band**, one orbit angle `phi` (drag + inertia) maps **angle → x/y/scale/opacity/z**
+> so houses **swell at the front and fade round the sides** as you pan, bands **arc toward the horizon**,
+> ground is a **convex SVG globe limb** — **2.5D CSS/SVG, no Three.js / new libs**; sky + zoom-into-
+> arrival preserved. The **moon** is now a **soft full moon** (no hard ring / broken crescent). The
+> **Home feed card** dropped its reserved bottom band so the room is **full-bleed** (no grey block).
+> Editor **Done stays fully visible**. No tables/migrations/flags/deps. See
+> [beta-polish-fullscreen-orbit.md](beta-polish-fullscreen-orbit.md).
+>
+> **Beta Polish Final: mobile layout & village globe (2026-07-09):** visual/mobile
+> polish only (no features; no backend/auth/publishing/social/editor logic). Bottom cream gaps removed
+> on Home/Village/arrival; the feed became room-first with a Reels-style rail + one Visit House CTA; the
+> editor top bar dropped the width-shifting Saved label. (Superseded above for the village + viewer.)
+> See [beta-polish-final-mobile-village.md](beta-polish-final-mobile-village.md).
 >
 > **Beta Polish 5: micro-animations (2026-07-03):** calm, cozy, premium micro-animations
 > (CSS-only, 60fps, reduced-motion respected; no features, no new libraries). A global soft-spring on

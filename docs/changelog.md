@@ -8,6 +8,90 @@ for technical detail.
 
 ---
 
+## 2026-07-10 — Village Projection Rebuild: pseudo-3D curved world
+
+Village presentation rebuild on `m12-nest-platform` (preview only; **no merge to `main`, no production
+deploy**). **No product features; no changes to auth, publishing, social backend, editor data model, or
+marketplace/AI.** Supersedes the orbital-village pass below. Full record:
+[village-projection-rebuild.md](village-projection-rebuild.md).
+
+### Added
+- **`lib/village-projection.ts`** — pure, framework-free projection math (no React/DOM). World items own
+  stable `{ worldX, worldY }`; a `Camera { x, y }` moves over them. `projectItem` curves a world point to
+  screen: **horizontal cylinder wrapping** (`wrapDeltaX` shortest-delta → houses leave one side and
+  re-enter the other), **finite depth** (`relativeY = worldY − cameraY`, foreground↔horizon), a
+  **convex dome** (`horizontalCurve · relativeX²` pushes the sides down), and depth-driven
+  `scale`/`opacity`/`blur`/`zIndex`/`visible`. Tunable `DEFAULT_PROJECTION_CONFIG`; pure inertia helpers.
+- **`test/village-projection.test.ts`** — 19 unit tests (wrapping, clamp, scale-by-depth, visibility,
+  zIndex ordering, `projectAll` sort, opacity/scale bounds, inertia).
+- **`components/nest/village/use-curved-world.ts`** — the movable camera + native Pointer-Event gestures
+  (drag any direction incl. diagonal; fling inertia w/ friction + velocity clamp; tap-vs-drag threshold;
+  wheel). Camera/velocity in **refs**; per-frame `transform`/`opacity`/`z-index` written **straight to the
+  DOM via rAF — no React render per frame**. Blur only at rest; `will-change` on moving items;
+  `prefers-reduced-motion` → no inertia. Soft-clamped vertical roam.
+- **`/village-projection-lab`** (`app/village-projection-lab/*`) — isolated tuning bench: 20 placeholder
+  houses + decor, debug overlay (world coords + horizon guide) and live sliders for every constant
+  (Copy-config/Reset). `noindex`; safe to delete once locked.
+
+### Changed
+- **Village is now a pseudo-3D curved world** (`components/nest/village/village-scene.tsx`, rewritten):
+  moved from a single-axis orbit (`phi`, horizontal only) to a **virtual 2D world + movable camera** you
+  roam **left/right/up/down/diagonal**. Each `VillageHouse` gets stable world coordinates (even spread +
+  per-seed jitter, depth scattered so houses never line up in rows); the first **real creator** anchors
+  the opening camera and it **re-centres** when discovery loads it. The **curved ground** samples the same
+  parabola as the projection so ground + houses agree. Same props contract (`village-client.tsx`
+  unchanged); `HouseExterior` art, name pills, online dots, badges, idle float, and **zoom-into-arrival**
+  (`HouseFront`) preserved. **Still DOM/CSS/SVG — no Three.js / Canvas / new libs.**
+- **Softer moon** (`components/nest/village/scene-backdrop.tsx`): the disc gradient now eases to its own
+  edge and the glow is **blur-only (0 spread)**, removing the bright rim between disc and halo — a clean
+  **soft full moon**, no thick ring.
+
+No tables, migrations, flags, or dependencies.
+
+---
+
+## 2026-07-09 — Beta Polish: fullscreen Nest viewer & real orbital village
+
+Visual / mobile polish on `m12-nest-platform` (preview only; **no merge to `main`, no production
+deploy**). **No product features; no changes to auth, publishing, social backend, editor data model,
+or marketplace/AI** — layout, CSS, and the village presentation only. Full record:
+[beta-polish-fullscreen-orbit.md](beta-polish-fullscreen-orbit.md).
+
+### Changed
+- **Home feed card — grey block removed** (`components/nest/app-shell/discovery.tsx` `FeedCard`): the
+  room preview no longer reserves a 30 % bottom band (which filled with cream and read as an ugly grey
+  block); the composed room is now **full-bleed, edge to edge**, with **softened scrims** so the
+  overlay barely covers it. One CTA (Visit House) + the Reels right rail unchanged.
+- **Fullscreen Nest viewer — public + owner** (`app/nest/[slug]/visitor-client.tsx`): `VisitorView`
+  rewritten from a scrolling three-band page into a **fullscreen Reels-style viewer** — the room fills
+  the screen, only floating overlays sit on top (**creator top-left** → drawer; **Exit top-right**;
+  **like/comment/share** right rail; title + **Visit House** bottom-left). **No page scroll.** The
+  visitor's old **Create your own / Wander more** buttons are gone. The **owner** gets **Edit Nest +
+  View House + a Stats bottom sheet** (real views/likes/comments/followers) instead of a wall of
+  analytics cards over the room.
+- **Creator drawer** (`CreatorDrawer`): tapping the top-left creator opens a **lightweight left
+  drawer** (82 %/max 320 px, room peeks) with avatar · display name · @username · bio · Nests /
+  Followers / Following · Follow · Visit House.
+- **Village — real orbital little world** (`components/nest/village/village-scene.tsx`): rewritten from
+  a horizontal-scroll strip into a **true orbital projection** — each house owns a **longitude** +
+  depth **band**; a single orbit angle `phi` (horizontal drag + inertia, trackpad `deltaX`) maps
+  **angle → x/y/scale/opacity/z**, so houses **swell at the front and fade/slip round the sides** as
+  you pan, and each band **arcs up toward the horizon** (curved bands, not flat rows). Ground is a
+  **convex SVG globe limb**; sky (`SceneBackdrop`) preserved; zoom-into-arrival preserved. **Still
+  2.5D CSS/SVG — no Three.js / new libs.**
+- **Natural moon** (`components/nest/village/scene-backdrop.tsx`): the hard box-shadow ring + broken
+  crescent replaced with a **soft full moon** (radially-shaded sphere + faint halo). Sun keeps its glow.
+- **Editor top bar** (`nest-editor.tsx`): confirmed no "Saved" label and **Done always fully visible**
+  (375 px: `scrollWidth` 375, Done right 367).
+
+### Verified
+`/village` (curved ground, drag orbits — houses move + emerge, natural moon), house tap → arrival,
+`/home` feed (no grey block, full-bleed), Nest → fullscreen viewer (no scroll, no Create/Wander),
+creator drawer, `/nest-editor` (Done visible). **No console errors / failed requests / server errors.**
+`typecheck · lint · test (402) · build` all green (Node 20).
+
+---
+
 ## 2026-07-09 — Beta Polish Final: mobile layout & village globe
 
 Visual / mobile polish on `m12-nest-platform` (preview only; **no merge to `main`, no production

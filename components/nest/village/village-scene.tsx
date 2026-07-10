@@ -1,30 +1,57 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { Village, VillageHouse } from "@/lib/nest-village";
 import { houseInitial } from "@/lib/nest-house";
 import type { SkyTheme, WeatherTheme } from "@/lib/nest-atmosphere";
 import { HouseExterior } from "@/components/nest/village/house-exterior";
 import { SceneBackdrop } from "@/components/nest/village/scene-backdrop";
-import { VillageTerrain } from "@/components/nest/village/village-terrain";
+import { useCurvedWorld } from "@/components/nest/village/use-curved-world";
+import {
+  DEFAULT_PROJECTION_CONFIG,
+  projectItem,
+  type VillageWorldItem,
+} from "@/lib/village-projection";
 
-// Beta Polish Final — the Village now sits on a curved little world. The sky (sun/moon,
-// birds, weather) fills the upper half; the ground is a soft globe-limb dome across the
-// lower half. Houses ride gently curved lanes (front row closer + larger, back rows
-// smaller + hazier) on a strip you orbit left↔right — houses drift off one edge as
-// others emerge. It's 2.5D CSS/SVG (no 3D, no Three.js, no new libs): the convex clipped
-// horizon + curved lanes + limb shading read as a small planet without a real sphere.
+// ── Village scene — pseudo-3D curved world ────────────────────────────────────
+// The village is a virtual 2D world you move a camera over (drag any direction:
+// left/right/up/down/diagonal, with fling inertia). Each house owns stable world
+// coordinates; lib/village-projection curves them onto the screen so the centre
+// reads closest, the sides fall away around the limb, and houses wrap round the
+// world as you pan. Camera + projection are driven imperatively (refs + rAF, no
+// per-frame React render) by useCurvedWorld. Pure CSS/SVG — no Three.js, no libs.
 
-// Lanes across the dome (near → far). y is a fraction of the dome height.
-const LANES = [
-  { y: 0.84, scale: 1.06, op: 1 },    // front — closest, biggest, fully lit
-  { y: 0.63, scale: 0.9, op: 0.94 },  // middle
-  { y: 0.45, scale: 0.74, op: 0.84 }, // back — furthest, small, a touch hazier
-];
+// Deterministic 0..1 hash from a seed (no Math.random → stable, hydration-safe).
+function rnd(seed: number, salt: number): number {
+  let h = Math.imul(seed + 1, 374761393) + Math.imul(salt, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
 
-// Sensible first-paint fallback (a phone) so SSR + first client render match; a layout
-// effect measures the real viewport straight after mount.
-const FALLBACK = { vw: 390, vh: 720 };
+const CFG = DEFAULT_PROJECTION_CONFIG;
+
+// Give every house stable world coordinates. Houses spread evenly around the
+// world's width (with per-seed jitter) and scatter across the depth axis so they
+// never line up in flat rows. The first real creator anchors where the camera
+// opens, so you arrive looking at a real neighbour.
+function layout(village: Village) {
+  const houses = village.houses;
+  const n = Math.max(1, houses.length);
+  const placed = houses.map((house, i) => {
+    const jitterX = (rnd(house.seed, 2) - 0.5) * (CFG.WORLD_WIDTH / n) * 0.7;
+    const worldX = (i / n) * CFG.WORLD_WIDTH + jitterX;
+    // Depth spread across roughly the front two-thirds of the world's depth.
+    const worldY = -CFG.WORLD_HEIGHT * 0.24 + rnd(house.seed, 5) * CFG.WORLD_HEIGHT * 0.58;
+    const item: VillageWorldItem = { id: house.id, worldX, worldY, kind: "house" };
+    return { house, item };
+  });
+  const home = placed.find((p) => p.house.isReal) ?? placed[0];
+  const initialCamera = home
+    ? { x: home.item.worldX, y: home.item.worldY - CFG.WORLD_HEIGHT * 0.16 }
+    : { x: 0, y: 0 };
+  return { placed, initialCamera };
+}
 
 export function VillageScene({
   village,
@@ -40,153 +67,147 @@ export function VillageScene({
   /** When set, the world zooms toward this house (camera push into the arrival). */
   zoomingId?: string | null;
 }) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [vp, setVp] = useState(FALLBACK);
+  const { placed, initialCamera } = useMemo(() => layout(village), [village]);
+  const items = useMemo(() => placed.map((p) => p.item), [placed]);
 
-  // Measure the viewport (and keep it current on resize/orientation change).
-  useLayoutEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    const measure = () => setVp({ vw: el.clientWidth || FALLBACK.vw, vh: el.clientHeight || FALLBACK.vh });
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const world = useCurvedWorld({
+    items,
+    initialCamera,
+    disabled: !!zoomingId, // freeze the camera during the arrival zoom
+  });
 
-  const nodeSize = village.hexSize * 1.35;
-
-  // Lay the houses onto curved lanes on a wide, orbitable strip. Real creators come first
-  // in the village, so they take the leading columns near where the camera settles.
-  const { laid, stripW, domeH, firstRealX } = useMemo(() => {
-    const domeH = Math.round(vp.vh * 0.56);
-    const colGap = village.hexSize * 1.95;
-    const padX = Math.max(vp.vw * 0.5, village.hexSize * 2.6);
-
-    const laid = village.houses.map((h, i) => {
-      const lane = i % LANES.length;
-      const col = Math.floor(i / LANES.length);
-      const L = LANES[lane];
-      const sx = padX + (col + lane * 0.34) * colGap;
-      // A gentle rise/fall per column so lanes curve like a horizon (not a straight row).
-      const wave = Math.cos(col * 0.8 + lane * 1.7) * domeH * 0.035;
-      const sy = domeH * L.y + wave;
-      return { ...h, sx, sy, scale: L.scale, op: L.op };
-    });
-
-    const lastCol = Math.floor((village.houses.length - 1) / LANES.length);
-    const stripW = padX * 2 + (lastCol + (LANES.length - 1) * 0.34) * colGap;
-    const firstRealX = (laid.find((h) => h.isReal) ?? laid[0])?.sx ?? stripW / 2;
-    return { laid, stripW, domeH, firstRealX };
-  }, [village, vp]);
-
-  // Settle the orbit on the first real creator's house.
+  // Houses load async (discovery), so re-centre on the lead creator when it first
+  // resolves — but only when the home actually changes, never mid-drag every render.
+  const homeId = placed.find((p) => p.house.isReal)?.house.id ?? placed[0]?.house.id ?? null;
+  const homeRef = useRef<string | null>(null);
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollLeft = Math.max(0, firstRealX - el.clientWidth / 2);
-  }, [firstRealX, stripW]);
+    if (homeId && homeRef.current !== homeId) {
+      homeRef.current = homeId;
+      world.jumpTo(initialCamera);
+    }
+  }, [homeId, initialCamera, world]);
 
-  // A synthetic village so VillageTerrain paints grass/road/greenery across the strip,
-  // relit by the same sky + weather (Beta Polish 2 realism, now on the dome).
-  const domeVillage: Village = useMemo(
-    () => ({
-      ...village,
-      houses: laid.map((h) => ({ ...h, x: h.sx, y: h.sy })),
-      width: stripW,
-      height: domeH,
-      center: { x: firstRealX, y: domeH * 0.5 },
-    }),
-    [village, laid, stripW, domeH, firstRealX],
-  );
+  const { width: vw, height: vh } = world.viewport;
+  const horizonY = vh * CFG.horizonYFraction;
 
-  const zoomHouse = zoomingId ? laid.find((h) => h.id === zoomingId) : null;
-  const origin = zoomHouse
-    ? { x: (zoomHouse.sx / stripW) * 100, y: (zoomHouse.sy / domeH) * 100 }
-    : { x: 50, y: 78 };
+  // Arrival zoom: push the camera visually toward the tapped house by scaling the
+  // whole world layer about that house's current on-screen point (gestures are
+  // frozen while this runs, so the camera is stable enough to read once).
+  const zoomItem = zoomingId ? placed.find((p) => p.house.id === zoomingId)?.item : null;
+  const origin = zoomItem ? projectItem(zoomItem, world.getCamera(), { width: vw, height: vh }, CFG) : null;
+
+  // Ground silhouette matched to the projection: the horizon band is pushed down
+  // by horizontalCurve * relativeX², so sample that same parabola across the width.
+  const groundPath = useMemo(() => {
+    if (vw <= 0) return "";
+    const centerX = vw / 2;
+    const compAtHorizon = CFG.horizonCompression + (1 - CFG.horizonCompression) * 0.5;
+    const denom = CFG.horizontalScale * compAtHorizon || 1;
+    const pts: string[] = [];
+    const N = 24;
+    for (let i = 0; i <= N; i++) {
+      const sx = (i / N) * vw;
+      const relX = (sx - centerX) / denom;
+      const y = horizonY + CFG.horizontalCurve * relX * relX;
+      pts.push(`${i === 0 ? "M" : "L"}${sx.toFixed(1)},${y.toFixed(1)}`);
+    }
+    return `${pts.join(" ")} L${vw},${vh} L0,${vh} Z`;
+  }, [vw, vh, horizonY]);
+
+  const grass = sky.night
+    ? { top: "#31513a", mid: "#24402e", bottom: "#182a1f" }
+    : { top: "#8db956", mid: "#6ba045", bottom: "#4c7d38" };
 
   return (
-    <div ref={rootRef} className="relative h-full w-full overflow-hidden">
-      {/* the living sky — fills the whole viewport; the dome sits over its lower half */}
+    <div
+      ref={world.rootRef}
+      className="relative h-full w-full touch-none select-none overflow-hidden"
+      {...world.handlers}
+    >
+      {/* the living sky — fills the whole viewport; the ground sits over its lower half */}
       <SceneBackdrop sky={sky} wx={wx} birds className="absolute inset-0" />
 
-      {/* the curved ground — a soft globe limb across the lower half of the screen */}
+      {/* world layer — scaled toward the tapped house during the arrival zoom */}
       <div
-        className="absolute inset-x-0 bottom-0 overflow-hidden"
+        className="absolute inset-0 transition-[transform,filter] duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
         style={{
-          height: domeH,
-          borderTopLeftRadius: "50% 46px",
-          borderTopRightRadius: "50% 46px",
+          transform: origin ? "scale(1.85)" : "scale(1)",
+          transformOrigin: origin
+            ? `${((origin.screenX / (vw || 1)) * 100).toFixed(1)}% ${((origin.screenY / (vh || 1)) * 100).toFixed(1)}%`
+            : "50% 82%",
+          filter: origin ? "blur(1.5px) brightness(0.92)" : "none",
         }}
       >
-        <div
-          ref={scrollRef}
-          className={`h-full w-full overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] ${zoomHouse ? "pointer-events-none" : ""}`}
-        >
-          <div
-            className="nest-arrive relative transition-[transform,filter,opacity] duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
-            style={{
-              width: stripW,
-              height: domeH,
-              transform: zoomHouse ? "scale(1.85)" : "scale(1)",
-              transformOrigin: `${origin.x}% ${origin.y}%`,
-              filter: zoomHouse ? "blur(2px) brightness(0.85)" : "none",
-              opacity: zoomHouse ? 0.55 : 1,
+        {/* curved ground — a convex globe limb matched to the house projection */}
+        {vw > 0 ? (
+          <svg className="absolute inset-0 h-full w-full" viewBox={`0 0 ${vw} ${vh}`} preserveAspectRatio="none" aria-hidden>
+            <defs>
+              <linearGradient id="villGrass" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor={grass.top} />
+                <stop offset="0.45" stopColor={grass.mid} />
+                <stop offset="1" stopColor={grass.bottom} />
+              </linearGradient>
+            </defs>
+            <path d={groundPath} fill="url(#villGrass)" />
+          </svg>
+        ) : null}
+
+        {/* soft rim light along the top of the limb + a warm/cool time wash */}
+        <div className="pointer-events-none absolute inset-x-0" style={{ top: horizonY - 10, height: 60, background: "radial-gradient(120% 100% at 50% 100%, rgba(255,255,255,0.20), transparent 70%)" }} />
+        <div className="pointer-events-none absolute inset-0" style={{ background: sky.wash }} />
+
+        {/* the houses — each a positioner element the camera projects imperatively */}
+        {placed.map(({ house }) => (
+          <button
+            key={house.id}
+            ref={world.register(house.id)}
+            data-world-id={house.id}
+            onClickCapture={(e) => {
+              // Eat the click if this pointer-up was really a drag/fling.
+              if (world.suppressTapRef.current) {
+                e.stopPropagation();
+                world.suppressTapRef.current = false;
+              }
             }}
+            onClick={() => onSelect(house)}
+            className="group"
+            style={{ width: 92 }}
+            aria-label={`${house.name}${house.isReal ? " (creator)" : ""}`}
           >
-            {/* grass valley, road + greenery, relit by the sky */}
-            <VillageTerrain village={domeVillage} sky={sky} wx={wx} />
+            {/* barely-there float so the village feels alive (staggered per house) */}
+            <div className="nest-float-map relative flex flex-col items-center" style={{ animationDelay: `${(house.seed % 60) / 10}s` }}>
+              <HouseExterior house={house} className="w-full" interactive glow={sky.glow} night={sky.night} />
+              <span
+                className={`-mt-1 max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-bold shadow-soft ${
+                  house.isReal ? "bg-terracotta text-parchment" : "bg-white/85 text-ink/60"
+                }`}
+              >
+                {house.isReal && house.handle ? `@${house.handle}` : house.name}
+              </span>
+              {house.online ? (
+                <span className="absolute right-3 top-2 flex items-center gap-1 rounded-full bg-white/85 px-1.5 py-0.5 shadow-soft">
+                  <span className="size-1.5 rounded-full bg-meadow-shade" />
+                </span>
+              ) : null}
+              {house.isReal ? (
+                <span className="absolute -top-1 left-2 grid size-5 place-items-center rounded-full bg-white text-[9px] font-black text-terracotta shadow-soft ring-1 ring-terracotta/30">
+                  {houseInitial(house)}
+                </span>
+              ) : null}
+            </div>
+          </button>
+        ))}
 
-            {[...laid]
-              .sort((a, b) => a.sy - b.sy) // back-to-front so nearer houses overlap
-              .map((house) => (
-                <button
-                  key={house.id}
-                  onClick={() => onSelect(house)}
-                  className="group absolute"
-                  style={{
-                    left: house.sx,
-                    top: house.sy,
-                    width: nodeSize,
-                    transform: `translate(-50%, -100%) scale(${house.scale})`,
-                    transformOrigin: "50% 100%",
-                    opacity: house.op,
-                    zIndex: Math.round(house.sy),
-                  }}
-                  aria-label={`${house.name}${house.isReal ? " (creator)" : ""}`}
-                >
-                  {/* barely-there float so the village feels alive (staggered per house) */}
-                  <div className="nest-float-map relative flex flex-col items-center" style={{ animationDelay: `${(house.seed % 60) / 10}s` }}>
-                    <HouseExterior house={house} className="w-full" interactive glow={sky.glow} night={sky.night} />
-                    <span
-                      className={`-mt-1 max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-bold shadow-soft ${
-                        house.isReal ? "bg-terracotta text-parchment" : "bg-white/85 text-ink/60"
-                      }`}
-                    >
-                      {house.isReal && house.handle ? `@${house.handle}` : house.name}
-                    </span>
-                    {house.online ? (
-                      <span className="absolute right-3 top-2 flex items-center gap-1 rounded-full bg-white/85 px-1.5 py-0.5 shadow-soft">
-                        <span className="size-1.5 rounded-full bg-meadow-shade" />
-                      </span>
-                    ) : null}
-                    {house.isReal ? (
-                      <span className="absolute -top-1 left-2 grid size-5 place-items-center rounded-full bg-white text-[9px] font-black text-terracotta shadow-soft ring-1 ring-terracotta/30">
-                        {houseInitial(house)}
-                      </span>
-                    ) : null}
-                  </div>
-                </button>
-              ))}
-          </div>
-        </div>
-
-        {/* limb shading — a soft light along the top curve + depth pooling at the base,
-            so the ground reads as the surface of a small planet (pure overlay, no motion). */}
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(150%_120%_at_50%_-10%,rgba(255,255,255,0.14),transparent_55%)]" />
-        <div className="pointer-events-none absolute inset-0 shadow-[inset_0_-44px_60px_-24px_rgba(40,24,17,0.5)]" />
+        {/* limb shading — soft depth pooling at the base so it reads as a planet surface */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0" style={{ height: vh * (1 - CFG.horizonYFraction), boxShadow: "inset 0 -44px 60px -24px rgba(30,20,14,0.55)" }} />
       </div>
+
+      {/* a hint you can roam the world (fades once you arrive somewhere) */}
+      {!zoomingId ? (
+        <div className="pointer-events-none absolute inset-x-0 z-10 flex justify-center" style={{ top: horizonY - 34 }}>
+          <span className="rounded-full bg-white/70 px-3 py-1 text-[11px] font-bold text-ink/55 shadow-soft backdrop-blur">‹ drag to explore ›</span>
+        </div>
+      ) : null}
 
       {/* gentle vignette so the edges feel like the outskirts */}
       <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_80px_30px_rgba(90,62,38,0.16)]" />

@@ -68,17 +68,32 @@ export function SceneBackdrop({
           ))
         : null}
 
-      {/* sun / moon */}
+      {/* sun / moon — a soft blurred halo (no hard ring) behind a clean disc */}
       <div
         className="absolute rounded-full blur-2xl"
-        style={{ left: `${sky.discPos.x}%`, top: `${sky.discPos.y}%`, width: 150, height: 150, background: sky.discGlow, opacity: 0.55, transform: "translate(-50%,-50%)" }}
+        style={{ left: `${sky.discPos.x}%`, top: `${sky.discPos.y}%`, width: sky.night ? 120 : 150, height: sky.night ? 120 : 150, background: sky.discGlow, opacity: sky.night ? 0.4 : 0.55, transform: "translate(-50%,-50%)" }}
       />
-      <div
-        className="absolute rounded-full"
-        style={{ left: `${sky.discPos.x}%`, top: `${sky.discPos.y}%`, width: sky.night ? 52 : 60, height: sky.night ? 52 : 60, background: sky.disc, boxShadow: `0 0 26px 6px ${sky.discGlow}`, transform: "translate(-50%,-50%)" }}
-      >
-        {sky.night ? <span className="absolute right-2 top-2 size-8 rounded-full" style={{ background: sky.sky[2], opacity: 0.5 }} /> : null}
-      </div>
+      {sky.night ? (
+        // Full moon: a softly-shaded sphere (light top-left → cool shadow lower-right).
+        // The gradient eases all the way to the disc's own edge (no abrupt cool
+        // stop) and the glow is blur-only (0 spread) — so there's no bright rim
+        // sitting between the disc and its halo. No thick ring, no broken crescent.
+        <div
+          className="absolute rounded-full"
+          style={{
+            left: `${sky.discPos.x}%`, top: `${sky.discPos.y}%`, width: 54, height: 54,
+            background: `radial-gradient(circle at 38% 34%, #fefdf7 0%, #f3efe0 46%, ${sky.disc} 78%, #dcd8ea 100%)`,
+            boxShadow: `0 0 22px 0 ${sky.discGlow}`,
+            transform: "translate(-50%,-50%)",
+          }}
+        />
+      ) : (
+        // Sun: a warm glowing disc.
+        <div
+          className="absolute rounded-full"
+          style={{ left: `${sky.discPos.x}%`, top: `${sky.discPos.y}%`, width: 60, height: 60, background: sky.disc, boxShadow: `0 0 26px 6px ${sky.discGlow}`, transform: "translate(-50%,-50%)" }}
+        />
+      )}
 
       {/* clouds — density follows the weather */}
       <div className="nest-drift absolute left-[8%] top-[16%] h-8 rounded-full bg-white/70 blur-md" style={{ width: 96, opacity: 0.35 + wx.clouds * 0.55 }} />
