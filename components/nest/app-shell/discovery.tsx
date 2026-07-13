@@ -232,15 +232,16 @@ function FeedCard({ item }: { item: DiscoveryItem }) {
   // light Reels-style rail. Kept minimal so the room breathes — no heavy dark block.
   return (
     <article className="relative h-full w-full snap-start snap-always overflow-hidden bg-[#e9e0c8]">
-      {/* Full-bleed composed room, kept clear of the bottom action zone. Tapping visits it. */}
+      {/* Full-bleed composed room — the Nest is the hero, edge to edge. Tapping visits it. */}
       <Link href={item.href} className="absolute inset-0" aria-label={`Visit ${item.title}`}>
-        <NestPreview doc={item.doc} className="size-full" safe={{ bottom: 0.3 }} />
+        <NestPreview doc={item.doc} className="size-full" />
       </Link>
 
-      {/* Lighting — only enough for legibility: a whisper at the top for the badge and a
-          soft, shallow bottom gradient for the text. No opaque block over the room. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/20 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/55 via-black/25 to-transparent" />
+      {/* Lighting — legibility only, never a panel. A whisper at the top for the badge; at
+          the bottom a single smooth fade (no mid plateau → no hard edge, no block). The room
+          stays visible through it edge-to-edge; text rides on its own shadow. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/18 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/45 to-transparent" />
 
       <div className="pointer-events-none absolute left-4 top-4">
         <span className="pointer-events-auto"><SourceBadge source={item.source} floating /></span>
