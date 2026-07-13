@@ -23,20 +23,20 @@ function rnd(i: number, salt = 1): number {
   return (h >>> 0) / 4294967296;
 }
 
-const HOUSE_COUNT = 16;
-const HUES = [18, 32, 5, 200, 150, 275, 340, 45, 95];
+const HOUSE_COUNT = 24;
+const HUES = [18, 32, 5, 200, 150, 275, 340, 45, 95, 120];
 
-type LabHouse = GlobeItem & { hue: number; label: string };
+type LabHouse = GlobeItem & { hue: number; label: string; size: number };
 type LabDecor = GlobeItem & { kind: "tree" | "bush" | "flower" | "lamp"; label: string };
 
-// Village band: latitudes kept in a strip so houses sit in the visible mid-ground
-// of the near cap (not clipped off the bottom, not up at the far horizon).
-const LAT_MIN = 0.05;
-const LAT_MAX = 0.5;
-// Houses cluster around the front over ~260° of longitude, leaving a back arc of
-// open country — so rotating clearly shows houses sink behind one limb and emerge
-// from the other.
-const LON_ARC = 4.6;
+// Four depth bands by latitude, reaching from the foreground up to just under the
+// horizon crest. Low latitude = foreground (lower on screen, larger); high latitude
+// = distant, up near the horizon. Populating all four keeps the whole cap covered
+// instead of a bare green dome with a few houses at the foot.
+const BANDS = [0.05, 0.35, 0.66, 0.98];
+// Houses cluster over ~258° of longitude, leaving a back arc so orbiting reveals a
+// fresh side of the village; decor still fills that gap as countryside.
+const LON_ARC = 4.5;
 
 export function VillageProjectionLabClient() {
   const atmosphere = useAtmosphere();
@@ -47,45 +47,58 @@ export function VillageProjectionLabClient() {
   const [cfg, setCfg] = useState<SurfaceConfig>({ ...DEFAULT_SURFACE_CONFIG });
   const set = (k: keyof SurfaceConfig) => (v: number) => setCfg((c) => ({ ...c, [k]: v }));
 
-  // Houses on a jittered grid across the village arc, so every rotation shows a
-  // vertical spread from foreground to horizon — a populated village, not a row.
+  // Houses laid across the four depth bands, columns staggered per band so rows never
+  // line up — a vertical spread from foreground to horizon fills the whole cap.
   const houses = useMemo<LabHouse[]>(() => {
-    const COLS = 8;
-    return Array.from({ length: HOUSE_COUNT }, (_, i) => {
-      const col = i % COLS;
-      const row = Math.floor(i / COLS);
-      const lonBase = -LON_ARC / 2 + ((col + 0.5) / COLS) * LON_ARC;
-      const latBase = LAT_MIN + ((row + 0.5) / 2) * (LAT_MAX - LAT_MIN);
-      return {
-        id: `house-${i}`,
-        longitude: lonBase + (rnd(i, 7) - 0.5) * 0.35,
-        latitude: latBase + (rnd(i, 3) - 0.5) * 0.18,
-        hue: HUES[i % HUES.length],
-        label: `H${i}`,
-      };
+    const perBand = Math.ceil(HOUSE_COUNT / BANDS.length);
+    const list: LabHouse[] = [];
+    let i = 0;
+    BANDS.forEach((latC, b) => {
+      for (let c = 0; c < perBand && i < HOUSE_COUNT; c++, i += 1) {
+        const t = (c + 0.5 + (b % 2) * 0.5) / perBand; // half-step stagger on alt bands
+        const longitude = -LON_ARC / 2 + t * LON_ARC + (rnd(i, 7) - 0.5) * 0.16;
+        const latitude = latC + (rnd(i, 3) - 0.5) * 0.12;
+        list.push({
+          id: `house-${i}`,
+          longitude,
+          latitude,
+          hue: HUES[i % HUES.length],
+          label: `H${i}`,
+          size: 0.86 + rnd(i, 9) * 0.28, // gentle per-house size variety
+        });
+      }
     });
+    return list;
   }, []);
 
-  // Decor scattered across the same surface.
+  // Decor scattered around the WHOLE globe (full 2π) across every latitude, so there
+  // is no bare green — the house gap reads as countryside, not emptiness. Trees
+  // dominate the mix (they fill the most negative space); a share is biased into the
+  // mid-to-high latitudes to clothe the upper cap between the crest and the houses.
   const decor = useMemo<LabDecor[]>(
     () =>
-      Array.from({ length: 22 }, (_, i) => ({
-        id: `decor-${i}`,
-        longitude: -LON_ARC / 2 + rnd(i, 11) * LON_ARC,
-        latitude: LAT_MIN - 0.12 + rnd(i, 13) * (LAT_MAX - LAT_MIN + 0.24),
-        kind: (["tree", "bush", "flower", "lamp"] as const)[i % 4],
-        label: "",
-      })),
+      Array.from({ length: 64 }, (_, i) => {
+        const highBias = i % 2 === 0; // half pushed up the cap toward the horizon
+        const latitude = highBias ? 0.4 + rnd(i, 13) * 0.75 : -0.06 + rnd(i, 13) * 1.18;
+        return {
+          id: `decor-${i}`,
+          longitude: rnd(i, 11) * TAU,
+          latitude,
+          kind: (["tree", "bush", "tree", "flower", "bush", "tree", "lamp", "bush"] as const)[i % 8],
+          label: "",
+        };
+      }),
     [],
   );
 
-  // Two roads: chains of surface points along the band (project with the same math).
+  // Three roads threading the clusters at three depths — each projected point uses the
+  // same surface math, so they curve and rotate with the ground.
   const roads = useMemo(
     () =>
-      [0, 1].map((r) =>
-        Array.from({ length: 48 }, (_, i) => ({
-          longitude: -LON_ARC / 2 - 0.4 + (i / 47) * (LON_ARC + 0.8),
-          latitude: (r === 0 ? 0.14 : 0.4) + Math.sin(i * 0.4 + r) * 0.05,
+      [0.12, 0.44, 0.76].map((lat0, r) =>
+        Array.from({ length: 52 }, (_, i) => ({
+          longitude: -LON_ARC / 2 - 0.5 + (i / 51) * (LON_ARC + 1.0),
+          latitude: lat0 + Math.sin(i * 0.32 + r * 1.3) * 0.05,
         })),
       ),
     [],
@@ -116,6 +129,7 @@ export function VillageProjectionLabClient() {
   // ── Roads + graticule are surface features: redraw every frame with projectPoint.
   const road0Ref = useRef<SVGPathElement>(null);
   const road1Ref = useRef<SVGPathElement>(null);
+  const road2Ref = useRef<SVGPathElement>(null);
   const gratRef = useRef<SVGGElement>(null);
 
   useEffect(() => {
@@ -166,13 +180,8 @@ export function VillageProjectionLabClient() {
       return parts;
     };
     globe.setOnFrame(() => {
-      if (showRoads) {
-        road0Ref.current?.setAttribute("d", buildRoad(roads[0]));
-        road1Ref.current?.setAttribute("d", buildRoad(roads[1]));
-      } else {
-        road0Ref.current?.setAttribute("d", "");
-        road1Ref.current?.setAttribute("d", "");
-      }
+      const rr = [road0Ref, road1Ref, road2Ref];
+      rr.forEach((ref, i) => ref.current?.setAttribute("d", showRoads ? buildRoad(roads[i]) : ""));
       const g = gratRef.current;
       if (g) {
         if (debug) {
@@ -215,7 +224,8 @@ export function VillageProjectionLabClient() {
             <g clipPath="url(#earthClip)">
               <g ref={gratRef} />
               <path ref={road0Ref} d="" fill="none" stroke={night ? "#6b5a3a" : "#cbb389"} strokeWidth={6} strokeLinecap="round" opacity={0.9} />
-              <path ref={road1Ref} d="" fill="none" stroke={night ? "#6b5a3a" : "#cbb389"} strokeWidth={5} strokeLinecap="round" opacity={0.8} />
+              <path ref={road1Ref} d="" fill="none" stroke={night ? "#6b5a3a" : "#cbb389"} strokeWidth={5} strokeLinecap="round" opacity={0.82} />
+              <path ref={road2Ref} d="" fill="none" stroke={night ? "#6b5a3a" : "#cbb389"} strokeWidth={4} strokeLinecap="round" opacity={0.72} />
             </g>
           </svg>
         ) : null}
@@ -238,7 +248,7 @@ export function VillageProjectionLabClient() {
         ))}
         {houses.map((h) => (
           <div key={h.id} ref={globe.register(h.id)} data-world-id={h.id}>
-            <PlaceholderHouse hue={h.hue} night={night} label={debug ? h.label : undefined} />
+            <PlaceholderHouse hue={h.hue} night={night} size={h.size} label={debug ? h.label : undefined} />
           </div>
         ))}
       </div>
@@ -296,12 +306,12 @@ function Slider({ label, v, min, max, step, onChange, fmt }: { label: string; v:
   );
 }
 
-function PlaceholderHouse({ hue, night, label }: { hue: number; night: boolean; label?: string }) {
+function PlaceholderHouse({ hue, night, size = 1, label }: { hue: number; night: boolean; size?: number; label?: string }) {
   const wall = `hsl(${hue} 45% ${night ? 42 : 66}%)`;
   const roof = `hsl(${hue} 50% ${night ? 28 : 42}%)`;
   const lit = night ? "#ffe9a8" : "#fff6da";
   return (
-    <div className="relative flex flex-col items-center" style={{ width: 84 }}>
+    <div className="relative flex flex-col items-center" style={{ width: 84 * size }}>
       <svg width="84" height="86" viewBox="0 0 84 86" aria-hidden>
         <ellipse cx="42" cy="82" rx="30" ry="6" fill="rgba(20,14,8,0.28)" />
         <rect x="16" y="40" width="52" height="38" rx="3" fill={wall} />

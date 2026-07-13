@@ -76,8 +76,20 @@ Three.js, no Canvas, no gesture/animation libraries.
 ## The lab — proven before integration
 
 [/village-projection-lab](../app/village-projection-lab/lab-client.tsx) is the tuning bench (noindex).
-It draws the one terrain disc and places 16 placeholder houses + roads + trees/bushes/flowers/lamps + a
-rotating lat/long graticule, **all** through `projectSurface`, with live sliders for every constant.
+It draws the one terrain disc and places the village — **all** through `projectSurface`, with live
+sliders for every constant and a rotating lat/long graticule for legibility.
+
+**Composition pass.** To kill the "empty green dome with a few houses at the foot" look, the lab now
+lays **24 houses across four depth bands** (`BANDS = [0.05, 0.35, 0.66, 0.98]`) — foreground/large at the
+bottom, medium through the centre, distant/small up near the horizon crest — staggered per band so rows
+never line up. **64 decor** items (trees-heavy, plus bushes, flowers, lamps) scatter around the **whole
+2π globe** and are biased into the mid-to-high latitudes, so the cap between the crest and the houses
+reads as countryside, never bare green. **Three roads** thread the clusters at three depths. Houses
+cluster over ~258° of longitude with a back arc, so orbiting continuously reveals a fresh, populated
+side. Verified in-browser at 375×812: ~15–21 houses + ~35–53 decor visible per view, sky held ≥ ⅓,
+houses remain tappable (tap hit-tests `data-world-id` → `centerOn`), occlusion + wrapping intact, no
+console errors. Screenshots captured: initial, rotated left, rotated right, populated horizon, populated
+foreground.
 
 Verified in-browser at 375×812 (all 10 lab acceptance criteria):
 
