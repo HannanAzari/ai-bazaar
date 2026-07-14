@@ -91,10 +91,16 @@ export function useVillageStreet({
   const applyCamera = useCallback(() => {
     const cam = cameraRef.current;
     const vp = viewportRef.current;
+    const camYNorm = yRange > 0 ? clamp(cam.y / yRange, -1, 1) : 0;
     for (const band of bandsRef.current) {
       const el = layers.current.get(band.id);
       if (el) {
-        el.style.transform = `translate3d(${(-cam.x * band.parallax).toFixed(2)}px, ${cam.y.toFixed(2)}px, 0)`;
+        // Gentle depth: bands drift vertically at different rates and scale a hair
+        // with camera.y, so dragging up "walks forward" into the village. Kept
+        // subtle — no exaggerated perspective.
+        const ty = cam.y * (1 + (band.depthLift ?? 0));
+        const sc = 1 + camYNorm * (band.depthGain ?? 0);
+        el.style.transform = `translate3d(${(-cam.x * band.parallax).toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${sc.toFixed(4)})`;
       }
     }
     // Re-window: only setState when a range actually changed.
@@ -112,7 +118,7 @@ export function useVillageStreet({
       windowsRef.current = next;
       setWindows(next);
     }
-  }, []);
+  }, [yRange]);
 
   const stopInertia = useCallback(() => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -226,6 +232,7 @@ export function useVillageStreet({
   const registerLayer = useCallback((bandId: string) => (el: HTMLElement | null) => {
     if (el) {
       el.style.willChange = "transform";
+      el.style.transformOrigin = "50% 100%"; // scale from the ground, not the top
       layers.current.set(bandId, el);
     } else {
       layers.current.delete(bandId);

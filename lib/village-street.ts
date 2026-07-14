@@ -32,6 +32,12 @@ export type Band = {
   spacing: number;
   /** Item scale for this band (far bands smaller). */
   scale: number;
+  /** Extra vertical drift per unit camera.y (gentle depth): the band moves
+   *  cam.y * (1 + depthLift). Far bands lift more → they "come forward" as you
+   *  drag up into the village. Optional; defaults to 0. */
+  depthLift?: number;
+  /** Subtle scale response to vertical depth, per normalized camera.y. Optional. */
+  depthGain?: number;
 };
 
 export type CellKind =

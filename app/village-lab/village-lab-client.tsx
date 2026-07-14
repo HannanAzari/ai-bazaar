@@ -13,32 +13,30 @@ import {
 import {
   hash01,
   hillY,
-  cellContent,
   groundPath,
   roadPath,
   type Band,
 } from "@/lib/village-street";
+import { resolveChunk, visibleChunkRange, type BandId } from "@/lib/village-chunks";
 
 // ── /village-lab ─────────────────────────────────────────────────────────────
 // Nestudio Village V2 — an endless, cozy rolling-hills neighbourhood you glide
-// through. Sky stays up top; a hand-painted countryside of parallax bands rolls
-// below, dotted with creator houses on the grass, winding roads, and enough trees,
-// lamps, flowers, fences and mailboxes that it feels lived-in. Streams forever via
-// deterministic cells (lib/village-street) — no globe, no projection, no Canvas.
+// through, assembled from hand-authored CHUNKS (lib/village-chunks): residential
+// rows, parks, crossroads, meadows… each with fixed house plots beside the road
+// and rule-placed decor, so villages read as designed, never random. The ground
+// and road are continuous global functions, so chunks connect with no seam. Sky
+// stays up top; no globe, no projection, no Canvas.
 
 const HOUSE_HUES = [14, 28, 200, 150, 42, 268, 340, 96, 178];
 
-// Decor spacing (fine grid) per band — denser than houses so nothing feels empty.
-const DECOR_SPACING: Record<string, number> = { far: 74, mid: 58, near: 50 };
-
-// Band GEOMETRY the camera hook needs (id + parallax + spacing only — it ignores
-// the visual fields). Viewport-independent so it's a stable module constant; the
-// per-pixel bands (baseY etc.) are derived from the measured viewport in-render.
-// freq/amp give a visible gentle roll across the screen (period ~1–1.5 screens).
+// Band GEOMETRY the camera hook needs (id + parallax + spacing for windowing).
+// Viewport-independent module constant; per-pixel baseY is derived in-render.
+// freq/amp give a visible gentle roll; depthLift/depthGain give a subtle "walk
+// forward" as you drag up (far bands come forward, near recedes) — kept gentle.
 const BAND_GEO: Band[] = [
-  { id: "far", parallax: 0.34, baseY: 0, amp: 30, freq: 0.011, spacing: 300, scale: 0.5 },
-  { id: "mid", parallax: 0.62, baseY: 0, amp: 50, freq: 0.0092, spacing: 260, scale: 0.82 },
-  { id: "near", parallax: 1.0, baseY: 0, amp: 66, freq: 0.0075, spacing: 240, scale: 1.18 },
+  { id: "far", parallax: 0.34, baseY: 0, amp: 30, freq: 0.011, spacing: 300, scale: 0.5, depthLift: 0.7, depthGain: 0.1 },
+  { id: "mid", parallax: 0.62, baseY: 0, amp: 50, freq: 0.0092, spacing: 260, scale: 0.82, depthLift: 0.25, depthGain: 0.04 },
+  { id: "near", parallax: 1.0, baseY: 0, amp: 66, freq: 0.0075, spacing: 240, scale: 1.18, depthLift: -0.28, depthGain: -0.05 },
 ];
 
 export function VillageLabClient() {
@@ -51,7 +49,7 @@ export function VillageLabClient() {
   const wx = wxSel === "live" ? live.wx : WEATHER_THEMES[wxSel];
   const night = sky.night;
 
-  const street = useVillageStreet({ bands: BAND_GEO });
+  const street = useVillageStreet({ bands: BAND_GEO, yRange: 72 });
   const { width: vw, height: vh } = street.viewport;
   const floorY = vh + 260;
 
@@ -65,9 +63,6 @@ export function VillageLabClient() {
     ],
     [vh],
   );
-
-  const bandSalt: Record<string, number> = { far: 3, mid: 8, near: 15 };
-  const houseBias: Record<string, number> = { far: 0.0, mid: 0.12, near: 0.2 };
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-parchment">
@@ -92,37 +87,39 @@ export function VillageLabClient() {
               const worldLeft = win.kMin * band.spacing;
               const worldRight = win.kMax * band.spacing;
               const range = Math.max(1, worldRight - worldLeft);
-              const salt = bandSalt[band.id];
               const hasRoad = band.id !== "far";
-
-              // Houses on this band's coarse cells.
-              const houses = [];
-              for (let k = win.kMin; k <= win.kMax; k++) {
-                const c = cellContent(k, band, salt, houseBias[band.id]);
-                if (c.kind === "house") houses.push(c);
-              }
-
-              // Decor on a finer grid, SCATTERED down the slope (not just on the crest
-              // line) so the band's grass reads as a populated field, not bare fill.
-              // A far band's downhill decor is covered by the band in front (z-order),
-              // which clips it naturally.
-              const dspace = DECOR_SPACING[band.id];
+              const roadDrop = band.id === "near" ? 26 : 16;
+              // The slope depth over which decor scatters below the hill crest.
               const scatterDepth = band.id === "far" ? vh * 0.16 : band.id === "mid" ? vh * 0.26 : vh * 0.34;
-              const decor = [];
-              const mMin = Math.floor(worldLeft / dspace);
-              const mMax = Math.ceil(worldRight / dspace);
-              for (let m = mMin; m <= mMax; m++) {
-                const pick = hash01(m, salt + 200);
-                if (pick < 0.14) continue; // a touch of breathing room, but keep it inhabited
-                const worldX = m * dspace + (hash01(m, salt + 201) - 0.5) * dspace * 0.7;
-                const nearHouse = houses.some((hh) => Math.abs(hh.worldX - worldX) < band.spacing * 0.16);
-                if (nearHouse && pick < 0.6) continue;
-                const yOff = hash01(m, salt + 204) * scatterDepth;
-                const groundY = hillY(worldX, band) + yOff;
-                const depthScale = 1 + (yOff / scatterDepth) * 0.5; // downhill = closer = bigger
-                const kinds = ["tree", "tree", "bush", "flower", "flower", "lamp", "mailbox", "fence", "rock", "bush"] as const;
-                const kind = kinds[Math.floor(hash01(m, salt + 202) * kinds.length)];
-                decor.push({ id: `${band.id}-d-${m}`, worldX, groundY, depthScale, kind, variant: hash01(m, salt + 203) });
+
+              // Assemble this band's content from hand-authored CHUNKS — fixed house
+              // plots beside the road + rule-placed decor + junction connectors.
+              const { iMin, iMax } = visibleChunkRange(worldLeft, worldRight);
+              const houses: { id: string; worldX: number; groundY: number; hue: number; name: string; variant: number }[] = [];
+              const decor: { id: string; worldX: number; groundY: number; depthScale: number; kind: string; variant: number }[] = [];
+              const connectors: { id: string; worldX: number; groundY: number; height: number }[] = [];
+              for (let ci = iMin; ci <= iMax; ci++) {
+                const chunk = resolveChunk(band.id as BandId, ci);
+                for (const h of chunk.houses) {
+                  houses.push({
+                    id: h.id, worldX: h.worldX, groundY: hillY(h.worldX, band),
+                    hue: HOUSE_HUES[Math.floor(h.hueSeed * HOUSE_HUES.length)],
+                    name: houseName(h.worldX), variant: hash01(Math.round(h.worldX), 1),
+                  });
+                }
+                for (const d of chunk.decor) {
+                  decor.push({
+                    id: d.id, worldX: d.worldX,
+                    groundY: hillY(d.worldX, band) + d.dy * scatterDepth,
+                    depthScale: 1 + d.dy * 0.4, // downhill (dy>0) closer/bigger, behind (dy<0) smaller
+                    kind: d.kind, variant: hash01(Math.round(d.worldX), 2),
+                  });
+                }
+                if (hasRoad) {
+                  for (const c of chunk.connectors) {
+                    connectors.push({ id: c.id, worldX: c.worldX, groundY: hillY(c.worldX, band) + roadDrop, height: roadDrop + 34 });
+                  }
+                }
               }
 
               const grass = grassFor(band.id, night);
@@ -153,20 +150,29 @@ export function VillageLabClient() {
                     ) : null}
                   </svg>
 
-                  {/* houses */}
-                  {houses.map((c) => (
+                  {/* junction connectors — short road lanes linking plots to the road */}
+                  {connectors.map((c) => (
+                    <span
+                      key={c.id}
+                      className="pointer-events-none absolute rounded"
+                      style={{ left: c.worldX, top: c.groundY - c.height, height: c.height, width: band.id === "near" ? 12 : 8, background: night ? "#5c4f38" : "#d8c39a", transform: "translateX(-50%)", zIndex: Math.round(c.groundY) - 2 }}
+                    />
+                  ))}
+
+                  {/* houses — on fixed chunk plots, grounded on the hill line */}
+                  {houses.map((h) => (
                     <button
-                      key={`${band.id}-h-${c.k}`}
-                      data-house-id={`${band.id}-${c.k}`}
+                      key={h.id}
+                      data-house-id={h.id}
                       onClickCapture={(e) => { if (street.suppressTapRef.current) { e.stopPropagation(); street.suppressTapRef.current = false; } }}
-                      onClick={() => { const hue = HOUSE_HUES[Math.floor(c.variant * HOUSE_HUES.length)]; street.glideToX(c.worldX, band.parallax); setSelected({ name: houseName(c.k, salt), hue }); }}
+                      onClick={() => { street.glideToX(h.worldX, band.parallax); setSelected({ name: h.name, hue: h.hue }); }}
                       className="absolute"
-                      style={{ left: c.worldX, top: c.groundY, transform: `translate(-50%,-100%) scale(${band.scale * (0.9 + c.variant * 0.24)})`, transformOrigin: "50% 100%", zIndex: Math.round(c.groundY) }}
+                      style={{ left: h.worldX, top: h.groundY, transform: `translate(-50%,-100%) scale(${band.scale * (0.92 + h.variant * 0.2)})`, transformOrigin: "50% 100%", zIndex: Math.round(h.groundY) }}
                       aria-label="Creator house"
                     >
-                      {/* front-path stub connecting the house to the road */}
+                      {/* front-path stub connecting the house down to the road */}
                       {hasRoad ? <span className="absolute left-1/2 top-full h-4 w-2 -translate-x-1/2 rounded-b" style={{ background: night ? "#6b5d42" : "#e2cfa2" }} /> : null}
-                      <CozyHouse hue={HOUSE_HUES[Math.floor(c.variant * HOUSE_HUES.length)]} night={night} variant={c.variant} />
+                      <CozyHouse hue={h.hue} night={night} variant={h.variant} />
                     </button>
                   ))}
 
@@ -351,8 +357,9 @@ function Decor({ kind, night, variant }: { kind: string; night: boolean; variant
   }
 }
 
-function houseName(k: number, salt: number): string {
+function houseName(seed: number): string {
+  const s = Math.round(seed);
   const first = ["Mira", "Theo", "Jun", "Ivy", "Rowan", "Saffron", "Nico", "Wren", "Aster", "Lark", "Poppy", "Elio"];
   const last = ["makes", "folds", "vale", "studio", "cove", "field", "hollow", "grove", "brook", "moss"];
-  return `${first[Math.floor(hash01(k, salt + 61) * first.length)]} ${last[Math.floor(hash01(k, salt + 62) * last.length)]}`;
+  return `${first[Math.floor(hash01(s, 61) * first.length)]} ${last[Math.floor(hash01(s, 62) * last.length)]}`;
 }
