@@ -441,6 +441,85 @@ function hex(r: number, g: number, b: number): string {
   return `#${h2(r)}${h2(g)}${h2(b)}`;
 }
 
+/**
+ * PALETTE LOCK — the coherence lever. Pulls every asset into the same calm, warm
+ * Nestudio tonal family so twelve different objects read as one artist's hand:
+ * caps saturation (kills the over-saturated "AI" look), warms cool casts toward
+ * the parchment/clay family, and lifts crushed blacks toward soft ink. Keeps the
+ * object fully recognizable — it retunes tone, it doesn't repaint.
+ */
+export async function paletteLock(
+  src: RasterImage,
+  opts: { saturation?: number; satCap?: number; warmth?: number; blackLift?: number } = {},
+): Promise<RasterImage> {
+  const saturation = opts.saturation ?? 0.6;
+  const satCap = opts.satCap ?? 0.5;
+  const warmth = opts.warmth ?? 0.45;
+  const blackLift = opts.blackLift ?? 0.1;
+  const img = await loadImage(src.dataUrl);
+  const c = makeCanvas(src.width, src.height);
+  const ctx = c.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const im = ctx.getImageData(0, 0, c.width, c.height);
+  const p = im.data;
+  for (let i = 0; i < p.length; i += 4) {
+    if (p[i + 3] === 0) continue;
+    let [h, s, l] = rgbToHsl(p[i], p[i + 1], p[i + 2]);
+    // calm the saturation
+    s = Math.min(s * saturation, satCap);
+    // warm the cool casts (cyan/blue/violet) toward the parchment/clay family
+    if (h > 150 && h < 320) h = h + (35 - h) * warmth * (h < 235 ? 0.6 : 1);
+    else if (h >= 320) h = 350 + (35 - 350) * warmth * 0.3;
+    h = ((h % 360) + 360) % 360;
+    // soft matte: lift the deepest blacks, ease the brightest whites
+    l = blackLift + l * (1 - blackLift) * 0.99;
+    let [r, g, b] = hslToRgb(h, s, l);
+    // Warm the NEUTRALS: greyer pixels (low saturation) pick up a parchment bias,
+    // so a grey camera or headphone joins the same warm family as the clay mug —
+    // the neutrals never drift cool. Warm pixels are already in-family, so barely move.
+    const grey = 1 - Math.min(1, s * 2);
+    r += grey * 14 * warmth;
+    g += grey * 5 * warmth;
+    b -= grey * 9 * warmth;
+    p[i] = clampByte(r);
+    p[i + 1] = clampByte(g);
+    p[i + 2] = clampByte(b);
+  }
+  ctx.putImageData(im, 0, 0);
+  return toRaster(c);
+}
+
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0;
+  const l = (max + min) / 2;
+  const d = max - min;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return [h, s, l];
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  const c2 = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c2 * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c2 / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) [r, g, b] = [c2, x, 0];
+  else if (h < 120) [r, g, b] = [x, c2, 0];
+  else if (h < 180) [r, g, b] = [0, c2, x];
+  else if (h < 240) [r, g, b] = [0, x, c2];
+  else if (h < 300) [r, g, b] = [x, 0, c2];
+  else [r, g, b] = [c2, 0, x];
+  return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+}
+
 /** Upscale by a factor with smoothing. */
 export async function upscaleSmooth(src: RasterImage, factor: number): Promise<RasterImage> {
   const img = await loadImage(src.dataUrl);

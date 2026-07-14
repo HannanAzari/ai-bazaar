@@ -74,6 +74,41 @@ const buildFurnitureV2: PromptBuilder = (input) =>
     ],
   );
 
+// M22 — the MASTER art-direction prompt. Every clause below is a locked Nestudio
+// DNA rule, so a mug, a guitar and a plant come back as clearly one artist's hand.
+//
+//   Prompt version history & rationale
+//   ─────────────────────────────────
+//   v1  Baseline "clean placeable game asset" — read generic/AI, inconsistent
+//       tone and framing across objects.
+//   v2  Added explicit framing + lighting + shadow directives. Better, but still
+//       drifted on saturation and material feel (some objects glossy/vivid).
+//   v3  (this) LOCKED to a single design language: a named palette + saturation
+//       ceiling ("gently desaturated, warm neutrals"), an explicit "no glossy
+//       plastic / no exaggerated saturation / no unnecessary detail" ban, and a
+//       "calm, premium, timeless, part of a matching set" framing so every asset
+//       coheres with the rest of the collection — not just looks nice alone. The
+//       tonal-lock params (saturation/warmth) travel with the prompt so the local
+//       provider applies the SAME retune the hosted model is asked for.
+const buildFurnitureV3: PromptBuilder = (input) =>
+  buildBasePrompt(
+    input,
+    `A single ${input.subject || "home object"} as one asset in the Nestudio Classic collection — calm, premium and timeless, as if handcrafted by the Nestudio art team to sit beside their other objects`,
+    // Tuned across the consistency test: a WHISPER of form-light (no diagonal sweep
+    // on flat faces — the source art carries its own shading; the pipeline unifies
+    // tone + shadow + matte) and warmer, fuller tone so neutrals stay parchment-family.
+    { guidance: 7, subjectType: "object", relight: 0.07, saturation: 0.66, satCap: 0.56, warmth: 0.45 },
+    "furniture@3",
+    [
+      "front-facing three-quarter view, perfectly centered, no perspective distortion",
+      "soft warm key light from the upper-left, subtle ambient occlusion, one soft grounded contact shadow directly beneath (never floating)",
+      "soft matte materials only — never glossy, never plastic, never chrome",
+      "rounded forms and premium, restrained proportions; no unnecessary details",
+      "gently desaturated warm-neutral palette (parchment, plaster, stone, one quiet accent), never exaggerated saturation",
+      "generous even margins, whole object visible; transparent background; no text, no watermark, no shadow on any surface",
+    ],
+  );
+
 /* ── Scaffolds for future studios (disabled in M20/M21) ────────────────────── */
 
 export const buildDecorationPrompt: PromptBuilder = (input) =>
@@ -94,6 +129,7 @@ export const buildHousePrompt: PromptBuilder = (input) =>
 export const PROMPT_REGISTRY: Record<string, PromptBuilder> = {
   "furniture@1": buildFurnitureV1,
   "furniture@2": buildFurnitureV2,
+  "furniture@3": buildFurnitureV3,
   "decoration@1": buildDecorationPrompt,
   "avatar@1": buildAvatarPrompt,
   "background@1": buildBackgroundPrompt,
@@ -102,7 +138,7 @@ export const PROMPT_REGISTRY: Record<string, PromptBuilder> = {
 
 /** The live version per kind. Bumping this is how a prompt ships — no engine edit. */
 export const ACTIVE_PROMPT_VERSION: Record<string, string> = {
-  furniture: "furniture@2",
+  furniture: "furniture@3",
   decoration: "decoration@1",
   avatar: "avatar@1",
   background: "background@1",

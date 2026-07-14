@@ -18,8 +18,7 @@ import {
   featherAlpha,
   despeckle,
   relight,
-  matteGrade,
-  stylizeCozy,
+  paletteLock,
   upscaleSmooth,
 } from "../canvas";
 
@@ -31,12 +30,16 @@ export const stubProvider: AIImageProvider = {
   async stylize(source: RasterImage, prompt: AssembledPrompt, opts: GenerateOptions): Promise<RasterImage> {
     const size = opts.size ?? Number(prompt.params.size ?? 640);
     const framed = await containSquare(source, size);
-    const relightStrength = Number(prompt.params.relight ?? 0.22);
-    const lit = await relight(framed, relightStrength);
-    const matte = await matteGrade(lit);
-    // A whisper of posterize for the illustrated edge; seed varies it slightly.
-    const levels = 7 + (((opts.seed ?? 0) % 3) as number);
-    return stylizeCozy(matte, levels);
+    // ONE fixed treatment for every object → one artist's hand: a whisper of warm
+    // form-light, then the Nestudio palette lock (calm saturation + warm neutrals).
+    // No posterize — quantizing the light ramp banded flat faces with a hard
+    // diagonal, which broke the calm, matte, timeless read.
+    const lit = await relight(framed, Number(prompt.params.relight ?? 0.1));
+    return paletteLock(lit, {
+      saturation: Number(prompt.params.saturation ?? 0.62),
+      satCap: Number(prompt.params.satCap ?? 0.55),
+      warmth: Number(prompt.params.warmth ?? 0.45),
+    });
   },
 
   async removeBackground(source: RasterImage, opts?: RemoveBgOptions): Promise<RasterImage> {

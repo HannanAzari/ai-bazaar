@@ -20,7 +20,7 @@ import type {
   StudioConfig,
 } from "./types";
 import { PROMPT_BUILDERS, getPromptBuilder } from "./prompts";
-import { getProvider } from "./provider";
+import { getProvider, FALLBACK_PROVIDER_ID } from "./provider";
 import { validateStage, resizeStage, removeBackgroundStage, generateStage, postProcessStage } from "./pipeline";
 import { getPreset } from "./presets";
 import { generateWithRefinement } from "./refine";
@@ -159,9 +159,20 @@ export async function generateAsset(kind: AssetKind, input: ImageInput, opts: Ge
     passes,
     generate: async (prompt) => {
       const passCtx: PipelineContext = { ...ctx, prompt, working: prepped, output: undefined };
-      const g = await generateStage.run(passCtx);
-      const p = await postProcessStage.run(g);
-      return p.output!;
+      try {
+        const g = await generateStage.run(passCtx);
+        const p = await postProcessStage.run(g);
+        return p.output!;
+      } catch (err) {
+        // Hosted provider unavailable/failed → fall back to the local provider so
+        // the Studio always produces an asset. The DNA prompt + tonal params are
+        // the same, so the look stays consistent.
+        if (provider.id === FALLBACK_PROVIDER_ID) throw err;
+        const fallbackCtx: PipelineContext = { ...ctx, prompt, working: prepped, output: undefined, provider: getProvider(FALLBACK_PROVIDER_ID) };
+        const g = await generateStage.run(fallbackCtx);
+        const p = await postProcessStage.run(g);
+        return p.output!;
+      }
     },
     score: async (image) => validateAsset(await alphaStats(image), DEFAULT_QUALITY_CONFIG),
   });

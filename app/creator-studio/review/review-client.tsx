@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Copy, Download, RefreshCw, X } from "lucide-react";
-import { generateAsset } from "@/lib/ai";
+import { ArrowLeft, Check, Copy, Download, Loader2, RefreshCw, Sparkles, X } from "lucide-react";
+import { generateAsset, type GeneratedAsset } from "@/lib/ai";
 import { inventory, assetFromGenerated } from "@/lib/ai-inventory";
 import { useInventory } from "@/lib/ai-inventory/react";
 import { useDevMode } from "@/lib/dev-mode";
+import { getAssets } from "@/lib/nest-production-library";
 import type { InventoryAsset } from "@/lib/ai-inventory/types";
+import { REFERENCE_COLLECTION } from "../reference-collection";
+
+const NEST_TINT = "linear-gradient(160deg,#f3e9d2,#e7d6ac)";
 
 // ── AI Asset Review (dev-mode) ───────────────────────────────────────────────
 // The internal review lens over the inventory: Approve / Reject / Regenerate /
@@ -21,6 +25,24 @@ const CHECKER = "repeating-conic-gradient(#00000010 0% 25%, transparent 0% 50%) 
 export function ReviewClient() {
   const dev = useDevMode();
   const assets = useInventory();
+  const official = useMemo(() => getAssets({ onlyVisible: true }).slice(0, 8), []);
+  const [collection, setCollection] = useState<GeneratedAsset[]>([]);
+  const [running, setRunning] = useState(false);
+  const [onTint, setOnTint] = useState(true);
+
+  const runConsistencyTest = useCallback(async () => {
+    setRunning(true);
+    setCollection([]);
+    for (const ref of REFERENCE_COLLECTION) {
+      try {
+        const g = await generateAsset("furniture", ref.input, { subject: ref.subject, refinePasses: 0 });
+        setCollection((prev) => [...prev, g]);
+      } catch {
+        /* skip a failed item, keep the run going */
+      }
+    }
+    setRunning(false);
+  }, []);
 
   const setStatus = useCallback((a: InventoryAsset, reviewStatus: InventoryAsset["reviewStatus"]) => {
     inventory.save({ ...a, reviewStatus });
@@ -77,7 +99,53 @@ export function ReviewClient() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-4 pt-4">
+      <main className="mx-auto max-w-2xl space-y-6 px-4 pt-4">
+        {/* Phase 5 — official reference: the target look, for eyeballing */}
+        <section>
+          <h2 className="mb-2 text-xs font-black uppercase tracking-wide text-ink/45">Official Nestudio reference</h2>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {official.map((a) => (
+              <div key={a.id} className="shrink-0">
+                <div className="grid size-16 place-items-center rounded-xl bg-white/70 p-1 shadow-soft">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={a.variants?.standard ?? a.cutoutUrl ?? a.imageUrl} alt={a.name} className="max-h-full max-w-full object-contain" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Phase 7 — consistency test: generate the whole collection, judge coherence */}
+        <section>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-xs font-black uppercase tracking-wide text-ink/45">Consistency test · {REFERENCE_COLLECTION.length} objects</h2>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setOnTint((v) => !v)} className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-bold text-ink/55 shadow-soft">{onTint ? "On Nest" : "On alpha"}</button>
+              <button onClick={runConsistencyTest} disabled={running} className="inline-flex items-center gap-1.5 rounded-full bg-terracotta px-3 py-1.5 text-[11px] font-black text-parchment disabled:opacity-50">
+                {running ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}
+                {running ? `Generating ${collection.length}/${REFERENCE_COLLECTION.length}` : "Run consistency test"}
+              </button>
+            </div>
+          </div>
+          {collection.length || running ? (
+            <div className="grid grid-cols-4 gap-1.5 rounded-2xl p-2" style={{ background: onTint ? NEST_TINT : CHECKER }}>
+              {collection.map((g) => (
+                <div key={g.id} className="grid aspect-square place-items-center p-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={g.png.dataUrl} alt={g.metadata.subject} className="max-h-full max-w-full object-contain" />
+                </div>
+              ))}
+              {running ? Array.from({ length: REFERENCE_COLLECTION.length - collection.length }).map((_, i) => (
+                <div key={`ph${i}`} className="grid aspect-square animate-pulse place-items-center rounded-lg bg-white/30" />
+              )) : null}
+            </div>
+          ) : (
+            <p className="rounded-2xl bg-white/60 px-4 py-6 text-center text-[12px] text-ink/45">
+              Generate all twelve objects and judge them as a set — every asset should feel like one artist.
+            </p>
+          )}
+        </section>
+
         {assets.length === 0 ? (
           <p className="rounded-2xl bg-white/60 px-4 py-10 text-center text-sm text-ink/45">
             No assets yet — generate some in the <Link href="/creator-studio" className="font-bold text-terracotta">Studio</Link>.

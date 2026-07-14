@@ -13,12 +13,19 @@ import { geminiProvider } from "./providers/gemini";
 
 const registry = new Map<string, AIImageProvider>();
 registry.set(stubProvider.id, stubProvider);
-// The hosted provider is registered (selectable by id) but NOT the default — the
-// local Canvas provider ships as default so the Studio works with no key. Flip the
-// default to "gemini" once GEMINI_API_KEY is set.
 registry.set(geminiProvider.id, geminiProvider);
 
-let defaultProviderId = stubProvider.id;
+// M22 — the hosted model becomes the DEFAULT when it's been opted in
+// (NEXT_PUBLIC_AI_PROVIDER=gemini, alongside a server-side GEMINI_API_KEY). The
+// local Canvas provider stays the fallback (the engine retries with it if a
+// hosted call fails), and the Studio UI never changes — only the output does.
+const HOSTED_DEFAULT =
+  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_AI_PROVIDER === "gemini");
+
+let defaultProviderId = HOSTED_DEFAULT ? geminiProvider.id : stubProvider.id;
+
+/** The always-available local fallback used when a hosted call fails. */
+export const FALLBACK_PROVIDER_ID = stubProvider.id;
 
 /** Register (or replace) a provider. Hosted providers call this from server code. */
 export function registerProvider(provider: AIImageProvider, makeDefault = false): void {

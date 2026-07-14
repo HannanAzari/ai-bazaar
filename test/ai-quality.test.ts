@@ -146,15 +146,19 @@ describe("inferInsights", () => {
 
 /* ── versioned prompts ── */
 describe("versioned prompt library", () => {
-  it("furniture active version is v2 and stamps promptVersion", () => {
-    expect(ACTIVE_PROMPT_VERSION.furniture).toBe("furniture@2");
+  it("furniture active version is the locked v3 master and stamps promptVersion", () => {
+    expect(ACTIVE_PROMPT_VERSION.furniture).toBe("furniture@3");
     const p = getPromptBuilder("furniture")({ kind: "furniture", subject: "lamp" });
-    expect(p.promptVersion).toBe("furniture@2");
+    expect(p.promptVersion).toBe("furniture@3");
     expect(p.positive.toLowerCase()).toContain("warm key light");
+    expect(p.positive.toLowerCase()).toContain("matte");
+    expect(p.positive.toLowerCase()).toContain("never glossy");
+    // tonal-lock params travel with the prompt so local + hosted match
+    expect(p.params.saturation).toBeDefined();
+    expect(p.params.warmth).toBeDefined();
   });
-  it("both furniture versions are registered and pinnable", () => {
-    expect(typeof PROMPT_REGISTRY["furniture@1"]).toBe("function");
-    expect(typeof PROMPT_REGISTRY["furniture@2"]).toBe("function");
+  it("all furniture versions are registered and pinnable", () => {
+    for (const v of ["furniture@1", "furniture@2", "furniture@3"]) expect(typeof PROMPT_REGISTRY[v]).toBe("function");
     expect(getPromptBuilder("furniture", "furniture@1")({ kind: "furniture", subject: "x" }).promptVersion).toBe("furniture@1");
   });
   it("throws on an unknown version", () => {

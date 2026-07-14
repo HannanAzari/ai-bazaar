@@ -213,8 +213,8 @@ export function CreatorStudioClient() {
           </button>
         </section>
 
-        {/* pipeline log */}
-        {log.length ? (
+        {/* pipeline log — engineering telemetry; dev-only so the output stays the hero */}
+        {dev && log.length ? (
           <section className="rounded-2xl bg-white/60 p-3">
             <p className="mb-1.5 text-[11px] font-bold text-ink/50">Pipeline</p>
             <div className="flex flex-wrap gap-1.5">
