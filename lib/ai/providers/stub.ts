@@ -1,31 +1,48 @@
 /**
- * lib/ai/providers/stub.ts — the default, dependency-free image backend.
+ * lib/ai/providers/stub.ts — the default local image backend (Canvas).
  * -----------------------------------------------------------------------------
- * A real, working provider that runs entirely in the browser with NO API key, so
- * the whole pipeline is provable end-to-end in dev/preview/CI. It uses Canvas to
- * knock out the background, stylize toward the Nestudio look, and upscale. When a
- * hosted model is configured (see gemini.ts), it takes over via the same
- * interface — no studio or UI code changes.
+ * A real, working provider that runs in the browser with NO API key, so the whole
+ * pipeline is provable end-to-end. M21 upgraded it from a toy into a genuine
+ * processing chain: connected-component background removal with edge feathering
+ * and despeckle, then relight (warm key + ambient occlusion) → matte grade →
+ * gentle posterize toward the Nestudio look. It cannot invent geometry the way a
+ * hosted diffusion model can, but it produces a clean, consistently-lit,
+ * transparent, premium-matte asset from a real photo. A hosted provider (gemini)
+ * takes over via the SAME interface when configured.
  */
 
 import type { AIImageProvider, AssembledPrompt, GenerateOptions, RasterImage, RemoveBgOptions } from "../types";
-import { containSquare, knockoutBackground, stylizeCozy, upscaleSmooth } from "../canvas";
+import {
+  containSquare,
+  floodFillBackground,
+  featherAlpha,
+  despeckle,
+  relight,
+  matteGrade,
+  stylizeCozy,
+  upscaleSmooth,
+} from "../canvas";
 
 export const stubProvider: AIImageProvider = {
   id: "stub",
-  label: "Local preview (Canvas)",
+  label: "Local premium (Canvas)",
   capabilities: ["stylize", "removeBackground", "upscale"],
 
   async stylize(source: RasterImage, prompt: AssembledPrompt, opts: GenerateOptions): Promise<RasterImage> {
     const size = opts.size ?? Number(prompt.params.size ?? 640);
     const framed = await containSquare(source, size);
-    // Posterize level nudged by the prompt seed for a little variety.
-    const levels = 5 + (((opts.seed ?? 0) % 3) as number);
-    return stylizeCozy(framed, levels);
+    const relightStrength = Number(prompt.params.relight ?? 0.22);
+    const lit = await relight(framed, relightStrength);
+    const matte = await matteGrade(lit);
+    // A whisper of posterize for the illustrated edge; seed varies it slightly.
+    const levels = 7 + (((opts.seed ?? 0) % 3) as number);
+    return stylizeCozy(matte, levels);
   },
 
   async removeBackground(source: RasterImage, opts?: RemoveBgOptions): Promise<RasterImage> {
-    return knockoutBackground(source, opts?.tolerance ?? 26);
+    const cut = await floodFillBackground(source, opts?.tolerance ?? 32);
+    const feathered = await featherAlpha(cut);
+    return despeckle(feathered);
   },
 
   async upscale(source: RasterImage, factor: number): Promise<RasterImage> {

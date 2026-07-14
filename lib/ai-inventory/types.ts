@@ -24,6 +24,8 @@ export type InventoryAsset = {
   height: number;
   createdAt: string;
   publishTarget: PublishTarget;
+  /** Admin/dev review state (the future Asset Factory lens). Defaults to "pending". */
+  reviewStatus?: "pending" | "approved" | "rejected";
   metadata: AssetMetadata;
 };
 

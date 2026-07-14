@@ -78,6 +78,9 @@ export type AssembledPrompt = {
   style: StyleTokens;
   tags: string[];
   params: Record<string, string | number | boolean>;
+  /** Which versioned builder produced this prompt (e.g. "furniture@2"), tracked
+   *  onto the asset so we know exactly what generated it. */
+  promptVersion: string;
 };
 
 /** A prompt builder is a pure function of intent → assembled prompt. One per kind:
@@ -177,6 +180,10 @@ export type StudioConfig = {
   padding: number;
   /** Whether the background-removal stage runs for this kind. */
   removeBackground: boolean;
+  /** Add a soft grounded contact shadow to the final PNG. */
+  contactShadow?: boolean;
+  /** Extra refinement passes (generate→score→improve→regenerate). 0 = one shot. */
+  refinePasses?: number;
   /** Optional override of the pipeline stage order (names). Defaults to all. */
   stages?: string[];
   /** Where a user may publish approved assets. Admin config adds `globalLibrary`. */
@@ -201,6 +208,17 @@ export type AssetMetadata = {
   /** Names of the stages that actually ran. */
   pipeline: string[];
   version: number;
+  /** Which versioned prompt produced this asset (e.g. "furniture@2"). */
+  promptVersion?: string;
+  /** Style preset used (e.g. "classic"). */
+  preset?: string;
+  /** Quality gate outcome for the chosen candidate. */
+  quality?: { ok: boolean; score: number; issues: { code: string; message: string; severity: string }[] };
+  /** How many refinement passes ran (0 = single shot). */
+  refinePasses?: number;
+  /** Inferred insights (category/material/colours/room/anchor…). Loosely typed
+   *  here so lib/ai has no dependency on metadata.ts internals. */
+  insights?: Record<string, unknown>;
 };
 
 export type GeneratedAsset = {

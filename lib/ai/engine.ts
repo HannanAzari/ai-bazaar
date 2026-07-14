@@ -19,9 +19,14 @@ import type {
   RemoveBgOptions,
   StudioConfig,
 } from "./types";
-import { PROMPT_BUILDERS } from "./prompts";
+import { PROMPT_BUILDERS, getPromptBuilder } from "./prompts";
 import { getProvider } from "./provider";
-import { runPipeline, resolveStages } from "./pipeline";
+import { validateStage, resizeStage, removeBackgroundStage, generateStage, postProcessStage } from "./pipeline";
+import { getPreset } from "./presets";
+import { generateWithRefinement } from "./refine";
+import { validateAsset, DEFAULT_QUALITY_CONFIG } from "./quality";
+import { inferInsights } from "./metadata";
+import { alphaStats, dominantColors, addContactShadow } from "./canvas";
 
 /**
  * The studio registry — the ONE place a use case is described. M20 enables
@@ -37,6 +42,8 @@ export const STUDIO_CONFIGS: Record<AssetKind, StudioConfig> = {
     outputSize: 640,
     padding: 0.08,
     removeBackground: true,
+    contactShadow: true,
+    refinePasses: 1,
     publishTargets: ["inventory"],
     defaultSubject: "cozy object",
   },
@@ -96,6 +103,10 @@ export function getStudioConfig(kind: AssetKind): StudioConfig {
 export type GenerateAssetOptions = GenerateOptions & {
   subject?: string;
   notes?: string;
+  /** Style preset id (e.g. "classic"). */
+  preset?: string;
+  /** Override the studio's refinement pass count. */
+  refinePasses?: number;
   now?: () => string;
   id?: () => string;
 };
@@ -106,8 +117,9 @@ function defaultId(): string {
 }
 
 /**
- * THE core call. Validate → resize → remove bg → assemble prompt → generate →
- * post-process → transparent PNG → metadata. Returns an approvable asset.
+ * THE core call. Validate → resize → remove bg (once) → assemble prompt (preset +
+ * versioned) → [generate → quality-score → improve prompt → regenerate] keep-best
+ * → grounded contact shadow → metadata + insights. Returns an approvable asset.
  */
 export async function generateAsset(kind: AssetKind, input: ImageInput, opts: GenerateAssetOptions = {}): Promise<GeneratedAsset> {
   const config = getStudioConfig(kind);
@@ -115,9 +127,11 @@ export async function generateAsset(kind: AssetKind, input: ImageInput, opts: Ge
     throw new Error(`The ${config.label} studio is not enabled yet (M20 ships Furniture only).`);
   }
   const provider = getProvider(opts.provider);
+  const preset = getPreset(opts.preset);
   const subject = (opts.subject && opts.subject.trim()) || config.defaultSubject;
 
-  const ctx: PipelineContext = {
+  // ── Prep once: validate → measure/resize → remove background. ──
+  let ctx: PipelineContext = {
     kind,
     input,
     config,
@@ -126,32 +140,65 @@ export async function generateAsset(kind: AssetKind, input: ImageInput, opts: Ge
     metadata: { kind, subject, name: titleFor(subject), ...(opts.notes ? { notes: opts.notes } : {}) } as PipelineContext["metadata"],
     log: [],
   };
+  ctx = await validateStage.run(ctx);
+  ctx = await resizeStage.run(ctx);
+  if (removeBackgroundStage.when?.(ctx) !== false && config.removeBackground) ctx = await removeBackgroundStage.run(ctx);
+  const prepped = ctx.working ?? ctx.source!;
 
-  const result = await runPipeline(ctx, resolveStages(config.stages));
-  if (!result.output) throw new Error("Pipeline produced no output image");
+  // ── Preset- + version-aware prompt. ──
+  const builder = getPromptBuilder(kind);
+  const initialPrompt: AssembledPrompt = {
+    ...builder({ kind, subject, notes: opts.notes, style: preset.style }),
+    params: { ...builder({ kind, subject, style: preset.style }).params, ...preset.params, size: config.outputSize },
+  };
+
+  // ── Iterative generate → score → improve → keep best. ──
+  const passes = opts.refinePasses ?? config.refinePasses ?? 1;
+  const refined = await generateWithRefinement<RasterImage>({
+    initialPrompt,
+    passes,
+    generate: async (prompt) => {
+      const passCtx: PipelineContext = { ...ctx, prompt, working: prepped, output: undefined };
+      const g = await generateStage.run(passCtx);
+      const p = await postProcessStage.run(g);
+      return p.output!;
+    },
+    score: async (image) => validateAsset(await alphaStats(image), DEFAULT_QUALITY_CONFIG),
+  });
+
+  const chosen = refined.best;
+  const finalPng = config.contactShadow ? await addContactShadow(chosen.image) : chosen.image;
+
+  // ── Insights (colours + heuristics). ──
+  const colors = await dominantColors(finalPng, 4);
+  const insights = inferInsights({ subject, kind, colors, stats: chosen.report.stats });
 
   const id = (opts.id ?? defaultId)();
   const createdAt = (opts.now ?? (() => new Date().toISOString()))();
-  const prompt = result.prompt as AssembledPrompt;
 
   return {
     id,
     kind,
-    png: result.output,
+    png: finalPng,
     metadata: {
       id,
       kind,
       name: titleFor(subject),
       subject,
-      prompt,
+      prompt: chosen.prompt,
       provider: provider.id,
-      source: result.metadata.source ?? { width: 0, height: 0 },
-      output: result.metadata.output ?? { width: result.output.width, height: result.output.height },
+      source: ctx.metadata.source ?? { width: 0, height: 0 },
+      output: { width: finalPng.width, height: finalPng.height },
       createdAt,
-      pipeline: result.metadata.pipeline ?? [],
+      pipeline: ["validate", "resize", ...(config.removeBackground ? ["removeBackground"] : []), "assemblePrompt", "generate", "postProcess", ...(config.contactShadow ? ["contactShadow"] : [])],
       version: 1,
+      promptVersion: chosen.prompt.promptVersion,
+      preset: preset.id,
+      quality: { ok: chosen.report.ok, score: chosen.report.score, issues: chosen.report.issues },
+      refinePasses: chosen.pass,
+      insights: insights as unknown as Record<string, unknown>,
     },
-    log: result.log,
+    log: ctx.log,
   };
 }
 

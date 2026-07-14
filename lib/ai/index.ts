@@ -16,9 +16,26 @@ export {
   buildBackgroundPrompt,
   buildHousePrompt,
   PROMPT_BUILDERS,
+  getPromptBuilder,
+  PROMPT_REGISTRY,
+  ACTIVE_PROMPT_VERSION,
 } from "./prompts";
 export { getProvider, registerProvider, setDefaultProvider, listProviders } from "./provider";
 export { DEFAULT_STAGES, runPipeline, resolveStages } from "./pipeline";
+export { STYLE_PRESETS, DEFAULT_PRESET, getPreset, listPresets, type StylePreset } from "./presets";
+export { validateAsset, DEFAULT_QUALITY_CONFIG, type QualityReport, type QualityConfig, type QualityIssue } from "./quality";
+export { improvePrompt, generateWithRefinement, type RefinementResult, type RefinementAttempt } from "./refine";
+export { inferInsights, type AssetInsights, type SurfaceType, type ScaleHint, type Rarity } from "./metadata";
+export {
+  alphaStats,
+  dominantColors,
+  floodFillBackground,
+  featherAlpha,
+  relight,
+  matteGrade,
+  addContactShadow,
+  type AlphaStats,
+} from "./canvas";
 export {
   STUDIO_CONFIGS,
   getStudioConfig,

@@ -71,7 +71,7 @@ describe("LocalInventoryStore", () => {
       png: { width: 100, height: 100, dataUrl: "data:image/png;base64,BBBB" },
       metadata: {
         id: "ai_1", kind: "furniture", name: "Coffee Mug", subject: "coffee mug",
-        prompt: { kind: "furniture", subject: "coffee mug", positive: "", negative: "", style: {} as never, tags: ["furniture", "coffee"], params: {} },
+        prompt: { kind: "furniture", subject: "coffee mug", positive: "", negative: "", style: {} as never, tags: ["furniture", "coffee"], params: {}, promptVersion: "furniture@2" },
         provider: "stub", source: { width: 800, height: 600 }, output: { width: 100, height: 100 },
         createdAt: "2026-07-14T00:00:00.000Z", pipeline: ["validate"], version: 1,
       },

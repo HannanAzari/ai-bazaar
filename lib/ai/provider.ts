@@ -9,9 +9,14 @@
 
 import type { AIImageProvider } from "./types";
 import { stubProvider } from "./providers/stub";
+import { geminiProvider } from "./providers/gemini";
 
 const registry = new Map<string, AIImageProvider>();
 registry.set(stubProvider.id, stubProvider);
+// The hosted provider is registered (selectable by id) but NOT the default — the
+// local Canvas provider ships as default so the Studio works with no key. Flip the
+// default to "gemini" once GEMINI_API_KEY is set.
+registry.set(geminiProvider.id, geminiProvider);
 
 let defaultProviderId = stubProvider.id;
 

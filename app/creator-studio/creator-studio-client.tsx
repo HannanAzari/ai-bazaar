@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Loader2, Sparkles, Trash2, Upload, Wand2 } from "lucide-react";
+import { ArrowLeft, Check, FlaskConical, Loader2, Sparkles, Trash2, Upload, Wand2 } from "lucide-react";
 import {
   generateAsset,
   STUDIO_CONFIGS,
+  listPresets,
   type AssetKind,
   type GeneratedAsset,
   type ImageInput,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/ai";
 import { inventory, assetFromGenerated } from "@/lib/ai-inventory";
 import { useInventory } from "@/lib/ai-inventory/react";
+import { useDevMode, setDevMode } from "@/lib/dev-mode";
 import { SAMPLES } from "./samples";
 
 // ── AI Creator Studio ────────────────────────────────────────────────────────
@@ -30,8 +32,10 @@ type Phase = "idle" | "generating" | "preview" | "error";
 
 export function CreatorStudioClient() {
   const history = useInventory();
+  const dev = useDevMode();
   const [kind, setKind] = useState<AssetKind>("furniture");
   const [subject, setSubject] = useState("");
+  const [preset, setPreset] = useState("classic");
   const [input, setInput] = useState<ImageInput | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [generated, setGenerated] = useState<GeneratedAsset | null>(null);
@@ -41,6 +45,7 @@ export function CreatorStudioClient() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const config = STUDIO_CONFIGS[kind];
+  const presets = listPresets();
 
   const pickFile = useCallback((file: File) => {
     const reader = new FileReader();
@@ -60,7 +65,7 @@ export function CreatorStudioClient() {
     setGenerated(null);
     setLog([]);
     try {
-      const result = await generateAsset(kind, input, { subject });
+      const result = await generateAsset(kind, input, { subject, preset });
       setGenerated(result);
       setLog(result.log);
       setPhase("preview");
@@ -68,7 +73,7 @@ export function CreatorStudioClient() {
       setError((e as Error).message);
       setPhase("error");
     }
-  }, [input, kind, subject]);
+  }, [input, kind, subject, preset]);
 
   const onApprove = useCallback(async () => {
     if (!generated) return;
@@ -93,10 +98,16 @@ export function CreatorStudioClient() {
             <ArrowLeft className="size-4 text-ink/70" />
           </Link>
           <div>
-            <p className="eyebrow text-terracotta">Foundation</p>
+            <p className="eyebrow text-terracotta">Quality Engine</p>
             <h1 className="display text-lg leading-none">AI Creator Studio</h1>
           </div>
-          <Sparkles className="ml-auto size-5 text-saffron" />
+          <button
+            onClick={() => setDevMode(!dev)}
+            className={`ml-auto grid size-9 place-items-center rounded-full shadow-soft ${dev ? "bg-teal/15 text-teal" : "bg-white/70 text-ink/40"}`}
+            title="Developer mode"
+          >
+            {dev ? <FlaskConical className="size-4" /> : <Sparkles className="size-4" />}
+          </button>
         </div>
       </header>
 
@@ -115,6 +126,23 @@ export function CreatorStudioClient() {
             >
               {c.label}
               {!c.enabled ? " · soon" : ""}
+            </button>
+          ))}
+        </div>
+
+        {/* style preset — Nestudio Classic enabled; others prove the architecture */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-bold text-ink/45">Style:</span>
+          {presets.map((pr) => (
+            <button
+              key={pr.id}
+              onClick={() => pr.enabled && setPreset(pr.id)}
+              disabled={!pr.enabled}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-bold shadow-soft transition ${
+                preset === pr.id ? "bg-teal text-parchment" : pr.enabled ? "bg-white/80 text-ink/60" : "cursor-not-allowed bg-white/50 text-ink/30"
+              }`}
+            >
+              {pr.label.replace("Nestudio ", "")}{!pr.enabled ? " · soon" : ""}
             </button>
           ))}
         </div>
@@ -201,13 +229,32 @@ export function CreatorStudioClient() {
 
         {error ? <p className="rounded-xl bg-ember/10 px-3 py-2 text-sm font-bold text-ember">{error}</p> : null}
 
-        {/* preview — the AI output is the hero */}
+        {/* comparison + quality — the AI output is the hero */}
         {generated ? (
           <section className="space-y-3 rounded-3xl bg-white/70 p-4 shadow-soft">
-            <div className="grid place-items-center rounded-2xl p-4" style={{ background: CHECKER }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={generated.png.dataUrl} alt={generated.metadata.name} className="max-h-64 object-contain drop-shadow" />
+            {/* Original → Generated → Transparency → Final Asset */}
+            <div className="grid grid-cols-4 gap-1.5">
+              <CompareTile label="Original" bg="#fff">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={input?.dataUrl} alt="original" className="max-h-full max-w-full object-contain" />
+              </CompareTile>
+              <CompareTile label="Generated" bg="#f3ecdf">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={generated.png.dataUrl} alt="generated" className="max-h-full max-w-full object-contain" />
+              </CompareTile>
+              <CompareTile label="Alpha" checker>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={generated.png.dataUrl} alt="transparency" className="max-h-full max-w-full object-contain" />
+              </CompareTile>
+              <CompareTile label="In room" bg="#e7d8bd">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={generated.png.dataUrl} alt="final" className="max-h-full max-w-full object-contain" />
+              </CompareTile>
             </div>
+
+            {/* quality + insights */}
+            <QualityRow generated={generated} dev={dev} />
+
             <div className="flex items-center justify-between">
               <div>
                 <p className="display text-base leading-none">{generated.metadata.name}</p>
@@ -268,7 +315,55 @@ export function CreatorStudioClient() {
             </p>
           )}
         </section>
+
+        {/* dev-only: the review panel (future Admin Asset Factory) */}
+        {dev ? (
+          <Link href="/creator-studio/review" className="flex items-center justify-center gap-2 rounded-xl border border-teal/30 bg-teal/10 px-4 py-2.5 text-sm font-bold text-teal">
+            <FlaskConical className="size-4" /> Open Asset Review panel
+          </Link>
+        ) : null}
       </main>
     </div>
   );
+}
+
+function CompareTile({ label, children, bg, checker }: { label: string; children: ReactNode; bg?: string; checker?: boolean }) {
+  return (
+    <div className="space-y-1">
+      <div className="grid aspect-square place-items-center overflow-hidden rounded-xl p-1.5" style={{ background: checker ? CHECKER : bg }}>
+        {children}
+      </div>
+      <p className="text-center text-[9px] font-bold uppercase tracking-wide text-ink/40">{label}</p>
+    </div>
+  );
+}
+
+function QualityRow({ generated, dev }: { generated: GeneratedAsset; dev: boolean }) {
+  const q = generated.metadata.quality;
+  const insights = (generated.metadata.insights ?? {}) as { material?: string; recommendedRoom?: string; colors?: string[]; surfaceType?: string; scaleHint?: string };
+  const score = q ? Math.round(q.score * 100) : 0;
+  const tone = score >= 85 ? "text-meadow-shade bg-meadow-shade/15" : score >= 60 ? "text-saffron bg-saffron/15" : "text-ember bg-ember/15";
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${tone}`}>Quality {score}%{q?.ok ? " ✓" : ""}</span>
+        {insights.material ? <Chip>{insights.material}</Chip> : null}
+        {insights.recommendedRoom ? <Chip>{insights.recommendedRoom}</Chip> : null}
+        {insights.surfaceType ? <Chip>{insights.surfaceType}</Chip> : null}
+        {(insights.colors ?? []).slice(0, 3).map((c) => (
+          <span key={c} className="size-4 rounded-full ring-1 ring-black/10" style={{ background: c }} title={c} />
+        ))}
+      </div>
+      {dev ? (
+        <p className="font-mono text-[10px] text-ink/45">
+          {generated.metadata.promptVersion} · preset:{generated.metadata.preset} · {generated.metadata.refinePasses ?? 0} refine pass{(generated.metadata.refinePasses ?? 0) === 1 ? "" : "es"}
+          {q && q.issues.length ? ` · ${q.issues.map((i) => i.code).join(", ")}` : ""}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function Chip({ children }: { children: ReactNode }) {
+  return <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[10px] font-bold text-ink/55">{children}</span>;
 }
