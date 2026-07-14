@@ -94,7 +94,7 @@ export type EditorCatalog = { assets: LivingNestAsset[]; assetsById: Record<stri
  * approved/featured only; `assetsById` includes EVERY status so placements + already
  * published Nests still resolve archived/hidden assets by id.
  */
-export function productionEditorCatalog(): EditorCatalog {
+export function productionEditorCatalog(extraAssets: LivingNestAsset[] = []): EditorCatalog {
   const all = getAssets(); // every status
   const assetsById: Record<string, LivingNestAsset> = {};
   for (const a of all) {
@@ -104,7 +104,10 @@ export function productionEditorCatalog(): EditorCatalog {
     if (a.editableSurfaces?.length) registerAssetSurfaces(a.id, a.editableSurfaces.map(nestEditableSurfaceToDef));
   }
   const assets = getAssets({ onlyVisible: true }).map(productionAssetToLiving);
-  return { assets, assetsById };
+  // M20: merge caller-supplied assets (the user's approved AI inventory). They lead
+  // the tray so they're easy to find, and go into assetsById so placements resolve.
+  for (const e of extraAssets) assetsById[e.id] = e;
+  return { assets: [...extraAssets, ...assets], assetsById };
 }
 
 function planeForAsset(a?: ProductionAsset): EditorPlane {

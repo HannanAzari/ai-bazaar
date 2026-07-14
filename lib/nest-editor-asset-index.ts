@@ -24,6 +24,7 @@ export const ASSET_CATEGORY_TREE: AssetCategoryNode[] = [
   { id: "all", label: "All" },
   { id: "recent", label: "Recent" },
   { id: "favourites", label: "Favourites" },
+  { id: "ai", label: "AI" },
   {
     id: "seating",
     label: "Seating",
@@ -91,6 +92,11 @@ export function isAnimatedAsset(asset: LivingNestAsset): boolean {
   return Boolean(asset.defaultInteractionId) || Boolean(asset.statePack?.active || asset.statePack?.layers?.length);
 }
 
+/** Whether an asset came from the AI Creator Studio (the "AI" virtual category). */
+export function isAiAsset(asset: LivingNestAsset): boolean {
+  return asset.source === "runtime_personal" || asset.source === "runtime_avatar" || asset.tags.includes("ai");
+}
+
 export interface CategoryContext {
   recentIds?: string[];
   favouriteIds?: string[];
@@ -102,6 +108,7 @@ export function assetInCategory(asset: LivingNestAsset, categoryId: string, ctx:
   if (categoryId === "recent") return (ctx.recentIds ?? []).includes(asset.id);
   if (categoryId === "favourites") return (ctx.favouriteIds ?? []).includes(asset.id);
   if (categoryId === "animated") return isAnimatedAsset(asset);
+  if (categoryId === "ai") return isAiAsset(asset);
   const c = classifyAsset(asset);
   return c.category === categoryId || c.childCategory === categoryId;
 }

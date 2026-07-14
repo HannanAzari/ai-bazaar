@@ -32,6 +32,7 @@ import {
   GOLDEN_LIVING_NEST_TEMPLATE,
 } from "@/lib/fixtures/golden-living-nest";
 import { productionEditorCatalog, productionStarterDocument } from "@/lib/nest-editor-bridge";
+import { useAiLivingAssets } from "@/lib/nest-editor-ai-bridge";
 import { PublishGate } from "@/components/nest/editor/publish-gate";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import {
@@ -113,7 +114,10 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
   // background + placements) instead of the built-in Golden Living Nest fixture.
   // The catalog IS the production library: `ASSETS` (all statuses, so placements
   // resolve) + `trayAssets` (approved/featured → the Assets tray). No golden-living art.
-  const editorCatalog = useMemo(() => productionEditorCatalog(), []);
+  // M20: the user's approved AI-Studio assets join the catalog reactively, so they
+  // appear in the tray + resolve on the canvas the moment they're saved.
+  const aiAssets = useAiLivingAssets();
+  const editorCatalog = useMemo(() => productionEditorCatalog(aiAssets), [aiAssets]);
   const ASSETS = editorCatalog.assetsById;
   const trayAssets = editorCatalog.assets;
   const [showPublish, setShowPublish] = useState(false);
