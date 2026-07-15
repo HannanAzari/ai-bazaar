@@ -4,45 +4,39 @@
 > replace it each sprint — history lives in [design/CHANGELOG.md](design/CHANGELOG.md) and
 > [roadmap.md](roadmap.md), not here.
 
-**Sprint:** M32 — Asset Pipeline (Architecture Reset)
+**Sprint:** M33 — Asset Creation Experience Polish (the founder's "M31 polish" brief)
 **Updated:** 2026-07-15 · **Branch:** `m12-nest-platform`
-**Mode:** preview only — **never merge to `main`, never deploy production.**
+**Mode:** preview only — **no AI/prompt/model changes · never merge to `main` · never deploy production.**
 
 ---
 
-## The shift
+## The goal
 
-> The M31 workflow was right; the *generation architecture* was wrong. We **froze the workflow** and
-> **replaced the generation architecture** with a **factory**: a constant **Nestudio Asset DNA** + an
-> **interchangeable provider layer**. Our advantage is not picking the "right AI" — it's a pipeline where the
-> AI is swappable while the DNA stays constant.
+> Make asset creation *feel* like a premium Nestudio feature. The metric: **"Would someone happily create
+> five objects in a row?"** Make the user **forget they are using AI at all.** Even a 70%-perfect mug should
+> feel 100% premium. (Making the AI *smarter* is Sprint B — the Nestudio Art Engine.)
 
-**Rule, now permanent:** *Stop optimising prompts.* Improve, in order — **preprocessing · cutout · provider
-routing · rendering pipeline · Asset DNA.**
+## What shipped (all UX/interaction/motion — no generation changes)
 
-## What shipped this sprint (all preview)
+- **Original photo first**, then **auto-cutout first** (editor/brush is a fallback, not step one).
+- **One generation** (not three) + a **refinement loop** (Use / Improve → "what to change?" → regenerate one,
+  reusing the result as reference via the existing `notes` param).
+- **Premium glass modal**, **crafted staged loading** (Studying → Sketching → Painting → …), **success moment**
+  (✓ Added to My Assets + sparkle) that auto-returns and **reveals the asset in My Assets** (scroll + pulse).
+- **Library ownership tabs**: Official (read-only) · My Assets (deletable) · Recent. Polished Create tile,
+  warm empty states, gentle motion everywhere.
 
-- **Asset DNA** — spec [design/NESTUDIO_ASSET_DNA.md](design/NESTUDIO_ASSET_DNA.md) + code `lib/asset-dna.ts`
-  (prompts assembled *from* the DNA).
-- **Cutout stage** — `lib/cutout.ts` (Stage 1, separate from generation; Telegram-style erase/restore).
-- **Provider-independent `generateAsset()`** — `lib/asset-pipeline/`; one switch `ACTIVE_ASSET_PROVIDER`;
-  adapters GPT Image + Gemini (real) · Imagen + Flux (no-key) · Local (fallback).
-- **Editor-first Create Asset** — `+ Create` is the first tile in the editor Assets; whole flow stays in the
-  editor. Verified end-to-end on mobile with real Gemini.
-- **Asset Benchmark Studio** — `/dev/asset-benchmark` (internal); one source · every provider · scored against
-  the DNA by a human. See [design/ASSET_BENCHMARK.md](design/ASSET_BENCHMARK.md).
+## Next: Sprint B — the Nestudio Art Engine
 
-## The next concrete steps
+Only once the workflow feels effortless. That sprint is where generation *quality* improves (Asset DNA,
+provider benchmark, preprocessing) — see [design/NESTUDIO_ASSET_DNA.md](design/NESTUDIO_ASSET_DNA.md) +
+[design/ASSET_BENCHMARK.md](design/ASSET_BENCHMARK.md). **Do not** start it until the founder confirms the
+experience feels premium.
 
-1. Push the preview; the founder runs the **benchmark** on a few real objects (GPT Image vs Gemini).
-2. Score against the DNA; decide which provider best satisfies it — or add an Imagen/Flux key and re-run
-   (one config change).
-3. Only then invest in *product* quality. **We built the factory; judging the products comes next.**
+## Do NOT (this sprint — hard rules from the brief)
 
-## Do NOT (this sprint)
-
-Optimise prompts · redesign the locked visual DNA · marry a single provider · add features · merge `main` or
-deploy prod.
+Change prompts · tweak Gemini/GPT Image · modify the generation pipeline · change asset style · add models ·
+optimise AI quality · experiment with prompts. Also: no `main` merge, no prod deploy.
 
 ---
 

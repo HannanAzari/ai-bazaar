@@ -70,6 +70,7 @@ import { clampZoom, computeFitZoom } from "@/lib/nest-editor-view";
 import { EditorCanvas } from "@/components/nest/editor/editor-canvas";
 import { AssetDrawer } from "@/components/nest/editor/asset-drawer";
 import { CreateAssetSheet } from "@/components/nest/editor/create-asset-sheet";
+import { inventory } from "@/lib/ai-inventory";
 import { PropertiesPanel } from "@/components/nest/editor/properties-panel";
 import { FocusEditorOverlay } from "@/components/nest/editor/focus-editor-overlay";
 import { FocusSheet } from "@/components/nest/editor/focus-sheet";
@@ -154,6 +155,8 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   const [overlaySheetOpen, setOverlaySheetOpen] = useState(false);
   // M32: the editor-first Create Asset flow (upload → cutout → generate → choose).
   const [createOpen, setCreateOpen] = useState(false);
+  // M31 polish: the asset just created, to reveal + pulse in the library.
+  const [justCreatedId, setJustCreatedId] = useState<string | undefined>(undefined);
   // M7C.5: Preview uses the real NestSceneNavigator. `previewFocusId` (set by the Focus
   // sheet's "Preview focus" shortcut) auto-enters that area through the same navigator.
   const [previewFocusId, setPreviewFocusId] = useState<string | undefined>(undefined);
@@ -739,7 +742,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
 
             {/* Asset drawer — shared bottom sheet (canvas remains visible above) */}
             {mode === "assets" ? (
-              <AssetDrawer assets={trayAssets} advanced={caps.showProductionWarnings} onAdd={onAdd} onCreate={() => setCreateOpen(true)} onClose={() => setMode("arrange")} snap={assetSnap} onSnapChange={setAssetSnap} />
+              <AssetDrawer assets={trayAssets} advanced={caps.showProductionWarnings} onAdd={onAdd} onCreate={() => setCreateOpen(true)} onDelete={(a) => { void inventory.remove(a.id); }} focusAssetId={justCreatedId} onClose={() => setMode("arrange")} snap={assetSnap} onSnapChange={setAssetSnap} />
             ) : null}
 
             {/* Connect hint / binding sheet — shared bottom sheet (canvas stays interactive) */}
@@ -891,11 +894,14 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
       <CreateAssetSheet
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={() => {
-          // The AI-inventory bridge refreshes the tray reactively, so the new asset
-          // appears in the library immediately — no navigation, no reload.
-          setToast("New asset added to your library ✨");
-          window.setTimeout(() => setToast(null), 2600);
+        onCreated={(id) => {
+          // The AI-inventory bridge refreshes the tray reactively; take the user
+          // straight to the new asset in My Assets (the drawer scrolls + pulses it).
+          setMode("assets");
+          setAssetSnap("half");
+          setJustCreatedId(id);
+          // allow a re-reveal if they create another later
+          window.setTimeout(() => setJustCreatedId(undefined), 1800);
         }}
       />
     </div>

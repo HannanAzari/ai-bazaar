@@ -7,6 +7,35 @@ constants · result · decision · lesson). No design rule changes without an en
 
 ---
 
+## M33 — Asset Creation Experience Polish · Forget you're using AI
+*(the founder's "M31 polish" brief.) No AI/prompt/model/pipeline/style changes — only UX, interaction and
+motion. The metric: "Would someone happily create five objects in a row?"*
+
+- **Original photo first.** After Camera/Library the flow shows the **large original photo** ("Continue")
+  before any cutout — the user's anchor of trust. The tiny checkerboard never appears before they approve.
+- **Auto-cutout first.** The editor no longer opens first: auto-cutout runs, then *"Looks good? [Generate] /
+  [Edit cutout]"*. The erase/restore brush is a **fallback**, not step one.
+- **Single generation, not three.** Generate **one** asset (`variants: 1`). Removed the A/B/C pick.
+- **Refinement loop.** After a result: *"Looks good? [Use] / [Improve]"*. Improve → *"What would you like to
+  change?"* + example chips (rounder / remove the text / more wooden…) → regenerate **one**, reusing the
+  previous result as the reference (via the existing pipeline `notes` — **no prompt/model change**).
+- **Premium glass modal.** Floating glass card, strong backdrop blur + dim + desaturate + darken, soft
+  shadow, ~220ms scale/fade entrance. A focused creative workspace.
+- **Crafted loading.** Replaced the spinner with staged messages (Studying → Sketching → Painting → Matching
+  the Nestudio style → Finishing) and a soft conic "craft orb" — no %, no jargon.
+- **Success moment.** After Use: ✓ *"Added to My Assets"* with a bounce + sparkle, then it auto-returns to the
+  editor and **reveals the new asset in My Assets** (switch category → scroll → pulse) so the user never asks
+  *"where did it go?"*.
+- **Library ownership.** New tabs **Official** (read-only) · **My Assets** (editable/deletable) · **Recent**.
+  Polished Create tile (glow + spring), warm empty states ("Every home starts with one favourite object.").
+- **Motion everywhere.** Buttons spring, cards elevate, tiles pop-in, dialogs scale+fade; reduced-motion
+  respected. Nothing appears instantly.
+- Verified functionally end-to-end on mobile viewport with real Gemini (original → cutout → single generate →
+  result → Use → success → revealed in My Assets). Gates green (typecheck · lint · 517 tests · build).
+  Preview only — **no AI changes, no `main` merge, no production deploy.**
+
+---
+
 ## M32 — Asset Pipeline (Architecture Reset) · The factory, not the mug
 *Freeze the workflow, replace the generation architecture. Stop optimising prompts; build a pipeline where the
 provider is interchangeable and the Asset DNA is constant.*

@@ -22,9 +22,12 @@ export interface AssetCategoryNode {
  */
 export const ASSET_CATEGORY_TREE: AssetCategoryNode[] = [
   { id: "all", label: "All" },
+  // Ownership-first tabs so it's obvious what's yours (My Assets) vs the library
+  // (Official). `my-assets` supersedes the old "AI" tab.
+  { id: "official", label: "Official" },
+  { id: "my-assets", label: "My Assets" },
   { id: "recent", label: "Recent" },
   { id: "favourites", label: "Favourites" },
-  { id: "ai", label: "AI" },
   {
     id: "seating",
     label: "Seating",
@@ -105,10 +108,11 @@ export interface CategoryContext {
 /** Whether an asset belongs in a category tab (handles virtual categories). */
 export function assetInCategory(asset: LivingNestAsset, categoryId: string, ctx: CategoryContext = {}): boolean {
   if (categoryId === "all") return true;
+  if (categoryId === "official") return !isAiAsset(asset);
+  if (categoryId === "my-assets" || categoryId === "ai") return isAiAsset(asset);
   if (categoryId === "recent") return (ctx.recentIds ?? []).includes(asset.id);
   if (categoryId === "favourites") return (ctx.favouriteIds ?? []).includes(asset.id);
   if (categoryId === "animated") return isAnimatedAsset(asset);
-  if (categoryId === "ai") return isAiAsset(asset);
   const c = classifyAsset(asset);
   return c.category === categoryId || c.childCategory === categoryId;
 }

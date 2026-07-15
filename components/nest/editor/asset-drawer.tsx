@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  BadgeCheck,
   Clock,
   Info,
   LayoutGrid,
@@ -15,8 +16,10 @@ import {
   Square,
   Star,
   Table,
+  Trash2,
   Tv,
   User,
+  Wand2,
   type LucideIcon,
 } from "lucide-react";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
@@ -26,6 +29,7 @@ import {
   classifyAsset,
   getFavourites,
   getRecent,
+  isAiAsset,
   isAnimatedAsset,
   searchAssets,
   toggleFavourite,
@@ -45,6 +49,8 @@ const CAT_KEY = "nestudio:nest-editor:v1:drawer-category";
 
 const CATEGORY_ICON: Record<string, LucideIcon> = {
   all: LayoutGrid,
+  official: BadgeCheck,
+  "my-assets": Wand2,
   recent: Clock,
   favourites: Star,
   seating: Sofa,
@@ -82,6 +88,8 @@ export function AssetDrawer({
   advanced,
   onAdd,
   onCreate,
+  onDelete,
+  focusAssetId,
   onClose,
   snap,
   onSnapChange,
@@ -91,6 +99,10 @@ export function AssetDrawer({
   onAdd: (asset: LivingNestAsset) => void;
   /** M32 — open the editor-first Create Asset flow (always the first tile). */
   onCreate?: () => void;
+  /** Delete a (My Assets) asset. Only offered for AI-created assets. */
+  onDelete?: (asset: LivingNestAsset) => void;
+  /** A just-created asset to reveal: switch to My Assets, scroll to it, pulse once. */
+  focusAssetId?: string;
   onClose: () => void;
   snap: BottomSheetSnapPoint;
   onSnapChange: (s: BottomSheetSnapPoint) => void;
@@ -100,12 +112,31 @@ export function AssetDrawer({
   const [favourites, setFavourites] = useState<string[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
   const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [pulseId, setPulseId] = useState<string | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setCategory(readCat());
     setFavourites(getFavourites());
     setRecent(getRecent());
   }, []);
+
+  // M31 polish — when a new asset is created, take the user straight to it: switch
+  // to My Assets, scroll it into view, and pulse it once so they never wonder
+  // "where did it go?".
+  useEffect(() => {
+    if (!focusAssetId) return;
+    setCategory("my-assets");
+    setQuery("");
+    writeCat("my-assets");
+    const t = window.setTimeout(() => {
+      const el = gridRef.current?.querySelector(`[data-asset-id="${focusAssetId}"]`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setPulseId(focusAssetId);
+      window.setTimeout(() => setPulseId(null), 1400);
+    }, 120);
+    return () => window.clearTimeout(t);
+  }, [focusAssetId]);
 
   const activeTop = topFor(category);
   const byId = useMemo(() => Object.fromEntries(assets.map((a) => [a.id, a])), [assets]);
@@ -198,19 +229,25 @@ export function AssetDrawer({
       <div className="px-3 pb-4 pt-1">
         {/* Long-press details card (name / category / status / interaction) */}
         {details ? (
-          <div className="mb-2 flex items-center gap-2 rounded-xl border border-cobalt/30 bg-white/80 p-2">
+          <div className="fade-in mb-2 flex items-center gap-2 rounded-2xl border border-cobalt/25 bg-white/85 p-2 shadow-sm">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={details.thumbnailUrl} alt="" className="h-9 w-9 rounded object-contain" draggable={false} />
+            <img src={details.thumbnailUrl} alt="" className="h-9 w-9 rounded-lg object-contain" draggable={false} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-bold text-ink">{details.name}</p>
               <p className="truncate text-[10px] text-ink/55">
-                {classifyAsset(details).childCategory ?? classifyAsset(details).category}
+                {isAiAsset(details) ? "My Asset" : "Official"}
                 {" · "}
-                {productionStatusFor(details.id)}
+                {classifyAsset(details).childCategory ?? classifyAsset(details).category}
                 {isAnimatedAsset(details) ? " · interactive" : ""}
               </p>
             </div>
-            <button type="button" onClick={() => setDetailsId(null)} aria-label="Dismiss details" className="rounded-full p-1 text-ink/45 hover:bg-ink/5">
+            {/* Only My Assets can be deleted; Official is read-only. */}
+            {onDelete && isAiAsset(details) ? (
+              <button type="button" onClick={() => { onDelete(details); setDetailsId(null); }} aria-label={`Delete ${details.name}`} className="spring rounded-full p-1.5 text-rust/80 hover:bg-rust/10">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            ) : null}
+            <button type="button" onClick={() => setDetailsId(null)} aria-label="Dismiss details" className="spring rounded-full p-1.5 text-ink/45 hover:bg-ink/5">
               <Info className="h-4 w-4" />
             </button>
           </div>
@@ -218,7 +255,7 @@ export function AssetDrawer({
 
         {/* M32 — the Create Asset tile is ALWAYS first, in every category, never
             hidden behind another page: the factory lives inside the editor. */}
-        <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-6 md:grid-cols-8">
+        <div ref={gridRef} className="grid grid-cols-5 gap-1.5 sm:grid-cols-6 md:grid-cols-8">
           {onCreate && !query.trim() ? <CreateAssetTile onCreate={onCreate} /> : null}
           {list.map((a) => (
             <AssetTile
@@ -226,6 +263,7 @@ export function AssetDrawer({
               asset={a}
               advanced={advanced}
               favourite={favourites.includes(a.id)}
+              pulse={pulseId === a.id}
               onAdd={() => onAdd(a)}
               onDetails={() => setDetailsId(a.id)}
               onFav={() => onFav(a.id)}
@@ -233,10 +271,24 @@ export function AssetDrawer({
           ))}
         </div>
         {list.length === 0 ? (
-          <p className="py-6 text-center text-xs text-ink/45">
-            {query.trim() ? "No assets match your search." : category === "favourites" ? "No favourites yet — long-press a tile, then tap the star." : category === "recent" ? "No recently added assets yet." : "Tap + to create your first asset."}
-          </p>
+          <div className="fade-in px-6 py-10 text-center">
+            {query.trim() ? (
+              <p className="text-xs text-ink/45">No assets match your search.</p>
+            ) : category === "favourites" ? (
+              <p className="text-xs text-ink/45">No favourites yet — long-press a tile, then tap the star.</p>
+            ) : category === "recent" ? (
+              <p className="text-xs text-ink/45">Nothing here yet — the pieces you use will gather here.</p>
+            ) : category === "my-assets" ? (
+              <>
+                <p className="text-sm font-bold text-ink/70">Every home starts with one favourite object.</p>
+                <p className="mt-1 text-xs text-ink/45">Photograph something you love — we&apos;ll rebuild it as a Nestudio object.</p>
+              </>
+            ) : (
+              <p className="text-xs text-ink/45">Nothing in this category yet.</p>
+            )}
+          </div>
         ) : null}
+        <DrawerStyle />
       </div>
     </MobileBottomSheet>
   );
@@ -251,11 +303,30 @@ function CreateAssetTile({ onCreate }: { onCreate: () => void }) {
       onClick={onCreate}
       aria-label="Create asset"
       title="Create asset"
-      className="flex aspect-square w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-dashed border-cobalt/40 bg-cobalt/8 text-cobalt transition hover:border-cobalt/70 hover:bg-cobalt/12"
+      className="create-tile spring flex aspect-square w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-dashed border-cobalt/45 bg-cobalt/8 text-cobalt transition hover:-translate-y-0.5 hover:border-cobalt/70 hover:bg-cobalt/14"
     >
       <Plus className="h-5 w-5" />
       <span className="text-[8px] font-black uppercase leading-none tracking-wide">Create</span>
     </button>
+  );
+}
+
+// Motion + create-tile glow for the drawer grid.
+function DrawerStyle() {
+  return (
+    <style>{`
+      .spring{transition:transform 140ms cubic-bezier(0.2,0.8,0.2,1)}
+      .spring:active{transform:scale(0.94)}
+      .fade-in{animation:drwFade 260ms ease both}
+      .tile-in{animation:drwPop 300ms cubic-bezier(0.2,1.1,0.35,1) both}
+      .create-tile{box-shadow:0 0 0 0 rgba(47,111,214,0.0);animation:createGlow 2.6s ease-in-out infinite}
+      .pulse-once{animation:drwPulse 1.3s ease-out both}
+      @keyframes drwFade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+      @keyframes drwPop{from{opacity:0;transform:scale(0.88)}to{opacity:1;transform:scale(1)}}
+      @keyframes createGlow{0%,100%{box-shadow:0 0 0 0 rgba(47,111,214,0.0)}50%{box-shadow:0 0 12px 1px rgba(47,111,214,0.18)}}
+      @keyframes drwPulse{0%{box-shadow:0 0 0 0 rgba(47,111,214,0.5);transform:scale(1)}30%{box-shadow:0 0 0 6px rgba(47,111,214,0.18);transform:scale(1.06)}100%{box-shadow:0 0 0 0 rgba(47,111,214,0);transform:scale(1)}}
+      @media (prefers-reduced-motion:reduce){.fade-in,.tile-in,.create-tile,.pulse-once{animation:none!important}.spring{transition:none}}
+    `}</style>
   );
 }
 
@@ -265,6 +336,7 @@ function AssetTile({
   asset,
   advanced,
   favourite,
+  pulse,
   onAdd,
   onDetails,
   onFav,
@@ -272,6 +344,7 @@ function AssetTile({
   asset: LivingNestAsset;
   advanced: boolean;
   favourite: boolean;
+  pulse?: boolean;
   onAdd: () => void;
   onDetails: () => void;
   onFav: () => void;
@@ -291,7 +364,7 @@ function AssetTile({
   const clear = () => clearTimeout(timer.current);
 
   return (
-    <div className="group relative">
+    <div className={`group relative tile-in ${pulse ? "pulse-once rounded-xl" : ""}`} data-asset-id={asset.id}>
       <button
         type="button"
         onPointerDown={start}
@@ -311,7 +384,7 @@ function AssetTile({
         }}
         aria-label={`Add ${asset.name}`}
         title={asset.name}
-        className="block aspect-square w-full overflow-hidden rounded-xl border border-ink/12 bg-white/70 p-1 transition hover:border-cobalt/60 hover:bg-white"
+        className="spring block aspect-square w-full overflow-hidden rounded-xl border border-ink/12 bg-white/70 p-1 transition hover:-translate-y-0.5 hover:border-cobalt/60 hover:bg-white hover:shadow-sm"
       >
         <span className="relative flex h-full w-full items-center justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
