@@ -27,19 +27,44 @@ import { downscaleDataUrl } from "@/lib/image-downscale";
 
 const CHECKER = "repeating-conic-gradient(#00000010 0% 25%, transparent 0% 50%) 50% / 20px 20px";
 const NEST_TINT = "linear-gradient(160deg,#f3e9d2,#e7d6ac)";
-const CANDIDATE_COUNT = 3;
-
 type Phase = "idle" | "generating" | "review" | "error";
 type Detail = "preserve" | "simplify";
 
-const SIMPLIFY_NOTE =
-  "Simplify: remove any writing, text, letters, numbers, stickers or logos from the surface; keep only the object's form, proportions and true colours.";
+// VS01 correction — 3 genuinely different interpretations, not near-identical outputs.
+const VARIANTS: { key: string; label: string; note: string }[] = [
+  { key: "A", label: "Faithful", note: "" },
+  { key: "B", label: "Designed", note: "Refine into a slightly simplified, more elegant and resolved form — smoother, cleaner, calmer surfaces — but unmistakably the same object with the same distinctive features." },
+  { key: "C", label: "Characterful", note: "Push the friendly Nestudio proportions — a little chunkier, rounder and more playful — while clearly keeping the object's distinctive features and handmade personality." },
+];
+const CANDIDATE_COUNT = VARIANTS.length;
+const MAX_TRIES = 3;
 
-function transparentEnough(a: GeneratedAsset): boolean {
-  // The pipeline cuts out the generated background; a real cutout has an alpha bbox
-  // well inside the frame. Coverage of the whole square < ~0.9 means it isn't a solid rectangle.
-  const q = a.metadata.quality;
-  return q ? !q.issues.some((i) => i.code === "transparent_bg") : true;
+const SIMPLIFY_NOTE =
+  "Remove all lettering, words and writing from the surface; keep the rounded body and the distinctive handle and overall identity.";
+const PRESERVE_NOTE =
+  "Keep the object's distinctive handle and any lettering, re-rendered as a simplified hand-painted mark on the matte surface.";
+
+// Programmatic alpha inspection: the four corner pixels must be genuinely transparent,
+// the object must not touch an edge, and it must not be a solid rectangle.
+async function inspectAlpha(dataUrl: string): Promise<{ transparentCorners: boolean; edgeTouch: boolean; coverage: number }> {
+  if (typeof document === "undefined") return { transparentCorners: true, edgeTouch: false, coverage: 0.3 };
+  const img = await new Promise<HTMLImageElement>((res, rej) => { const el = new Image(); el.onload = () => res(el); el.onerror = () => rej(new Error("decode")); el.src = dataUrl; });
+  const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const ctx = c.getContext("2d"); if (!ctx) return { transparentCorners: true, edgeTouch: false, coverage: 0.3 };
+  ctx.drawImage(img, 0, 0);
+  const p = ctx.getImageData(0, 0, w, h).data;
+  const A = (x: number, y: number) => p[(y * w + x) * 4 + 3];
+  const transparentCorners = [A(0, 0), A(w - 1, 0), A(0, h - 1), A(w - 1, h - 1)].every((a) => a === 0);
+  let count = 0, edgeTouch = false;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { if (p[(y * w + x) * 4 + 3] > 24) { count++; if (x === 0 || y === 0 || x === w - 1 || y === h - 1) edgeTouch = true; } }
+  return { transparentCorners, edgeTouch, coverage: count / (w * h) };
+}
+
+// Hard rejection gate: a candidate must be truly transparent, not clipped, and not a solid fill.
+async function passesGate(a: GeneratedAsset): Promise<boolean> {
+  const s = await inspectAlpha(a.png.dataUrl);
+  return s.transparentCorners && !s.edgeTouch && s.coverage > 0.02 && s.coverage < 0.9;
 }
 
 export function CreatorStudioClient() {
@@ -86,27 +111,38 @@ export function CreatorStudioClient() {
   const onGenerate = useCallback(async () => {
     if (!input) return;
     setPhase("generating"); setError(null); setCandidates([]); setChosenId(null); setSavedId(null); setProgress(0);
-    const notes = detail === "simplify" ? SIMPLIFY_NOTE : undefined;
+    const detailNote = detail === "simplify" ? SIMPLIFY_NOTE : PRESERVE_NOTE;
     const out: GeneratedAsset[] = [];
+    let rejected = 0;
+    let lastErr = "";
     try {
       for (let i = 0; i < CANDIDATE_COUNT; i++) {
-        const g = await generateAsset("furniture", input, { subject, notes });
-        out.push(g); setCandidates([...out]); setProgress(i + 1);
+        const notes = [VARIANTS[i].note, detailNote].filter(Boolean).join(" ");
+        let accepted: GeneratedAsset | null = null;
+        for (let t = 0; t < MAX_TRIES && !accepted; t++) {
+          try {
+            const g = await generateAsset("furniture", input, { subject, notes });
+            if (await passesGate(g)) accepted = g; else rejected++;
+          } catch (e) { lastErr = (e as Error).message; }
+        }
+        if (accepted) { out.push(accepted); setCandidates([...out]); }
+        setProgress(i + 1);
       }
+      if (!out.length) { setError(lastErr || "Generation failed the transparency gate — please try again."); setPhase("error"); return; }
       setPhase("review");
+      if (rejected) setError(`${rejected} weak candidate${rejected === 1 ? "" : "s"} auto-rejected (opaque / clipped / no clean cut-out).`);
     } catch (e) {
-      // If at least one candidate made it, let the user review those.
-      if (out.length) { setPhase("review"); setError(`Only ${out.length} of ${CANDIDATE_COUNT} generated: ${(e as Error).message}`); }
-      else { setError((e as Error).message); setPhase("error"); }
+      if (out.length) { setPhase("review"); } else { setError((e as Error).message); setPhase("error"); }
     }
   }, [input, subject, detail]);
 
-  const onChoose = useCallback(async (g: GeneratedAsset) => {
+  const onChoose = useCallback((g: GeneratedAsset) => {
+    // Selection ONLY — A/B/C stay in component state during comparison. Nothing is
+    // written to personal inventory until the user commits via "Place in my Nest",
+    // so only the ONE chosen candidate ever persists.
     setChosenId(g.id);
-    // Save immediately so nothing is lost, and dedupe by id (re-choosing is idempotent).
-    await inventory.save(assetFromGenerated(g, config.publishTargets[0]));
-    setSavedId(g.id);
-  }, [config]);
+    setSavedId(null);
+  }, []);
 
   async function ensureDraftId(): Promise<string | undefined> {
     const existing = listDrafts(ownerId);
@@ -267,7 +303,7 @@ export function CreatorStudioClient() {
                     <img src={c.png.dataUrl} alt={`candidate ${i + 1}`} className="max-h-full max-w-full object-contain" />
                   </div>
                   <p className="text-center text-[9px] font-bold uppercase tracking-wide text-ink/45">
-                    {String.fromCharCode(65 + i)}{chosenId === c.id ? " ✓" : ""}
+                    {VARIANTS[i] ? `${VARIANTS[i].key} · ${VARIANTS[i].label}` : String.fromCharCode(65 + i)}{chosenId === c.id ? " ✓" : ""}
                   </p>
                 </button>
               ))}
@@ -296,7 +332,7 @@ export function CreatorStudioClient() {
                 <div>
                   <p className="display text-base leading-none">{chosen.metadata.name}</p>
                   <p className="text-[11px] text-ink/45">
-                    {chosen.png.width}×{chosen.png.height} · {transparentEnough(chosen) ? "transparent PNG" : "opaque (cutout failed)"} ·{" "}
+                    {chosen.png.width}×{chosen.png.height} · transparent PNG ·{" "}
                     <span className={chosen.metadata.usedFallback ? "font-bold text-ember" : "font-bold text-teal"}>
                       {chosen.metadata.usedFallback ? `local fallback (from ${chosen.metadata.requestedProvider})` : chosen.metadata.provider}
                     </span>
@@ -314,7 +350,7 @@ export function CreatorStudioClient() {
                   {placing ? <Loader2 className="size-4 animate-spin" /> : <Home className="size-4" />}
                   {placing ? "Opening your Nest…" : "Place in my Nest"}
                 </button>
-                <p className="text-center text-[11px] text-ink/45">Saved to your inventory · appears in the editor’s AI category</p>
+                <p className="text-center text-[11px] text-ink/45">Only your chosen version is saved — it appears in the editor’s AI category</p>
               </>
             ) : (
               <p className="text-center text-[12px] text-ink/45">Tap A, B or C to choose the one that feels most like your object.</p>

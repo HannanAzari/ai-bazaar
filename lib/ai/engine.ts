@@ -40,9 +40,11 @@ export const STUDIO_CONFIGS: Record<AssetKind, StudioConfig> = {
     enabled: true,
     promptBuilder: PROMPT_BUILDERS.furniture,
     outputSize: 640,
-    padding: 0.08,
+    padding: 0.12, // VS01: generous transparent padding, no clipping
     removeBackground: true,
-    contactShadow: true,
+    // VS01: NO baked contact shadow — the room composites grounding; a baked floor
+    // shadow reads as a photo cutout and violates the Camera DNA (assets carry no shadow).
+    contactShadow: false,
     refinePasses: 1,
     publishTargets: ["inventory"],
     defaultSubject: "cozy object",

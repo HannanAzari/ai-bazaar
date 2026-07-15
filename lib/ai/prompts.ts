@@ -222,6 +222,42 @@ const buildFurnitureV6: PromptBuilder = (input) => {
   };
 };
 
+// VS01 correction — the REINTERPRETATION master. furniture@6 was a *fidelity* prompt
+// ("faithfully preserve the exact design, only the light is warm"), so the hosted model
+// image-EDITED the photo and returned a photo-cutout: photographic lighting, the literal
+// printed word, a baked shadow, a painted checker background. furniture@7 instead tells
+// the model to REBUILD the object from scratch as a Nestudio asset (the proven M23
+// dna-C-freeze caliber), keep only identity, and — crucially — render it on a plain
+// FLAT SOLID-COLOUR background (never "transparent", which the model paints as a checker)
+// so post-process can key it to TRUE alpha. No baked shadow (the room grounds it).
+const buildFurnitureV7: PromptBuilder = (input) => {
+  const style = mergeStyle(NESTUDIO_STYLE, input.style);
+  const subject = input.subject || "home object";
+  const positive = [
+    `A single ${subject}, DESIGNED and rebuilt from scratch as an original Nestudio object — sculpted the way Nestudio's own artists would make it. It must NOT look like a photograph, and NOT look like the uploaded photo with its background removed; it is a fresh Nestudio asset that belongs beside the official Nestudio sofa, table, shelf and lamp`,
+    `keep only its IDENTITY — the overall silhouette, approximate proportions, its one or two distinctive features and its handmade personality — then re-sculpt everything else into soft Nestudio form`,
+    "form: a softly sculpted, simplified, gently inflated rounded 3D shape with one soft signature radius and small handcrafted imperfections; a clean readable silhouette; the top opening gently visible",
+    "material: a warm MATTE hand-painted surface with subtle painterly shading and gentle warm ambient occlusion in the crevices; restrained warm colours; never glossy, never plastic, never shiny, no reflections, no photographic texture, no product-photography lighting",
+    "lighting: a single soft warm key from the upper-left only — no photographed hand, no fingers, no room light, no window, no curtain, no harsh studio light",
+    "any lettering, words or markings are re-rendered as a SIMPLIFIED hand-painted mark sitting flat ON the matte surface — clearly painted by the Nestudio artist, never the photographic printed word from the source",
+    "camera: the Nestudio life-simulation camera — front-facing and slightly elevated, about a 10 degree downward tilt, roughly 35mm, so the top opening reads; never eye-level, never isometric, no perspective distortion, no wide angle",
+    "composition: the whole object centred at about 62 percent of the frame with generous even margins on every side; nothing clipped or touching an edge; bottom-centre grounded but with NO drawn shadow and NO floating halo",
+    "background: place the object on a plain, FLAT, single SOLID-COLOUR studio background (a calm cool sage-green), with absolutely no checkerboard, no transparency pattern, no gradient, no scene and no shadow — a clean solid fill that can be keyed out to true transparency afterwards",
+  ].concat(input.notes ? [input.notes.trim()] : []).join(". ");
+  const negative =
+    "photograph, photo, photographic, photo cutout, cut-out, the original photo with background removed, photographic lighting, reflections, glossy, shiny, wet look, product photo, studio product photography, hand, fingers, arm, holding, curtain, window, room, scene, floor, checkerboard, checkered background, transparency pattern, gradient background, baked shadow, drop shadow, floor shadow, cast shadow, floating halo, isometric, eye-level, 30-degree parallel, wide-angle distortion, clipped, cropped, touching the edge, watermark, added text, printed photographic word, gibberish text, deformed, low quality";
+  return {
+    kind: input.kind,
+    subject,
+    positive,
+    negative,
+    style,
+    tags: dedupe([input.kind, ...tokenize(subject)]),
+    params: { size: 640, background: "transparent", guidance: 7, subjectType: "object", relight: 0.05, saturation: 0.82, satCap: 0.85, warmth: 0.3 },
+    promptVersion: "furniture@7",
+  };
+};
+
 /* ── Scaffolds for future studios (disabled in M20/M21) ────────────────────── */
 
 export const buildDecorationPrompt: PromptBuilder = (input) =>
@@ -246,6 +282,7 @@ export const PROMPT_REGISTRY: Record<string, PromptBuilder> = {
   "furniture@4": buildFurnitureV4,
   "furniture@5": buildFurnitureV5,
   "furniture@6": buildFurnitureV6,
+  "furniture@7": buildFurnitureV7,
   "decoration@1": buildDecorationPrompt,
   "avatar@1": buildAvatarPrompt,
   "background@1": buildBackgroundPrompt,
@@ -254,7 +291,7 @@ export const PROMPT_REGISTRY: Record<string, PromptBuilder> = {
 
 /** The live version per kind. Bumping this is how a prompt ships — no engine edit. */
 export const ACTIVE_PROMPT_VERSION: Record<string, string> = {
-  furniture: "furniture@6",
+  furniture: "furniture@7",
   decoration: "decoration@1",
   avatar: "avatar@1",
   background: "background@1",

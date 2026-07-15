@@ -13,7 +13,10 @@ describe("prompt builders", () => {
     expect(p.kind).toBe("furniture");
     expect(p.subject).toBe("coffee mug");
     expect(p.positive.toLowerCase()).toContain("coffee mug");
-    expect(p.positive.toLowerCase()).toContain("transparent");
+    // furniture@7 asks for a SOLID background keyed out to true transparency (never a
+    // painted checker); the delivered asset target is still a transparent PNG.
+    expect(p.positive.toLowerCase()).toContain("transparency");
+    expect(p.params.background).toBe("transparent");
     expect(p.negative.length).toBeGreaterThan(0);
     expect(p.tags).toContain("furniture");
     expect(p.tags).toContain("coffee");

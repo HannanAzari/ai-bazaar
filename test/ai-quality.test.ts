@@ -146,29 +146,28 @@ describe("inferInsights", () => {
 
 /* ── versioned prompts ── */
 describe("versioned prompt library", () => {
-  it("furniture active version is the shape-DNA v6 master and stamps promptVersion", () => {
-    expect(ACTIVE_PROMPT_VERSION.furniture).toBe("furniture@6");
+  it("furniture active version is the reinterpretation v7 master and stamps promptVersion", () => {
+    expect(ACTIVE_PROMPT_VERSION.furniture).toBe("furniture@7");
     const p = getPromptBuilder("furniture")({ kind: "furniture", subject: "lamp" });
-    expect(p.promptVersion).toBe("furniture@6");
-    // v4's fidelity + v5's rendering language survive into v6
-    expect(p.positive.toLowerCase()).toContain("preserve");
-    expect(p.positive.toLowerCase()).toContain("not recoloured");
-    expect(p.positive.toLowerCase()).toContain("never glossy");
-    expect(p.positive.toLowerCase()).toContain("transparent");
-    expect(p.negative.toLowerCase()).toContain("floating");
+    expect(p.promptVersion).toBe("furniture@7");
+    // VS01 correction: rebuild-from-scratch reinterpretation, never a photo cutout
+    expect(p.positive.toLowerCase()).toContain("rebuilt from scratch");
+    expect(p.positive.toLowerCase()).toContain("must not look like a photograph");
+    expect(p.positive.toLowerCase()).toContain("identity");
+    // the frozen rendering language survives (matte + warm AO)
     expect(p.positive.toLowerCase()).toContain("matte");
     expect(p.positive.toLowerCase()).toContain("ambient occlusion");
-    // M24 shape lock: the Nestudio silhouette family rule
-    expect(p.positive.toLowerCase()).toContain("shape language");
-    expect(p.positive.toLowerCase()).toContain("pedestal");
-    expect(p.positive.toLowerCase()).toContain("negative-space");
-    expect(p.positive.toLowerCase()).toContain("silhouette");
+    // solid-colour background (so it keys to true alpha, never a painted checker) + no baked shadow
+    expect(p.positive.toLowerCase()).toContain("solid-colour");
+    expect(p.positive.toLowerCase()).toContain("no drawn shadow");
+    expect(p.negative.toLowerCase()).toContain("checkerboard");
+    expect(p.negative.toLowerCase()).toContain("photo cutout");
     // tonal params travel with the prompt (matte/warm-leaning) for the local fallback
     expect(p.params.saturation).toBeDefined();
     expect(p.params.warmth).toBeDefined();
   });
   it("all furniture versions are registered and pinnable", () => {
-    for (const v of ["furniture@1", "furniture@2", "furniture@3", "furniture@4", "furniture@5", "furniture@6"]) expect(typeof PROMPT_REGISTRY[v]).toBe("function");
+    for (const v of ["furniture@1", "furniture@2", "furniture@3", "furniture@4", "furniture@5", "furniture@6", "furniture@7"]) expect(typeof PROMPT_REGISTRY[v]).toBe("function");
     expect(getPromptBuilder("furniture", "furniture@1")({ kind: "furniture", subject: "x" }).promptVersion).toBe("furniture@1");
   });
   it("throws on an unknown version", () => {
