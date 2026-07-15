@@ -1,5 +1,13 @@
 # AI Bazaar
 
+> ## 🧭 CURRENT PROJECT STATUS (M31 — experiential phase)
+> We are no longer designing Nestudio on paper. **We are validating whether the philosophy can be *felt*
+> inside the product.** Every sprint should increase the user's emotional experience — not the documentation.
+> The active work is one real moment: *photograph a belonging → it's rebuilt as a Nestudio object → place it
+> in your Nest → it's still there when you return.* **New here? Read [docs/SESSION_HANDOFF.md](docs/SESSION_HANDOFF.md)
+> and [docs/CEO_NOTES.md](docs/CEO_NOTES.md) first, then [docs/CURRENT_SPRINT.md](docs/CURRENT_SPRINT.md) for
+> what's active right now.**
+
 > **🎨 Making any visual or world decision?** Read **[docs/design/NESTUDIO_WORLD_BIBLE.md](docs/design/NESTUDIO_WORLD_BIBLE.md) first**,
 > then [LIVING_WORLD.md](docs/design/LIVING_WORLD.md), then [SOUL_OF_NESTUDIO.md](docs/design/SOUL_OF_NESTUDIO.md),
 > then the rest of `docs/design/`. The World Bible is the single highest authority for every visual decision

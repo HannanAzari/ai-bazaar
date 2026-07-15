@@ -7,6 +7,7 @@ import {
   LayoutGrid,
   Lamp,
   Leaf,
+  Plus,
   Search,
   Shapes,
   Sofa,
@@ -80,6 +81,7 @@ export function AssetDrawer({
   assets,
   advanced,
   onAdd,
+  onCreate,
   onClose,
   snap,
   onSnapChange,
@@ -87,6 +89,8 @@ export function AssetDrawer({
   assets: LivingNestAsset[];
   advanced: boolean;
   onAdd: (asset: LivingNestAsset) => void;
+  /** M32 — open the editor-first Create Asset flow (always the first tile). */
+  onCreate?: () => void;
   onClose: () => void;
   snap: BottomSheetSnapPoint;
   onSnapChange: (s: BottomSheetSnapPoint) => void;
@@ -212,27 +216,46 @@ export function AssetDrawer({
           </div>
         ) : null}
 
+        {/* M32 — the Create Asset tile is ALWAYS first, in every category, never
+            hidden behind another page: the factory lives inside the editor. */}
+        <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-6 md:grid-cols-8">
+          {onCreate && !query.trim() ? <CreateAssetTile onCreate={onCreate} /> : null}
+          {list.map((a) => (
+            <AssetTile
+              key={a.id}
+              asset={a}
+              advanced={advanced}
+              favourite={favourites.includes(a.id)}
+              onAdd={() => onAdd(a)}
+              onDetails={() => setDetailsId(a.id)}
+              onFav={() => onFav(a.id)}
+            />
+          ))}
+        </div>
         {list.length === 0 ? (
-          <p className="py-8 text-center text-xs text-ink/45">
-            {query.trim() ? "No assets match your search." : category === "favourites" ? "No favourites yet — long-press a tile, then tap the star." : category === "recent" ? "No recently added assets yet." : "No assets in this category."}
+          <p className="py-6 text-center text-xs text-ink/45">
+            {query.trim() ? "No assets match your search." : category === "favourites" ? "No favourites yet — long-press a tile, then tap the star." : category === "recent" ? "No recently added assets yet." : "Tap + to create your first asset."}
           </p>
-        ) : (
-          <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-6 md:grid-cols-8">
-            {list.map((a) => (
-              <AssetTile
-                key={a.id}
-                asset={a}
-                advanced={advanced}
-                favourite={favourites.includes(a.id)}
-                onAdd={() => onAdd(a)}
-                onDetails={() => setDetailsId(a.id)}
-                onFav={() => onFav(a.id)}
-              />
-            ))}
-          </div>
-        )}
+        ) : null}
       </div>
     </MobileBottomSheet>
+  );
+}
+
+// M32 — the "+ Create Asset" tile. Same footprint as an asset tile so it reads as
+// the first item in the sticker-keyboard grid; a warm dashed call-to-action.
+function CreateAssetTile({ onCreate }: { onCreate: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onCreate}
+      aria-label="Create asset"
+      title="Create asset"
+      className="flex aspect-square w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-dashed border-cobalt/40 bg-cobalt/8 text-cobalt transition hover:border-cobalt/70 hover:bg-cobalt/12"
+    >
+      <Plus className="h-5 w-5" />
+      <span className="text-[8px] font-black uppercase leading-none tracking-wide">Create</span>
+    </button>
   );
 }
 

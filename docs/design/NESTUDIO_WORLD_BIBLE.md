@@ -89,6 +89,38 @@ careful human artist would choose over the option a machine would.
 > [ICON_EXPERIMENTS](ICON_EXPERIMENTS.md) · [EXPERIMENT_WORKFLOW](EXPERIMENT_WORKFLOW.md) ·
 > [REVIEW_PROCESS](REVIEW_PROCESS.md) · [EXPERIMENT_HISTORY](EXPERIMENT_HISTORY.md).)
 
+> **What became true in M31 (proven in the product, not on paper).** These extend — do not replace — the
+> Laws and the Method Principle above:
+> - **Reality wins.** The judge is the *rendered result on screen*, never the workflow, the prompt, or the
+>   docs. A slice that "technically works" but *feels* like a photo cutout is a failure (this is why
+>   `furniture@6` was rejected and `furniture@7` written).
+> - **Reinterpret, don't reproduce (`furniture@7`).** An uploaded belonging must be **rebuilt from scratch as
+>   a Nestudio object** — keep the identity, discard the photograph. See [RENDERING_DNA.md](RENDERING_DNA.md)
+>   and the `furniture@N` history in [ART_DIRECTION_PROCESS.md](ART_DIRECTION_PROCESS.md).
+> - **The candidate-comparison workflow.** Generate a few *genuinely different* candidates (A Faithful /
+>   B Designed / C Characterful), let the **human choose one**, and save **only the chosen one**. Human
+>   approval is **mandatory**; nothing auto-selects.
+> - **Build memories, not assets.** The felt win is not "a processed PNG" but *"my real thing became part of
+>   my home, and it was waiting for me when I came back."* (Deepens [SOUL_OF_NESTUDIO.md](SOUL_OF_NESTUDIO.md).)
+> - **Design by taste, not text.** The identity now advances by *felt* prototypes judged with ruthless
+>   consistency — the documentation phase is complete; the work is experiential from here.
+>
+> *(Named directions the founder is steering toward for the experiential phase — Hospitality over Engagement,
+> Places accumulate shared life, Evidence not content, the Good Host — are **not yet validated in product**
+> and are recorded as intent, not law. They graduate into the Laws only once felt in a shipped moment.)*
+
+> **What became true in M32 (the Asset Pipeline reset).** The generation *architecture* is now the strategy,
+> not any single prompt:
+> - **The DNA is the source; prompts are derived.** Style lives in [NESTUDIO_ASSET_DNA.md](NESTUDIO_ASSET_DNA.md)
+>   + `lib/asset-dna.ts`, not inside a prompt. Every provider gets the same DNA and must satisfy it.
+> - **The provider is interchangeable; the DNA is constant.** Switching model is one config change; nothing
+>   downstream knows which provider produced an asset. Providers are chosen by *consistency against the DNA*
+>   ([ASSET_BENCHMARK.md](ASSET_BENCHMARK.md)), never by prompt cleverness.
+> - **Cutout ≠ generation.** Two separate concerns; never ship a photo cutout as an asset.
+> - **Stop optimising prompts (permanent rule).** Improve, in order: *preprocessing · cutout · provider
+>   routing · rendering pipeline · Asset DNA.* A prompt is one component, not the strategy.
+> - **Build the factory before judging the products.** A better factory produces better assets for years.
+
 ## 4. How the World Bible is organized
 
 The Bible is one authority split across focused documents so nothing is duplicated. **Never copy a rule
@@ -115,6 +147,8 @@ between documents — reference it.** Each concern lives in exactly one place:
 | [PHYSICS_DNA.md](PHYSICS_DNA.md) | the invisible *behaviour* rules (soft gravity, inflation, living asymmetry, calm exaggeration, impossible stability, breathing negative space) |
 | [GEOMETRIC_ALPHABET.md](GEOMETRIC_ALPHABET.md) | the primitives (Pebble · Capsule · Arch), how they combine, how to add more |
 | [RENDERING_DNA.md](RENDERING_DNA.md) | palette hex · lighting · material · AO · shadow · transparency · **the immutable camera** · composition · allowed/forbidden styles |
+| [NESTUDIO_ASSET_DNA.md](NESTUDIO_ASSET_DNA.md) | the **provider contract** (M32) — the 17 asset fields as a machine spec every provider must satisfy; prompts assembled from it; the benchmark scorecard; code mirror `lib/asset-dna.ts` |
+| [ASSET_BENCHMARK.md](ASSET_BENCHMARK.md) | how a **provider is chosen** (M32) — one source · every provider · scored against the Asset DNA by a human; judged by consistency, not prompts |
 | [ASSET_RULES.md](ASSET_RULES.md) | how each category (furniture, plants, houses, avatars, backgrounds, tools, interactive…) interprets the one DNA |
 | [CREATOR_TRANSLATION.md](CREATOR_TRANSLATION.md) | how a real object becomes a Nestudio object (the 6-stage pipeline) |
 | [ART_DIRECTION_PROCESS.md](ART_DIRECTION_PROCESS.md) | approval process · prompt architecture & version history · evaluation scorecards |

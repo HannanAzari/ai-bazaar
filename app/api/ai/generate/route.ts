@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 
-// M21 — server-only bridge to the hosted image model (Google Gemini), matching
-// the repo's existing pattern (scripts/generate-p0-pilot.mjs): the key is read
-// from GEMINI_API_KEY and sent via the x-goog-api-key header — NEVER a URL, never
-// the browser. The client `geminiProvider` posts here; the engine falls back to
-// the local Canvas provider when this returns 501 (no key). Same AIImageProvider
-// interface either way, so nothing else changes.
+// M32 — server-only bridge to the hosted image models, now provider-routed. The
+// client asset-pipeline adapters POST `{ provider, imageDataUrl, positive, negative,
+// size }`; this route dispatches to the right model with the right server-side key
+// (NEVER a URL, never the browser). Same response shape for every provider, so the
+// rest of Nestudio stays provider-agnostic. Returns 501 when the chosen provider has
+// no key (the adapter surfaces that honestly; nothing is faked).
 //
-// This is the ONE place real generation happens; the Admin Asset Factory will
-// call the same route server-side.
+// Providers: `gemini` (GEMINI_API_KEY) · `gpt-image`/`openai` (OPENAI_API_KEY).
 
-const MODEL = "gemini-3.1-flash-image"; // per M9.2 pilot
+const GEMINI_MODEL = "gemini-3.1-flash-image"; // per M9.2 pilot
+const OPENAI_IMAGE_MODEL = "gpt-image-1";
 
-type Body = { imageDataUrl?: string; positive?: string; negative?: string; size?: number };
+type Body = { provider?: string; imageDataUrl?: string; positive?: string; negative?: string; size?: number };
 
 function parseDataUrl(dataUrl: string): { mimeType: string; data: string } | null {
   const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(dataUrl);
@@ -20,16 +20,60 @@ function parseDataUrl(dataUrl: string): { mimeType: string; data: string } | nul
   return { mimeType: m[1], data: m[2] };
 }
 
-export async function POST(request: Request) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    // Not an error the user caused — the hosted provider simply isn't configured.
-    return NextResponse.json(
-      { error: "GEMINI_API_KEY is not set — using the local provider.", configured: false },
-      { status: 501 },
-    );
+/* ── Gemini ──────────────────────────────────────────────────────────────────── */
+async function generateGemini(apiKey: string, parsed: { mimeType: string; data: string }, prompt: string) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+  const payload = {
+    contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: parsed.mimeType, data: parsed.data } }] }],
+    generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "1:1" } },
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = (await res.text()).slice(0, 300);
+    return { error: `Gemini HTTP ${res.status}: ${text}`, status: 502 as const };
   }
+  const json = (await res.json()) as {
+    candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] } }[];
+  };
+  const part = json?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
+  if (!part?.inlineData?.data) return { error: "No image returned by Gemini", status: 502 as const };
+  const mime = part.inlineData.mimeType ?? "image/png";
+  return { imageDataUrl: `data:${mime};base64,${part.inlineData.data}`, model: GEMINI_MODEL };
+}
 
+/* ── OpenAI GPT Image (images/edits) ─────────────────────────────────────────── */
+async function generateOpenAI(apiKey: string, parsed: { mimeType: string; data: string }, prompt: string) {
+  // gpt-image-1 edits take a PNG < 4MB + a prompt and reinterpret it. Sizes are
+  // constrained; we request 1024² and let the client finish/resize to the DNA size.
+  const bytes = Buffer.from(parsed.data, "base64");
+  const blob = new Blob([bytes], { type: parsed.mimeType });
+  const form = new FormData();
+  form.append("model", OPENAI_IMAGE_MODEL);
+  form.append("image", blob, "cutout.png");
+  form.append("prompt", prompt.slice(0, 4000));
+  form.append("size", "1024x1024");
+  form.append("n", "1");
+
+  const res = await fetch("https://api.openai.com/v1/images/edits", {
+    method: "POST",
+    headers: { authorization: `Bearer ${apiKey}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = (await res.text()).slice(0, 300);
+    return { error: `OpenAI HTTP ${res.status}: ${text}`, status: 502 as const };
+  }
+  const json = (await res.json()) as { data?: { b64_json?: string }[] };
+  const b64 = json?.data?.[0]?.b64_json;
+  if (!b64) return { error: "No image returned by OpenAI", status: 502 as const };
+  return { imageDataUrl: `data:image/png;base64,${b64}`, model: OPENAI_IMAGE_MODEL };
+}
+
+export async function POST(request: Request) {
   let body: Body;
   try {
     body = (await request.json()) as Body;
@@ -44,48 +88,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "imageDataUrl must be a base64 image data URL" }, { status: 400 });
   }
 
+  const provider = (body.provider ?? "gemini").toLowerCase();
   const prompt = body.negative ? `${body.positive}\n\nAvoid: ${body.negative}` : body.positive;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
-  const payload = {
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: prompt },
-          { inlineData: { mimeType: parsed.mimeType, data: parsed.data } },
-        ],
-      },
-    ],
-    generationConfig: {
-      responseModalities: ["IMAGE"],
-      imageConfig: { aspectRatio: "1:1" },
-    },
-  };
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const text = (await res.text()).slice(0, 300);
-      return NextResponse.json({ error: `Gemini HTTP ${res.status}: ${text}` }, { status: 502 });
+    if (provider === "gemini") {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) return NextResponse.json({ error: "GEMINI_API_KEY is not set.", configured: false }, { status: 501 });
+      const out = await generateGemini(apiKey, parsed, prompt);
+      if ("error" in out) return NextResponse.json({ error: out.error }, { status: out.status });
+      return NextResponse.json({ ...out, provider: "gemini" });
     }
-    const json = (await res.json()) as {
-      candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] } }[];
-    };
-    const part = json?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-    if (!part?.inlineData?.data) {
-      return NextResponse.json({ error: "No image returned by the model" }, { status: 502 });
+    if (provider === "gpt-image" || provider === "openai") {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) return NextResponse.json({ error: "OPENAI_API_KEY is not set.", configured: false }, { status: 501 });
+      const out = await generateOpenAI(apiKey, parsed, prompt);
+      if ("error" in out) return NextResponse.json({ error: out.error }, { status: out.status });
+      return NextResponse.json({ ...out, provider: "gpt-image" });
     }
-    const mime = part.inlineData.mimeType ?? "image/png";
-    return NextResponse.json({
-      imageDataUrl: `data:${mime};base64,${part.inlineData.data}`,
-      provider: "gemini",
-      model: MODEL,
-    });
+    return NextResponse.json({ error: `Provider "${provider}" is not configured on the server.`, configured: false }, { status: 501 });
   } catch (err) {
-    return NextResponse.json({ error: `Gemini request failed: ${(err as Error).message}` }, { status: 502 });
+    return NextResponse.json({ error: `${provider} request failed: ${(err as Error).message}` }, { status: 502 });
   }
 }

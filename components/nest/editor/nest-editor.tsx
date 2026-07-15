@@ -69,6 +69,7 @@ import { capabilitiesFor, EDITOR_ROLES, roleLabel, type EditorRole } from "@/lib
 import { clampZoom, computeFitZoom } from "@/lib/nest-editor-view";
 import { EditorCanvas } from "@/components/nest/editor/editor-canvas";
 import { AssetDrawer } from "@/components/nest/editor/asset-drawer";
+import { CreateAssetSheet } from "@/components/nest/editor/create-asset-sheet";
 import { PropertiesPanel } from "@/components/nest/editor/properties-panel";
 import { FocusEditorOverlay } from "@/components/nest/editor/focus-editor-overlay";
 import { FocusSheet } from "@/components/nest/editor/focus-sheet";
@@ -151,6 +152,8 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   // M13 (Task 4B): generic overlays (text/image stickers).
   const [overlaySnap, setOverlaySnap] = useState<BottomSheetSnapPoint>("half");
   const [overlaySheetOpen, setOverlaySheetOpen] = useState(false);
+  // M32: the editor-first Create Asset flow (upload → cutout → generate → choose).
+  const [createOpen, setCreateOpen] = useState(false);
   // M7C.5: Preview uses the real NestSceneNavigator. `previewFocusId` (set by the Focus
   // sheet's "Preview focus" shortcut) auto-enters that area through the same navigator.
   const [previewFocusId, setPreviewFocusId] = useState<string | undefined>(undefined);
@@ -736,7 +739,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
 
             {/* Asset drawer — shared bottom sheet (canvas remains visible above) */}
             {mode === "assets" ? (
-              <AssetDrawer assets={trayAssets} advanced={caps.showProductionWarnings} onAdd={onAdd} onClose={() => setMode("arrange")} snap={assetSnap} onSnapChange={setAssetSnap} />
+              <AssetDrawer assets={trayAssets} advanced={caps.showProductionWarnings} onAdd={onAdd} onCreate={() => setCreateOpen(true)} onClose={() => setMode("arrange")} snap={assetSnap} onSnapChange={setAssetSnap} />
             ) : null}
 
             {/* Connect hint / binding sheet — shared bottom sheet (canvas stays interactive) */}
@@ -884,6 +887,17 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
       {toast ? <div className="pointer-events-none absolute bottom-20 left-1/2 z-[70] -translate-x-1/2 rounded-full bg-ink/90 px-4 py-2 text-xs font-bold text-parchment shadow-lg">{toast}</div> : null}
 
       {showPublish ? <PublishGate documentId={documentId} objects={doc.objects} onClose={() => setShowPublish(false)} /> : null}
+
+      <CreateAssetSheet
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => {
+          // The AI-inventory bridge refreshes the tray reactively, so the new asset
+          // appears in the library immediately — no navigation, no reload.
+          setToast("New asset added to your library ✨");
+          window.setTimeout(() => setToast(null), 2600);
+        }}
+      />
     </div>
   );
 

@@ -7,6 +7,69 @@ constants · result · decision · lesson). No design rule changes without an en
 
 ---
 
+## M32 — Asset Pipeline (Architecture Reset) · The factory, not the mug
+*Freeze the workflow, replace the generation architecture. Stop optimising prompts; build a pipeline where the
+provider is interchangeable and the Asset DNA is constant.*
+
+- **The lesson that created it:** the M31 mug failed because we were asking a foundation model to *invent an
+  art style that doesn't exist*. Changing prompts / providers is not a strategy — Nestudio needs its own
+  visual language expressed as **a specification every provider must satisfy.**
+- **Nestudio Asset DNA** — a formal, provider-agnostic spec: [NESTUDIO_ASSET_DNA.md](NESTUDIO_ASSET_DNA.md)
+  (17 fields — camera · lens · perspective · scale · padding · lighting · material · texture · edge · AO ·
+  shadow · colour · silhouette · shape · rendering · transparency · export) + a **code mirror**
+  [`lib/asset-dna.ts`](../../lib/asset-dna.ts). It **references** [RENDERING_DNA.md](RENDERING_DNA.md) / the
+  camera lock (no duplicated rules) and adds the provider-contract + the benchmark scorecard. **Prompts are
+  assembled FROM the DNA, never hand-written.**
+- **Two separate concerns.** Stage 1 **Cutout** (photo → cutout; Telegram-fast, forgiving, manual
+  erase/restore — [`lib/cutout.ts`](../../lib/cutout.ts)) is deliberately split from Stage 2 **Generation**
+  (cutout → reinterpreted Nestudio object). Never output a photo cutout.
+- **Provider-independent `generateAsset()`** — [`lib/asset-pipeline/`](../../lib/asset-pipeline): a thin
+  `AssetGenerationProvider` interface + a router with **one config switch** (`ACTIVE_ASSET_PROVIDER`).
+  Adapters: **GPT Image** + **Gemini** (real, keys present) · **Imagen** + **Flux** (honest *no-key* stubs) ·
+  **Local** (offline fallback). Uniform finishing (key-out → true alpha → trim → pad) for every provider, so
+  outputs are comparable. Nestudio never knows which provider produced an asset.
+- **Editor-first UX.** `+ Create Asset` is the **always-first tile** in the editor's Assets library; the whole
+  flow (Camera / Photo Library → AI Cutout → Quick Cleanup → Generate → Choose → appears in library) runs
+  **inside the editor** — the user never leaves. Telegram-inspired *interaction*, not Telegram output.
+- **Asset Benchmark Studio** (`/dev/asset-benchmark`, internal) — one source, every provider, side by side,
+  scored against the DNA by a **human**. See [ASSET_BENCHMARK.md](ASSET_BENCHMARK.md). **No winner chosen —
+  the factory is judged before the products.**
+- **New permanent rule:** *Stop optimising prompts.* Improve, in order, **preprocessing · cutout · provider
+  routing · rendering pipeline · Asset DNA.*
+- Verified end-to-end on mobile with real Gemini (upload → cutout → 3 true-alpha candidates → choose → library)
+  and both hosted providers reporting available in the benchmark. Gates green (typecheck · lint · 517 tests ·
+  build). Preview only — **no `main` merge, no production deploy.**
+
+---
+
+## M31 — Vertical Slice 01 + furniture@7 · The language enters the product
+*Documentation stops; the first real feature ships to preview. The judge becomes the render on screen.*
+
+- **First real feature (not docs): "my object became part of my home."** `Create → Turn your object into a
+  Nestudio asset → /creator-studio → upload photo → 3 Gemini candidates → choose one → Place in my Nest →
+  persists on reopen.` Proven end-to-end on mobile with the real hosted provider. (Committed `1bf506b`.)
+- **`furniture@7` — the reinterpretation prompt.** Corrects `furniture@6`, which shipped a *photo-cutout* mug
+  (photographic lighting, baked shadow, painted checker fringe) because it was a *fidelity* prompt. `@7`
+  rebuilds the belonging **from scratch as an original Nestudio object** — keep the identity, discard the
+  photograph: matte hand-painted, single soft warm key, ~10° life-sim camera, **no baked shadow**, plain
+  **solid** studio background **keyed out to true alpha** (never a painted checker). Now
+  `ACTIVE_PROMPT_VERSION.furniture`. (Committed `a27fa4e`; extends
+  [RENDERING_DNA.md](RENDERING_DNA.md) + the `furniture@N` lineage in [ART_DIRECTION_PROCESS.md](ART_DIRECTION_PROCESS.md).)
+- **The candidate-comparison workflow.** The studio generates **3 genuinely different candidates** —
+  **A Faithful · B Designed · C Characterful** — behind a **hard alpha-rejection gate** (opaque / checker /
+  clipped / solid-rect → reject + regenerate, ≤3 tries). The **human chooses one**; **only the chosen
+  candidate is saved**. Human approval is mandatory; nothing auto-selects.
+- **Principles that became true *in product* (added to the World Bible, not predicted):** *Reality wins* (the
+  rendered result is the only judge) · *Reinterpret, don't reproduce* · *Build memories, not assets* · *Design
+  by taste, not text.* Named founder directions for the experiential phase are recorded as **intent, not law**
+  until felt in a shipped moment.
+- **Pipeline change:** postProcess now cuts the *generated* background to true alpha when Gemini returns an
+  opaque/checker image, then trims + pads; contact-shadow disabled for furniture (Camera DNA).
+- Gates green at each commit (typecheck · lint · full test suite · build). Preview only — **no `main` merge,
+  no production deploy.** Old `furniture@6` mug removed from inventory/canvas/samples.
+
+---
+
 ## M30 — Icon Exploration · Building the Laboratory
 *Documentation stops leading; experimentation begins. Infrastructure only — nothing generated.*
 

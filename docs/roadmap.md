@@ -6,6 +6,31 @@ For technical detail see [architecture.md](../architecture.md); for testing see
 
 ---
 
+## 📍 Current Status (M31 — experiential phase, 2026-07)
+
+> **The project has left the documentation phase. The next work is experiential** — does the world
+> *feel* the way the design system says it should? That is now the only question. New here? Read
+> [SESSION_HANDOFF.md](SESSION_HANDOFF.md) and [CEO_NOTES.md](CEO_NOTES.md) first, then the
+> [World Bible](design/NESTUDIO_WORLD_BIBLE.md).
+
+- **M20–M31 happened after this roadmap was last rewritten.** M20–M22 built one reusable **AI engine**
+  (`lib/ai`) + Creator Studio; **M23–M25** froze the visual DNA (rendering · shape · geometric alphabet);
+  **M26–M30** founded the permanent `docs/design/` **World Bible** + Living World + Soul + the Icon/House
+  exploration *laboratories* (no winners chosen). Full history: [design/CHANGELOG.md](design/CHANGELOG.md).
+- **M31 shipped the first REAL feature (not docs): Vertical Slice 01 — "my object became part of my home."**
+  `Create → Turn your object into a Nestudio asset → /creator-studio → upload a photo → 3 real Gemini
+  candidates → choose one → Place in my Nest → it persists on reopen.` Proven end-to-end on mobile.
+- The active object prompt is **`furniture@7`** — it **reinterprets** an uploaded belonging (rebuild from
+  scratch as a Nestudio object; keep identity, discard the photo), correcting the `furniture@6` photo-cutout.
+- **Principle reconciliation (honest):** old **Product Principle 4** said *"AI selects assets, never generates
+  visuals."* That held for the room-designer era; it is **superseded for the personal-belonging path** —
+  runtime AI now *generates* a single personal object, human-approved, one at a time. Curated composition is
+  still the rule for everything else. See [nestudio-cto-handoff.md](nestudio-cto-handoff.md) §4.
+- **Single priority:** get `furniture@7` in front of the founder on his phone; iterate the render by *feeling*.
+- **State:** branch `m12-nest-platform`, last commit `a27fa4e`, **preview only** (no `main` merge, no prod).
+
+---
+
 ## Vision
 
 > **V2 architecture (ADR-027 + ADR-028): `Village → House → Nest → Objects → Content`.**
@@ -80,6 +105,14 @@ by generating visuals per creator.**
 | M19.1 — Arrival Magic & Atmosphere | 2026-07-03 | Pure polish/atmosphere so opening a Nest feels *magical*: **time of day** (morning/afternoon/evening/night — sky, light, window glow re-colour; `lib/nest-atmosphere.ts`), deterministic **daily weather** (sunny/cloudy/rain/snow), **house life** (smoke/glow/sway/birds), **cinematic camera** (tap zooms toward the house, neighborhood softens), **arrival polish** (avatar/bio/followers/nests/online + live time·weather chip), a **round-trip door** (Enter pushes forward · Exit closes back), deeper seed-derived **house identity** (roof/window/door/garden/mailbox), and an **ambient-audio architecture** behind `ENABLE_NEST_AUDIO` (off; no files). No deps/tables/migrations. Preview only (`m12-nest-platform`); 402 tests. See [m19.1-arrival-magic.md](m19.1-arrival-magic.md) + ADR-040. |
 | M19 — Villages, Houses & Arrival | 2026-07-03 | The first **spatial** layer: `Village → House → Nest` made real so *"I visit a place, not a profile."* Deterministic **House** model derived from persona/identity (`lib/nest-house.ts`, no editor/no storage); **Village** hex layout with generated neighbors (`lib/nest-village.ts`); a pannable **`/village`** of storybook SVG cottages; an **arrival** panel (`HouseFront`) + **Enter Nest door transition**; **`/@handle` re-framed as a house arrival** (hero + Enter + "Rooms in this house") preserving M16 identity + M18 social; discovery **Visit House** entry point. Pure presentation layer (no tables/migrations/flags). Preview only (`m12-nest-platform`); 389 tests. See [m19-villages-houses-arrival.md](m19-villages-houses-arrival.md) + ADR-039. |
 | M18 — Social Foundation | 2026-07-03 | The first **real** social layer so a creator feels visited: **real likes** (`LikeButton`), **real follows** (`FollowButton`, real follower/following counts), **Comments V1** (`CommentSheet` — slide-up, add/delete-own/newest-first/creator badge), **Notifications V1** (real inbox + nav unread badge), owner **"Today" activity**, and owner **Views/Likes/Comments/Followers** analytics. Local store (`lib/nest-social.ts` + `lib/nest-notifications-store.ts`) that emits notifications; guests gated in place with a sign-in sheet. Supabase schema authored (`20260703_01_nest_social.sql`) for the cutover. No algorithms/villages/marketplace/DMs/AI. Preview only (`m12-nest-platform`); 365 tests. See [m18-social-foundation.md](m18-social-foundation.md) + ADR-038. |
+| M19 — Villages, Houses & Chunk World | 2026-07-09 | The spatial layer `Village → House → Nest` + a **designed (not random) chunk-based village world engine** (`lib/village-chunks.ts` — templates + deterministic sequencer). Houses derived from persona; pannable village; door arrival. Preview only (`m12-nest-platform`). See [m19-villages-houses-arrival.md](m19-villages-houses-arrival.md). |
+| M20 — AI Creator Studio foundation | 2026-07-11 | **One reusable AI engine** (`lib/ai`): versioned prompt registry, `StudioConfig` reuse seam, provider abstraction (Canvas stub), modular asset pipeline, local inventory store, `/creator-studio` (upload→generate→approve→save→history), inventory surfaced in the editor asset tray. Furniture-only enabled; other studios registered but disabled — extend, don't fork. Preview only (`m12-nest-platform`). See [m20-ai-engine.md](../memory/m20-ai-engine.md). |
+| M21 — AI asset quality engine | 2026-07-12 | Production pipeline: premium canvas ops (palette-lock, unified matte/light/shadow, feather/despeckle/trim/pad), quality gates + iterative refine, style presets + versioned prompt library, metadata inference (category/tags/colours/material/room), **real Gemini provider** + env-gated `/api/ai/generate`, honest provider/fallback labelling. Preview only (`m12-nest-platform`). |
+| M22 — Lock the Nestudio visual language | 2026-07-13 | "One artist": art levers (palette-lock + unified light/matte/shadow), the master furniture prompt iterated to the DNA lock, a 12-object in-DNA consistency test, and Creator Studio stripped so the *output* is the hero. Established translation-not-reproduction + object-colour fidelity (`furniture@4`). Preview only. |
+| M23–M25 — Object · Shape · Alphabet DNA | 2026-07-13 | Froze the **rendering language** (matte hand-painted + warm key/AO; `furniture@5`), the **silhouette family rule** (pedestal · pebble · negative-space cut-out + 3-second test; `furniture@6`), and the **geometric alphabet** (Pebble · Capsule · Arch). Documentation + prompt lineage; no product feature. Now governed by [design/](design/NESTUDIO_WORLD_BIBLE.md). |
+| M26–M30 — World Bible, Living World, Soul, Icon/House Labs | 2026-07-14 | Founded the permanent `docs/design/` system: the **World Bible** (top authority), **Living World** (invisible laws), the **Soul** docs + founding filter, and the **Icon/House exploration laboratories** (frameworks + empty boards + `scripts/icon-lab.mjs` harness, generation hard-gated OFF — **no winners chosen**). Method principle: *documentation records discoveries, never predicts them; GPT creates · Human judges · Claude records.* Docs only, no code. See [design/CHANGELOG.md](design/CHANGELOG.md). |
+| M32 — Asset Pipeline (Architecture Reset) | 2026-07-15 | Froze the workflow, **replaced the generation architecture** with a **factory**: a constant **Nestudio Asset DNA** (spec [design/NESTUDIO_ASSET_DNA.md](design/NESTUDIO_ASSET_DNA.md) + code `lib/asset-dna.ts`; prompts assembled *from* it) + a **provider-independent** `generateAsset()` (`lib/asset-pipeline/`, one switch `ACTIVE_ASSET_PROVIDER`; adapters GPT Image + Gemini real, Imagen + Flux no-key, Local fallback). Cutout (`lib/cutout.ts`) split from generation. **Editor-first**: `+ Create` is the first Assets tile; the whole flow stays in the editor (verified end-to-end on mobile with real Gemini). **Asset Benchmark Studio** (`/dev/asset-benchmark`, internal) scores every provider against the DNA. New rule: *stop optimising prompts.* Preview only (`m12-nest-platform`); gates green (517 tests). See [SESSION_HANDOFF.md](SESSION_HANDOFF.md) + [design/CHANGELOG.md](design/CHANGELOG.md). |
+| M31 — Vertical Slice 01 + furniture@7 | 2026-07-15 | The first **real feature** (not docs): **"my object became part of my home"** — `Create → Turn your object into a Nestudio asset → /creator-studio → upload → 3 Gemini candidates (A Faithful · B Designed · C Characterful) → choose one → Place in my Nest → persists on reopen`, mobile-first, real hosted Gemini, true transparent PNG behind a hard alpha gate. **`furniture@7`** reinterprets (rebuild-from-scratch, matte, no baked shadow, solid bg keyed to true alpha), correcting the `furniture@6` photo-cutout; now `ACTIVE_PROMPT_VERSION.furniture`. Human approval mandatory; only the chosen candidate is saved. Commits `1bf506b` + `a27fa4e`. Preview only (`m12-nest-platform`); gates green. See [SESSION_HANDOFF.md](SESSION_HANDOFF.md) + [design/CHANGELOG.md](design/CHANGELOG.md). |
 
 All sprints ship green: `typecheck · lint · test · build`.
 
@@ -256,7 +289,7 @@ real wiring. Explicitly **not** AI, marketplace, payments, or chat.
 1. **The room is always the primary surface.** Everything else is navigation or secondary chrome.
 2. **No infinite feed.** Discovery means exploring spaces.
 3. **No traditional profile-first layout.** Owner info lives in drawers/panels around the room.
-4. **AI selects assets, never generates visuals.**
+4. **AI selects assets, never generates visuals.** *(Amended M31: still true for room/scene composition, but **superseded for the personal-belonging path** — runtime AI now generates one personal object at a time, human-approved. See the Current Status block above.)*
 5. **The asset library is the source of truth** for anything placeable.
 6. **Mobile-first and immersive.** The room should feel entered, not browsed.
 7. **Two layers, always in sync.** Every feature ships a demo (localStorage) layer and matching Supabase schema parity.
