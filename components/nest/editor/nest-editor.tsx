@@ -109,7 +109,7 @@ type SaveState = "idle" | "unsaved" | "saving" | "saved";
 // referenced non-production ids and rendered fallback boxes.
 const freshDocument = (): EditableNestDocument => productionStarterDocument();
 
-export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; documentId?: string } = {}) {
+export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableNestDocument; documentId?: string; pickAssetId?: string } = {}) {
   // `seed` (M12.x bridge): open on a document created by onboarding (production
   // background + placements) instead of the built-in Golden Living Nest fixture.
   // The catalog IS the production library: `ASSETS` (all statuses, so placements
@@ -157,6 +157,13 @@ export function NestEditor({ seed, documentId }: { seed?: EditableNestDocument; 
   const [mounted, setMounted] = useState(false);
   const caps = capabilitiesFor(role);
   useEffect(() => setMounted(true), []);
+  // Vertical Slice 01: arriving from "Place in my Nest" (Studio) opens straight into
+  // the Assets picker, where the just-created AI asset leads the tray — one tap to place.
+  useEffect(() => {
+    if (pickAssetId) setMode("assets");
+    // run once on arrival with a pick target
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickAssetId]);
   // M13 (Task 5): the editor is a full-screen fixed surface — lock page scroll while it's
   // mounted so the canvas can't rubber-band/scroll the page underneath on mobile.
   useEffect(() => {

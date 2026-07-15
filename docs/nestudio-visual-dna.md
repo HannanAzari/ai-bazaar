@@ -1,5 +1,11 @@
 # Nestudio Visual DNA — V1.0 (LOCK CANDIDATE)
 
+> **🎨 Governed by the World Bible (M26).** [docs/design/NESTUDIO_WORLD_BIBLE.md](design/NESTUDIO_WORLD_BIBLE.md)
+> is now the top authority. This doc remains the **canonical source of the palette, lighting law and world
+> philosophy** (inherited by [design/RENDERING_DNA.md](design/RENDERING_DNA.md) + [design/VISUAL_DNA.md](design/VISUAL_DNA.md)).
+> ⚠️ **Its camera section (§11) is SUPERSEDED** by [../nestudio-camera-dna-lock.md](nestudio-camera-dna-lock.md)
+> (10° life-sim camera) — use that for all camera/perspective decisions.
+
 > **🔄 V2 update (ADR-027 + ADR-028, House → Nest).** This DNA **carries forward** — palette,
 > warm-light/cool-shadow, rounded matte forms, one accent, cozy/handcrafted, north star *"this place
 > feels like me."* **What changes — the camera (ADR-028):** the locked production camera is now the

@@ -1,5 +1,14 @@
 # AI Bazaar
 
+> **🎨 Making any visual or world decision?** Read **[docs/design/NESTUDIO_WORLD_BIBLE.md](docs/design/NESTUDIO_WORLD_BIBLE.md) first**,
+> then [LIVING_WORLD.md](docs/design/LIVING_WORLD.md), then [SOUL_OF_NESTUDIO.md](docs/design/SOUL_OF_NESTUDIO.md),
+> then the rest of `docs/design/`. The World Bible is the single highest authority for every visual decision
+> (assets, houses, rooms, avatars, backgrounds, animation, AI prompts); all other design docs assume it has
+> been read. The founding filter for every decision: *Nestudio is a place people genuinely wish they could
+> visit, not a social network with beautiful rooms.* The iconic Nestudio house is discovered through the
+> identity-search framework in [docs/design/ICON_LAB.md](docs/design/ICON_LAB.md) (which invokes
+> [HOUSE_LAB.md](docs/design/HOUSE_LAB.md) if the face is a whole house).
+
 AI Bazaar is a mobile-first creative village where each member can claim one little house, decorate a standard room, share links, and welcome visitors through a memorable village address.
 
 The world map is a **hexagon district map**: ten villages laid out as a connected honeycomb, with a frontier of empty plots that signals room to grow. Each hex opens into its own ring of 24 houses around a shared green, fountain, tree, or garden — the horizontal circular street view and the per-house interior are unchanged.

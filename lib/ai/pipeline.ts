@@ -14,7 +14,7 @@
  */
 
 import type { PipelineContext, PipelineStage } from "./types";
-import { resizeMax, containSquare, trimTransparent, padSquare, rasterFromDataUrl } from "./canvas";
+import { resizeMax, containSquare, trimTransparent, padSquare, rasterFromDataUrl, alphaStats } from "./canvas";
 
 const MAX_SOURCE_BYTES = 12 * 1024 * 1024; // ~12MB data URL guard
 const WORKING_MAX = 1024;
@@ -90,7 +90,19 @@ export const generateStage: PipelineStage = {
 export const postProcessStage: PipelineStage = {
   name: "postProcess",
   async run(ctx) {
-    const trimmed = await trimTransparent(ctx.working!);
+    let img = ctx.working!;
+    // Cut out the GENERATED background so the final asset is a TRUE transparent PNG.
+    // Hosted models (Gemini) frequently return an OPAQUE image — sometimes with a
+    // *painted* transparency-checker — instead of real alpha. Detect that (opaque
+    // corners) and run the real cut-out; skip it only when the model already returned
+    // genuine transparency, so we never ship a fake checkerboard as "transparent."
+    if (ctx.config.removeBackground) {
+      const stats = await alphaStats(img);
+      if (!stats.transparentCorners) {
+        img = await ctx.provider.removeBackground(img, {});
+      }
+    }
+    const trimmed = await trimTransparent(img);
     ctx.output = await padSquare(trimmed, ctx.config.outputSize, ctx.config.padding);
     ctx.metadata.output = { width: ctx.output.width, height: ctx.output.height };
     return ctx;

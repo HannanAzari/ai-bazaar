@@ -3,6 +3,11 @@
 A sprint is **not complete** until every step below is done. Applies to every
 sprint, every time. No exceptions.
 
+> **🎨 Before making any visual decision this sprint, read [docs/design/NESTUDIO_WORLD_BIBLE.md](design/NESTUDIO_WORLD_BIBLE.md).**
+> If the sprint changed any visual rule, palette, prompt, camera, or added/changed an asset category, update
+> the relevant `docs/design/*` doc **and** append a [docs/design/CHANGELOG.md](design/CHANGELOG.md) entry —
+> no visual rule changes without the approval process in `docs/design/ART_DIRECTION_PROCESS.md`.
+
 ## 1. Update the documentation (source of truth)
 
 | # | Doc | Update with |

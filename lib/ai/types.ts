@@ -200,7 +200,15 @@ export type AssetMetadata = {
   name: string;
   subject: string;
   prompt: AssembledPrompt;
+  /** The provider that ACTUALLY produced the chosen image (never the requested one
+   *  if a fallback happened) — so a local fallback is never mislabeled as hosted. */
   provider: string;
+  /** The provider that was requested (may differ from `provider` on fallback). */
+  requestedProvider?: string;
+  /** True when the requested (hosted) provider failed and local produced the image. */
+  usedFallback?: boolean;
+  /** The hosted provider's error message, surfaced rather than hidden. */
+  providerError?: string;
   source: { fileName?: string; width: number; height: number };
   output: { width: number; height: number };
   /** ISO timestamp — stamped by the caller (kept out of pure code for determinism). */

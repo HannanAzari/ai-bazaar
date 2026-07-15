@@ -1,5 +1,10 @@
 # Asset Generation Prompt Bible — Production Pack V1
 
+> **🎨 Governed by the World Bible (M26).** Prompt *architecture, versioning and the evaluation scorecard*
+> now live in [docs/design/ART_DIRECTION_PROCESS.md](design/ART_DIRECTION_PROCESS.md); visual rules in
+> [docs/design/NESTUDIO_WORLD_BIBLE.md](design/NESTUDIO_WORLD_BIBLE.md). Read those first. This pack remains
+> the source of the exact Production-Pack-V1 prompt strings.
+
 > **Exact generation prompts** for the Nestudio Production Pack V1 (Golden Nest). Every
 > prompt is authored to the locked **front-facing cinematic camera** (ADR-028) and the
 > **Visual DNA** ([`docs/nestudio-visual-dna.md`](nestudio-visual-dna.md)). Prompt jobs are

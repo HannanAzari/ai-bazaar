@@ -11,3 +11,6 @@ tsconfig.tsbuildinfo
 
 # M12: generated candidate art lives in Supabase Storage, not git (~300MB)
 public/nests/*/candidates/
+
+# M22.2 mug-lab scratch (real photos + generated candidates)
+public/test-photos/

@@ -1,105 +1,161 @@
 "use client";
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, FlaskConical, Loader2, Sparkles, Trash2, Upload, Wand2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, FlaskConical, Home, Loader2, RefreshCw, Sparkles, Trash2, Upload, Wand2, X } from "lucide-react";
 import {
   generateAsset,
   STUDIO_CONFIGS,
-  listPresets,
-  type AssetKind,
   type GeneratedAsset,
   type ImageInput,
-  type PipelineEvent,
 } from "@/lib/ai";
 import { inventory, assetFromGenerated } from "@/lib/ai-inventory";
 import { useInventory } from "@/lib/ai-inventory/react";
 import { useDevMode, setDevMode } from "@/lib/dev-mode";
-import { SAMPLES } from "./samples";
+import { getBackgrounds, getTemplates, hydrateLibrary } from "@/lib/nest-production-library";
+import { createFromBackground, createFromTemplate } from "@/lib/nest-repo";
+import { listDrafts, setDocOwner } from "@/lib/nest-document-store";
+import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
+import { downscaleDataUrl } from "@/lib/image-downscale";
 
-// ── AI Creator Studio ────────────────────────────────────────────────────────
-// Upload → AI transforms into Nestudio style → transparent asset → preview →
-// approve → save → available in the editor. Minimal + premium; the AI output is
-// the hero. Every action flows through lib/ai + lib/ai-inventory — this page never
-// touches a provider or a prompt string. The kind switcher shows how Avatar /
-// Background / House studios light up from the SAME screen once enabled.
+// ── AI Creator Studio · Vertical Slice 01 ────────────────────────────────────
+// "My object became part of my home." Upload a real belonging → real hosted Gemini
+// translates it into Nestudio DNA (true transparent PNG) → pick 1 of 3 candidates →
+// save to inventory → Place in my Nest (opens the editor on a real draft so it
+// persists on reopen). Mobile-first; the AI output is the hero. Furniture only.
 
-const KINDS = Object.values(STUDIO_CONFIGS);
-const CHECKER =
-  "repeating-conic-gradient(#00000010 0% 25%, transparent 0% 50%) 50% / 20px 20px";
+const CHECKER = "repeating-conic-gradient(#00000010 0% 25%, transparent 0% 50%) 50% / 20px 20px";
+const NEST_TINT = "linear-gradient(160deg,#f3e9d2,#e7d6ac)";
+const CANDIDATE_COUNT = 3;
 
-type Phase = "idle" | "generating" | "preview" | "error";
+type Phase = "idle" | "generating" | "review" | "error";
+type Detail = "preserve" | "simplify";
+
+const SIMPLIFY_NOTE =
+  "Simplify: remove any writing, text, letters, numbers, stickers or logos from the surface; keep only the object's form, proportions and true colours.";
+
+function transparentEnough(a: GeneratedAsset): boolean {
+  // The pipeline cuts out the generated background; a real cutout has an alpha bbox
+  // well inside the frame. Coverage of the whole square < ~0.9 means it isn't a solid rectangle.
+  const q = a.metadata.quality;
+  return q ? !q.issues.some((i) => i.code === "transparent_bg") : true;
+}
 
 export function CreatorStudioClient() {
+  const router = useRouter();
+  const { ownerId } = useNestIdentity();
   const history = useInventory();
   const dev = useDevMode();
-  const [kind, setKind] = useState<AssetKind>("furniture");
+
   const [subject, setSubject] = useState("");
-  const [preset, setPreset] = useState("classic");
+  const [detail, setDetail] = useState<Detail>("preserve");
   const [input, setInput] = useState<ImageInput | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
-  const [generated, setGenerated] = useState<GeneratedAsset | null>(null);
-  const [log, setLog] = useState<PipelineEvent[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [candidates, setCandidates] = useState<GeneratedAsset[]>([]);
+  const [chosenId, setChosenId] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState<string | null>(null);
+  const [placing, setPlacing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const config = STUDIO_CONFIGS[kind];
-  const presets = listPresets();
+  const config = STUDIO_CONFIGS.furniture;
+  const chosen = useMemo(() => candidates.find((c) => c.id === chosenId) ?? null, [candidates, chosenId]);
 
-  const pickFile = useCallback((file: File) => {
+  const pickFile = useCallback(async (file: File) => {
+    setError(null);
     const reader = new FileReader();
-    reader.onload = () => {
-      setInput({ dataUrl: String(reader.result), fileName: file.name, mimeType: file.type });
-      setGenerated(null);
-      setPhase("idle");
-      setSavedId(null);
+    reader.onload = async () => {
+      try {
+        const raw = String(reader.result);
+        // Resize before upload (speed + avoid huge HEIC/12MB data URLs) WITHOUT
+        // destroying identity; keep the original for the side-by-side comparison.
+        const resized = await downscaleDataUrl(raw, 1600);
+        setInput({ dataUrl: resized, fileName: file.name, mimeType: "image/jpeg" });
+        setCandidates([]); setChosenId(null); setSavedId(null); setPhase("idle");
+      } catch {
+        setError("That image couldn't be read. Try a JPG, PNG or WebP photo.");
+      }
     };
+    reader.onerror = () => setError("That image couldn't be read. Try another photo.");
     reader.readAsDataURL(file);
   }, []);
 
   const onGenerate = useCallback(async () => {
     if (!input) return;
-    setPhase("generating");
-    setError(null);
-    setGenerated(null);
-    setLog([]);
+    setPhase("generating"); setError(null); setCandidates([]); setChosenId(null); setSavedId(null); setProgress(0);
+    const notes = detail === "simplify" ? SIMPLIFY_NOTE : undefined;
+    const out: GeneratedAsset[] = [];
     try {
-      const result = await generateAsset(kind, input, { subject, preset });
-      setGenerated(result);
-      setLog(result.log);
-      setPhase("preview");
+      for (let i = 0; i < CANDIDATE_COUNT; i++) {
+        const g = await generateAsset("furniture", input, { subject, notes });
+        out.push(g); setCandidates([...out]); setProgress(i + 1);
+      }
+      setPhase("review");
     } catch (e) {
-      setError((e as Error).message);
-      setPhase("error");
+      // If at least one candidate made it, let the user review those.
+      if (out.length) { setPhase("review"); setError(`Only ${out.length} of ${CANDIDATE_COUNT} generated: ${(e as Error).message}`); }
+      else { setError((e as Error).message); setPhase("error"); }
     }
-  }, [input, kind, subject, preset]);
+  }, [input, subject, detail]);
 
-  const onApprove = useCallback(async () => {
-    if (!generated) return;
-    await inventory.save(assetFromGenerated(generated, config.publishTargets[0]));
-    setSavedId(generated.id);
-  }, [generated, config]);
+  const onChoose = useCallback(async (g: GeneratedAsset) => {
+    setChosenId(g.id);
+    // Save immediately so nothing is lost, and dedupe by id (re-choosing is idempotent).
+    await inventory.save(assetFromGenerated(g, config.publishTargets[0]));
+    setSavedId(g.id);
+  }, [config]);
+
+  async function ensureDraftId(): Promise<string | undefined> {
+    const existing = listDrafts(ownerId);
+    if (existing.length) return existing[0].id; // continue the most recent Nest
+    await hydrateLibrary();
+    const tpls = getTemplates({ onlyVisible: true });
+    if (tpls.length) {
+      const doc = await createFromTemplate(tpls[0].id);
+      if (doc) { if (ownerId) setDocOwner(doc.id, ownerId); return doc.id; }
+    }
+    const bgs = getBackgrounds({ onlyVisible: true });
+    if (bgs.length) {
+      const doc = await createFromBackground(bgs[0].id, "My Nest");
+      if (ownerId) setDocOwner(doc.id, ownerId);
+      return doc.id;
+    }
+    return undefined;
+  }
+
+  const placeInNest = useCallback(async () => {
+    if (!chosen) return;
+    setPlacing(true);
+    try {
+      if (savedId !== chosen.id) await inventory.save(assetFromGenerated(chosen, config.publishTargets[0]));
+      const id = await ensureDraftId();
+      // Open the editor on a REAL draft (so the placement persists on reopen), in the
+      // Assets picker, with this new asset preselected (it leads the AI category).
+      router.push(id ? `/nest-editor?document=${id}&pick=${chosen.id}` : `/nest-editor?pick=${chosen.id}`);
+    } finally {
+      setPlacing(false);
+    }
+    // ensureDraftId is a stable local helper; deps intentionally omit it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosen, savedId, ownerId, config, router]);
 
   const reset = useCallback(() => {
-    setInput(null);
-    setGenerated(null);
-    setPhase("idle");
-    setError(null);
-    setSavedId(null);
+    setInput(null); setCandidates([]); setChosenId(null); setSavedId(null); setPhase("idle"); setError(null);
   }, []);
 
   return (
     <div className="min-h-[100dvh] bg-parchment pb-24">
-      {/* header */}
       <header className="sticky top-0 z-10 border-b border-timber/10 bg-parchment/85 backdrop-blur">
         <div className="mx-auto flex max-w-md items-center gap-3 px-4 py-3">
           <Link href="/create" className="grid size-9 place-items-center rounded-full bg-white/70 shadow-soft">
             <ArrowLeft className="size-4 text-ink/70" />
           </Link>
           <div>
-            <p className="eyebrow text-terracotta">Quality Engine</p>
-            <h1 className="display text-lg leading-none">AI Creator Studio</h1>
+            <p className="eyebrow text-[#7a4fa0]">Turn your object into a Nestudio asset</p>
+            <h1 className="display text-lg leading-none">Create with AI</h1>
           </div>
           <button
             onClick={() => setDevMode(!dev)}
@@ -112,183 +168,171 @@ export function CreatorStudioClient() {
       </header>
 
       <main className="mx-auto max-w-md space-y-5 px-4 pt-5">
-        {/* kind switcher — proves the multi-studio architecture */}
-        <div className="flex flex-wrap gap-2">
-          {KINDS.map((c) => (
-            <button
-              key={c.kind}
-              onClick={() => c.enabled && setKind(c.kind)}
-              disabled={!c.enabled}
-              className={`rounded-full px-3 py-1.5 text-xs font-bold shadow-soft transition ${
-                kind === c.kind ? "bg-terracotta text-parchment" : c.enabled ? "bg-white/80 text-ink/70" : "cursor-not-allowed bg-white/50 text-ink/30"
-              }`}
-              title={c.enabled ? c.label : `${c.label} — coming soon (same engine)`}
-            >
-              {c.label}
-              {!c.enabled ? " · soon" : ""}
-            </button>
-          ))}
-        </div>
-
-        {/* style preset — Nestudio Classic enabled; others prove the architecture */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-bold text-ink/45">Style:</span>
-          {presets.map((pr) => (
-            <button
-              key={pr.id}
-              onClick={() => pr.enabled && setPreset(pr.id)}
-              disabled={!pr.enabled}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-bold shadow-soft transition ${
-                preset === pr.id ? "bg-teal text-parchment" : pr.enabled ? "bg-white/80 text-ink/60" : "cursor-not-allowed bg-white/50 text-ink/30"
-              }`}
-            >
-              {pr.label.replace("Nestudio ", "")}{!pr.enabled ? " · soon" : ""}
-            </button>
-          ))}
-        </div>
-
-        {/* upload area */}
+        {/* upload */}
         <section>
           <div
             onClick={() => fileRef.current?.click()}
             onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              const f = e.dataTransfer.files?.[0];
-              if (f) pickFile(f);
-            }}
-            className="group grid cursor-pointer place-items-center rounded-3xl border-2 border-dashed border-timber/25 bg-white/50 p-8 text-center transition hover:border-terracotta/50"
+            onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) void pickFile(f); }}
+            className="group relative grid cursor-pointer place-items-center rounded-3xl border-2 border-dashed border-timber/25 bg-white/50 p-8 text-center transition hover:border-[#7a4fa0]/50"
             style={input ? { background: CHECKER } : undefined}
           >
             {input ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={input.dataUrl} alt="source" className="max-h-40 rounded-xl object-contain" />
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={input.dataUrl} alt="your object" className="max-h-48 rounded-xl object-contain" />
+                <button
+                  onClick={(e) => { e.stopPropagation(); reset(); }}
+                  className="absolute right-2 top-2 grid size-7 place-items-center rounded-full bg-black/45 text-white"
+                  aria-label="Remove photo"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </>
             ) : (
               <div className="space-y-1">
                 <Upload className="mx-auto size-7 text-ink/40" />
-                <p className="text-sm font-bold text-ink/70">Upload a photo of your object</p>
-                <p className="text-[11px] text-ink/45">PNG / JPG / WebP · tap or drop</p>
+                <p className="text-sm font-bold text-ink/70">Take or upload a photo of your object</p>
+                <p className="text-[11px] text-ink/45">Camera or library · JPG / PNG / WebP</p>
               </div>
             )}
           </div>
+          {/* accept="image/*" lets iOS offer Camera + Photo Library (and HEIC). */}
           <input
             ref={fileRef}
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept="image/*"
             className="hidden"
-            onChange={(e) => e.target.files?.[0] && pickFile(e.target.files[0])}
+            onChange={(e) => e.target.files?.[0] && void pickFile(e.target.files[0])}
           />
-
-          {/* samples */}
-          <div className="mt-3 flex items-center gap-2">
-            <span className="text-[11px] font-bold text-ink/45">Try a sample:</span>
-            {SAMPLES.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => { setInput(s.input); setSubject(s.subject); setGenerated(null); setPhase("idle"); setSavedId(null); }}
-                className="rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-bold text-ink/60 shadow-soft"
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
+          {input ? (
+            <button onClick={() => fileRef.current?.click()} className="mt-2 w-full rounded-xl border border-timber/15 bg-white/70 px-3 py-2 text-xs font-bold text-ink/60">
+              Replace photo
+            </button>
+          ) : null}
         </section>
 
-        {/* subject + generate */}
-        <section className="space-y-2">
-          <label className="block text-[11px] font-bold text-ink/50">What is it?</label>
-          <input
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            placeholder={config.defaultSubject}
-            className="w-full rounded-xl border border-timber/15 bg-white/70 px-3 py-2.5 text-sm text-ink outline-none focus:border-terracotta/50"
-          />
+        {/* subject + detail choice */}
+        <section className="space-y-3">
+          <div>
+            <label className="mb-1 block text-[11px] font-bold text-ink/50">What is it?</label>
+            <input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="e.g. my coffee mug"
+              className="w-full rounded-xl border border-timber/15 bg-white/70 px-3 py-2.5 text-sm text-ink outline-none focus:border-[#7a4fa0]/50"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-bold text-ink/50">Before we translate it…</label>
+            <div className="grid grid-cols-2 gap-2">
+              <DetailPill active={detail === "preserve"} onClick={() => setDetail("preserve")} title="Preserve details" sub="Keep writing & marks" />
+              <DetailPill active={detail === "simplify"} onClick={() => setDetail("simplify")} title="Simplify" sub="Remove writing" />
+            </div>
+          </div>
           <button
             onClick={onGenerate}
             disabled={!input || phase === "generating"}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 py-3 text-sm font-black text-parchment shadow-lift transition active:scale-[0.99] disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#7a4fa0] px-4 py-3 text-sm font-black text-parchment shadow-lift transition active:scale-[0.99] disabled:opacity-40"
           >
             {phase === "generating" ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
-            {phase === "generating" ? "Generating…" : "Generate Nestudio asset"}
+            {phase === "generating" ? `Creating ${progress}/${CANDIDATE_COUNT}…` : `Create ${CANDIDATE_COUNT} Nestudio versions`}
           </button>
         </section>
 
-        {/* pipeline log — engineering telemetry; dev-only so the output stays the hero */}
-        {dev && log.length ? (
-          <section className="rounded-2xl bg-white/60 p-3">
-            <p className="mb-1.5 text-[11px] font-bold text-ink/50">Pipeline</p>
-            <div className="flex flex-wrap gap-1.5">
-              {log.filter((e) => e.status === "done" || e.status === "skip").map((e, i) => (
-                <span key={i} className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${e.status === "skip" ? "bg-ink/5 text-ink/35" : "bg-meadow-shade/15 text-meadow-shade"}`}>
-                  {e.stage}{e.status === "skip" ? " (skipped)" : e.ms != null ? ` ${e.ms}ms` : ""}
-                </span>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
         {error ? <p className="rounded-xl bg-ember/10 px-3 py-2 text-sm font-bold text-ember">{error}</p> : null}
 
-        {/* comparison + quality — the AI output is the hero */}
-        {generated ? (
+        {/* review — original + 3 candidates */}
+        {candidates.length ? (
           <section className="space-y-3 rounded-3xl bg-white/70 p-4 shadow-soft">
-            {/* Original → Generated → Transparency → Final Asset */}
-            <div className="grid grid-cols-4 gap-1.5">
-              <CompareTile label="Original" bg="#fff">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={input?.dataUrl} alt="original" className="max-h-full max-w-full object-contain" />
-              </CompareTile>
-              <CompareTile label="Generated" bg="#f3ecdf">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={generated.png.dataUrl} alt="generated" className="max-h-full max-w-full object-contain" />
-              </CompareTile>
-              <CompareTile label="Alpha" checker>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={generated.png.dataUrl} alt="transparency" className="max-h-full max-w-full object-contain" />
-              </CompareTile>
-              <CompareTile label="In room" bg="#e7d8bd">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={generated.png.dataUrl} alt="final" className="max-h-full max-w-full object-contain" />
-              </CompareTile>
-            </div>
-
-            {/* quality + insights */}
-            <QualityRow generated={generated} dev={dev} />
-
             <div className="flex items-center justify-between">
-              <div>
-                <p className="display text-base leading-none">{generated.metadata.name}</p>
-                <p className="text-[11px] text-ink/45">
-                  {generated.png.width}×{generated.png.height} · transparent PNG · {generated.metadata.provider}
-                </p>
-              </div>
-              {savedId === generated.id ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-meadow-shade/15 px-3 py-1.5 text-xs font-bold text-meadow-shade">
-                  <Check className="size-3.5" /> Saved to inventory
-                </span>
-              ) : null}
+              <p className="text-sm font-black text-ink/70">{chosen ? "Your choice" : "Pick your favourite"}</p>
+              <button onClick={onGenerate} disabled={phase === "generating"} className="inline-flex items-center gap-1 text-[12px] font-bold text-[#7a4fa0] disabled:opacity-40">
+                <RefreshCw className="size-3.5" /> Regenerate all
+              </button>
             </div>
-            {savedId === generated.id ? (
-              <div className="flex gap-2">
-                <Link href="/nest-editor" className="flex-1 rounded-xl bg-terracotta px-4 py-2.5 text-center text-sm font-black text-parchment">Open editor</Link>
-                <button onClick={reset} className="rounded-xl border border-timber/20 bg-white px-4 py-2.5 text-sm font-bold text-ink/60">New</button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <button onClick={onApprove} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-meadow-shade px-4 py-2.5 text-sm font-black text-parchment">
-                  <Check className="size-4" /> Approve &amp; Save
+            <div className="grid grid-cols-4 gap-1.5">
+              <Tile label="Your photo" bg="#fff" onClick={() => input && setZoom(input.dataUrl)}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={input?.dataUrl} alt="your object" className="max-h-full max-w-full object-contain" />
+              </Tile>
+              {candidates.map((c, i) => (
+                <button
+                  key={c.id}
+                  onClick={() => onChoose(c)}
+                  className={`space-y-1 rounded-xl p-0.5 text-left ring-2 transition ${chosenId === c.id ? "ring-[#7a4fa0]" : "ring-transparent"}`}
+                >
+                  <div className="grid aspect-square place-items-center overflow-hidden rounded-lg p-1" style={{ background: NEST_TINT }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={c.png.dataUrl} alt={`candidate ${i + 1}`} className="max-h-full max-w-full object-contain" />
+                  </div>
+                  <p className="text-center text-[9px] font-bold uppercase tracking-wide text-ink/45">
+                    {String.fromCharCode(65 + i)}{chosenId === c.id ? " ✓" : ""}
+                  </p>
                 </button>
-                <button onClick={reset} className="rounded-xl border border-timber/20 bg-white px-4 py-2.5 text-sm font-bold text-ink/60">Discard</button>
-              </div>
+              ))}
+              {phase === "generating" ? Array.from({ length: CANDIDATE_COUNT - candidates.length }).map((_, i) => (
+                <div key={`ph${i}`} className="grid aspect-square animate-pulse place-items-center rounded-lg bg-white/40" />
+              )) : null}
+            </div>
+
+            {chosen ? (
+              <>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <PreviewCard label="Transparent" checker onClick={() => setZoom(chosen.png.dataUrl)}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={chosen.png.dataUrl} alt="transparent" className="max-h-full max-w-full object-contain" />
+                  </PreviewCard>
+                  <PreviewCard label="On a Nest" bg={NEST_TINT}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={chosen.png.dataUrl} alt="on tint" className="max-h-full max-w-full object-contain" />
+                  </PreviewCard>
+                  <PreviewCard label="Enlarge" bg="#f3ecdf" onClick={() => setZoom(chosen.png.dataUrl)}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={chosen.png.dataUrl} alt="enlarge" className="max-h-full max-w-full object-contain" />
+                  </PreviewCard>
+                </div>
+
+                <div>
+                  <p className="display text-base leading-none">{chosen.metadata.name}</p>
+                  <p className="text-[11px] text-ink/45">
+                    {chosen.png.width}×{chosen.png.height} · {transparentEnough(chosen) ? "transparent PNG" : "opaque (cutout failed)"} ·{" "}
+                    <span className={chosen.metadata.usedFallback ? "font-bold text-ember" : "font-bold text-teal"}>
+                      {chosen.metadata.usedFallback ? `local fallback (from ${chosen.metadata.requestedProvider})` : chosen.metadata.provider}
+                    </span>
+                  </p>
+                  {chosen.metadata.providerError ? (
+                    <p className="mt-1 rounded bg-ember/10 px-2 py-1 text-[10px] font-bold text-ember">Hosted error: {chosen.metadata.providerError}</p>
+                  ) : null}
+                </div>
+
+                <button
+                  onClick={placeInNest}
+                  disabled={placing}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#7a4fa0] px-4 py-3 text-sm font-black text-parchment shadow-lift disabled:opacity-50"
+                >
+                  {placing ? <Loader2 className="size-4 animate-spin" /> : <Home className="size-4" />}
+                  {placing ? "Opening your Nest…" : "Place in my Nest"}
+                </button>
+                <p className="text-center text-[11px] text-ink/45">Saved to your inventory · appears in the editor’s AI category</p>
+              </>
+            ) : (
+              <p className="text-center text-[12px] text-ink/45">Tap A, B or C to choose the one that feels most like your object.</p>
             )}
+
+            {dev && chosen ? (
+              <p className="font-mono text-[10px] text-ink/40">
+                {chosen.metadata.provider} · {chosen.metadata.promptVersion} · q{chosen.metadata.quality ? Math.round(chosen.metadata.quality.score * 100) : "—"} · {chosen.metadata.refinePasses ?? 0} pass
+              </p>
+            ) : null}
           </section>
         ) : null}
 
-        {/* history / inventory */}
+        {/* inventory */}
         <section>
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-black text-ink/70">Your inventory</h2>
-            <span className="text-[11px] text-ink/40">{history.length} asset{history.length === 1 ? "" : "s"}</span>
+            <h2 className="text-sm font-black text-ink/70">Your objects</h2>
+            <span className="text-[11px] text-ink/40">{history.length}</span>
           </div>
           {history.length ? (
             <div className="grid grid-cols-3 gap-2">
@@ -299,71 +343,54 @@ export function CreatorStudioClient() {
                     <img src={a.imageUrl} alt={a.name} className="max-h-full object-contain" />
                   </div>
                   <p className="truncate px-2 py-1 text-[10px] font-bold text-ink/60">{a.name}</p>
-                  <button
-                    onClick={() => inventory.remove(a.id)}
-                    className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/40 text-white opacity-0 transition group-hover:opacity-100"
-                    aria-label="Delete"
-                  >
+                  <button onClick={() => inventory.remove(a.id)} className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/40 text-white opacity-0 transition group-hover:opacity-100" aria-label="Delete">
                     <Trash2 className="size-3" />
                   </button>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="rounded-2xl bg-white/50 px-3 py-6 text-center text-[12px] text-ink/45">
-              Approved assets land here and appear in the editor&apos;s asset picker.
-            </p>
+            <p className="rounded-2xl bg-white/50 px-3 py-6 text-center text-[12px] text-ink/45">Your translated objects land here and in the editor’s AI category.</p>
           )}
         </section>
-
-        {/* dev-only: the review panel (future Admin Asset Factory) */}
-        {dev ? (
-          <Link href="/creator-studio/review" className="flex items-center justify-center gap-2 rounded-xl border border-teal/30 bg-teal/10 px-4 py-2.5 text-sm font-bold text-teal">
-            <FlaskConical className="size-4" /> Open Asset Review panel
-          </Link>
-        ) : null}
       </main>
-    </div>
-  );
-}
 
-function CompareTile({ label, children, bg, checker }: { label: string; children: ReactNode; bg?: string; checker?: boolean }) {
-  return (
-    <div className="space-y-1">
-      <div className="grid aspect-square place-items-center overflow-hidden rounded-xl p-1.5" style={{ background: checker ? CHECKER : bg }}>
-        {children}
-      </div>
-      <p className="text-center text-[9px] font-bold uppercase tracking-wide text-ink/40">{label}</p>
-    </div>
-  );
-}
-
-function QualityRow({ generated, dev }: { generated: GeneratedAsset; dev: boolean }) {
-  const q = generated.metadata.quality;
-  const insights = (generated.metadata.insights ?? {}) as { material?: string; recommendedRoom?: string; colors?: string[]; surfaceType?: string; scaleHint?: string };
-  const score = q ? Math.round(q.score * 100) : 0;
-  const tone = score >= 85 ? "text-meadow-shade bg-meadow-shade/15" : score >= 60 ? "text-saffron bg-saffron/15" : "text-ember bg-ember/15";
-  return (
-    <div className="space-y-1.5">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${tone}`}>Quality {score}%{q?.ok ? " ✓" : ""}</span>
-        {insights.material ? <Chip>{insights.material}</Chip> : null}
-        {insights.recommendedRoom ? <Chip>{insights.recommendedRoom}</Chip> : null}
-        {insights.surfaceType ? <Chip>{insights.surfaceType}</Chip> : null}
-        {(insights.colors ?? []).slice(0, 3).map((c) => (
-          <span key={c} className="size-4 rounded-full ring-1 ring-black/10" style={{ background: c }} title={c} />
-        ))}
-      </div>
-      {dev ? (
-        <p className="font-mono text-[10px] text-ink/45">
-          {generated.metadata.promptVersion} · preset:{generated.metadata.preset} · {generated.metadata.refinePasses ?? 0} refine pass{(generated.metadata.refinePasses ?? 0) === 1 ? "" : "es"}
-          {q && q.issues.length ? ` · ${q.issues.map((i) => i.code).join(", ")}` : ""}
-        </p>
+      {/* zoom modal */}
+      {zoom ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-6" onClick={() => setZoom(null)}>
+          <div className="grid max-h-[80vh] max-w-full place-items-center rounded-2xl p-4" style={{ background: CHECKER }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={zoom} alt="enlarged" className="max-h-[70vh] max-w-full object-contain" />
+          </div>
+        </div>
       ) : null}
     </div>
   );
 }
 
-function Chip({ children }: { children: ReactNode }) {
-  return <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[10px] font-bold text-ink/55">{children}</span>;
+function DetailPill({ active, onClick, title, sub }: { active: boolean; onClick: () => void; title: string; sub: string }) {
+  return (
+    <button onClick={onClick} className={`rounded-xl border px-3 py-2 text-left transition ${active ? "border-[#7a4fa0] bg-[#efe3f6]" : "border-timber/15 bg-white/70"}`}>
+      <p className="text-xs font-black text-ink/75">{title}{active ? " ✓" : ""}</p>
+      <p className="text-[10px] text-ink/45">{sub}</p>
+    </button>
+  );
+}
+
+function Tile({ label, children, bg, onClick }: { label: string; children: ReactNode; bg?: string; onClick?: () => void }) {
+  return (
+    <button onClick={onClick} className="space-y-1 text-left">
+      <div className="grid aspect-square place-items-center overflow-hidden rounded-lg p-1" style={{ background: bg }}>{children}</div>
+      <p className="text-center text-[9px] font-bold uppercase tracking-wide text-ink/40">{label}</p>
+    </button>
+  );
+}
+
+function PreviewCard({ label, children, bg, checker, onClick }: { label: string; children: ReactNode; bg?: string; checker?: boolean; onClick?: () => void }) {
+  return (
+    <button onClick={onClick} className="space-y-1 text-left">
+      <div className="grid aspect-square place-items-center overflow-hidden rounded-xl p-1.5" style={{ background: checker ? CHECKER : bg }}>{children}</div>
+      <p className="text-center text-[9px] font-bold uppercase tracking-wide text-ink/40">{label}</p>
+    </button>
+  );
 }

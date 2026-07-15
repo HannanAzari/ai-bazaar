@@ -1,5 +1,9 @@
 # Nestudio Production Pipeline — Master Architecture (V2)
 
+> **🎨 For visual decisions**, the [docs/design/NESTUDIO_WORLD_BIBLE.md](design/NESTUDIO_WORLD_BIBLE.md) is the
+> top authority (palette, light, camera, shape, alphabet). This doc remains the master for **architecture &
+> product model** (`Village → House → Nest`); the two are complementary.
+
 > **This is the master architecture document.** It supersedes the Scene-Pack / Room-Shell /
 > Wall-Pack architecture (ADR-021/022/025/026) and is the source of truth for everything that
 > follows. Pivot recorded in **ADR-027**. New-CTO orientation: [nestudio-cto-handoff.md](nestudio-cto-handoff.md).

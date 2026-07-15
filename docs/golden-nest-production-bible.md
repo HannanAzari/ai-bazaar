@@ -1,5 +1,10 @@
 # Golden Nest Production Bible
 
+> **🎨 Governed by the World Bible (M26).** For visual DNA (palette, light, camera, shape, alphabet,
+> rendering), [docs/design/NESTUDIO_WORLD_BIBLE.md](design/NESTUDIO_WORLD_BIBLE.md) is the top authority —
+> read it first. This bible remains useful for **production/operational** detail; where the two overlap on
+> visual rules, the World Bible wins (a future pass should merge the non-duplicated operational content).
+
 > **The definitive art & production bible for Nestudio.** It defines what a Nest is, the locked
 > visual/production language, and the system that lets Nestudio scale to **millions of creators while
 > staying handcrafted and premium.** Builds on the V2 architecture

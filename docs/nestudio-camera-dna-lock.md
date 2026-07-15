@@ -1,5 +1,9 @@
 # Nestudio Camera DNA — LOCKED (immutable)
 
+> **🎨 Cited as the immutable camera authority by the World Bible (M26).** See
+> [docs/design/NESTUDIO_WORLD_BIBLE.md](design/NESTUDIO_WORLD_BIBLE.md) and
+> [design/RENDERING_DNA.md §6](design/RENDERING_DNA.md). This file's values are canon; the Bible mirrors them.
+
 > **Status: LOCKED / immutable project DNA.** The finalized camera language for every Nestudio
 > background and asset — an **Animal Crossing–inspired life-simulation camera**. It must never
 > change again. **The root cause of poor asset consistency was perspective mismatch, not object

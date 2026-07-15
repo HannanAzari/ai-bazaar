@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Palette, Sparkles } from "lucide-react";
+import { ArrowLeft, Palette, Sparkles, Wand2 } from "lucide-react";
 import { getBackgrounds, getTemplates, hydrateLibrary, onProductionChanged } from "@/lib/nest-production-library";
 import { createFromBackground, createFromTemplate } from "@/lib/nest-repo";
 import { setDocOwner } from "@/lib/nest-document-store";
@@ -64,7 +64,7 @@ export function CreateClient() {
         </button>
       ) : null}
 
-      {step === "entry" ? <Entry onQuick={() => setStep("quick")} onBuild={() => setStep("build")} /> : null}
+      {step === "entry" ? <Entry onQuick={() => setStep("quick")} onBuild={() => setStep("build")} onAi={() => router.push("/creator-studio")} /> : null}
 
       {step === "quick" ? (
         <section className="space-y-4">
@@ -113,7 +113,7 @@ export function CreateClient() {
 const btnPrimary = "block w-full rounded-xl bg-terracotta px-4 py-3 text-center text-sm font-bold text-parchment hover:brightness-95 disabled:opacity-60";
 const btnGhost = "block w-full rounded-xl px-4 py-2 text-center text-sm font-bold text-ink/50 hover:text-ink";
 
-function Entry({ onQuick, onBuild }: { onQuick: () => void; onBuild: () => void }) {
+function Entry({ onQuick, onBuild, onAi }: { onQuick: () => void; onBuild: () => void; onAi: () => void }) {
   return (
     <section className="space-y-6 pt-2">
       <div className="text-center">
@@ -125,6 +125,10 @@ function Entry({ onQuick, onBuild }: { onQuick: () => void; onBuild: () => void 
         <div className="flex items-center gap-2"><Sparkles className="size-5 text-terracotta" /><span className="display text-2xl">Quick Start</span></div>
         <p className="mt-1 text-sm text-ink/55">Create your Nest in under 2 minutes.</p>
         <span className="mt-3 inline-block rounded-full bg-terracotta px-3 py-1 text-xs font-bold text-parchment">Recommended</span>
+      </button>
+      <button onClick={onAi} className="block w-full rounded-3xl border border-timber/15 bg-gradient-to-br from-[#efe3f6] to-[#e5d3ec] p-5 text-left shadow-soft transition hover:brightness-[0.98]">
+        <div className="flex items-center gap-2"><Wand2 className="size-5 text-[#7a4fa0]" /><span className="display text-2xl">Turn your object into a Nestudio asset</span></div>
+        <p className="mt-1 text-sm text-ink/55">Photograph a real belonging and place it in your Nest.</p>
       </button>
       <button onClick={onBuild} className="block w-full rounded-3xl border border-timber/15 bg-white p-5 text-left shadow-soft transition hover:brightness-[0.98]">
         <div className="flex items-center gap-2"><Palette className="size-5 text-teal" /><span className="display text-2xl">Build My Own</span></div>

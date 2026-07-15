@@ -153,7 +153,11 @@ export async function generateAsset(kind: AssetKind, input: ImageInput, opts: Ge
   };
 
   // ── Iterative generate → score → improve → keep best. ──
+  // Track which provider ACTUALLY produced each pass, and any hosted error, so the
+  // asset is never mislabeled as hosted when the local fallback ran (M22.1).
   const passes = opts.refinePasses ?? config.refinePasses ?? 1;
+  const providerByPass: string[] = [];
+  let hostedError: string | undefined;
   const refined = await generateWithRefinement<RasterImage>({
     initialPrompt,
     passes,
@@ -162,15 +166,20 @@ export async function generateAsset(kind: AssetKind, input: ImageInput, opts: Ge
       try {
         const g = await generateStage.run(passCtx);
         const p = await postProcessStage.run(g);
+        providerByPass.push(provider.id);
         return p.output!;
       } catch (err) {
-        // Hosted provider unavailable/failed → fall back to the local provider so
-        // the Studio always produces an asset. The DNA prompt + tonal params are
-        // the same, so the look stays consistent.
-        if (provider.id === FALLBACK_PROVIDER_ID) throw err;
+        // Requested (hosted) provider failed → fall back to the local provider so
+        // the Studio always produces an asset — but record it honestly.
+        if (provider.id === FALLBACK_PROVIDER_ID) {
+          providerByPass.push(provider.id);
+          throw err;
+        }
+        hostedError = (err as Error).message;
         const fallbackCtx: PipelineContext = { ...ctx, prompt, working: prepped, output: undefined, provider: getProvider(FALLBACK_PROVIDER_ID) };
         const g = await generateStage.run(fallbackCtx);
         const p = await postProcessStage.run(g);
+        providerByPass.push(FALLBACK_PROVIDER_ID);
         return p.output!;
       }
     },
@@ -178,6 +187,8 @@ export async function generateAsset(kind: AssetKind, input: ImageInput, opts: Ge
   });
 
   const chosen = refined.best;
+  const actualProvider = providerByPass[chosen.pass] ?? provider.id;
+  const usedFallback = actualProvider !== provider.id;
   const finalPng = config.contactShadow ? await addContactShadow(chosen.image) : chosen.image;
 
   // ── Insights (colours + heuristics). ──
@@ -197,7 +208,10 @@ export async function generateAsset(kind: AssetKind, input: ImageInput, opts: Ge
       name: titleFor(subject),
       subject,
       prompt: chosen.prompt,
-      provider: provider.id,
+      provider: actualProvider,
+      requestedProvider: provider.id,
+      ...(usedFallback ? { usedFallback: true } : {}),
+      ...(hostedError ? { providerError: hostedError } : {}),
       source: ctx.metadata.source ?? { width: 0, height: 0 },
       output: { width: finalPng.width, height: finalPng.height },
       createdAt,

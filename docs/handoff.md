@@ -1,5 +1,8 @@
 # AI Bazaar — Handoff
 
+> **🎨 Before ANY visual decision, read [docs/design/NESTUDIO_WORLD_BIBLE.md](design/NESTUDIO_WORLD_BIBLE.md) first** —
+> the single highest authority for the Nestudio visual language (supersedes the design references below).
+
 Read this first. It gets a new session productive in ~5 minutes. Deeper detail:
 [architecture.md](../architecture.md) · direction: [roadmap.md](roadmap.md) ·
 history: [changelog.md](changelog.md) · testing: [QA.md](QA.md) ·

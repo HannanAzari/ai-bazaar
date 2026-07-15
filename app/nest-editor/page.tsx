@@ -13,8 +13,8 @@ export const metadata = {
 export default async function NestEditorPage({
   searchParams,
 }: {
-  searchParams: Promise<{ document?: string; doc?: string }>;
+  searchParams: Promise<{ document?: string; doc?: string; pick?: string }>;
 }) {
   const sp = await searchParams;
-  return <NestEditorMount documentId={sp.document ?? sp.doc} />;
+  return <NestEditorMount documentId={sp.document ?? sp.doc} pickAssetId={sp.pick} />;
 }

@@ -13,7 +13,7 @@ import type { EditableNestDocument } from "@/lib/nest-editor-types";
 // Loads the NestDocument (?document=<id>) and seeds the full editor. M16: enforces
 // ownership — only the owner (or an un-owned guest draft) opens the editor; anyone
 // else gets a read-only notice instead of editing another creator's Nest.
-export function NestEditorMount({ documentId }: { documentId?: string }) {
+export function NestEditorMount({ documentId, pickAssetId }: { documentId?: string; pickAssetId?: string }) {
   const { ownerId, loading: idLoading } = useNestIdentity();
   const [seed, setSeed] = useState<EditableNestDocument | undefined>(undefined);
   const [state, setState] = useState<"loading" | "ready" | "denied">(documentId ? "loading" : "ready");
@@ -47,5 +47,5 @@ export function NestEditorMount({ documentId }: { documentId?: string }) {
     );
   }
   if (state === "loading") return null;
-  return <NestEditor seed={seed} documentId={documentId} />;
+  return <NestEditor seed={seed} documentId={documentId} pickAssetId={pickAssetId} />;
 }

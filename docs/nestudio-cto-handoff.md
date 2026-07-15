@@ -1,5 +1,16 @@
 # Nestudio — CTO Handoff (V2, House → Nest architecture)
 
+> **🎨 Visual & world authority:** [docs/design/NESTUDIO_WORLD_BIBLE.md](design/NESTUDIO_WORLD_BIBLE.md) is the
+> single highest authority for every visual decision — read it first, then
+> [LIVING_WORLD.md](design/LIVING_WORLD.md) and [SOUL_OF_NESTUDIO.md](design/SOUL_OF_NESTUDIO.md). This
+> handoff's Visual DNA notes (§7) are now governed by it. Founding filter: *Nestudio is a place people
+> genuinely wish they could visit, not a social network with beautiful rooms.* The iconic house is discovered
+> via the [ICON_LAB.md](design/ICON_LAB.md) framework (30 icon directions at every scale → emotional
+> tournament → the one uncopyable image), which invokes [HOUSE_LAB.md](design/HOUSE_LAB.md) if the face is a
+> whole house. **From M31 the design method is permanent: GPT creates · Human judges · Claude records** —
+> the identity emerges from prototypes judged by taste (Icon Lab: [design/ICON_EXPERIMENTS.md](design/ICON_EXPERIMENTS.md)),
+> and *documentation records discoveries, never predicts them.*
+
 > Self-contained orientation for a new CTO. You should be able to continue without re-reading prior
 > decisions. Master architecture: [nestudio-production-pipeline.md](nestudio-production-pipeline.md).
 > Pivot rationale: **ADR-027**; **camera lock: ADR-028** in [decision-log.md](decision-log.md).
