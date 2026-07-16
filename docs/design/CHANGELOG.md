@@ -7,6 +7,32 @@ constants · result · decision · lesson). No design rule changes without an en
 
 ---
 
+## M35 — The Nestudio Art Engine · One artistic language
+*(the founder's "M33" brief.) Generation quality: make AI assets indistinguishable from official ones — by
+MEASURING the official style and holding generated output to it. No prompts / Gemini / generation logic changed.*
+
+- **Phase 1 — measured DNA.** [`lib/art-engine/fingerprint.ts`](../../lib/art-engine/fingerprint.ts) +
+  [`official.ts`](../../lib/art-engine/official.ts) fingerprint the real golden-nest library (palette,
+  saturation, warmth, value, matte, edge softness, coverage, purity) → a mean+variance **StyleProfile**.
+  Measuring corrected wrong assumptions (officials are **crisp-edged**, **tightly cropped**, matte ≈ 0.60 not
+  0.97). Full findings: [NESTUDIO_DNA_MEASURED.md](NESTUDIO_DNA_MEASURED.md).
+- **Phase 2/4 — Style Validator (the gate).** [`validator.ts`](../../lib/art-engine/validator.ts) scores a
+  candidate against the profile; tolerances come from the library's own variance so **~7/8 officials belong**
+  and neon/gloss fails. **Palette discipline is the one hard veto**; matte/purity are weighted, not vetoes
+  (even the official lamp glows). The art-director critic, but measurable = cheap.
+- **Phase 3/4/7 — conform + gated retry.** [`conform.ts`](../../lib/art-engine/conform.ts) pulls any provider's
+  output into one material language, **identity-preserving** (hue untouched — M22 rule): matte-grade + tame
+  blown highlights/pure-whites → warm matte cream (measured to lift matte 0.51→1.00). Wired into
+  `generateAsset`: finish → conform → validate → **regenerate only on failure** (cost-aware).
+- **Phase 5/6 — family test + benchmark.** `/dev/art-engine` (internal): a generated asset **beside the
+  official sofa/bookshelf/lamp/table/plant**, and the 9 benchmark objects each scored by the gate.
+- Verified: officials calibrate high, a real generated **coffee mug** clears the gate at **~63% ("belongs")**
+  after conforming, and the gate rejects neon/gloss. Gates green (typecheck · lint · **533 tests** · build).
+  Preview only — **no prompt/model/generation changes, no `main` merge, no production deploy.** The Definition
+  of Done (a human blind test) remains the final word — this ships the machinery to reach it.
+
+---
+
 ## M34 — Premium Segmentation Experience · Nestudio understood what you meant
 *(the founder's "M32.5" brief.) Replaces the manual cutout editor with real on-device object selection —
 Telegram / Apple Photos feel. **No AI/prompt/Gemini/style/generation changes** — only Stage-1 cutout UX.*

@@ -63,6 +63,8 @@ export type AssetGenerationResult = {
   candidates: AssetCandidate[];
   /** The hosted provider's error, surfaced rather than hidden. */
   error?: string;
+  /** The Style Validator report for the chosen candidate (Art Engine gate). */
+  report?: import("@/lib/art-engine/validator").StyleReport;
 };
 
 /**

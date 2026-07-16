@@ -4,41 +4,43 @@
 > replace it each sprint — history lives in [design/CHANGELOG.md](design/CHANGELOG.md) and
 > [roadmap.md](roadmap.md), not here.
 
-**Sprint:** M34 — Premium Segmentation Experience (the founder's "M32.5" brief)
+**Sprint:** M35 — The Nestudio Art Engine (the founder's "M33" brief)
 **Updated:** 2026-07-16 · **Branch:** `m12-nest-platform`
-**Mode:** preview only — **no AI/prompt/Gemini/generation/style changes · no `main` merge · no prod.**
+**Mode:** preview only — **no prompt/Gemini/generation changes · no `main` merge · no prod.**
 
 ---
 
 ## The goal
 
-> Creating an asset should feel effortless — the user should almost never feel like they're editing an image.
-> They should feel like **Nestudio instantly understood what they meant.** Compared side-by-side with Telegram
-> sticker creation, Nestudio should feel equally premium or better, and finish in **under 10 seconds** without
-> reading instructions.
+> Make AI-generated assets **indistinguishable from official Nestudio assets** — *one artistic language*, not
+> "better AI." The Definition of Done is a **human blind test**: 10 generated mixed with 10 official; if they
+> can't be reliably told apart, done.
 
-## What shipped (Stage-1 cutout only — no generation touched)
+The lever (consistent with the frozen "stop optimising prompts" rule): **measure the official style, conform
+generated output to it, and gate on it** — not ask the model differently.
 
-- **Real on-device segmentation** — [`lib/segmentation/`](design/../../lib/segmentation): MediaPipe Interactive
-  Segmenter (`magic_touch`, bundled model, in-browser WASM — no server roundtrip, not Gemini) + a local
-  **flood fallback** so it can never fail.
-- **Segmentation-first**: auto-detect the subject → **tap the object you want** → background disappears. The
-  erase/restore brush is a fallback ("Fix edges"), not step one.
-- **Premium presentation**: object floats on a **warm paper card** (no giant checkerboard), soft glow outline,
-  scale-pop, faded/desaturated background, tap-hint dots, shimmer instead of a spinner.
-- **Premium floating modal**; focused edit tools (Erase · Restore · Undo · Redo · brush · Done, edges-only).
-- **Verified <300ms** tap-to-select (~237ms measured), 60fps, local.
+## What shipped ([`lib/art-engine/`](design/../../lib/art-engine))
 
-## Next: Sprint B — the Nestudio Art Engine
+- **Measured DNA** (Phase 1): fingerprint the real official library → a mean+variance profile. Measuring
+  corrected wrong assumptions (officials are crisp-edged, tightly cropped, matte ≈ 0.60). See
+  [design/NESTUDIO_DNA_MEASURED.md](design/NESTUDIO_DNA_MEASURED.md).
+- **Style Validator** (Phase 2/4): the quality gate. ~7/8 officials belong; neon/gloss fails; palette
+  discipline is the one hard veto.
+- **Conform + gated retry** (Phase 3/4/7): pull output into one material language (identity-preserving),
+  regenerate only on failure. Cost-aware.
+- **Family test + benchmark** (Phase 5/6): `/dev/art-engine` — generated beside the official
+  sofa/bookshelf/lamp/table/plant + the 9 benchmark objects, each scored.
 
-Generation *quality* (Asset DNA, provider benchmark) — see
-[design/NESTUDIO_ASSET_DNA.md](design/NESTUDIO_ASSET_DNA.md) + [design/ASSET_BENCHMARK.md](design/ASSET_BENCHMARK.md).
-Only once the whole create experience feels effortless.
+## Honest status
+
+The validator is a **calibrated proxy**; the human blind test is the final word. A real generated coffee mug
+now clears the gate at ~63% ("belongs"); pure-white objects sit closest to the line (they read brighter than
+warm furniture). Next iteration = run the blind test and tighten conform/thresholds from real judgements.
 
 ## Do NOT (this sprint — hard rules from the brief)
 
-Change prompts · tweak Gemini/GPT Image · modify the generation pipeline · change asset style · add generation
-models · optimise AI quality. Also: no `main` merge, no prod deploy.
+Change prompts · tweak Gemini/GPT Image · modify generation logic · add models · redesign screens/buttons or
+the Create flow (those are finished). Also: no `main` merge, no prod deploy.
 
 ---
 

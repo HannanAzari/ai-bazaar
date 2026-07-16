@@ -17,9 +17,14 @@ import type {
   AssetGenerationProvider,
   AssetGenerationRequest,
   AssetGenerationResult,
+  AssetCandidate,
   ResolvedRequest,
 } from "./types";
 import { finishAsset } from "./finish";
+import { conformToNestudio, fingerprintOf } from "@/lib/art-engine/conform";
+import { validateStyle } from "@/lib/art-engine/validator";
+import { getOfficialProfile, FALLBACK_PROFILE } from "@/lib/art-engine/official";
+import type { StyleProfile } from "@/lib/art-engine/fingerprint";
 import { geminiAssetProvider } from "./providers/gemini";
 import { gptImageAssetProvider } from "./providers/gpt-image";
 import { imagenAssetProvider, fluxAssetProvider } from "./providers/unavailable";
@@ -73,16 +78,17 @@ function resolve(request: AssetGenerationRequest): ResolvedRequest {
   };
 }
 
-async function runProvider(provider: AssetGenerationProvider, resolved: ResolvedRequest, dnaVersion: string) {
+async function runProvider(provider: AssetGenerationProvider, resolved: ResolvedRequest, dnaVersion: string): Promise<AssetCandidate[]> {
   const raws = await provider.generate(resolved);
-  const candidates = await Promise.all(
+  // finish (key-out → trim → pad) then CONFORM to the one Nestudio material language
+  // (Art Engine, identity-preserving). Deterministic + free — no extra generation cost.
+  return Promise.all(
     raws.map(async (raw) => ({
-      image: await finishAsset(raw, { size: resolved.size }),
+      image: await conformToNestudio(await finishAsset(raw, { size: resolved.size })),
       provider: provider.id,
       dnaVersion,
     })),
   );
-  return candidates;
 }
 
 export type GenerateAssetOpts = {
@@ -91,28 +97,74 @@ export type GenerateAssetOpts = {
   /** Fall back to the local canvas provider if the hosted one fails. Editor: true.
    *  Benchmark: false (judge each provider honestly, no silent substitution). */
   allowFallback?: boolean;
+  /** Run the Style Validator gate + regenerate on failure. Default: on in the browser. */
+  validate?: boolean;
+  /** Max generation attempts when the style gate fails (Phase 7 — cost-aware). */
+  maxAttempts?: number;
 };
+
+/** Score candidates against the official style profile; return the best + its report. */
+async function pickBestByStyle(candidates: AssetCandidate[], profile: StyleProfile) {
+  const scored = await Promise.all(
+    candidates.map(async (c) => ({ c, report: validateStyle(await fingerprintOf(c.image), profile) })),
+  );
+  scored.sort((a, b) => b.report.score - a.report.score);
+  return scored[0];
+}
 
 /**
  * Generate DNA-conformant candidates from a cutout. Provider-independent: callers
  * pass a subject + cutout, never a provider-specific prompt.
+ *
+ * The Style Validator (Art Engine) gates the result: if a candidate doesn't measure
+ * up to the official library, the pipeline regenerates — but only on failure, at most
+ * `maxAttempts` (Phase 7: intelligence over brute force, not brute force per call).
  */
 export async function generateAsset(request: AssetGenerationRequest, opts: GenerateAssetOpts = {}): Promise<AssetGenerationResult> {
   const resolved = resolve(request);
   const dnaVersion = resolved.prompt.dnaVersion;
   const requested = getAssetProvider(opts.provider);
 
-  try {
-    const candidates = await runProvider(requested, resolved, dnaVersion);
-    return { provider: requested.id, requestedProvider: requested.id, usedFallback: false, candidates };
-  } catch (err) {
-    const error = (err as Error).message;
-    if (!opts.allowFallback || requested.id === FALLBACK_ASSET_PROVIDER) {
-      // Honest failure — no silent substitution.
-      return { provider: requested.id, requestedProvider: requested.id, usedFallback: false, candidates: [], error };
-    }
-    const fallback = getAssetProvider(FALLBACK_ASSET_PROVIDER);
-    const candidates = await runProvider(fallback, resolved, dnaVersion);
-    return { provider: fallback.id, requestedProvider: requested.id, usedFallback: true, candidates, error };
+  const doValidate = opts.validate !== false && typeof window !== "undefined";
+  const maxAttempts = doValidate ? Math.max(1, opts.maxAttempts ?? 2) : 1;
+  let reference: StyleProfile | null = null;
+  if (doValidate) {
+    reference = await getOfficialProfile().catch(() => FALLBACK_PROFILE);
   }
+
+  let lastError: string | undefined;
+  let best: { c: AssetCandidate; report: ReturnType<typeof validateStyle> } | null = null;
+  let bestBatch: AssetCandidate[] = [];
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    let candidates: AssetCandidate[];
+    try {
+      candidates = await runProvider(requested, resolved, dnaVersion);
+    } catch (err) {
+      lastError = (err as Error).message;
+      if (!opts.allowFallback || requested.id === FALLBACK_ASSET_PROVIDER) {
+        return { provider: requested.id, requestedProvider: requested.id, usedFallback: false, candidates: [], error: lastError };
+      }
+      const fallback = getAssetProvider(FALLBACK_ASSET_PROVIDER);
+      const fbCandidates = await runProvider(fallback, resolved, dnaVersion);
+      const report = reference ? (await pickBestByStyle(fbCandidates, reference)).report : undefined;
+      return { provider: fallback.id, requestedProvider: requested.id, usedFallback: true, candidates: fbCandidates, error: lastError, report };
+    }
+
+    if (!doValidate || !reference) {
+      return { provider: requested.id, requestedProvider: requested.id, usedFallback: false, candidates };
+    }
+
+    const top = await pickBestByStyle(candidates, reference);
+    if (!best || top.report.score > best.report.score) { best = top; bestBatch = candidates; }
+    if (top.report.pass) break; // the gate is satisfied — stop (no extra cost)
+  }
+
+  return {
+    provider: requested.id,
+    requestedProvider: requested.id,
+    usedFallback: false,
+    candidates: bestBatch,
+    report: best?.report,
+  };
 }
