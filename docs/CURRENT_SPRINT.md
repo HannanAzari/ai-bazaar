@@ -4,39 +4,41 @@
 > replace it each sprint — history lives in [design/CHANGELOG.md](design/CHANGELOG.md) and
 > [roadmap.md](roadmap.md), not here.
 
-**Sprint:** M33 — Asset Creation Experience Polish (the founder's "M31 polish" brief)
-**Updated:** 2026-07-15 · **Branch:** `m12-nest-platform`
-**Mode:** preview only — **no AI/prompt/model changes · never merge to `main` · never deploy production.**
+**Sprint:** M34 — Premium Segmentation Experience (the founder's "M32.5" brief)
+**Updated:** 2026-07-16 · **Branch:** `m12-nest-platform`
+**Mode:** preview only — **no AI/prompt/Gemini/generation/style changes · no `main` merge · no prod.**
 
 ---
 
 ## The goal
 
-> Make asset creation *feel* like a premium Nestudio feature. The metric: **"Would someone happily create
-> five objects in a row?"** Make the user **forget they are using AI at all.** Even a 70%-perfect mug should
-> feel 100% premium. (Making the AI *smarter* is Sprint B — the Nestudio Art Engine.)
+> Creating an asset should feel effortless — the user should almost never feel like they're editing an image.
+> They should feel like **Nestudio instantly understood what they meant.** Compared side-by-side with Telegram
+> sticker creation, Nestudio should feel equally premium or better, and finish in **under 10 seconds** without
+> reading instructions.
 
-## What shipped (all UX/interaction/motion — no generation changes)
+## What shipped (Stage-1 cutout only — no generation touched)
 
-- **Original photo first**, then **auto-cutout first** (editor/brush is a fallback, not step one).
-- **One generation** (not three) + a **refinement loop** (Use / Improve → "what to change?" → regenerate one,
-  reusing the result as reference via the existing `notes` param).
-- **Premium glass modal**, **crafted staged loading** (Studying → Sketching → Painting → …), **success moment**
-  (✓ Added to My Assets + sparkle) that auto-returns and **reveals the asset in My Assets** (scroll + pulse).
-- **Library ownership tabs**: Official (read-only) · My Assets (deletable) · Recent. Polished Create tile,
-  warm empty states, gentle motion everywhere.
+- **Real on-device segmentation** — [`lib/segmentation/`](design/../../lib/segmentation): MediaPipe Interactive
+  Segmenter (`magic_touch`, bundled model, in-browser WASM — no server roundtrip, not Gemini) + a local
+  **flood fallback** so it can never fail.
+- **Segmentation-first**: auto-detect the subject → **tap the object you want** → background disappears. The
+  erase/restore brush is a fallback ("Fix edges"), not step one.
+- **Premium presentation**: object floats on a **warm paper card** (no giant checkerboard), soft glow outline,
+  scale-pop, faded/desaturated background, tap-hint dots, shimmer instead of a spinner.
+- **Premium floating modal**; focused edit tools (Erase · Restore · Undo · Redo · brush · Done, edges-only).
+- **Verified <300ms** tap-to-select (~237ms measured), 60fps, local.
 
 ## Next: Sprint B — the Nestudio Art Engine
 
-Only once the workflow feels effortless. That sprint is where generation *quality* improves (Asset DNA,
-provider benchmark, preprocessing) — see [design/NESTUDIO_ASSET_DNA.md](design/NESTUDIO_ASSET_DNA.md) +
-[design/ASSET_BENCHMARK.md](design/ASSET_BENCHMARK.md). **Do not** start it until the founder confirms the
-experience feels premium.
+Generation *quality* (Asset DNA, provider benchmark) — see
+[design/NESTUDIO_ASSET_DNA.md](design/NESTUDIO_ASSET_DNA.md) + [design/ASSET_BENCHMARK.md](design/ASSET_BENCHMARK.md).
+Only once the whole create experience feels effortless.
 
 ## Do NOT (this sprint — hard rules from the brief)
 
-Change prompts · tweak Gemini/GPT Image · modify the generation pipeline · change asset style · add models ·
-optimise AI quality · experiment with prompts. Also: no `main` merge, no prod deploy.
+Change prompts · tweak Gemini/GPT Image · modify the generation pipeline · change asset style · add generation
+models · optimise AI quality. Also: no `main` merge, no prod deploy.
 
 ---
 

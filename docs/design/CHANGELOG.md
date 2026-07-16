@@ -7,6 +7,32 @@ constants · result · decision · lesson). No design rule changes without an en
 
 ---
 
+## M34 — Premium Segmentation Experience · Nestudio understood what you meant
+*(the founder's "M32.5" brief.) Replaces the manual cutout editor with real on-device object selection —
+Telegram / Apple Photos feel. **No AI/prompt/Gemini/style/generation changes** — only Stage-1 cutout UX.*
+
+- **Real on-device segmentation, not an AI prompt.** New [`lib/segmentation/`](../../lib/segmentation): a
+  provider-abstracted `Segmenter` — **MediaPipe Interactive Segmenter** (the `magic_touch` model, bundled at
+  `public/models/`, WASM streamed once from CDN) runs **entirely in the browser** (no server roundtrip, not
+  Gemini). A classical **flood/region-grow** fallback (fully local) means it can **never fail**.
+- **Manual-first → segmentation-first.** On open the subject is auto-detected and highlighted; the user
+  **taps the object they want** and the background disappears. The erase/restore brush is now a *fallback*
+  ("Fix edges"), never step one.
+- **Tap-to-select, verified <300ms.** Re-segmenting on tap measured **~237 ms** on the on-device model
+  (target: under 300 ms); editing is local and 60fps.
+- **Premium presentation.** The object floats on a **warm Nestudio paper card** with a soft shadow — **no
+  giant checkerboard**. Selected object: soft glow outline, gentle scale-pop; background **fades + desaturates**;
+  tap-hint dots on other detected objects; a subtle shimmer instead of a spinner.
+- **Premium floating modal.** Stronger backdrop blur + dim + desaturate + darken; large, centered, glass card.
+- **Focused editing tools.** Fix-edges shows only **Erase · Restore · Undo · Redo · brush-size · Done**; the
+  brush is for edges only, with soft edges and live preview.
+- **Never fails.** Low-confidence / model-miss → tap again, manual brush, or the local flood fallback.
+- Verified functionally end-to-end on mobile (auto-detect → tap-reselect 237ms → Fix-edges tools → Generate).
+  Gates green (typecheck · lint · **523 tests** · build). Preview only — **no generation changes, no `main`
+  merge, no production deploy.**
+
+---
+
 ## M33 — Asset Creation Experience Polish · Forget you're using AI
 *(the founder's "M31 polish" brief.) No AI/prompt/model/pipeline/style changes — only UX, interaction and
 motion. The metric: "Would someone happily create five objects in a row?"*
