@@ -83,18 +83,26 @@ export function CreateAssetSheet({
     }
   };
 
-  const runGenerate = async (inputCutout: RasterImage, notes?: string) => {
+  const runGenerate = async (inputCutout: RasterImage, extra?: { original?: RasterImage; mask?: RasterImage; notes?: string }) => {
     setStep("generating");
     setError(null);
     setFallbackNote(null);
     try {
       const res = await generateAsset(
-        { cutout: inputCutout, subject: subject.trim() || "object", notes, variants: 1 },
+        {
+          cutout: inputCutout,
+          subject: subject.trim() || "object",
+          notes: extra?.notes,
+          original: extra?.original,
+          mask: extra?.mask,
+          preserveDetails: true,
+          variants: 1,
+        },
         { allowFallback: true },
       );
       if (res.candidates.length === 0) {
         setError(res.error ?? "That didn't work — let's try once more.");
-        setStep(notes ? "refine" : "segment");
+        setStep(extra?.notes ? "refine" : "segment");
         return;
       }
       if (res.usedFallback) setFallbackNote("Made offline — reconnect for the best result.");
@@ -102,7 +110,7 @@ export function CreateAssetSheet({
       setStep("result");
     } catch (e) {
       setError((e as Error).message);
-      setStep(notes ? "refine" : "segment");
+      setStep(extra?.notes ? "refine" : "segment");
     }
   };
 
@@ -147,7 +155,7 @@ export function CreateAssetSheet({
           ) : null}
           {step === "generating" ? <GeneratingStep /> : null}
           {step === "result" && result ? <ResultStep result={result} note={fallbackNote} onUse={onUse} onImprove={() => setStep("refine")} /> : null}
-          {step === "refine" && result ? <RefineStep value={refineText} onChange={setRefineText} onCancel={() => setStep("result")} onSubmit={() => runGenerate(result.image, refineText.trim())} /> : null}
+          {step === "refine" && result ? <RefineStep value={refineText} onChange={setRefineText} onCancel={() => setStep("result")} onSubmit={() => runGenerate(result.image, { notes: refineText.trim() })} /> : null}
           {step === "success" ? <SuccessStep /> : null}
         </div>
       </div>
@@ -205,7 +213,7 @@ function SegmentStep({
   sourceUrl: string;
   subject: string;
   onSubjectChange: (s: string) => void;
-  onGenerate: (cutout: RasterImage) => void;
+  onGenerate: (cutout: RasterImage, extra?: { original?: RasterImage; mask?: RasterImage }) => void;
 }) {
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
   const [original, setOriginal] = useState<RasterImage | null>(null);
@@ -331,7 +339,7 @@ function SegmentStep({
         aria-label="What is it?"
         className="mt-3 w-full rounded-2xl border border-ink/12 bg-white/85 px-4 py-3 text-base text-ink shadow-sm focus:border-cobalt focus:outline-none"
       />
-      <button type="button" onClick={() => usingCutout && onGenerate(usingCutout)} disabled={!usingCutout} className="spring mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-cobalt py-3.5 text-sm font-black text-white shadow disabled:opacity-40">
+      <button type="button" onClick={() => usingCutout && onGenerate(usingCutout, { original: original ?? undefined, mask: frame ?? undefined })} disabled={!usingCutout} className="spring mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-cobalt py-3.5 text-sm font-black text-white shadow disabled:opacity-40">
         <Wand2 className="h-4 w-4" /> Generate
       </button>
       <button type="button" onClick={() => setMode("edges")} disabled={!frame} className="spring mt-2 flex w-full items-center justify-center gap-1.5 rounded-full py-2.5 text-sm font-bold text-ink/55 hover:bg-ink/5 disabled:opacity-40">

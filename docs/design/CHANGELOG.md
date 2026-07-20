@@ -7,6 +7,33 @@ constants · result · decision · lesson). No design rule changes without an en
 
 ---
 
+## M36 — Identity Lock Pipeline · Keep MY object (HELD — mug test not yet passing)
+*(the founder's "M34" brief.) Reverse the priority: IDENTITY > FUNCTION > DNA. A real object must remain
+recognisably itself after becoming a Nestudio asset. **Architecture complete + gates green, but the mug test
+does not yet fully pass — NOT pushed, per the "do not push until the mug test passes" instruction.***
+
+- **New pipeline** [`lib/identity/`](../../lib/identity): photo → segmentation → **identity CONTRACT** (extract)
+  → single generation (cutout + original + mask + identity-constrained prompt) → **identity validator (Gate 1,
+  hard)** → **targeted repair** (only the failing area) → style validator (Gate 2) → asset. One generation +
+  one optional repair — no regenerate-until-acceptable loop. Full spec: [IDENTITY_LOCK.md](IDENTITY_LOCK.md).
+- **Identity Contract** — structured (never prose): silhouette, dominant colours WITH regions, critical
+  colours (must survive), graphics/lettering, re-appliable identity/detail layers.
+- **Identity Validator** — hard pass/fail per dimension (silhouette IoU, critical-colour presence, proportion,
+  graphics). ANY fail → repair. Runs before the style gate.
+- **Targeted Repair** — never rebuilds; re-applies the source's own critical regions (black handle, lettering)
+  bbox-aligned + matte-adapted, and clips drift to the source silhouette. Enforces identity in post — never
+  trusts the model. Zero extra generation cost.
+- **Prompt architecture** built from the immutable contract (constraints, not adjectives); the route + Gemini
+  provider now send **original + mask + cutout**.
+- **Model benchmark (investigation only, no change):** [IDENTITY_MODEL_BENCHMARK.md](IDENTITY_MODEL_BENCHMARK.md)
+  — how to compare Gemini 2.5 Image vs GPT Image vs a hybrid for identity preservation, via the existing
+  `/dev/asset-benchmark`.
+- **Honest status:** black handle is preserved (~13%); cream/lettering/style not yet cleanly passing in the
+  available (hand-confounded `autoCutout`) harness; the faithful editor path couldn't be driven end-to-end in
+  this environment. Gates green (typecheck · lint · **538 tests** · build). **Held; not merged, not pushed.**
+
+---
+
 ## M35 — The Nestudio Art Engine · One artistic language
 *(the founder's "M33" brief.) Generation quality: make AI assets indistinguishable from official ones — by
 MEASURING the official style and holding generated output to it. No prompts / Gemini / generation logic changed.*

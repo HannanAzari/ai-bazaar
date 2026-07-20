@@ -10,12 +10,16 @@ import type { ResolvedRequest } from "@/lib/asset-pipeline/types";
 
 /** One generation call for a specific hosted provider. Returns the RAW image. */
 export async function callGenerateRoute(providerId: string, req: ResolvedRequest): Promise<RasterImage> {
+  // Identity Lock: never send only the cutout — the original photo + mask carry
+  // information the cutout loses. The server appends them as reference images.
+  const extraImages = [req.original?.dataUrl, req.mask?.dataUrl].filter(Boolean) as string[];
   const res = await fetch("/api/ai/generate", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       provider: providerId,
       imageDataUrl: req.cutout.dataUrl,
+      extraImages,
       positive: req.prompt.positive,
       negative: req.prompt.negative,
       size: req.size,

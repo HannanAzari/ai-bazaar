@@ -4,45 +4,50 @@
 > replace it each sprint — history lives in [design/CHANGELOG.md](design/CHANGELOG.md) and
 > [roadmap.md](roadmap.md), not here.
 
-**Sprint:** M35 — The Nestudio Art Engine (the founder's "M33" brief)
+**Sprint:** M36 — Identity Lock Pipeline (the founder's "M34" brief)
 **Updated:** 2026-07-16 · **Branch:** `m12-nest-platform`
-**Mode:** preview only — **no prompt/Gemini/generation changes · no `main` merge · no prod.**
+**Status:** ⚠️ **HELD — architecture complete + gates green, but the mug test does NOT yet fully pass.
+NOT pushed** (per the explicit "do not push until the mug test passes" instruction).
 
 ---
 
 ## The goal
 
-> Make AI-generated assets **indistinguishable from official Nestudio assets** — *one artistic language*, not
-> "better AI." The Definition of Done is a **human blind test**: 10 generated mixed with 10 official; if they
-> can't be reliably told apart, done.
+> A real object uploaded by a user must remain recognisably THAT object after becoming a Nestudio asset.
+> Reverse the priority: **IDENTITY > FUNCTION > Nestudio DNA.** If the mug has a black B-handle, the handle
+> stays black. Style may only change finish/edges/lighting/polish — never redesign or recolour identity.
 
-The lever (consistent with the frozen "stop optimising prompts" rule): **measure the official style, conform
-generated output to it, and gate on it** — not ask the model differently.
+## What's built ([`lib/identity/`](design/../../lib/identity), all gates green)
 
-## What shipped ([`lib/art-engine/`](design/../../lib/art-engine))
+- **Identity Contract** (structured extraction: silhouette, colours-with-regions, critical colours, graphics,
+  re-appliable identity/detail layers).
+- **Identity-constrained prompt** (from the contract, not adjectives) + **original + mask + cutout** sent to
+  the model.
+- **Identity Validator** (Gate 1, hard pass/fail) → **Targeted Repair** (re-apply the source's own critical
+  regions; never rebuild) → **Style Validator** (Gate 2). One generation + one optional repair.
+- Spec: [design/IDENTITY_LOCK.md](design/IDENTITY_LOCK.md). Model benchmark (investigation only):
+  [design/IDENTITY_MODEL_BENCHMARK.md](design/IDENTITY_MODEL_BENCHMARK.md).
 
-- **Measured DNA** (Phase 1): fingerprint the real official library → a mean+variance profile. Measuring
-  corrected wrong assumptions (officials are crisp-edged, tightly cropped, matte ≈ 0.60). See
-  [design/NESTUDIO_DNA_MEASURED.md](design/NESTUDIO_DNA_MEASURED.md).
-- **Style Validator** (Phase 2/4): the quality gate. ~7/8 officials belong; neon/gloss fails; palette
-  discipline is the one hard veto.
-- **Conform + gated retry** (Phase 3/4/7): pull output into one material language (identity-preserving),
-  regenerate only on failure. Cost-aware.
-- **Family test + benchmark** (Phase 5/6): `/dev/art-engine` — generated beside the official
-  sofa/bookshelf/lamp/table/plant + the 9 benchmark objects, each scored.
+## Honest status — the mug test
 
-## Honest status
+- ✅ Black handle preserved (~13%).
+- ⚠️ Cream body / lettering / "belongs" style not yet cleanly passing in the available test harness
+  (`/dev/art-engine` uses `autoCutout`, which keeps the **hand** in the mug photo — not a faithful test).
+- The faithful path is the **editor** (clean tap-to-select segmentation), which could not be driven
+  end-to-end here (it navigated away mid-generation).
 
-The validator is a **calibrated proxy**; the human blind test is the final word. A real generated coffee mug
-now clears the gate at ~63% ("belongs"); pure-white objects sit closest to the line (they read brighter than
-warm furniture). Next iteration = run the blind test and tighten conform/thresholds from real judgements.
+## To close it (next session / on a phone)
 
-## Do NOT (this sprint — hard rules from the brief)
+1. Run the mug through the **editor** on a phone (clean segmented cutout, Preserve Details on).
+2. Confirm: black B-handle black · B silhouette · lettering preserved · cream body cream · belongs.
+3. If the re-applied layers misalign, tune the bbox alignment in
+   [`lib/identity/repair.ts`](design/../../lib/identity/repair.ts). **Only then push.**
 
-Change prompts · tweak Gemini/GPT Image · modify generation logic · add models · redesign screens/buttons or
-the Create flow (those are finished). Also: no `main` merge, no prod deploy.
+## Do NOT
+
+Change the UI / Create Asset. Add descriptive words to prompts. Change the art style. **Do not push until the
+mug test passes.**
 
 ---
 
-*Full orientation: [SESSION_HANDOFF.md](SESSION_HANDOFF.md) · founder's lens: [CEO_NOTES.md](CEO_NOTES.md) ·
-visual authority: [design/NESTUDIO_WORLD_BIBLE.md](design/NESTUDIO_WORLD_BIBLE.md).*
+*Full orientation: [SESSION_HANDOFF.md](SESSION_HANDOFF.md) · founder's lens: [CEO_NOTES.md](CEO_NOTES.md).*

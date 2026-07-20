@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 const GEMINI_MODEL = "gemini-3.1-flash-image"; // per M9.2 pilot
 const OPENAI_IMAGE_MODEL = "gpt-image-1";
 
-type Body = { provider?: string; imageDataUrl?: string; positive?: string; negative?: string; size?: number };
+type Body = { provider?: string; imageDataUrl?: string; extraImages?: string[]; positive?: string; negative?: string; size?: number };
 
 function parseDataUrl(dataUrl: string): { mimeType: string; data: string } | null {
   const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(dataUrl);
@@ -21,10 +21,16 @@ function parseDataUrl(dataUrl: string): { mimeType: string; data: string } | nul
 }
 
 /* ── Gemini ──────────────────────────────────────────────────────────────────── */
-async function generateGemini(apiKey: string, parsed: { mimeType: string; data: string }, prompt: string) {
+async function generateGemini(apiKey: string, parsed: { mimeType: string; data: string }, prompt: string, extras: { mimeType: string; data: string }[] = []) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+  // Identity Lock: the cutout first, then the original photo + mask as references.
+  const parts = [
+    { text: prompt },
+    { inlineData: { mimeType: parsed.mimeType, data: parsed.data } },
+    ...extras.map((e) => ({ inlineData: { mimeType: e.mimeType, data: e.data } })),
+  ];
   const payload = {
-    contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: parsed.mimeType, data: parsed.data } }] }],
+    contents: [{ role: "user", parts }],
     generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "1:1" } },
   };
   const res = await fetch(url, {
@@ -90,12 +96,16 @@ export async function POST(request: Request) {
 
   const provider = (body.provider ?? "gemini").toLowerCase();
   const prompt = body.negative ? `${body.positive}\n\nAvoid: ${body.negative}` : body.positive;
+  const extras = (body.extraImages ?? [])
+    .map(parseDataUrl)
+    .filter((x): x is { mimeType: string; data: string } => !!x)
+    .slice(0, 3);
 
   try {
     if (provider === "gemini") {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) return NextResponse.json({ error: "GEMINI_API_KEY is not set.", configured: false }, { status: 501 });
-      const out = await generateGemini(apiKey, parsed, prompt);
+      const out = await generateGemini(apiKey, parsed, prompt, extras);
       if ("error" in out) return NextResponse.json({ error: out.error }, { status: out.status });
       return NextResponse.json({ ...out, provider: "gemini" });
     }

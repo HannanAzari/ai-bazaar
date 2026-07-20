@@ -30,6 +30,13 @@ export type AssetGenerationRequest = {
   dna?: AssetDna;
   /** How many candidates to produce (A/B/C → 3). */
   variants: number;
+  /** Identity Lock: keep graphics/text/wear. Default on. */
+  preserveDetails?: boolean;
+  /** The original photograph — sent to the model alongside the cutout (it carries
+   *  information the cutout loses). */
+  original?: RasterImage;
+  /** The segmentation mask — sent to the model as identity context. */
+  mask?: RasterImage;
   signal?: AbortSignal;
 };
 
@@ -41,6 +48,9 @@ export type ResolvedRequest = {
   /** Square export size from the DNA. */
   size: number;
   variants: number;
+  /** Extra reference images (original photo, mask) sent with the cutout. */
+  original?: RasterImage;
+  mask?: RasterImage;
   signal?: AbortSignal;
 };
 
@@ -63,8 +73,12 @@ export type AssetGenerationResult = {
   candidates: AssetCandidate[];
   /** The hosted provider's error, surfaced rather than hidden. */
   error?: string;
-  /** The Style Validator report for the chosen candidate (Art Engine gate). */
+  /** The Style Validator report for the chosen candidate (Art Engine gate 2). */
   report?: import("@/lib/art-engine/validator").StyleReport;
+  /** The Identity gate (gate 1) report + whether a targeted repair was applied. */
+  identity?: import("@/lib/identity/types").IdentityReport;
+  /** True when targeted repair restored the object's identity post-generation. */
+  repaired?: boolean;
 };
 
 /**
