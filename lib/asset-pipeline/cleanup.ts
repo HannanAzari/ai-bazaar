@@ -18,7 +18,7 @@
  */
 
 import type { RasterImage } from "@/lib/ai/types";
-import { loadImage, makeCanvas, toRaster, alphaStats, floodFillBackground, featherAlpha, despeckle, trimTransparent, padSquare } from "@/lib/ai/canvas";
+import { loadImage, makeCanvas, toRaster, alphaStats, floodFillBackground, despeckle, trimTransparent, padSquare } from "@/lib/ai/canvas";
 import { NESTUDIO_ASSET_DNA } from "@/lib/asset-dna";
 
 /** Faint alpha (soft glow / haze / shadow penumbra) below `floor` → 0. Anti-aliased
@@ -83,10 +83,48 @@ export async function keepLargestComponent(src: RasterImage, threshold = 28): Pr
   return toRaster(c);
 }
 
+/** Erode the alpha by `radius` px (min-filter): shave the outermost semi-transparent
+ *  fringe so no soft halo ring survives, regardless of its alpha value. The final
+ *  downscale in padSquare re-introduces a clean 1px anti-alias. */
+export async function erodeAlpha(src: RasterImage, radius = 1): Promise<RasterImage> {
+  const img = await loadImage(src.dataUrl);
+  const c = makeCanvas(src.width, src.height);
+  const ctx = c.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const w = c.width, h = c.height;
+  const im = ctx.getImageData(0, 0, w, h);
+  const p = im.data;
+  const a0 = new Uint8ClampedArray(w * h);
+  for (let i = 0; i < w * h; i++) a0[i] = p[i * 4 + 3];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let min = 255;
+      for (let dy = -radius; dy <= radius && min; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= h) { min = 0; break; }
+        for (let dx = -radius; dx <= radius; dx++) {
+          const xx = x + dx;
+          if (xx < 0 || xx >= w) { min = 0; break; }
+          const a = a0[yy * w + xx];
+          if (a < min) min = a;
+        }
+      }
+      p[(y * w + x) * 4 + 3] = min;
+    }
+  }
+  ctx.putImageData(im, 0, 0);
+  return toRaster(c);
+}
+
 /**
- * The production finish for the honest path: key out any solid background (only if the
- * result is not already transparent), strip external glow/halo/shadow, keep the object,
- * then frame (trim + pad). NO recolour, NO palette, NO repair — masking + framing only.
+ * The production finish for the honest path — an official-asset-clean transparent PNG.
+ * Key out any solid background (only if not already transparent), then strip EVERY
+ * external artefact: soft glow, floor/contact shadow, halo ring, background residue.
+ * NO recolour, NO palette, NO repair — masking + framing only; internal shading kept.
+ *
+ * Order matters: harden faint alpha → keep only the object → ERODE the 1px halo fringe
+ * → despeckle → trim → pad (the downscale gives the clean anti-aliased edge). No
+ * featherAlpha — its softened ring was itself a faint halo.
  */
 export async function finishClean(
   raw: RasterImage,
@@ -100,10 +138,10 @@ export async function finishClean(
   // Opaque studio background → key it out first (native-transparent output skips this).
   if (!stats.transparentCorners) img = await floodFillBackground(img, 32);
 
-  img = await hardenAlpha(img, 48);      // kill soft glow / haze
+  img = await hardenAlpha(img, 60);      // kill soft glow / haze / shadow penumbra
   img = await keepLargestComponent(img); // drop detached floor shadows / halo rings
+  img = await erodeAlpha(img, 1);        // shave the residual 1px halo fringe
   img = await despeckle(img);            // stray specks
-  img = await featherAlpha(img);         // clean, soft anti-aliased edge
 
   const trimmed = await trimTransparent(img);
   return padSquare(trimmed, size, padding);

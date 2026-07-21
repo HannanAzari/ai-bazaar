@@ -19,5 +19,5 @@ export { generateAssetHonest } from "./honest";
 export type { HonestRequest, HonestResult, IdentitySource } from "./honest";
 export { buildFurniture8Prompt, deriveIdentityNotes, FURNITURE_8_VERSION } from "./furniture-8";
 export type { Furniture8Prompt, PreserveMode } from "./furniture-8";
-export { finishClean, hardenAlpha, keepLargestComponent } from "./cleanup";
+export { finishClean, hardenAlpha, keepLargestComponent, erodeAlpha } from "./cleanup";
 export { CANONICAL_CAMERA_CLAUSE } from "./camera";

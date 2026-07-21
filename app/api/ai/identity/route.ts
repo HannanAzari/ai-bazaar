@@ -14,11 +14,14 @@ const IDENTITY_MODEL = process.env.OPENAI_IDENTITY_MODEL || "gpt-4.1-mini";
 type Body = { imageDataUrl?: string; extraImages?: string[]; subject?: string; preserveDetails?: boolean };
 
 const SYSTEM = [
-  "You are a product-identity analyst for a 3D asset studio.",
+  "You are a master object-identity analyst for a 3D asset studio, with an eye for craft, materials and cultural design.",
   "You are shown a real object (first image = the isolated object; a second image, if present, is its original photo with more detail).",
-  "Describe ONLY the object's visual identity — the facts that must survive when it is re-sculpted as a stylised 3D collectible.",
-  "Be concrete and specific about materials, exact colours (name them), decorative elements, and any text/logos (transcribe them exactly, in their own script).",
-  "Do NOT describe the background, hands, lighting, or camera. Do NOT invent details you cannot see.",
+  "Describe ONLY the object's visual identity — the specific facts that make THIS object itself and must survive when it is re-sculpted as a stylised 3D collectible.",
+  "Be MAXIMALLY specific and never generic. Name the exact material and finish (e.g. glazed turquoise mosaic ceramic, hammered copper, brushed brass, lacquered wood, frosted glass, enamel), the exact colours,",
+  "and every ornament: carvings, engravings, inlay, filigree, repeating patterns, motifs, and any historical / regional / cultural decorative style you recognise (e.g. Persian floral geometry, Isfahan enamel, Art-Deco fluting).",
+  "Transcribe any text/lettering/logos EXACTLY, in their own script. Note the unique visual signatures a copyist would need.",
+  "Prefer 'Persian turquoise mosaic ceramic candlestick with a hammered copper body, engraved floral-geometric band, slim white candle' over 'blue candle'.",
+  "Do NOT describe the background, hands, lighting, camera or the scene. Do NOT invent details you cannot actually see.",
   "Respond with STRICT JSON only.",
 ].join(" ");
 
@@ -26,12 +29,15 @@ function userPrompt(subject: string, preserveDetails: boolean): string {
   return [
     `The object is a ${subject || "home object"}.`,
     preserveDetails
-      ? "Preserve details mode is ON: capture writing, logos, patterns and distinctive marks precisely."
-      : "Simplify mode is ON: focus on shape, main materials and main colours; you may omit incidental text/logos.",
-    "Return JSON with keys: shape (string), materials (string[]), colors (string[]), decorativeElements (string[]),",
-    "text (string, exact transcription or empty), logos (string[]), proportions (string),",
-    "and identityNotes (string): a tight markdown bullet list (one '- ' per line) combining the above into the",
-    "object's essential identity, ordered most-distinctive first. identityNotes is what a 3D artist would read.",
+      ? "Preserve details mode is ON: capture every material, ornament, carving, engraving, pattern, historical/cultural decoration, logo, text and unique signature precisely."
+      : "Simplify mode is ON: focus on the exact shape, main materials/finish and main colours; you may omit incidental text/logos.",
+    "Return JSON with keys:",
+    "shape (string), materials (string[] — material + finish, most specific), colors (string[] — named), ",
+    "decorativeElements (string[] — carvings, engravings, inlay, patterns, motifs, historical/cultural decoration), ",
+    "text (string — exact transcription in original script, or empty), logos (string[]), ",
+    "proportions (string), signatures (string[] — the 2-4 unique visual features that most identify this exact object), ",
+    "and identityNotes (string): a tight markdown bullet list (one '- ' per line, 5-9 bullets) combining the above into the",
+    "object's essential identity, ordered most-distinctive first, each bullet concrete and specific. identityNotes is what a 3D artist reads to rebuild THIS object.",
   ].join(" ");
 }
 
@@ -70,7 +76,7 @@ export async function POST(request: Request) {
         ],
         response_format: { type: "json_object" },
         temperature: 0.2,
-        max_tokens: 700,
+        max_tokens: 1000,
       }),
     });
     if (!res.ok) {
