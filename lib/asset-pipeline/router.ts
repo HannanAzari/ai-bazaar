@@ -49,7 +49,7 @@ const REGISTRY = new Map(ASSET_PROVIDERS.map((p) => [p.id, p]));
  * (Env override keeps prod/preview swappable without a code change.)
  */
 export const ACTIVE_ASSET_PROVIDER: string =
-  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_ASSET_PROVIDER) || "gemini";
+  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_ASSET_PROVIDER) || "gpt-image";
 
 /** The always-available graceful fallback (offline / hosted failure). */
 export const FALLBACK_ASSET_PROVIDER = "local";

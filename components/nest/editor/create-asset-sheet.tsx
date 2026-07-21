@@ -28,7 +28,7 @@ import {
   type SegMask,
   type DetectedObject,
 } from "@/lib/segmentation";
-import { generateAsset, inventoryAssetFromCandidate, type AssetCandidate } from "@/lib/asset-pipeline";
+import { generateAssetHonest, inventoryAssetFromCandidate, type AssetCandidate } from "@/lib/asset-pipeline";
 import { inventory } from "@/lib/ai-inventory";
 
 type Step = "source" | "preview" | "segment" | "generating" | "result" | "refine" | "success";
@@ -88,25 +88,22 @@ export function CreateAssetSheet({
     setError(null);
     setFallbackNote(null);
     try {
-      const res = await generateAsset(
-        {
-          cutout: inputCutout,
-          subject: subject.trim() || "object",
-          notes: extra?.notes,
-          original: extra?.original,
-          mask: extra?.mask,
-          preserveDetails: true,
-          variants: 1,
-        },
-        { allowFallback: true },
-      );
-      if (res.candidates.length === 0) {
+      // M35: the honest GPT-Image path — ONE genuine result, no silent fallback,
+      // no conform/repair. OpenAI errors surface plainly.
+      const res = await generateAssetHonest({
+        cutout: inputCutout,
+        subject: subject.trim() || "object",
+        notes: extra?.notes,
+        original: extra?.original,
+        mask: extra?.mask,
+        mode: "preserve",
+      });
+      if (!res.ok || !res.finished) {
         setError(res.error ?? "That didn't work — let's try once more.");
         setStep(extra?.notes ? "refine" : "segment");
         return;
       }
-      if (res.usedFallback) setFallbackNote("Made offline — reconnect for the best result.");
-      setResult(res.candidates[0]);
+      setResult({ image: res.finished, provider: res.provider, dnaVersion: res.promptVersion });
       setStep("result");
     } catch (e) {
       setError((e as Error).message);

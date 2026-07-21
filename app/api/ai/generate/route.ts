@@ -12,7 +12,21 @@ import { NextResponse } from "next/server";
 const GEMINI_MODEL = "gemini-3.1-flash-image"; // per M9.2 pilot
 const OPENAI_IMAGE_MODEL = "gpt-image-1";
 
-type Body = { provider?: string; imageDataUrl?: string; extraImages?: string[]; positive?: string; negative?: string; size?: number };
+// gpt-image-1 token pricing (USD per 1M tokens) — for a truthful cost estimate.
+const OPENAI_PRICE = { textIn: 5, imageIn: 10, imageOut: 40 } as const;
+
+type Body = {
+  provider?: string;
+  imageDataUrl?: string;
+  extraImages?: string[];
+  positive?: string;
+  negative?: string;
+  size?: number;
+  /** GPT Image: "high" preserves input detail/identity; "low" is looser. */
+  inputFidelity?: "high" | "low";
+  /** GPT Image render quality. */
+  quality?: "high" | "medium" | "low" | "auto";
+};
 
 function parseDataUrl(dataUrl: string): { mimeType: string; data: string } | null {
   const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(dataUrl);
@@ -52,16 +66,49 @@ async function generateGemini(apiKey: string, parsed: { mimeType: string; data: 
 }
 
 /* ── OpenAI GPT Image (images/edits) ─────────────────────────────────────────── */
-async function generateOpenAI(apiKey: string, parsed: { mimeType: string; data: string }, prompt: string) {
-  // gpt-image-1 edits take a PNG < 4MB + a prompt and reinterpret it. Sizes are
-  // constrained; we request 1024² and let the client finish/resize to the DNA size.
-  const bytes = Buffer.from(parsed.data, "base64");
-  const blob = new Blob([bytes], { type: parsed.mimeType });
+type OpenAIUsage = {
+  total_tokens?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  input_tokens_details?: { text_tokens?: number; image_tokens?: number };
+};
+
+/** Truthful cost estimate from the returned token usage (null if unavailable). */
+function estimateOpenAICost(usage?: OpenAIUsage): number | null {
+  if (!usage) return null;
+  const textIn = usage.input_tokens_details?.text_tokens ?? 0;
+  const imageIn = usage.input_tokens_details?.image_tokens ?? 0;
+  const out = usage.output_tokens ?? 0;
+  const cost = (textIn * OPENAI_PRICE.textIn + imageIn * OPENAI_PRICE.imageIn + out * OPENAI_PRICE.imageOut) / 1_000_000;
+  return Math.round(cost * 10000) / 10000;
+}
+
+async function generateOpenAI(
+  apiKey: string,
+  parsed: { mimeType: string; data: string },
+  prompt: string,
+  extras: { mimeType: string; data: string }[],
+  opts: { inputFidelity: "high" | "low"; quality: "high" | "medium" | "low" | "auto" },
+) {
+  // gpt-image-1 edits: the clean cutout is the primary image; the original photo (and
+  // any mask) go in as ADDITIONAL reference images so the model sees detail the cutout
+  // lost. `background: transparent` gives true alpha natively (no post key-out).
+  // `input_fidelity: high` preserves the object's identity/detail. We request 1024²
+  // and let the client trim/pad to the DNA export size — no destructive post.
   const form = new FormData();
   form.append("model", OPENAI_IMAGE_MODEL);
-  form.append("image", blob, "cutout.png");
-  form.append("prompt", prompt.slice(0, 4000));
+  const toBlob = (p: { mimeType: string; data: string }, name: string): [Blob, string] => [
+    new Blob([Buffer.from(p.data, "base64")], { type: p.mimeType }),
+    name,
+  ];
+  // Primary + references, all under the array field `image[]` (gpt-image-1 accepts multiple).
+  form.append("image[]", ...toBlob(parsed, "cutout.png"));
+  extras.slice(0, 3).forEach((e, i) => form.append("image[]", ...toBlob(e, `reference-${i}.png`)));
+  form.append("prompt", prompt.slice(0, 32000));
   form.append("size", "1024x1024");
+  form.append("background", "transparent");
+  form.append("input_fidelity", opts.inputFidelity);
+  form.append("quality", opts.quality);
   form.append("n", "1");
 
   const res = await fetch("https://api.openai.com/v1/images/edits", {
@@ -70,13 +117,18 @@ async function generateOpenAI(apiKey: string, parsed: { mimeType: string; data: 
     body: form,
   });
   if (!res.ok) {
-    const text = (await res.text()).slice(0, 300);
+    const text = (await res.text()).slice(0, 500);
     return { error: `OpenAI HTTP ${res.status}: ${text}`, status: 502 as const };
   }
-  const json = (await res.json()) as { data?: { b64_json?: string }[] };
+  const json = (await res.json()) as { data?: { b64_json?: string }[]; usage?: OpenAIUsage };
   const b64 = json?.data?.[0]?.b64_json;
   if (!b64) return { error: "No image returned by OpenAI", status: 502 as const };
-  return { imageDataUrl: `data:image/png;base64,${b64}`, model: OPENAI_IMAGE_MODEL };
+  return {
+    imageDataUrl: `data:image/png;base64,${b64}`,
+    model: OPENAI_IMAGE_MODEL,
+    usage: json.usage,
+    costUsd: estimateOpenAICost(json.usage),
+  };
 }
 
 export async function POST(request: Request) {
@@ -112,7 +164,10 @@ export async function POST(request: Request) {
     if (provider === "gpt-image" || provider === "openai") {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) return NextResponse.json({ error: "OPENAI_API_KEY is not set.", configured: false }, { status: 501 });
-      const out = await generateOpenAI(apiKey, parsed, prompt);
+      const out = await generateOpenAI(apiKey, parsed, prompt, extras, {
+        inputFidelity: body.inputFidelity ?? "high",
+        quality: body.quality ?? "high",
+      });
       if ("error" in out) return NextResponse.json({ error: out.error }, { status: out.status });
       return NextResponse.json({ ...out, provider: "gpt-image" });
     }
