@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 
-// M36 P3 — rich identity extraction. BEFORE GPT Image runs, a vision model reads the
-// selected object and returns a STRUCTURED identity: shape, materials, colours,
-// decorative elements, text/logos, proportions — the difference between "blue candle"
-// and "turquoise mosaic ceramic body · copper neck · Persian calligraphy label · slim
-// white candle". furniture@8 uses `identityNotes` verbatim as its OBJECT-SPECIFIC block.
+// Identity extraction. BEFORE GPT Image runs, a vision model reads the selected object
+// and returns its OBJECTIVE identity — what makes THIS object recognisable: what it is,
+// colours, distinct physical parts + identifying shapes, exact text/logos, decorative
+// motifs (as subject facts), and the physical-part-vs-typography disambiguation (so a
+// B-shaped handle is a handle, not a duplicated letter). furniture@8 uses `identityNotes`
+// verbatim as its OBJECT-SPECIFIC block.
+//
+// The identity extractor states FACTS ONLY. It must never describe style, finish,
+// geometry, silhouette, lighting or rendering — furniture@8 alone owns style / Nestudio
+// DNA. (Describing style here previously fought furniture@8's matte look — a regression.)
 //
 // Server-side only (OPENAI_API_KEY never touches the browser). One cheap call. On any
 // error the client falls back to the deterministic extractor — generation never blocks.
@@ -14,16 +19,16 @@ const IDENTITY_MODEL = process.env.OPENAI_IDENTITY_MODEL || "gpt-4.1-mini";
 type Body = { imageDataUrl?: string; extraImages?: string[]; subject?: string; preserveDetails?: boolean };
 
 const SYSTEM = [
-  "You are a master object-identity analyst for a 3D asset studio, with an eye for craft, materials and cultural design.",
+  "You are an object-identity analyst for a 3D asset studio. Your ONLY job is to state the OBJECTIVE facts that make THIS specific object recognisable — what would let someone pick it out of a lineup of otherwise-similar objects.",
   "You are shown a real object (first image = the isolated object; a second image, if present, is its original photo with more detail).",
-  "Describe ONLY the object's visual identity — the specific facts that make THIS object itself and must survive when it is re-sculpted as a stylised 3D collectible.",
-  // P1 — categorise, and never confuse a physical part with printed text.
-  "CATEGORISE what you see into: (a) STRUCTURAL GEOMETRY — the overall body/silhouette; (b) PHYSICAL PARTS — separate 3D pieces you could physically touch (handles, spouts, lids, knobs, feet, ears, openings); (c) TYPOGRAPHY — printed or painted TEXT/letters; (d) LOGOS/SYMBOLS; (e) DECORATION — painted patterns, carvings, engravings, inlay, mosaic, embroidery, illustration.",
-  "CRITICAL: a PHYSICAL PART is solid 3D structure, NEVER printed text — even when its SHAPE resembles a letter, number or symbol. If a handle, spout or part looks like a letter (e.g. a mug handle shaped like the letter 'B'), classify it as a PHYSICAL PART, and add an explicit disambiguation note that it must be rebuilt as ONE solid 3D part and must NOT also be drawn as printed text or duplicated as an extra character. Never let a physical part and printed text be merged, confused or duplicated.",
-  // P2 — capture the ornate personality, never a simplified version.
-  "Be MAXIMALLY specific and never generic about materials and decoration. Name the exact material and finish (glazed turquoise mosaic ceramic, hammered copper, brushed brass, lacquered wood, frosted glass, cloisonne enamel), and for every ornament give the motif, its layout, its colours and any historical/regional/cultural style (Persian floral geometry, Isfahan enamel, paisley, Art-Deco fluting). Capture the object's PERSONALITY — recreate it, do not simplify it.",
-  "Transcribe any printed/painted text EXACTLY in its own script, and say how many times it appears (usually once).",
-  "Do NOT describe the background, hands, lighting, camera or the scene. Do NOT invent details you cannot actually see.",
+  "You are NOT an art director. You NEVER describe style, quality, or how to render the object — style is decided entirely elsewhere and your words must not influence it.",
+  // hard exclusions — the identity extractor must never touch style / DNA.
+  "NEVER mention: material finish or quality (matte, glossy, satin, polished, smooth, shiny, premium, high-quality, sleek, refined), geometry or silhouette style (rounded, soft, sculpted, inflated, elegant, organic, clean lines), lighting, shadow, shading, reflections, rendering, mood, or any artistic interpretation. Never call the object beautiful, cute, premium, handcrafted or well-made.",
+  // what to extract — objective facts only.
+  "State ONLY objective facts: what the object is; its colours (named); its distinct PHYSICAL PARTS and the plain shape that identifies each (a handle shaped like the letter B, a spout, two ear-shaped bumps, three feet); any TEXT/lettering/logos transcribed EXACTLY in their own script; its DECORATION as plain subject facts (what a pattern or picture depicts, the motif, and any regional/cultural style NAME such as Persian floral, paisley or mosaic); and its material only as a plain noun when the material itself identifies the object (ceramic, copper, brass, glass, wood) — never with an adjective.",
+  // P1 (kept — this is objective) — a physical part is not text.
+  "CRITICAL: a PHYSICAL PART is solid 3D structure, never printed text — even when its shape resembles a letter, number or symbol. Classify a letter-shaped part (e.g. a B-shaped handle) as a PHYSICAL PART, and add an explicit note that it must not be duplicated as printed text or an extra character. Never confuse a physical part with text.",
+  "Do NOT describe the background, hands, camera or scene. Do NOT invent facts you cannot actually see.",
   "Respond with STRICT JSON only.",
 ].join(" ");
 
@@ -31,17 +36,18 @@ function userPrompt(subject: string, preserveDetails: boolean): string {
   return [
     `The object is a ${subject || "home object"}.`,
     preserveDetails
-      ? "Preserve details mode is ON: capture every material, ornament, carving, engraving, pattern, mosaic, embroidery, painted illustration, logo and text precisely — recreate the personality, do not simplify."
-      : "Simplify mode is ON: focus on the exact shape, main materials/finish and main colours; you may omit incidental text/logos.",
-    "Return JSON with keys:",
-    "structuralGeometry (string — the overall body/silhouette), ",
-    "physicalParts (string[] — each separate 3D part with its shape; if a part's shape resembles a letter/number/symbol, say so AND state it is a physical part, not text), ",
-    "materials (string[] — material + finish, most specific), colors (string[] — named), ",
-    "decorativeElements (string[] — painted patterns, carvings, engravings, inlay, mosaic, embroidery, illustration: motif + layout + colours + cultural style), ",
-    "typography (string — printed/painted TEXT ONLY, exact transcription in original script, or empty), logos (string[]), ",
-    "disambiguation (string[] — explicit DO-NOT-DUPLICATE / DO-NOT-CONFUSE warnings, e.g. 'the B-shaped element is the physical handle, not a printed letter — render one handle and do not add an extra B'), ",
-    "proportions (string), signatures (string[] — the 2-4 unique visual features that most identify this exact object), ",
-    "and identityNotes (string): a markdown bullet list a 3D artist reads to rebuild THIS object, ordered most-distinctive first. It MUST include clearly labelled lines for PHYSICAL PARTS, TEXT (if any), DECORATION, and any DO-NOT-DUPLICATE disambiguation. Each bullet concrete and specific.",
+      ? "Preserve details: capture every distinctive part, colour, exact text, logo and decorative motif that identifies this exact object."
+      : "Simplify: capture the object type, main colours, main parts and identifying shapes only; you may omit incidental text/logos.",
+    "Return JSON with keys (OBJECTIVE FACTS ONLY — no style, finish, geometry, lighting or rendering words anywhere):",
+    "whatItIs (string — plain identification), ",
+    "colors (string[] — named colours), ",
+    "material (string[] — plain material nouns only, no adjectives, only when the material identifies the object; else empty), ",
+    "physicalParts (string[] — each distinct 3D part + the plain shape that identifies it; flag any letter-shaped part as a physical part, not text), ",
+    "typography (string — printed/painted TEXT only, exact transcription in original script, or empty), logos (string[]), ",
+    "decorativeElements (string[] — what each pattern/picture depicts + its motif + any cultural style NAME, as plain facts — never how it is rendered), ",
+    "disambiguation (string[] — DO-NOT-DUPLICATE / part-is-not-text / no-extra-parts notes), ",
+    "distinctiveFeatures (string[] — the 2-4 facts that most uniquely identify this object), ",
+    "and identityNotes (string): a markdown bullet list of OBJECTIVE identity facts ONLY (no finish/geometry/lighting/style words), with clearly labelled PHYSICAL PARTS, TEXT, DECORATION and DO-NOT-DUPLICATE lines where relevant. Each bullet a concrete fact a copyist needs.",
   ].join(" ");
 }
 
