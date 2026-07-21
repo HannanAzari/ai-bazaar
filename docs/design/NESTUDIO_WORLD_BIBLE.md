@@ -149,6 +149,9 @@ between documents — reference it.** Each concern lives in exactly one place:
 | [RENDERING_DNA.md](RENDERING_DNA.md) | palette hex · lighting · material · AO · shadow · transparency · **the immutable camera** · composition · allowed/forbidden styles |
 | [NESTUDIO_ASSET_DNA.md](NESTUDIO_ASSET_DNA.md) | the **provider contract** (M32) — the 17 asset fields as a machine spec every provider must satisfy; prompts assembled from it; the benchmark scorecard; code mirror `lib/asset-dna.ts` |
 | [ASSET_BENCHMARK.md](ASSET_BENCHMARK.md) | how a **provider is chosen** (M32) — one source · every provider · scored against the Asset DNA by a human; judged by consistency, not prompts |
+| [NESTUDIO_DNA_MEASURED.md](NESTUDIO_DNA_MEASURED.md) | the **Art Engine** (M35) — the official style MEASURED from real assets; the Style Validator gate; the conform pass; the family/benchmark tooling (`/dev/art-engine`) |
+| [IDENTITY_LOCK.md](IDENTITY_LOCK.md) | the **Identity Lock** pipeline (M36) — IDENTITY > FUNCTION > DNA; contract → hard gate 1 → targeted repair; `lib/identity/`. **Status: HELD, mug test not yet passing** |
+| [IDENTITY_MODEL_BENCHMARK.md](IDENTITY_MODEL_BENCHMARK.md) | **investigation only** (M36) — how to benchmark Gemini vs GPT Image vs hybrid for identity preservation; no production model change |
 | [ASSET_RULES.md](ASSET_RULES.md) | how each category (furniture, plants, houses, avatars, backgrounds, tools, interactive…) interprets the one DNA |
 | [CREATOR_TRANSLATION.md](CREATOR_TRANSLATION.md) | how a real object becomes a Nestudio object (the 6-stage pipeline) |
 | [ART_DIRECTION_PROCESS.md](ART_DIRECTION_PROCESS.md) | approval process · prompt architecture & version history · evaluation scorecards |
