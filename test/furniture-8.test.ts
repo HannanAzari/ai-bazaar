@@ -40,6 +40,18 @@ describe("furniture@8 prompt", () => {
     expect(p.positive).toMatch(/black B-shaped handle/);
   });
 
+  it("locks the canonical camera, forbids external shadow, puts identity first (M36)", () => {
+    const p = buildFurniture8Prompt({ ...base, mode: "preserve" });
+    expect(p.positive).toMatch(/always identical for every asset/i); // P2 canonical camera
+    expect(p.positive).toMatch(/NO drop shadow/i); // P1 no external shadow
+    expect(p.positive).toMatch(/identity outranks style/i); // P6 identity first
+  });
+
+  it("includes the style-only clause only when style refs are attached (P5)", () => {
+    expect(buildFurniture8Prompt({ ...base, mode: "preserve", withStyleRefs: true }).positive).toMatch(/STYLE REFERENCES:/);
+    expect(buildFurniture8Prompt({ ...base, mode: "preserve", withStyleRefs: false }).positive).not.toMatch(/STYLE REFERENCES:/);
+  });
+
   it("forbids photo/sticker/hand/environment artefacts in both modes", () => {
     for (const mode of ["preserve", "simplify"] as const) {
       const p = buildFurniture8Prompt({ ...base, mode });

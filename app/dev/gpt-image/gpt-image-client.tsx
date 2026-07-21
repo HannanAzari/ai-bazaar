@@ -20,6 +20,7 @@ import {
   getSegmenter,
   maskToCutout,
   maskToFrame,
+  maskBBox,
   sourceToCanvas,
   type Segmenter,
   type SegMask,
@@ -114,6 +115,8 @@ export function GptImageClient() {
             <span className="text-neutral-300">OpenAI errors shown in full</span>. The human judges.
           </p>
         </header>
+        <BatchCard />
+
         <div className="grid gap-6 md:grid-cols-1">
           {SLOTS.map((s) => (
             <SlotCard key={s.key} def={s} />
@@ -121,6 +124,184 @@ export function GptImageClient() {
         </div>
       </div>
     </div>
+  );
+}
+
+/* ── P4 · multi-object batch ──────────────────────────────────────────────────── */
+
+type BatchItem = {
+  id: string;
+  cutout: RasterImage;
+  frame: RasterImage;
+  center: { x: number; y: number }; // normalized, for the tap marker + dedupe
+  subject: string;
+  result?: HonestResult;
+  busy?: boolean;
+};
+
+/**
+ * Tap several objects in one photo — each becomes an INDEPENDENT asset (never combined).
+ * This is the future batch asset workflow. Segmentation is the real on-device model.
+ */
+function BatchCard() {
+  const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+  const [original, setOriginal] = useState<RasterImage | null>(null);
+  const [items, setItems] = useState<BatchItem[]>([]);
+  const [preparing, setPreparing] = useState(false);
+  const [tapping, setTapping] = useState(false);
+  const [runningAll, setRunningAll] = useState(false);
+
+  const segRef = useRef<Segmenter | null>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const idRef = useRef(0);
+
+  useEffect(() => {
+    if (!sourceUrl) return;
+    let alive = true;
+    setPreparing(true);
+    setItems([]);
+    (async () => {
+      const c = await sourceToCanvas(sourceUrl);
+      if (!alive) return;
+      setCanvas(c);
+      setOriginal(toRaster(c));
+      segRef.current = await getSegmenter();
+      if (alive) setPreparing(false);
+    })();
+    return () => { alive = false; };
+  }, [sourceUrl]);
+
+  const onTapStage = async (e: React.PointerEvent) => {
+    if (!canvas || !segRef.current || tapping || runningAll) return;
+    const stage = stageRef.current!;
+    const rect = stage.getBoundingClientRect();
+    const px = ((e.clientX - rect.left) / rect.width) * stage.clientWidth;
+    const py = ((e.clientY - rect.top) / rect.height) * stage.clientHeight;
+    const srcPt = displayToSource({ x: px, y: py }, { width: stage.clientWidth, height: stage.clientHeight }, { width: canvas.width, height: canvas.height });
+    const p = { x: srcPt.x / canvas.width, y: srcPt.y / canvas.height };
+    if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) return;
+    setTapping(true);
+    try {
+      const mask = await segRef.current.segmentAtPoint(canvas, p);
+      const bbox = maskBBox(mask);
+      const [frame, cutout] = await Promise.all([maskToFrame(canvas, mask), maskToCutout(canvas, mask)]);
+      const center = bbox
+        ? { x: (bbox.x + bbox.w / 2) / mask.width, y: (bbox.y + bbox.h / 2) / mask.height }
+        : p;
+      setItems((prev) => {
+        // Dedupe: a tap landing inside an existing object's centre replaces nothing (ignore).
+        if (prev.some((it) => Math.hypot(it.center.x - center.x, it.center.y - center.y) < 0.06)) return prev;
+        return [...prev, { id: `o${idRef.current++}`, cutout, frame, center, subject: "object" }];
+      });
+    } catch {
+      /* keep previous */
+    }
+    setTapping(false);
+  };
+
+  const onPickFile = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setSourceUrl(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const removeItem = (id: string) => setItems((prev) => prev.filter((it) => it.id !== id));
+  const setSubject = (id: string, subject: string) =>
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, subject } : it)));
+
+  const generateAll = async () => {
+    if (!items.length) return;
+    setRunningAll(true);
+    // Sequential — each object is an INDEPENDENT generation (never combined).
+    for (const it of items) {
+      setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, busy: true } : x)));
+      let result: HonestResult | undefined;
+      try {
+        result = await generateAssetHonest({
+          cutout: it.cutout,
+          original: original ?? undefined,
+          subject: it.subject.trim() || "object",
+          mode: "preserve",
+        });
+      } catch (e) {
+        result = undefined;
+        console.error("batch item failed", (e as Error).message);
+      }
+      setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, busy: false, result } : x)));
+    }
+    setRunningAll(false);
+  };
+
+  return (
+    <section className="mb-6 rounded-2xl border border-emerald-900/60 bg-neutral-900/60 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-base font-bold">Batch — tap multiple objects</h2>
+          <p className="text-xs text-neutral-500">Each object generates as its own asset (never combined). The future batch workflow.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => fileRef.current?.click()} className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-semibold hover:bg-neutral-800">
+            {sourceUrl ? "Change photo" : "Choose photo"}
+          </button>
+          <button type="button" onClick={generateAll} disabled={!items.length || runningAll} className="rounded-lg bg-emerald-500 px-4 py-1.5 text-xs font-black text-emerald-950 disabled:opacity-40">
+            {runningAll ? "Generating all…" : `Generate all (${items.length})`}
+          </button>
+        </div>
+      </div>
+
+      {sourceUrl ? (
+        <div className="grid gap-3 md:grid-cols-[minmax(0,340px)_1fr]">
+          <div>
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-neutral-500">Tap each object</p>
+            <div ref={stageRef} onPointerDown={onTapStage} className="relative aspect-square w-full cursor-pointer select-none overflow-hidden rounded-lg bg-neutral-950">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {original ? <img src={original.dataUrl} alt="" className="absolute inset-0 h-full w-full object-contain" /> : null}
+              {items.map((it, i) => (
+                <span key={it.id} className="absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-black text-emerald-950" style={{ left: `${it.center.x * 100}%`, top: `${it.center.y * 100}%` }}>
+                  {i + 1}
+                </span>
+              ))}
+              {(preparing || tapping) ? <div className="absolute inset-0 animate-pulse bg-emerald-400/10" /> : null}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-neutral-500">Selected objects → independent assets</p>
+            {items.length === 0 ? (
+              <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-neutral-800 text-[11px] text-neutral-600">tap objects in the photo</div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {items.map((it, i) => (
+                  <div key={it.id} className="rounded-lg border border-neutral-800 p-2">
+                    <div className="mb-1 flex items-center justify-between text-[10px] text-neutral-400">
+                      <span>#{i + 1}</span>
+                      <button type="button" onClick={() => removeItem(it.id)} className="text-neutral-500 hover:text-rose-400">remove</button>
+                    </div>
+                    <div style={CHECKER} className="mb-1 aspect-square w-full overflow-hidden rounded">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={(it.result?.finished ?? it.cutout).dataUrl} alt="" className="h-full w-full object-contain" />
+                    </div>
+                    <input value={it.subject} onChange={(e) => setSubject(it.id, e.target.value)} className="w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[11px] text-neutral-100" />
+                    <p className="mt-1 text-[9px] text-neutral-500">
+                      {it.busy ? "generating…" : it.result?.ok ? `✓ ${it.result.model} · $${it.result.costUsd?.toFixed(3) ?? "?"}` : it.result ? `✗ ${it.result.error?.slice(0, 40)}` : "queued"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-neutral-800 text-xs text-neutral-600">
+          Choose a photo with several objects (mirror · candle · vase · flower)
+        </div>
+      )}
+
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onPickFile(e.target.files?.[0]); e.target.value = ""; }} />
+    </section>
   );
 }
 
@@ -250,6 +431,8 @@ function SlotCard({ def }: { def: SlotDef }) {
         negative: "",
         hasAlpha: false,
         dimensions: {},
+        identityNotes: "",
+        identitySource: "subject",
         error: (e as Error).message,
       });
     }
@@ -373,7 +556,17 @@ function SlotCard({ def }: { def: SlotDef }) {
           />
           <Meta k="true alpha" v={result.hasAlpha ? "yes (native)" : "no"} />
           <Meta k="fallback" v={result.usedFallback ? "YES" : "no"} />
+          <Meta k="identity" v={result.identitySource + (result.identityModel ? ` (${result.identityModel})` : "")} />
+          <Meta k="style refs" v={result.styleRefCount != null ? String(result.styleRefCount) : "—"} />
         </div>
+      ) : null}
+
+      {/* The identity the model was actually told (P3) */}
+      {result?.identityNotes ? (
+        <details className="mt-2 text-xs text-neutral-400">
+          <summary className="cursor-pointer font-semibold text-neutral-300">Identity extracted ({result.identitySource})</summary>
+          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-neutral-950 p-2 font-mono text-[10px] text-neutral-300">{result.identityNotes}</pre>
+        </details>
       ) : null}
 
       {/* Pass criteria (human ticks these — not auto-scored) */}

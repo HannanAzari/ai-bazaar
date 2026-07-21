@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 // M32 — server-only bridge to the hosted image models, now provider-routed. The
 // client asset-pipeline adapters POST `{ provider, imageDataUrl, positive, negative,
@@ -26,7 +28,32 @@ type Body = {
   inputFidelity?: "high" | "low";
   /** GPT Image render quality. */
   quality?: "high" | "medium" | "low" | "auto";
+  /** M36 P5 — attach the official Nestudio furniture as STYLE references. */
+  styleRefs?: boolean;
 };
+
+// M36 P5 — a small, diverse set of official Nestudio furniture (fabric, wood, metal,
+// ceramic + greenery) attached as STYLE references so GPT Image learns the house look.
+// Curated small on purpose: more images = more input tokens + identity-bleed risk.
+const STYLE_REF_FILES = [
+  "public/nests/library-v1/assets/ast-lr-sofa-boucle.webp",
+  "public/nests/library-v1/assets/ast-lr-table-oak-round.webp",
+  "public/nests/library-v1/assets/ast-floor-lamp.webp",
+  "public/nests/library-v1/assets/ast-side-plant.webp",
+];
+
+async function loadStyleRefs(): Promise<{ mimeType: string; data: string }[]> {
+  const out: { mimeType: string; data: string }[] = [];
+  for (const rel of STYLE_REF_FILES) {
+    try {
+      const buf = await readFile(path.join(process.cwd(), rel));
+      out.push({ mimeType: "image/webp", data: buf.toString("base64") });
+    } catch {
+      /* a missing ref just means one fewer style hint — never fail the generation */
+    }
+  }
+  return out;
+}
 
 function parseDataUrl(dataUrl: string): { mimeType: string; data: string } | null {
   const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(dataUrl);
@@ -88,22 +115,25 @@ async function generateOpenAI(
   parsed: { mimeType: string; data: string },
   prompt: string,
   extras: { mimeType: string; data: string }[],
+  styleRefs: { mimeType: string; data: string }[],
   opts: { inputFidelity: "high" | "low"; quality: "high" | "medium" | "low" | "auto" },
 ) {
-  // gpt-image-1 edits: the clean cutout is the primary image; the original photo (and
-  // any mask) go in as ADDITIONAL reference images so the model sees detail the cutout
-  // lost. `background: transparent` gives true alpha natively (no post key-out).
-  // `input_fidelity: high` preserves the object's identity/detail. We request 1024²
-  // and let the client trim/pad to the DNA export size — no destructive post.
+  // gpt-image-1 edits: the clean cutout is the primary image; the original photo goes in
+  // as an ADDITIONAL reference so the model sees detail the cutout lost; the official
+  // furniture STYLE refs (P5) come last (the prompt marks them style-only). `background:
+  // transparent` gives true alpha natively; `input_fidelity: high` preserves identity.
+  // We request 1024² and let the client trim/pad to the DNA export size — no destructive post.
   const form = new FormData();
   form.append("model", OPENAI_IMAGE_MODEL);
   const toBlob = (p: { mimeType: string; data: string }, name: string): [Blob, string] => [
     new Blob([Buffer.from(p.data, "base64")], { type: p.mimeType }),
     name,
   ];
-  // Primary + references, all under the array field `image[]` (gpt-image-1 accepts multiple).
-  form.append("image[]", ...toBlob(parsed, "cutout.png"));
-  extras.slice(0, 3).forEach((e, i) => form.append("image[]", ...toBlob(e, `reference-${i}.png`)));
+  // Primary + references, all under the array field `image[]` (gpt-image-1 accepts multiple,
+  // capped at 16). Order: object cutout · object references · official style references.
+  form.append("image[]", ...toBlob(parsed, "object.png"));
+  extras.slice(0, 2).forEach((e, i) => form.append("image[]", ...toBlob(e, `object-ref-${i}.png`)));
+  styleRefs.slice(0, 6).forEach((e, i) => form.append("image[]", ...toBlob(e, `style-ref-${i}.webp`)));
   form.append("prompt", prompt.slice(0, 32000));
   form.append("size", "1024x1024");
   form.append("background", "transparent");
@@ -164,12 +194,13 @@ export async function POST(request: Request) {
     if (provider === "gpt-image" || provider === "openai") {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) return NextResponse.json({ error: "OPENAI_API_KEY is not set.", configured: false }, { status: 501 });
-      const out = await generateOpenAI(apiKey, parsed, prompt, extras, {
+      const styleRefs = body.styleRefs === false ? [] : await loadStyleRefs();
+      const out = await generateOpenAI(apiKey, parsed, prompt, extras, styleRefs, {
         inputFidelity: body.inputFidelity ?? "high",
         quality: body.quality ?? "high",
       });
       if ("error" in out) return NextResponse.json({ error: out.error }, { status: out.status });
-      return NextResponse.json({ ...out, provider: "gpt-image" });
+      return NextResponse.json({ ...out, provider: "gpt-image", styleRefCount: styleRefs.length });
     }
     return NextResponse.json({ error: `Provider "${provider}" is not configured on the server.`, configured: false }, { status: 501 });
   } catch (err) {

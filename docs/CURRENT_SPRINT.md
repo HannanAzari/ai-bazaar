@@ -4,13 +4,33 @@
 > replace it each sprint — history lives in [design/CHANGELOG.md](design/CHANGELOG.md) and
 > [roadmap.md](roadmap.md), not here.
 
-**Sprint:** M35b — Replace Gemini with GPT Image (the honest path)
+**Sprint:** M36 — Production Asset Factory polish (on top of M35b GPT Image)
 **Updated:** 2026-07-21 · **Branch:** `m12-nest-platform`
-**Status:** ✅ **PASSING — both mug tests pass on a real GPT Image call. Acceptance rule met.**
+**Status:** ✅ **PASSING — full production pipeline validated on both mugs (Latin + Persian). Ready to freeze.**
 
 ---
 
-## The goal
+## M36 — the six production priorities (all done, verified on real calls)
+
+- **P1 · No external shadows.** Automatic post-gen alpha cleanup ([`lib/asset-pipeline/cleanup.ts`](../lib/asset-pipeline/cleanup.ts)):
+  harden faint alpha (kills glow/halo) → keep the largest connected component (drops detached floor/contact
+  shadows) → despeckle → feather → trim → pad. Internal shading/AO kept. No recolour, no repair.
+- **P2 · Camera locked forever.** One [`CANONICAL_CAMERA_CLAUSE`](../lib/asset-pipeline/camera.ts) reused by furniture@8 — no per-asset angle drift.
+- **P3 · Rich identity extraction.** A vision model ([`/api/ai/identity`](../app/api/ai/identity), gpt-4.1-mini) describes
+  shape/materials/colours/decorative elements/text/logos/proportions BEFORE GPT Image. Graceful fallback to the
+  deterministic extractor. ("white mug" → "white ceramic mug · cartoon eyes with eyelashes · red heart cheeks · بغل؟".)
+- **P4 · Multi-object segmentation.** Batch card on [`/dev/gpt-image`](../app/dev/gpt-image): tap several objects; each generates as its
+  own independent asset (never combined). The future batch workflow.
+- **P5 · Official style references.** The route attaches a curated official-furniture set (sofa, table, lamp, plant)
+  as STYLE-only refs so GPT learns the house look. Identity still comes only from the object.
+- **P6 · Identity first.** furniture@8 states identity outranks style explicitly; the style refs did NOT corrupt
+  identity in testing.
+
+**Verified (real gpt-image-1, full auto path):** Mug A (cream, black B-handle, "Bitch") and Mug B (face, red
+cheeks, Persian "بغل؟") — identity + text preserved, native transparent, **no external shadow**, belongs beside
+official furniture, no manual editing. ~$0.44 / ~45s each (incl. 4 style refs + vision identity).
+
+## The M35b goal (unchanged, still true)
 
 > Stop using Gemini. Upload a real object → isolate it → generate ONE premium Nestudio version with
 > **GPT Image (`gpt-image-1`)** → preserve its identity → show the genuine result. **No repair layers.**

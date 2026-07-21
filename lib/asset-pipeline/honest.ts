@@ -1,30 +1,30 @@
 /**
- * lib/asset-pipeline/honest.ts — the M35 GPT-Image "honest" path.
+ * lib/asset-pipeline/honest.ts — the GPT-Image "honest" path (M35 + M36 polish).
  * -----------------------------------------------------------------------------
  * ONE generation, the model's GENUINE result, no corrections:
- *   • furniture@8 prompt (identity stated as truth, not style tricks)
- *   • cutout + original photo sent together (the route attaches references)
- *   • NO conformToNestudio (no palette lock / posterise / matte grade)
- *   • NO identity re-composite / targeted repair (no source pixels painted back)
- *   • NO regenerate-until-acceptable loop, NO candidate selection
- *   • NO silent fallback to Gemini or the local canvas — OpenAI errors surface
+ *   • rich identity FIRST — a vision model describes the object (P3); fallback to the
+ *     deterministic extractor. furniture@8 states that identity as fact (identity > style).
+ *   • canonical camera, no-external-shadow instruction, official furniture as STYLE refs (P5).
+ *   • cutout + original photo + official style refs sent together (route attaches them).
+ *   • NO conform (palette/posterise/matte grade), NO identity re-composite / repair,
+ *     NO regenerate loop, NO candidate selection, NO silent fallback — errors surface.
  *
- * The only post-processing is honest FRAMING (finishAsset = trim + pad; it only
- * keys out a background when the result is NOT already transparent, and gpt-image-1
- * returns native alpha, so nothing is removed). We want to SEE the real result
- * before deciding whether any correction is ever warranted.
+ * Post-processing is masking + framing ONLY (finishClean, P1): key out a solid
+ * background if present, strip external glow/halo/floor-shadow, keep the object, trim,
+ * pad. Internal shading / AO is kept. No recolour, no repair.
  *
- * Browser-only (Canvas + the identity extractor). Returns rich, truthful metadata
- * for the /dev/gpt-image comparison screen and the editor.
+ * Browser-only (Canvas + the identity extractor). Returns rich, truthful metadata.
  */
 
 import type { RasterImage } from "@/lib/ai/types";
 import { rasterFromDataUrl, alphaStats } from "@/lib/ai/canvas";
 import { NESTUDIO_ASSET_DNA } from "@/lib/asset-dna";
-import { finishAsset } from "./finish";
+import { finishClean } from "./cleanup";
 import { extractContract } from "@/lib/identity";
-import type { IdentityContract } from "@/lib/identity/types";
-import { buildFurniture8Prompt, FURNITURE_8_VERSION, type PreserveMode } from "./furniture-8";
+import { buildFurniture8Prompt, deriveIdentityNotes, FURNITURE_8_VERSION, type PreserveMode } from "./furniture-8";
+
+/** Where the object-specific identity came from. */
+export type IdentitySource = "provided" | "vision" | "deterministic" | "subject";
 
 export type HonestRequest = {
   /** The clean tap-to-select cutout (primary image sent to the model). */
@@ -70,6 +70,12 @@ export type HonestResult = {
   /** True alpha present in the RAW output (native transparent background). */
   hasAlpha: boolean;
   dimensions: { raw?: { w: number; h: number }; finished?: { w: number; h: number } };
+  /** The object-specific identity block used, and where it came from. */
+  identityNotes: string;
+  identitySource: IdentitySource;
+  identityModel?: string;
+  /** How many official furniture style references were attached (P5). */
+  styleRefCount?: number;
   error?: string;
 };
 
@@ -77,8 +83,52 @@ type RouteResponse = {
   imageDataUrl?: string;
   model?: string;
   costUsd?: number | null;
+  styleRefCount?: number;
   error?: string;
 };
+
+type IdentityResponse = { identityNotes?: string; model?: string; error?: string };
+
+/**
+ * Resolve the object's identity block, richest source first:
+ *   provided → vision model (P3) → deterministic pixel extractor → bare subject.
+ * Never throws; generation must not block on identity.
+ */
+async function resolveIdentity(req: HonestRequest): Promise<{ notes: string; source: IdentitySource; model?: string }> {
+  const subject = (req.subject || "home object").trim();
+  if (req.identityNotes && req.identityNotes.trim()) {
+    return { notes: req.identityNotes.trim(), source: "provided" };
+  }
+  // 1) Vision identity — the rich description (materials, text, decorative elements).
+  try {
+    const res = await fetch("/api/ai/identity", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        imageDataUrl: req.cutout.dataUrl,
+        extraImages: req.original ? [req.original.dataUrl] : [],
+        subject,
+        preserveDetails: req.mode === "preserve",
+      }),
+      signal: req.signal,
+    });
+    if (res.ok) {
+      const j = (await res.json()) as IdentityResponse;
+      if (j.identityNotes && j.identityNotes.trim()) {
+        return { notes: j.identityNotes.trim(), source: "vision", model: j.model };
+      }
+    }
+  } catch {
+    /* fall through to deterministic */
+  }
+  // 2) Deterministic pixel extractor.
+  try {
+    const contract = await extractContract({ cutout: req.cutout, subject, preserveDetails: req.mode === "preserve" });
+    return { notes: deriveIdentityNotes(contract), source: "deterministic" };
+  } catch {
+    return { notes: `- ${subject}`, source: "subject" };
+  }
+}
 
 /**
  * Generate ONE Nestudio asset from a real object via GPT Image — honestly.
@@ -87,30 +137,19 @@ type RouteResponse = {
 export async function generateAssetHonest(req: HonestRequest): Promise<HonestResult> {
   const mode = req.mode;
 
-  // Build furniture@8. The object-specific identity is the truth we can measure
-  // (or an explicit description) — never a style trick. Extraction failure is fine.
-  let contract: IdentityContract | null = null;
-  if (!req.identityNotes) {
-    try {
-      contract = await extractContract({
-        cutout: req.cutout,
-        subject: req.subject,
-        preserveDetails: mode === "preserve",
-      });
-    } catch {
-      contract = null;
-    }
-  }
+  // Identity FIRST (P3/P6): resolve the richest identity available, state it as fact.
+  const identity = await resolveIdentity(req);
+
   const built = buildFurniture8Prompt({
     subject: req.subject,
-    contract,
     mode,
-    identityNotes: req.identityNotes,
+    identityNotes: identity.notes,
+    withStyleRefs: true, // official furniture attached as STYLE refs (P5)
   });
   const prompt = req.notes && req.notes.trim() ? `${built.positive}\n\nUSER REQUEST: ${req.notes.trim()}` : built.positive;
   const negative = built.negative;
 
-  const base: Omit<HonestResult, "ok" | "raw" | "finished" | "error" | "model" | "costUsd" | "hasAlpha" | "dimensions"> & {
+  const base: Omit<HonestResult, "ok" | "raw" | "finished" | "error" | "model" | "costUsd" | "hasAlpha" | "dimensions" | "styleRefCount"> & {
     dimensions: HonestResult["dimensions"];
   } = {
     provider: "openai",
@@ -122,10 +161,15 @@ export async function generateAssetHonest(req: HonestRequest): Promise<HonestRes
     sent: { cutout: req.cutout, original: req.original, mask: req.mask },
     prompt,
     negative,
+    identityNotes: identity.notes,
+    identitySource: identity.source,
+    identityModel: identity.model,
     dimensions: {},
   };
 
-  const extraImages = [req.original?.dataUrl, req.mask?.dataUrl].filter(Boolean) as string[];
+  // Only the original goes as a client-side object reference; official style refs are
+  // attached server-side (P5). Keeping this lean bounds input-token cost.
+  const extraImages = req.original ? [req.original.dataUrl] : [];
   const started = performance.now();
   let json: RouteResponse;
   try {
@@ -140,6 +184,7 @@ export async function generateAssetHonest(req: HonestRequest): Promise<HonestRes
         negative,
         inputFidelity: mode === "preserve" ? "high" : "low",
         quality: "high",
+        styleRefs: true,
         size: NESTUDIO_ASSET_DNA.export.size,
       }),
       signal: req.signal,
@@ -151,6 +196,7 @@ export async function generateAssetHonest(req: HonestRequest): Promise<HonestRes
         ok: false,
         model: json.model ?? null,
         costUsd: json.costUsd ?? null,
+        styleRefCount: json.styleRefCount,
         hasAlpha: false,
         raw: null,
         finished: null,
@@ -177,16 +223,16 @@ export async function generateAssetHonest(req: HonestRequest): Promise<HonestRes
   const stats = await alphaStats(raw);
   const hasAlpha = stats.transparentCorners && stats.coverage < 0.995;
 
-  // Honest framing ONLY: trim + pad. finishAsset keys out a background solely when the
-  // result is not already transparent; gpt-image-1 returns native alpha, so nothing is
-  // removed. No conform, no palette, no repair.
-  const finished = await finishAsset(raw, { size: NESTUDIO_ASSET_DNA.export.size });
+  // Production framing (P1): key-out only if needed, strip external glow/halo/shadow,
+  // keep the object, trim + pad. No conform, no palette, no repair.
+  const finished = await finishClean(raw, { size: NESTUDIO_ASSET_DNA.export.size });
 
   return {
     ...base,
     ok: true,
     model: json.model ?? "gpt-image-1",
     costUsd: json.costUsd ?? null,
+    styleRefCount: json.styleRefCount,
     latencyMs,
     hasAlpha,
     raw,

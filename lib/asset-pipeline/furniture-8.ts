@@ -17,6 +17,7 @@
  */
 
 import type { IdentityContract, RGB } from "@/lib/identity/types";
+import { CANONICAL_CAMERA_CLAUSE } from "./camera";
 
 export const FURNITURE_8_VERSION = "furniture@8";
 
@@ -102,13 +103,29 @@ const NESTUDIO_APPEARANCE = [
   "- premium matte material",
   "- restrained warm colours",
   "- subtle handcrafted character",
-  "- dimensional form with gentle internal shading",
-  "- slightly elevated front three-quarter camera with the top surface visible",
+  "- dimensional form with gentle internal shading and ambient occlusion INSIDE the object only",
   "- no environment, room, hand, pedestal, text outside the object or decorative background",
   "- isolated cleanly for use as an in-app asset",
   "- no baked checkerboard",
-  "- no dramatic cast shadow",
 ];
+
+// P1 — the export must be shadow-free. Stated plainly so the model does not paint one.
+const NO_EXTERNAL_SHADOW =
+  "SHADOW: the object carries ONLY its own internal shading and ambient occlusion. There is NO drop shadow, " +
+  "NO cast shadow, NO contact or floor shadow, NO glow, NO halo and NO reflection anywhere around it. The area " +
+  "outside the object's silhouette is completely empty and transparent.";
+
+// P6 — identity outranks style, always.
+const IDENTITY_FIRST =
+  "PRIORITY: identity outranks style. If keeping the object's logos, writing, patterns, engravings, special " +
+  "handles or unique geometry ever conflicts with the Nestudio look, ALWAYS preserve the identity.";
+
+// P5 — official furniture is attached as STYLE reference only.
+const STYLE_REFERENCES =
+  "STYLE REFERENCES: any images attached AFTER the object are official Nestudio furniture, shown ONLY to teach " +
+  "the house style — matte material, warm restrained palette, soft lighting, rounded proportions and level of " +
+  "detail. NEVER copy their shapes, colours or identity, and never add furniture to the scene. The object's " +
+  "identity comes only from the FIRST image and the identity block above.";
 
 const OUTPUT = [
   "OUTPUT:",
@@ -139,6 +156,8 @@ export function buildFurniture8Prompt(opts: {
   contract?: IdentityContract | null;
   mode: PreserveMode;
   identityNotes?: string;
+  /** Official furniture is attached as style refs — include the style-only clause. */
+  withStyleRefs?: boolean;
 }): Furniture8Prompt {
   const { subject, contract, mode } = opts;
   const preserve = mode === "preserve";
@@ -154,11 +173,15 @@ export function buildFurniture8Prompt(opts: {
 
   const positive = [
     PRIMARY_GOAL,
+    IDENTITY_FIRST,
+    `OBJECT-SPECIFIC IDENTITY:\n${identityBlock}`,
     [...IDENTITY_SHARED, detailLine].join("\n"),
     TRANSFORMATION.join("\n"),
     NESTUDIO_APPEARANCE.join("\n"),
+    CANONICAL_CAMERA_CLAUSE,
+    NO_EXTERNAL_SHADOW,
+    ...(opts.withStyleRefs ? [STYLE_REFERENCES] : []),
     OUTPUT.join("\n"),
-    `OBJECT-SPECIFIC IDENTITY:\n${identityBlock}`,
     `The object is a ${(subject || "home object").trim()}.`,
   ].join("\n\n");
 
