@@ -22,6 +22,9 @@ import { NESTUDIO_ASSET_DNA } from "@/lib/asset-dna";
 import { finishClean } from "./cleanup";
 import { extractContract } from "@/lib/identity";
 import { buildFurniture8Prompt, deriveIdentityNotes, FURNITURE_8_VERSION, type PreserveMode } from "./furniture-8";
+import { usesStyleRefs, hasGlassSurface, type ObjectMaterial } from "./materials";
+import { measurePoseFromAlpha, validatePose, type PoseMeasure } from "./orientation";
+import { loadImage, makeCanvas } from "@/lib/ai/canvas";
 
 /** Where the object-specific identity came from. */
 export type IdentitySource = "provided" | "vision" | "deterministic" | "subject";
@@ -37,10 +40,15 @@ export type HonestRequest = {
   subject: string;
   /** Preserve keeps writing/logos/patterns; Simplify strips them. */
   mode: PreserveMode;
+  /** What the object is made of. Drives the MATERIAL block AND whether warm furniture
+   *  style refs are attached (cool/technical materials get none — Sprint 1 wood-bias fix). */
+  material?: ObjectMaterial | null;
   /** Optional explicit real-object description (must describe the object, not style). */
   identityNotes?: string;
   /** Optional user nudge from the "Improve" flow, appended verbatim (not a style trick). */
   notes?: string;
+  /** Extra headers merged into the internal /api/ai fetches — carries the founder token. */
+  authHeaders?: Record<string, string>;
   signal?: AbortSignal;
 };
 
@@ -76,6 +84,9 @@ export type HonestResult = {
   identityModel?: string;
   /** How many official furniture style references were attached (P5). */
   styleRefCount?: number;
+  /** Canonical-pose validation of the finished asset (Sprint 2 — pose as geometry).
+   *  symmetry 1 = perfectly front-facing; inTolerance false = rotated out of the band. */
+  pose?: { symmetry: number; balance: number; inTolerance: boolean };
   error?: string;
 };
 
@@ -103,7 +114,7 @@ async function resolveIdentity(req: HonestRequest): Promise<{ notes: string; sou
   try {
     const res = await fetch("/api/ai/identity", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(req.authHeaders ?? {}) },
       body: JSON.stringify({
         imageDataUrl: req.cutout.dataUrl,
         extraImages: req.original ? [req.original.dataUrl] : [],
@@ -131,6 +142,24 @@ async function resolveIdentity(req: HonestRequest): Promise<{ notes: string; sou
 }
 
 /**
+ * Measure the finished asset's canonical pose from its own silhouette (Sprint 2). Pose is
+ * now GEOMETRY: every object is validated against the canonical tolerance, so the pipeline
+ * can flag (or a caller can reject) an out-of-tolerance, over-rotated render — GPT Image's
+ * residual camera drift never ships silently. Browser-only (Canvas).
+ */
+async function measurePoseOf(raster: RasterImage): Promise<{ symmetry: number; balance: number; inTolerance: boolean }> {
+  const img = await loadImage(raster.dataUrl);
+  const c = makeCanvas(raster.width, raster.height);
+  const ctx = c.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, c.width, c.height).data;
+  const alpha = new Uint8ClampedArray(c.width * c.height);
+  for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3];
+  const measure: PoseMeasure = measurePoseFromAlpha(alpha, c.width, c.height);
+  return { symmetry: measure.symmetry, balance: measure.balance, inTolerance: validatePose(measure).ok };
+}
+
+/**
  * Generate ONE Nestudio asset from a real object via GPT Image — honestly.
  * Never falls back; any OpenAI/network error is returned in `error` with ok:false.
  */
@@ -140,11 +169,17 @@ export async function generateAssetHonest(req: HonestRequest): Promise<HonestRes
   // Identity FIRST (P3/P6): resolve the richest identity available, state it as fact.
   const identity = await resolveIdentity(req);
 
+  // Style refs are the warm-wood furniture set — attach them ONLY for warm organic
+  // materials. A metal/screen/glass object generates prompt-only, so oak refs can't
+  // drag it back to the rejected wooden look (Sprint 1).
+  const withStyleRefs = usesStyleRefs(req.material);
+
   const built = buildFurniture8Prompt({
     subject: req.subject,
     mode,
+    material: req.material,
     identityNotes: identity.notes,
-    withStyleRefs: true, // official furniture attached as STYLE refs (P5)
+    withStyleRefs,
   });
   const prompt = req.notes && req.notes.trim() ? `${built.positive}\n\nUSER REQUEST: ${req.notes.trim()}` : built.positive;
   const negative = built.negative;
@@ -175,7 +210,7 @@ export async function generateAssetHonest(req: HonestRequest): Promise<HonestRes
   try {
     const res = await fetch("/api/ai/generate", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(req.authHeaders ?? {}) },
       body: JSON.stringify({
         provider: "gpt-image",
         imageDataUrl: req.cutout.dataUrl,
@@ -184,7 +219,7 @@ export async function generateAssetHonest(req: HonestRequest): Promise<HonestRes
         negative,
         inputFidelity: mode === "preserve" ? "high" : "low",
         quality: "high",
-        styleRefs: true,
+        styleRefs: withStyleRefs,
         size: NESTUDIO_ASSET_DNA.export.size,
       }),
       signal: req.signal,
@@ -224,8 +259,15 @@ export async function generateAssetHonest(req: HonestRequest): Promise<HonestRes
   const hasAlpha = stats.transparentCorners && stats.coverage < 0.995;
 
   // Production framing (P1): key-out only if needed, strip external glow/halo/shadow,
-  // keep the object, trim + pad. No conform, no palette, no repair.
-  const finished = await finishClean(raw, { size: NESTUDIO_ASSET_DNA.export.size });
+  // keep the object, trim + pad. No conform, no palette, no repair. Screen/glass objects
+  // also get their enclosed screen-hole filled with dark glass (GPT Image leaves it transparent).
+  const finished = await finishClean(raw, {
+    size: NESTUDIO_ASSET_DNA.export.size,
+    fillGlassHoles: hasGlassSurface(req.material),
+  });
+
+  // Pose as geometry: measure + validate the canonical orientation of the finished asset.
+  const pose = await measurePoseOf(finished);
 
   return {
     ...base,
@@ -237,6 +279,7 @@ export async function generateAssetHonest(req: HonestRequest): Promise<HonestRes
     hasAlpha,
     raw,
     finished,
+    pose,
     dimensions: {
       raw: { w: raw.width, h: raw.height },
       finished: { w: finished.width, h: finished.height },

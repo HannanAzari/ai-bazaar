@@ -58,6 +58,24 @@ export function objectVisual(assetId: string, category?: AssetCategory): ObjectV
   return BY_ASSET[assetId] ?? (category ? BY_CATEGORY[category] ?? "tile" : "tile");
 }
 
+// URL prefixes that mark an asset image as a *placeholder*, not real art. The
+// original seed catalog uses /assets/placeholder/*.svg, and the Asset Factory's
+// dry-run samples use /samples/*; both fall back to the CSS sprite renderer.
+const PLACEHOLDER_PREFIXES = ["/assets/placeholder/", "/samples/"];
+
+/**
+ * Returns a renderable image URL for an asset, or `undefined` when the asset has
+ * no real art (missing, or a known placeholder/sample path) — in which case the
+ * room renderer falls back to the icon/CSS sprite (ADR-021). Real Style Lab PNGs
+ * (local /asset-catalogs/* or remote Supabase public URLs) pass through.
+ */
+export function renderableAssetImage(imageUrl?: string): string | undefined {
+  const url = imageUrl?.trim();
+  if (!url) return undefined;
+  if (PLACEHOLDER_PREFIXES.some((prefix) => url.startsWith(prefix))) return undefined;
+  return url;
+}
+
 // ── Room background variants (existing shell, recoloured) ──
 
 export type RoomBackground = {

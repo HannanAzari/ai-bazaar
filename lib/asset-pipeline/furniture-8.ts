@@ -18,6 +18,7 @@
 
 import type { IdentityContract, RGB } from "@/lib/identity/types";
 import { CANONICAL_CAMERA_CLAUSE } from "./camera";
+import { buildMaterialBlock, type ObjectMaterial } from "./materials";
 
 export const FURNITURE_8_VERSION = "furniture@8";
 
@@ -97,17 +98,44 @@ const TRANSFORMATION = [
   "Give it coherent solid geometry, believable thickness, clean edges and a premium tactile form.",
 ];
 
+// NESTUDIO APPEARANCE holds only the material-INDEPENDENT house qualities. The actual
+// surface + palette come from the MATERIAL block (materials.ts) — Sprint 1 removed the
+// "premium matte material" / "restrained warm colours" lines that forced every object
+// wooden and beige. Warmth now lives in the LIGHT (asset-dna key light), not the material.
 const NESTUDIO_APPEARANCE = [
   "NESTUDIO APPEARANCE:",
   "- softly rounded, friendly proportions",
-  "- premium matte material",
-  "- restrained warm colours",
+  "- iconic and simplified — a bold readable glyph of the object, not a photoreal replica",
+  "- a soft matte-LEANING, hand-crafted finish (the exact finish is set by the MATERIAL block above)",
   "- subtle handcrafted character",
   "- dimensional form with gentle internal shading and ambient occlusion INSIDE the object only",
+  // Gen 4 — keyboards/remotes came out with gibberish micro-legends; simplify dense repeated marks.
+  "- render dense repeated micro-text (keyboard legends, remote buttons, tiny dials) as clean, uniform, simplified keys or marks WITHOUT legible or invented letters",
   "- no environment, room, hand, pedestal, text outside the object or decorative background",
   "- isolated cleanly for use as an in-app asset",
   "- no baked checkerboard",
 ];
+
+// Gen 4 — furniture@8 had NO explicit lighting clause, so renders came out flat and cold.
+// State the canonical soft warm key so the object reads premium and warm — warmth in the
+// LIGHT (asset-dna key light), never painted onto the material.
+const LIGHTING =
+  "LIGHT: a single soft, warm key light from the upper-left with gentle falloff and soft warm " +
+  "ambient occlusion pooling in the recesses — calm, premium and inviting; never a hard studio " +
+  "softbox, never flat, never cold, never dramatic. The object's warmth comes from THIS light, " +
+  "not from tinting its true material colour.";
+
+// Sprint-1 validation (Gen 2) — GPT Image overrode the canonical camera and spun the
+// laptop into a strong three-quarter profile, breaking family consistency with the
+// front-facing catalogue. This clause locks the object to the SOURCE orientation: only
+// the slight canonical elevation is allowed, never a horizontal rotation.
+const ORIENTATION_LOCK =
+  "ORIENTATION LOCK (this is GEOMETRY, not an artistic choice): the object's front face is PARALLEL " +
+  "to the image plane and centred. Horizontal rotation is ZERO degrees — the view is straight-on and " +
+  "LEFT-RIGHT SYMMETRIC, the left and right sides equally visible and mirroring each other, with only " +
+  "the slight canonical downward tilt from above. Reproduce the EXACT orientation of the FIRST reference " +
+  "image. Do NOT rotate it even a few degrees to either side, do NOT turn it toward a three-quarter or " +
+  "side view, do NOT show one side more than the other.";
 
 // P1 — the export must be shadow-free. Stated plainly so the model does not paint one.
 const NO_EXTERNAL_SHADOW =
@@ -156,11 +184,18 @@ export function buildFurniture8Prompt(opts: {
   contract?: IdentityContract | null;
   mode: PreserveMode;
   identityNotes?: string;
+  /** What the object is made of (primary + accent materials). When omitted, a neutral
+   *  "honour the object's own real material" block is used (Sprint 1 — no more wood forcing). */
+  material?: ObjectMaterial | null;
   /** Official furniture is attached as style refs — include the style-only clause. */
   withStyleRefs?: boolean;
 }): Furniture8Prompt {
-  const { subject, contract, mode } = opts;
+  const { subject, contract, mode, material } = opts;
   const preserve = mode === "preserve";
+
+  // MATERIAL block + the extra negatives that kill this material's failure mode
+  // (e.g. a metal laptop forbids "wooden / warm beige / antique").
+  const { block: materialBlock, negativeAdds: materialNegatives } = buildMaterialBlock(material);
 
   // The Preserve/Simplify divergence — a real difference in instruction, verifiable.
   const detailLine = preserve
@@ -177,8 +212,11 @@ export function buildFurniture8Prompt(opts: {
     `OBJECT-SPECIFIC IDENTITY:\n${identityBlock}`,
     [...IDENTITY_SHARED, detailLine].join("\n"),
     TRANSFORMATION.join("\n"),
+    materialBlock,
     NESTUDIO_APPEARANCE.join("\n"),
+    LIGHTING,
     CANONICAL_CAMERA_CLAUSE,
+    ORIENTATION_LOCK,
     NO_EXTERNAL_SHADOW,
     ...(opts.withStyleRefs ? [STYLE_REFERENCES] : []),
     OUTPUT.join("\n"),
@@ -187,6 +225,7 @@ export function buildFurniture8Prompt(opts: {
 
   const negative = [
     ...NEGATIVE_BASE,
+    ...materialNegatives,
     ...(preserve ? [] : ["writing", "lettering", "logos", "text", "printed word"]),
   ].join(", ");
 

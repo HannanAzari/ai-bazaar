@@ -121,6 +121,18 @@ const ASSETS: ProductionAsset[] = [
   asset({ id: "ast-desk", name: "Writing Desk", category: "furniture", compatibleSlotTypes: ["desk"], c: "golden-v2", aspect: "1149:1015", tags: ["desk", "work"], status: "featured" }),
   asset({ id: "ast-stacked-books", name: "Stacked Books", category: "decor", compatibleSlotTypes: ["books"], c: "golden-v2", aspect: "1119:640", tags: ["books", "reading"], status: "approved" }),
   asset({ id: "ast-bookshelf", name: "Bookshelf", category: "furniture", compatibleSlotTypes: ["shelf"], c: "golden-v2", aspect: "535:1499", tags: ["bookshelf", "storage", "shelf"], status: "approved" }),
+
+  // Phase 2 Beta · the certified Laptop is now served from Supabase (nest_assets), NOT
+  // the fixture — its local entry was intentionally removed to prove Supabase-exclusivity.
+
+  // Five-object family-gate assets (approved). Slot types drive correct editor hosting:
+  // tv→media(console/wall), bookshelf→shelf(floor,back-wall), plant→plant, sofa→seat(anchor).
+  // Placement scale/anchor detail: lib/nest/beta-placement-metadata.ts.
+  asset({ id: "ast-tv-beta", name: "Television", category: "electronics", compatibleSlotTypes: ["media"], c: "beta-v1", aspect: "486:390", tags: ["tv", "screen", "media", "beta"], status: "approved",
+    editableSurfaces: [{ id: "surf-screen", label: "Screen", kind: "screen", bounds: { x: 0.08, y: 0.06, width: 0.84, height: 0.66 }, contentType: "video", aspect: "16:9" }] }),
+  asset({ id: "ast-bookshelf-beta", name: "Bookshelf", category: "furniture", compatibleSlotTypes: ["shelf"], c: "beta-v1", aspect: "486:476", tags: ["bookshelf", "storage", "shelf", "beta"], status: "approved" }),
+  asset({ id: "ast-plant-beta", name: "Potted Plant", category: "plant", compatibleSlotTypes: ["plant"], c: "beta-v1", aspect: "396:486", tags: ["plant", "greenery", "beta"], status: "approved" }),
+  asset({ id: "ast-sofa-beta", name: "Sofa", category: "furniture", compatibleSlotTypes: ["seat"], c: "beta-v1", aspect: "486:260", tags: ["sofa", "seating", "beta"], status: "approved" }),
 ];
 
 // ── Templates (four launch personas) ─────────────────────────────────────────

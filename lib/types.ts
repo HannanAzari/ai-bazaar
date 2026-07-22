@@ -434,3 +434,75 @@ export type HouseRooms = {
   entryRoomId: string;
   rooms: Room[];
 };
+
+// ── Nestudio visual kit: curated/generated template assets (ADR-022) ─────────
+// For the pilot we do NOT draw houses/rooms with CSS geometry. Instead the app
+// composes **curated, generated image templates** (exterior shells, room shells,
+// later village tiles) and places interactive assets on top at calibrated
+// coordinates. Templates are produced in the Asset Factory and registered
+// statically here (no runtime Supabase loading yet). The AI design engine's job
+// becomes *choosing a template + placing assets*, not synthesizing a scene.
+
+/** A rectangle normalized to the template image (0..1 on each axis). */
+export type NormalizedRect = { x: number; y: number; width: number; height: number };
+
+/**
+ * A calibrated slot on a template where an asset is placed. `cx`/`baseY` are the
+ * asset's base-centre (normalized to the template); `width` is the asset width as
+ * a fraction of the template width; the image keeps its own aspect.
+ */
+export type ShellPlacementZone = {
+  id: string;
+  label: string;
+  cx: number;
+  baseY: number;
+  width: number;
+  z: number;
+};
+
+/** Fields shared by every visual-kit template (room/exterior/village tile). */
+export type VisualTemplate = {
+  id: string;
+  name: string;
+  /** The non-interactive background image (a curated Nestudio DNA asset). */
+  imageUrl: string;
+  /** Intrinsic image size (drives the stage aspect ratio). */
+  width: number;
+  height: number;
+  /** Visual family the template belongs to, e.g. "nestudio-cozy". */
+  styleFamily: string;
+  /** Personality/mood tags for matching (e.g. "warm", "minimal", "maker"). */
+  personalityTags: string[];
+  /** Creator use-cases this template suits (e.g. "lounge", "studio", "shop"). */
+  compatibleUseCases: string[];
+  /** Calibrated slots where assets are placed on top. */
+  placementZones: ShellPlacementZone[];
+  /** Inset region content should stay within (normalized). */
+  safeArea: NormalizedRect;
+  /** Template revision (bump when the image/calibration changes). */
+  version: number;
+};
+
+/** Layered room shell: a background room image + calibrated furniture slots. */
+export type RoomShellTemplate = VisualTemplate & {
+  kind: "room-shell";
+  /** Where the floor sits within the shell (normalized). */
+  floorBounds: NormalizedRect;
+  /** Where the (back) wall sits within the shell (normalized). */
+  wallBounds: NormalizedRect;
+  lightingTone: "warm" | "cool" | "neutral";
+};
+
+/** Layered exterior shell: a house/front image + calibrated decor/sign slots. */
+export type ExteriorShellTemplate = VisualTemplate & {
+  kind: "exterior-shell";
+  /** Where the door sits (normalized) — entry affordance / future linking. */
+  doorBounds: NormalizedRect;
+  /** Where the plot sign sits (normalized). */
+  signBounds: NormalizedRect;
+};
+
+/** Top-map / road tile (reserved for the village view; not built this sprint). */
+export type VillageTileTemplate = VisualTemplate & {
+  kind: "village-tile";
+};

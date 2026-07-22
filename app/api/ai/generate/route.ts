@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { assertFounder } from "@/lib/founder-gate";
+
+export const runtime = "nodejs";
+export const maxDuration = 300;
 
 // M32 — server-only bridge to the hosted image models, now provider-routed. The
 // client asset-pipeline adapters POST `{ provider, imageDataUrl, positive, negative,
@@ -162,6 +166,9 @@ async function generateOpenAI(
 }
 
 export async function POST(request: Request) {
+  const gate = assertFounder(request);
+  if (gate) return gate;
+
   let body: Body;
   try {
     body = (await request.json()) as Body;

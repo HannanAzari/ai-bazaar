@@ -52,6 +52,35 @@ describe("furniture@8 prompt", () => {
     expect(buildFurniture8Prompt({ ...base, mode: "preserve", withStyleRefs: false }).positive).not.toMatch(/STYLE REFERENCES:/);
   });
 
+  it("is material-aware: a metal object reads cool and forbids the wooden look (Sprint 1)", () => {
+    const p = buildFurniture8Prompt({
+      subject: "laptop computer",
+      mode: "preserve",
+      material: { primary: "matte-metal", accents: [{ family: "screen", part: "the display" }] },
+    });
+    // the MATERIAL block is present and states the real surface + the accent part
+    expect(p.positive).toMatch(/MATERIAL — TRUE TO THE OBJECT/);
+    expect(p.positive).toMatch(/matte metal|cool neutral/i);
+    expect(p.positive).toMatch(/the display:/);
+    // the failure mode is actively forbidden
+    expect(p.negative).toMatch(/\bwooden\b/);
+    expect(p.negative).toMatch(/warm beige/);
+  });
+
+  it("no longer force-feeds every object 'premium matte material' / 'restrained warm colours'", () => {
+    const p = buildFurniture8Prompt({ ...base, mode: "preserve", material: { primary: "matte-metal" } });
+    // the two wood-forcing lines were removed in Sprint 1
+    expect(p.positive).not.toMatch(/- premium matte material/);
+    expect(p.positive).not.toMatch(/- restrained warm colours/);
+    // warmth is explicitly relocated to the light
+    expect(p.positive).toMatch(/warmth lives in the LIGHT/i);
+  });
+
+  it("omitting material keeps a neutral, non-wood-forcing block (backwards compatible)", () => {
+    const p = buildFurniture8Prompt({ ...base, mode: "preserve" });
+    expect(p.positive).toMatch(/honour the object's own real material/i);
+  });
+
   it("forbids photo/sticker/hand/environment artefacts in both modes", () => {
     for (const mode of ["preserve", "simplify"] as const) {
       const p = buildFurniture8Prompt({ ...base, mode });

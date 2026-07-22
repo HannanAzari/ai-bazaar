@@ -1,0 +1,742 @@
+[
+  {
+    "id": "ast-adventurer-sofa-4f2egp",
+    "name": "Adventurer Sofa",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "adventurer",
+      "interior",
+      "sofa"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-sofa-nestudio-v2-openai-1-mqmeh17o.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "none",
+    "personality": "Adventurer",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-adventurer-table-pd4z4g",
+    "name": "Adventurer Table",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "adventurer",
+      "interior",
+      "table"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-table-nestudio-v2-openai-1-mqmeqwcc.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "personality": "Adventurer",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-artist-sofa-2d4sha",
+    "name": "Artist Sofa",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "artist",
+      "interior",
+      "sofa"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-sofa-nestudio-v2-openai-1-mqmedxg0.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "none",
+    "personality": "Artist",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-artist-table-20ezeo",
+    "name": "Artist Table",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "artist",
+      "interior",
+      "table"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-table-nestudio-v2-openai-1-mqmeo0ce.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "personality": "Artist",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-chair-axvjaq",
+    "name": "Chair",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "interior",
+      "chair"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/interior-v1/sl-style-chair-nestudio_v2-openai-mqjcp5la-0.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-chair-slunsm",
+    "name": "Chair",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "interior",
+      "chair"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-chair-nestudio-v2-openai-1-mqme1ian.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-chair-slunsn",
+    "name": "Chair",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "interior",
+      "chair"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-chair-nestudio-v2-openai-1-mqme2ijk.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-chair-slunso",
+    "name": "Chair",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "interior",
+      "chair"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-chair-nestudio-v2-openai-1-mqme3gej.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-chair-slunsp",
+    "name": "Chair",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "interior",
+      "chair"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-chair-nestudio-v2-openai-1-mqme4gt1.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-chair-slunsq",
+    "name": "Chair",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "interior",
+      "chair"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-chair-nestudio-v2-openai-1-mqme5hqh.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-collector-sofa-9acg6d",
+    "name": "Collector Sofa",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "collector",
+      "interior",
+      "sofa"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-sofa-nestudio-v2-openai-1-mqmeevwr.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "none",
+    "personality": "Collector",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-collector-table-7mpb3f",
+    "name": "Collector Table",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "collector",
+      "interior",
+      "table"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-table-nestudio-v2-openai-1-mqmeowb9.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "personality": "Collector",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-creator-sofa-ti5fj5",
+    "name": "Creator Sofa",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "creator",
+      "interior",
+      "sofa"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-sofa-nestudio-v2-openai-1-mqmecwkc.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "none",
+    "personality": "Creator",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-creator-table-11gh0m",
+    "name": "Creator Table",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "creator",
+      "interior",
+      "table"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-table-nestudio-v2-openai-1-mqmen01l.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "personality": "Creator",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-desk-cr9uhm",
+    "name": "Desk",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "interior",
+      "desk"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-desk-nestudio-v2-openai-1-mqmdyyxk.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "contact",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-dreamer-sofa-i9i79i",
+    "name": "Dreamer Sofa",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "dreamer",
+      "interior",
+      "sofa"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-sofa-nestudio-v2-openai-1-mqme9mx2.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "none",
+    "personality": "Dreamer",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-dreamer-table-18wkek",
+    "name": "Dreamer Table",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "dreamer",
+      "interior",
+      "table"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-table-nestudio-v2-openai-1-mqmek5be.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "personality": "Dreamer",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-explorer-sofa-og2hdu",
+    "name": "Explorer Sofa",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "explorer",
+      "interior",
+      "sofa"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-sofa-nestudio-v2-openai-1-mqmebxpa.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "none",
+    "personality": "Explorer",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-explorer-table-615k73",
+    "name": "Explorer Table",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "explorer",
+      "interior",
+      "table"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-table-nestudio-v2-openai-1-mqmelxiq.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "personality": "Explorer",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-gamer-sofa-1cz8oo",
+    "name": "Gamer Sofa",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "gamer",
+      "interior",
+      "sofa"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-sofa-nestudio-v2-openai-1-mqmeg0k2.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "none",
+    "personality": "Gamer",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-gamer-table-3q2dcn",
+    "name": "Gamer Table",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "gamer",
+      "interior",
+      "table"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-table-nestudio-v2-openai-1-mqmeptlr.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "personality": "Gamer",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-minimalist-sofa-1j1bhd",
+    "name": "Minimalist Sofa",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "minimalist",
+      "interior",
+      "sofa"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-sofa-nestudio-v2-openai-1-mqme7kmh.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "none",
+    "personality": "Minimalist",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-minimalist-table-n35v25",
+    "name": "Minimalist Table",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "minimalist",
+      "interior",
+      "table"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-table-nestudio-v2-openai-1-mqmei88q.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "personality": "Minimalist",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-musician-sofa-opm72r",
+    "name": "Musician Sofa",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "musician",
+      "interior",
+      "sofa"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-sofa-nestudio-v2-openai-1-mqmeaunr.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "none",
+    "personality": "Musician",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-musician-table-5re2d4",
+    "name": "Musician Table",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "musician",
+      "interior",
+      "table"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-table-nestudio-v2-openai-1-mqmel1z5.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "personality": "Musician",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-reader-sofa-e91czr",
+    "name": "Reader Sofa",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "reader",
+      "interior",
+      "sofa"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-sofa-nestudio-v2-openai-1-mqme8nat.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "none",
+    "personality": "Reader",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-reader-table-x84ul6",
+    "name": "Reader Table",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "reader",
+      "interior",
+      "table"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/style-table-nestudio-v2-openai-1-mqmej8om.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1,
+    "defaultActionType": "none",
+    "personality": "Reader",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  },
+  {
+    "id": "ast-sofa-1rsj43",
+    "name": "Sofa",
+    "category": "furniture",
+    "villageTheme": "any",
+    "placement": "floor",
+    "ownerType": "system",
+    "rarity": "common",
+    "tags": [
+      "interior",
+      "sofa"
+    ],
+    "imageUrl": "https://srrmkdsvldlyllsxyhtq.supabase.co/storage/v1/object/public/asset-candidates/interior-v1/sl-dna-sofa-minimalist-openai-mqkvvvss-0.png",
+    "status": "published",
+    "compatibleZones": [
+      "floor_left",
+      "floor_center",
+      "floor_right"
+    ],
+    "defaultScale": 1.2,
+    "defaultActionType": "none",
+    "source": "style_lab",
+    "modelProvider": "openai",
+    "modelName": "gpt-image-1"
+  }
+]

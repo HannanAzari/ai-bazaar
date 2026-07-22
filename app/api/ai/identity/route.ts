@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import { assertFounder } from "@/lib/founder-gate";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 // Identity extraction. BEFORE GPT Image runs, a vision model reads the selected object
 // and returns its OBJECTIVE identity — what makes THIS object recognisable: what it is,
@@ -56,6 +60,9 @@ function parseDataUrl(dataUrl: string): boolean {
 }
 
 export async function POST(request: Request) {
+  const gate = assertFounder(request);
+  if (gate) return gate;
+
   let body: Body;
   try {
     body = (await request.json()) as Body;

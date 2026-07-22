@@ -19,5 +19,29 @@ export { generateAssetHonest } from "./honest";
 export type { HonestRequest, HonestResult, IdentitySource } from "./honest";
 export { buildFurniture8Prompt, deriveIdentityNotes, FURNITURE_8_VERSION } from "./furniture-8";
 export type { Furniture8Prompt, PreserveMode } from "./furniture-8";
-export { finishClean, hardenAlpha, keepLargestComponent, erodeAlpha } from "./cleanup";
+export { MATERIALS, NEUTRAL_MATERIAL, buildMaterialBlock, specFor, styleRefFamilyFor, usesStyleRefs } from "./materials";
+export type { MaterialFamily, MaterialSpec, ObjectMaterial, StyleRefFamily } from "./materials";
+export {
+  CALIBRATION_BATCH,
+  objectsNeedingInput,
+  objectsReady,
+  materialCoverage,
+  benchmarkObject,
+  nonBenchmarkObjects,
+} from "./calibration";
+export type { CalibrationObject, ObjectClass, InteractionPattern } from "./calibration";
+export {
+  REVIEW_AXES,
+  DNA_AXIS,
+  MATERIAL_AXIS,
+  FAMILY_AXIS,
+  SCORE_MAX,
+  scoreAxis,
+  overallVerdict,
+  allCriterionIds,
+} from "./calibration-review";
+export type { ReviewAxis, ReviewCriterion, CriterionScore, Scores, AxisResult, Verdict, AxisKey } from "./calibration-review";
+export { finishClean, hardenAlpha, keepLargestComponent, erodeAlpha, fillEnclosedHoles } from "./cleanup";
+export { measurePoseFromAlpha, validatePose, POSE_TOLERANCE } from "./orientation";
+export type { PoseMeasure, PoseVerdict } from "./orientation";
 export { CANONICAL_CAMERA_CLAUSE } from "./camera";

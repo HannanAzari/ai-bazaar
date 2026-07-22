@@ -1,8 +1,11 @@
 import type { AssetCategory, AssetPlacement, AssetRarity, AssetStatus, CatalogAsset } from "@/lib/types";
+import { interiorV1Assets } from "@/lib/asset-catalogs";
 
 // Read-only sample catalog for the asset-metadata foundation. No marketplace,
 // payments, or uploads — these are seed records that mirror the Supabase
-// `assets` table shape (see schema.sql). Image URLs are placeholders.
+// `assets` table shape (see schema.sql). The original seed image URLs are
+// placeholders; the Nestudio Interior V1 assets (merged in below) carry real
+// PNG art from the Asset Factory and render image-first (ADR-021).
 
 export const rarityLabels: Record<AssetRarity, string> = {
   common: "Common",
@@ -82,6 +85,11 @@ export const catalogAssets: CatalogAsset[] = [
   { id: "ast-sign", name: "Sign", category: "decor", villageTheme: "any", placement: "wall", ownerType: "system", rarity: "common", tags: ["link", "wayfinding"], imageUrl: ph("sign"), status: "published", compatibleZones: ["back_wall", "left_wall", "right_wall"], defaultScale: 0.95, defaultActionType: "link" },
   { id: "ast-display-table", name: "Display Table", category: "furniture", villageTheme: "any", placement: "floor", ownerType: "system", rarity: "uncommon", tags: ["shop", "product"], imageUrl: ph("display-table"), status: "published", compatibleZones: ["floor_left", "floor_center", "floor_right"], defaultScale: 1.1, defaultActionType: "product" },
   { id: "ast-business-card", name: "Business Card", category: "decor", villageTheme: "any", placement: "wall", ownerType: "system", rarity: "common", tags: ["contact", "card"], imageUrl: ph("business-card"), status: "published", compatibleZones: ["shelf", "back_wall", "left_wall", "right_wall"], defaultScale: 0.85, defaultActionType: "contact" },
+
+  // ── Nestudio Interior V1 — real Style Lab art from the Asset Factory ──
+  // Merged from the static catalog artifact (lib/asset-catalogs); these carry
+  // real PNG imageUrls and render image-first in the room engine (ADR-021).
+  ...interiorV1Assets,
 ];
 
 /** Assets that can be placed in a room (carry room-engine metadata). */

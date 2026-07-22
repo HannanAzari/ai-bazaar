@@ -32,6 +32,8 @@ import {
   GOLDEN_LIVING_NEST_TEMPLATE,
 } from "@/lib/fixtures/golden-living-nest";
 import { productionEditorCatalog, productionStarterDocument } from "@/lib/nest-editor-bridge";
+import { hydrateLibrary, onProductionChanged } from "@/lib/nest-production-library";
+import { useRouter } from "next/navigation";
 import { useAiLivingAssets } from "@/lib/nest-editor-ai-bridge";
 import { PublishGate } from "@/components/nest/editor/publish-gate";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
@@ -119,7 +121,16 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   // M20: the user's approved AI-Studio assets join the catalog reactively, so they
   // appear in the tray + resolve on the canvas the moment they're saved.
   const aiAssets = useAiLivingAssets();
-  const editorCatalog = useMemo(() => productionEditorCatalog(aiAssets), [aiAssets]);
+  // M12.1 wiring: pull the curated library from Supabase (backend=supabase) on mount and
+  // re-render when it arrives, so the editor tray reflects the DB catalog — not only the
+  // bundled fixture. No-op in local mode (fixture stays the source).
+  const [libVersion, setLibVersion] = useState(0);
+  const router = useRouter();
+  useEffect(() => {
+    void hydrateLibrary();
+    return onProductionChanged(() => setLibVersion((v) => v + 1));
+  }, []);
+  const editorCatalog = useMemo(() => productionEditorCatalog(aiAssets), [aiAssets, libVersion]);
   const ASSETS = editorCatalog.assetsById;
   const trayAssets = editorCatalog.assets;
   const [showPublish, setShowPublish] = useState(false);
@@ -742,7 +753,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
 
             {/* Asset drawer — shared bottom sheet (canvas remains visible above) */}
             {mode === "assets" ? (
-              <AssetDrawer assets={trayAssets} advanced={caps.showProductionWarnings} onAdd={onAdd} onCreate={() => setCreateOpen(true)} onDelete={(a) => { void inventory.remove(a.id); }} focusAssetId={justCreatedId} onClose={() => setMode("arrange")} snap={assetSnap} onSnapChange={setAssetSnap} />
+              <AssetDrawer assets={trayAssets} advanced={caps.showProductionWarnings} onAdd={onAdd} onCreate={() => router.push("/asset-factory")} onDelete={(a) => { void inventory.remove(a.id); }} focusAssetId={justCreatedId} onClose={() => setMode("arrange")} snap={assetSnap} onSnapChange={setAssetSnap} />
             ) : null}
 
             {/* Connect hint / binding sheet — shared bottom sheet (canvas stays interactive) */}

@@ -117,6 +117,72 @@ export async function erodeAlpha(src: RasterImage, radius = 1): Promise<RasterIm
 }
 
 /**
+ * Fill ENCLOSED transparent holes with a dark glass gradient — the deterministic fix
+ * for the "transparent screen" failure (Sprint-1 validation, Gen 6).
+ *
+ * GPT Image's native `background:transparent` treats a large uniform screen region as
+ * empty space and zeroes it out, so a laptop/TV/phone comes back with a see-through
+ * screen hole no prompt clause can prevent. Here we flood-fill transparency from the
+ * border: any transparent pixel NOT reachable from the edge is a TRUE interior hole (the
+ * screen, bounded by its bezel) and gets filled with opaque dark glass. An open-lid wedge
+ * — which is connected to the outer background — is left alone, and this only ever runs
+ * for objects that actually have a screen/glass surface (never a mug handle).
+ */
+export async function fillEnclosedHoles(
+  src: RasterImage,
+  opts: { top?: [number, number, number]; bottom?: [number, number, number]; threshold?: number } = {},
+): Promise<RasterImage> {
+  const top = opts.top ?? [34, 36, 43];
+  const bottom = opts.bottom ?? [18, 19, 24];
+  const threshold = opts.threshold ?? 30;
+
+  const img = await loadImage(src.dataUrl);
+  const c = makeCanvas(src.width, src.height);
+  const ctx = c.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const w = c.width, h = c.height;
+  const im = ctx.getImageData(0, 0, w, h);
+  const p = im.data;
+  const n = w * h;
+
+  const isTransparent = (i: number) => p[i * 4 + 3] <= threshold;
+
+  // BFS from every border transparent pixel → mark the "outside" transparency.
+  const outside = new Uint8Array(n);
+  const queue = new Int32Array(n);
+  let head = 0, tail = 0;
+  const push = (i: number) => { if (i >= 0 && i < n && !outside[i] && isTransparent(i)) { outside[i] = 1; queue[tail++] = i; } };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + (w - 1)); }
+  while (head < tail) {
+    const idx = queue[head++];
+    const x = idx % w, y = (idx / w) | 0;
+    if (x > 0) push(idx - 1);
+    if (x < w - 1) push(idx + 1);
+    if (y > 0) push(idx - w);
+    if (y < h - 1) push(idx + w);
+  }
+
+  // Enclosed transparent pixels = transparent AND not reachable from the border.
+  let minY = h, maxY = 0, count = 0;
+  for (let i = 0; i < n; i++) if (isTransparent(i) && !outside[i]) { const y = (i / w) | 0; if (y < minY) minY = y; if (y > maxY) maxY = y; count++; }
+  if (count === 0) return src; // nothing enclosed — leave untouched
+
+  const span = Math.max(1, maxY - minY);
+  for (let i = 0; i < n; i++) {
+    if (!isTransparent(i) || outside[i]) continue;
+    const y = (i / w) | 0;
+    const t = (y - minY) / span; // 0 at top → 1 at bottom
+    p[i * 4] = Math.round(top[0] + (bottom[0] - top[0]) * t);
+    p[i * 4 + 1] = Math.round(top[1] + (bottom[1] - top[1]) * t);
+    p[i * 4 + 2] = Math.round(top[2] + (bottom[2] - top[2]) * t);
+    p[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(im, 0, 0);
+  return toRaster(c);
+}
+
+/**
  * The production finish for the honest path — an official-asset-clean transparent PNG.
  * Key out any solid background (only if not already transparent), then strip EVERY
  * external artefact: soft glow, floor/contact shadow, halo ring, background residue.
@@ -128,7 +194,7 @@ export async function erodeAlpha(src: RasterImage, radius = 1): Promise<RasterIm
  */
 export async function finishClean(
   raw: RasterImage,
-  opts: { size?: number; padding?: number } = {},
+  opts: { size?: number; padding?: number; fillGlassHoles?: boolean } = {},
 ): Promise<RasterImage> {
   const size = opts.size ?? NESTUDIO_ASSET_DNA.export.size;
   const padding = opts.padding ?? NESTUDIO_ASSET_DNA.padding.fraction;
@@ -142,6 +208,9 @@ export async function finishClean(
   img = await keepLargestComponent(img); // drop detached floor shadows / halo rings
   img = await erodeAlpha(img, 1);        // shave the residual 1px halo fringe
   img = await despeckle(img);            // stray specks
+  // Screen/glass objects only: fill the enclosed screen hole GPT Image leaves behind with
+  // dark glass (after keepLargest/erode so the object silhouette is settled).
+  if (opts.fillGlassHoles) img = await fillEnclosedHoles(img);
 
   const trimmed = await trimTransparent(img);
   return padSquare(trimmed, size, padding);

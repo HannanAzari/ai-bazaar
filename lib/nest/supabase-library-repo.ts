@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { NEST_PRODUCTION_LIBRARY_V1 } from "@/lib/fixtures/nest-production-library-v1";
 import type {
   ProductionAsset,
   ProductionBackground,
@@ -54,7 +55,14 @@ const toTemplate = (r: TplRow): ProductionTemplate => ({
   previewImage: r.preview_image ?? undefined, status: r.status, tags: r.tags ?? [],
 });
 
-/** Fetch the whole curated library (all statuses) from Supabase. */
+/**
+ * Fetch the whole curated library (all statuses) from Supabase.
+ *
+ * Per-category resilience: only `nest_assets` is provisioned in the Beta. If a sibling
+ * table (nest_backgrounds / nest_templates) is absent, fall back to the bundled fixture
+ * for THAT category rather than failing the whole load — so the DB asset catalog still
+ * powers the editor while backgrounds/templates keep working from the fixture.
+ */
 export async function fetchLibrary(): Promise<ProductionLibrary> {
   const client = sb();
   const [bg, as, tp] = await Promise.all([
@@ -62,13 +70,10 @@ export async function fetchLibrary(): Promise<ProductionLibrary> {
     client.from("nest_assets").select("*"),
     client.from("nest_templates").select("*"),
   ]);
-  if (bg.error) throw bg.error;
-  if (as.error) throw as.error;
-  if (tp.error) throw tp.error;
   return {
-    backgrounds: (bg.data as BgRow[]).map(toBackground),
-    assets: (as.data as AssetRow[]).map(toAsset),
-    templates: (tp.data as TplRow[]).map(toTemplate),
+    backgrounds: bg.error ? NEST_PRODUCTION_LIBRARY_V1.backgrounds : (bg.data as BgRow[]).map(toBackground),
+    assets: as.error ? NEST_PRODUCTION_LIBRARY_V1.assets : (as.data as AssetRow[]).map(toAsset),
+    templates: tp.error ? NEST_PRODUCTION_LIBRARY_V1.templates : (tp.data as TplRow[]).map(toTemplate),
   };
 }
 
