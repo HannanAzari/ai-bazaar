@@ -15,13 +15,22 @@
   Build My Own. **Needs `nest_backgrounds` provisioning + a founder phone test** —
   see `SPRINT3_NEST_FACTORY.md`.
 
+## Just shipped: Generation Platform refactor (D28–D30)
+
+Asset Factory + Nest Factory are now **modules** on one shared engine
+(`components/generation/generation-studio.tsx` + `lib/generation-platform`). Both factory clients
+dropped from 350/272 lines to **11/11**; the duplicated shell lives once. Behaviour unchanged
+(typecheck · 589 tests · build · browser-verified). See `GENERATION_PLATFORM.md`.
+
 ## Immediate next steps
 
-1. **Founder:** run `supabase/provision/nest_backgrounds_provision.sql` (additive), set Vercel env
-   (already set for Asset Factory — no new vars), then phone-test: describe → generate → approve →
-   publish → Create → Build My Own → decorate → reload. Prove 3 (Minimal · Creator Studio · Music Studio).
-2. **Then build: Creator Generator** — compose a complete starter Nest from the founder's asset +
-   Nest libraries (D27). **Then the Interaction Engine.** (Avatar Factory deferred behind these.)
+1. **Founder:** run `supabase/provision/nest_backgrounds_provision.sql` (additive), then phone-test
+   the Nest Factory (describe → generate → approve → publish → Create → Build My Own → decorate →
+   reload). Prove 3 (Minimal · Creator Studio · Music Studio).
+2. **Then build: Avatar Factory as the first NEW platform module** (D30) — proof a new engine plugs
+   in with only a module descriptor (`uploadMode:"required"`, avatar translator + engine, publish →
+   `nest_avatars`, four screens). No shell code. Privacy-by-default (see the archived brief below).
+3. **Then: Creator Generator → Interaction Engine.**
 
 ## Guardrails carried forward
 
