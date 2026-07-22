@@ -35,6 +35,7 @@ import { productionEditorCatalog, productionStarterDocument } from "@/lib/nest-e
 import { hydrateLibrary, onProductionChanged } from "@/lib/nest-production-library";
 import { useRouter } from "next/navigation";
 import { useAiLivingAssets } from "@/lib/nest-editor-ai-bridge";
+import { useMyAvatarLivingAsset } from "@/lib/avatar-factory/avatar-editor-bridge";
 import { PublishGate } from "@/components/nest/editor/publish-gate";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import {
@@ -120,7 +121,10 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   // resolve) + `trayAssets` (approved/featured → the Assets tray). No golden-living art.
   // M20: the user's approved AI-Studio assets join the catalog reactively, so they
   // appear in the tray + resolve on the canvas the moment they're saved.
-  const aiAssets = useAiLivingAssets();
+  const aiInventoryAssets = useAiLivingAssets();
+  // The signed-in user's own active avatar joins the tray under "My Avatar" (owner-only, RLS).
+  const myAvatar = useMyAvatarLivingAsset();
+  const aiAssets = useMemo(() => [...aiInventoryAssets, ...myAvatar], [aiInventoryAssets, myAvatar]);
   // M12.1 wiring: pull the curated library from Supabase (backend=supabase) on mount and
   // re-render when it arrives, so the editor tray reflects the DB catalog — not only the
   // bundled fixture. No-op in local mode (fixture stays the source).

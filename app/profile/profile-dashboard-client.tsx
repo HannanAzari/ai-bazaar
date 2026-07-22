@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { NestCard } from "@/components/nest/app-shell/nest-card";
 import { ProfileSummary } from "@/components/nest/app-shell/profile-summary";
+import { AvatarManager } from "@/components/nest/app-shell/avatar-manager";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import {
   listDrafts,
@@ -47,6 +48,7 @@ export function ProfileDashboardClient() {
           </Link>
         </header>
         <ProfileSummary nestCount={published.length} />
+        <div className="mt-4"><AvatarManager /></div>
       </div>
 
       <div className="space-y-6 pt-4">

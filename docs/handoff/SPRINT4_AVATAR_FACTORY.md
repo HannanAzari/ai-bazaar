@@ -1,8 +1,33 @@
 # Sprint 4 — Avatar Factory v1 (user-owned identity module)
 
-Status: **module + private persistence contract built and gate-tested; NOT deployable until
-(1) you provision `user_avatars` + the private bucket and (2) real end-user auth is confirmed
-on the deploy. Dry-proven locally. No real photo used. $0 spend.**
+Status: **provisioned + finished. Infra + cross-user isolation PROVEN against live Supabase;
+profile + editor "My Avatar" wired. The live generation/placement/deletion lifecycle is
+founder-run on the deploy (needs a real photo + session + spend).**
+
+## Finish — verified against live Supabase (scripts committed)
+
+`node scripts/verify-avatar-infra.mjs` — **7/7 passed:** `user_avatars` REST-accessible with the
+full contract schema; `avatar-private` exists and is PRIVATE (`public=false`); anonymous read of
+`user_avatars` blocked by RLS; anonymous fetch of a private object fails (HTTP 400); server-side
+signed URL works (HTTP 200). (Deliverables A, B.)
+
+`node scripts/verify-avatar-isolation.mjs` — **12/12 passed** with two real auth users (created +
+signed in + deleted): A writes/reads own row + private file; **B cannot read A's record (RLS: 0
+rows), cannot read by id, cannot read A's private file (denied), cannot update/delete A's row (0
+affected); A's data intact; anonymous reads nothing.** (Deliverables C, H — cross-user isolation.)
+
+Wired: profile avatar image rendering (`Avatar` src) + Avatar section (Create/Replace/History/Remove,
+`components/nest/app-shell/avatar-manager.tsx`); editor **My Avatar** (owner-only active avatar joins
+the tray via `lib/avatar-factory/avatar-editor-bridge.ts`, `source:"runtime_avatar"`, never global).
+
+## Founder-run on the deploy (I cannot: needs your photo + session + spend)
+
+Deliverables D, E, F, G, I, J come from you running the 14-step flow on the Vercel preview:
+sign in → Profile → Create Avatar → upload photo → consent → Interpret → Generate → review (two Yes)
+→ Approve → see it on Profile → editor → My Avatar → place → save/reload → sign out/in → delete →
+confirm revocation. Note: the active avatar's OUTPUT is public (it's your profile picture); the
+SOURCE photo is never public. Old signed URLs expire; deletion removes private files + clears the
+profile ref + soft-deletes the record.
 
 Avatar is the **first user-owned module** on the Generation Platform, and the proof a genuinely
 different generation type plugs in with almost no new orchestration.

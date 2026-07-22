@@ -13,8 +13,19 @@ import type { NestSocials } from "@/lib/nest-profile-store";
 // signed-in-no-username (claim, immutable) → full summary (avatar · @username · bio ·
 // nest count · edit bio+socials · sign out). Identity is the real Nest account.
 
-export function Avatar({ username, size = 56 }: { username?: string; size?: number }) {
+export function Avatar({ username, size = 56, src }: { username?: string; size?: number; src?: string | null }) {
   const initial = username?.trim()?.[0]?.toUpperCase();
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- user avatar from Supabase; next/image adds no value here
+      <img
+        src={src}
+        alt={username ? `${username}'s avatar` : "avatar"}
+        className="shrink-0 rounded-full object-cover"
+        style={{ width: size, height: size, background: "#f4f4f4" }}
+      />
+    );
+  }
   return (
     <span
       className="grid shrink-0 place-items-center rounded-full bg-terracotta font-black text-parchment"
@@ -133,7 +144,7 @@ export function ProfileSummary({ nestCount }: { nestCount: number }) {
   return (
     <div className="rounded-3xl border border-timber/15 bg-white p-5 shadow-soft">
       <div className="flex items-center gap-3">
-        <Avatar username={username} />
+        <Avatar username={username} src={profile?.avatarUrl} />
         <div className="min-w-0 flex-1">
           {profile?.displayName ? <p className="truncate font-black text-ink">{profile.displayName}</p> : null}
           <Link href={`/@${username}`} className={`block truncate hover:underline ${profile?.displayName ? "text-sm text-ink/55" : "font-black text-ink"}`}>@{username}</Link>
