@@ -4,14 +4,14 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, KeyRound, Mail, Store } from "lucide-react";
-import { useSession } from "@/components/providers/auth-provider";
+import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { isDemoMode } from "@/lib/runtime-mode";
-import { friendlyError } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn } = useSession();
+  // ONE client auth layer — the same hook the header, editor, profile and studios use.
+  const { signIn } = useNestIdentity();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -21,15 +21,11 @@ export default function LoginPage() {
     event.preventDefault();
     setError("");
     setBusy(true);
-    try {
-      await signIn({ email, password });
-      // Honour a safe same-origin ?next= (so Avatar Studio → login → back to Avatar Studio).
-      const next = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
-      router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/profile");
-    } catch (err) {
-      setError(friendlyError(err, "signin"));
-      setBusy(false);
-    }
+    const r = await signIn(email, password);
+    if (!r.ok) { setError(r.error); setBusy(false); return; }
+    // Honour a safe same-origin ?next= (so Avatar Studio → login → back to Avatar Studio).
+    const next = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
+    router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/profile");
   };
 
   return (

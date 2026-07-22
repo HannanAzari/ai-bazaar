@@ -64,9 +64,12 @@ export function useNestIdentity() {
     return onNestProfilesChanged(() => setProfile(getNestProfile(account.id)));
   }, [account]);
 
-  const signUp = useCallback(async (email: string, password: string): Promise<AuthResult> => {
-    const r = await accountSignUp(email, password);
-    if (r.ok) onAuthed(r.account);
+  const signUp = useCallback(async (email: string, password: string, name?: string): Promise<AuthResult> => {
+    const r = await accountSignUp(email, password, name);
+    if (r.ok) {
+      onAuthed(r.account);
+      if (name && name.trim()) setProfile(updateNestProfile(r.account.id, { displayName: name.trim() }));
+    }
     return r;
   }, [onAuthed]);
 

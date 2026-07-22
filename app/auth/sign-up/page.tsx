@@ -4,15 +4,15 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Mail, Sparkles, UserRound } from "lucide-react";
-import { useSession } from "@/components/providers/auth-provider";
+import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { isDemoMode } from "@/lib/runtime-mode";
-import { friendlyError } from "@/lib/errors";
 import { trackEvent } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 
 export default function SignUpPage() {
   const router = useRouter();
-  const { signUp } = useSession();
+  // ONE client auth layer — same hook the header, editor, profile and studios use.
+  const { signUp } = useNestIdentity();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,20 +22,18 @@ export default function SignUpPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    setError("");
+    setError(""); setNotice("");
     setBusy(true);
-    try {
-      await signUp({ email, password, name });
+    const r = await signUp(email, password, name);
+    if (r.ok) {
       trackEvent("signup_completed");
-      // New accounts land in onboarding to reach their first room fast.
-      router.push("/onboarding");
-    } catch (err) {
-      const raw = err instanceof Error ? err.message : String(err);
-      // With email confirmation ON, sign-up succeeds but returns no session.
-      if (/confirm/i.test(raw)) setNotice("Check your email to confirm your account, then sign in.");
-      else setError(friendlyError(err, "signup"));
-      setBusy(false);
+      router.push("/onboarding"); // New accounts land in onboarding to reach their first room fast.
+      return;
     }
+    // With email confirmation ON, sign-up succeeds but returns no session.
+    if ("needsConfirmation" in r) setNotice("Check your email to confirm your account, then sign in.");
+    else setError(r.error);
+    setBusy(false);
   };
 
   return (

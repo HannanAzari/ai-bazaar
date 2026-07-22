@@ -123,10 +123,10 @@ export async function getCurrentAccount(): Promise<NestAccount | null> {
   return localCurrent();
 }
 
-export async function signUp(email: string, password: string): Promise<AuthResult> {
+export async function signUp(email: string, password: string, name?: string): Promise<AuthResult> {
   if (isSupabase()) {
     try {
-      const u = await supa().signUp({ email, password });
+      const u = await supa().signUp({ email, password, name });
       return { ok: true, account: { id: u.id, email: u.email, createdAt: "" } };
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Sign-up failed.";
