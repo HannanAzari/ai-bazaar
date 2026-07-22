@@ -23,7 +23,9 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await signIn({ email, password });
-      router.push("/profile");
+      // Honour a safe same-origin ?next= (so Avatar Studio → login → back to Avatar Studio).
+      const next = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
+      router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/profile");
     } catch (err) {
       setError(friendlyError(err, "signin"));
       setBusy(false);

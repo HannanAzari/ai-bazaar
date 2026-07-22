@@ -35,6 +35,7 @@ export const nestModule: GenerationModule<NestSpec, NestResult> = {
     approveLabel: "Approve & Publish",
     reviewQuestion: "Would I proudly let creators build inside this Nest?",
     detailsLabel: "(DNA checks · cost · camera)",
+    backHref: "/create",
   },
 
   async translate({ description, headers }) {
@@ -44,6 +45,7 @@ export const nestModule: GenerationModule<NestSpec, NestResult> = {
         body: JSON.stringify({ description }),
       });
       if (res.status === 401) return { ok: false, error: "", unauthorized: true };
+      if (res.status === 403) return { ok: false, error: "This studio is for founders only.", forbidden: true };
       const j = await res.json();
       if (!res.ok || !j.spec) return { ok: false, error: j.error || "Could not interpret the room." };
       return { ok: true, value: j.spec as NestSpec };
@@ -63,6 +65,7 @@ export const nestModule: GenerationModule<NestSpec, NestResult> = {
         body: JSON.stringify({ positive, negative, id: `nest-${Date.now().toString(36)}` }),
       });
       if (r.status === 401) return { ok: false, error: "", unauthorized: true };
+      if (r.status === 403) return { ok: false, error: "This studio is for founders only.", forbidden: true };
       const rj = await r.json();
       if (!r.ok || !rj.imageDataUrl) return { ok: false, error: rj.error || "Nest generation failed." };
       return { ok: true, value: { imageDataUrl: rj.imageDataUrl as string, costUsd: rj.costUsd ?? null } };

@@ -1,19 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { clearFounderToken, founderHeaders, hasFounderToken, setFounderToken } from "@/lib/founder-token";
+import { useCallback, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { founderHeaders } from "@/lib/founder-token";
 import { CHECKER, Centered, Primary, Secondary, Spinner, StickyBar } from "@/components/generation/ui";
 import { FOUNDER_OWNERSHIP, type GenerationModule, type SavedInfo } from "@/lib/generation-platform/types";
 
 // ── The one Generation Studio ─────────────────────────────────────────────────
 //
-// Owns EVERYTHING shared across generation modules: the founder gate + token, the
-// input→interpret→spec→generate→review→approve→publish→saved stage machine, the
-// re-entrancy (double-tap) guard, uniform 401 handling, cost display, moderation
-// gating, upload capability, and the sticky one-thumb action bar. A module plugs in
-// its translator, engine, publish call, and the three type-specific screens.
+// Owns EVERYTHING shared across generation modules: auth handling (401→sign-in,
+// 403→founder-only), the input→interpret→spec→generate→review→approve→publish→saved
+// stage machine, the re-entrancy (double-tap) guard, cost display, moderation gating,
+// upload, back navigation, and the sticky one-thumb action bar. A module plugs in its
+// translator, engine, publish call, and the type-specific screens.
 //
-// Asset Factory and Nest Factory are now `<GenerationStudio module={…} />`.
+// Access is enforced SERVER-SIDE per module: founder modules (Asset/Nest) require a
+// signed-in founder/admin (requireFounder); the avatar module requires any signed-in
+// user (requireUser). No client-side founder-code screen — the server is the gate.
 
 const MODERATION_BLOCKED = "This request was flagged by moderation and cannot be generated.";
 
@@ -33,22 +37,29 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
   const [saved, setSaved] = useState<SavedInfo | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  // Founder gate — assume authed on the server, correct on mount.
-  const [authed, setAuthed] = useState(true);
-  const [tokenInput, setTokenInput] = useState("");
-  useEffect(() => { setAuthed(hasFounderToken()); }, []);
+  const router = useRouter();
+  const pathname = usePathname() ?? module.copy.backHref;
 
   // One in-flight expensive action at a time (double-tap / re-entrancy guard).
   const busy = useRef(false);
 
   const reset = () => { setStage("input"); setSpec(null); setResult(null); setAnswers(questions.map(() => null)); setError(null); setProgress(""); setSaved(null); setExtraReady(false); busy.current = false; };
   const setAnswer = (i: number, v: boolean) => setAnswers((prev) => prev.map((a, idx) => (idx === i ? v : a)));
-  const saveToken = () => { const t = tokenInput.trim(); if (!t) return; setFounderToken(t); setAuthed(true); setTokenInput(""); setError(null); };
-  const userMode = module.authMode === "user";
-  const onAuthError = () => { clearFounderToken(); setAuthed(false); setError("Founder access expired or invalid — re-enter your access code."); };
-  // 401 handling depends on auth mode: user modules show a sign-in prompt (no founder gate).
-  const handleUnauthorized = () => { if (userMode) setError("Please sign in to continue — your session may have expired."); else onAuthError(); };
+
+  // Uniform auth handling: 401 → send to login and return here; 403 → founder-only message.
+  const handleAuth = (r: { unauthorized?: boolean; forbidden?: boolean; error: string }) => {
+    if (r.unauthorized) { setError("Please sign in to continue."); router.push(`/auth/login?next=${encodeURIComponent(pathname)}`); }
+    else if (r.forbidden) setError(r.error || "This studio is for founders only.");
+    else setError(r.error);
+  };
+
+  // Back navigation with safe fallback + guards against losing work.
+  const leave = () => {
+    if ((stage === "generating" || stage === "publishing") && !window.confirm("Generation is in progress. Leave anyway?")) return;
+    const hasDraft = stage === "spec" || stage === "review" || (stage === "input" && Boolean(upload || description.trim()));
+    if (hasDraft && !window.confirm("Leave the studio? Your current draft will be discarded.")) return;
+    router.push(module.copy.backHref);
+  };
 
   const [extraReady, setExtraReady] = useState(false);
   const uploadRequiredMissing = module.uploadMode === "required" && !upload;
@@ -63,7 +74,7 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
     setError(null); setStage("interpreting");
     const out = await module.translate({ description: description.trim(), upload, hasReference: !!upload, headers: founderHeaders() });
     busy.current = false;
-    if (!out.ok) { if (out.unauthorized) handleUnauthorized(); else setError(out.error); setStage("input"); return; }
+    if (!out.ok) { handleAuth(out); setStage("input"); return; }
     setSpec(out.value); setStage("spec");
   }, [canInterpret, description, upload, module]);
 
@@ -75,7 +86,7 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
     setError(null); setStage("generating"); setResult(null); setAnswers(questions.map(() => null)); setProgress("");
     const out = await module.generate({ spec, upload, setProgress, headers: founderHeaders() });
     busy.current = false;
-    if (!out.ok) { if (out.unauthorized) handleUnauthorized(); else setError(out.error); setStage("spec"); return; }
+    if (!out.ok) { handleAuth(out); setStage("spec"); return; }
     setResult(out.value); setStage("review");
   }, [spec, upload, module]);
 
@@ -88,7 +99,7 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
     module.onApproved?.({ spec, result, outcome, ownership: FOUNDER_OWNERSHIP });
     busy.current = false;
     if (!outcome.ok) {
-      if (outcome.unauthorized) { handleUnauthorized(); setStage("review"); return; }
+      if (outcome.unauthorized || outcome.forbidden) { handleAuth(outcome); setStage("review"); return; }
       setError(`Publish failed: ${outcome.error}. You can retry Approve.`);
       setStage("review"); // return to review so Approve can be retried
       return;
@@ -110,40 +121,20 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
   const DetailsView = module.DetailsView;
   const SavedView = module.SavedView;
 
-  // ── Founder gate screen (founder-auth modules only; user modules auth via the server) ──
-  if (!authed && !userMode) {
-    return (
-      <div
-        className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center bg-white px-6 text-neutral-900"
-        style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
-      >
-        <h1 className="text-xl font-black tracking-tight">{copy.gateTitle}</h1>
-        <p className="mt-1 text-sm text-neutral-500">{copy.gateSubtitle}</p>
-        {error && <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">{error}</div>}
-        <input
-          type="password" inputMode="text" autoComplete="off" value={tokenInput}
-          onChange={(e) => setTokenInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") saveToken(); }}
-          placeholder="Founder access code"
-          className="mt-4 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3.5 text-base outline-none focus:border-neutral-400"
-        />
-        <button onClick={saveToken} disabled={!tokenInput.trim()} className="mt-3 w-full rounded-2xl bg-neutral-900 py-3.5 text-sm font-bold text-white disabled:opacity-30">{copy.gateButton}</button>
-        <p className="mt-3 text-[11px] leading-relaxed text-neutral-400">The code is checked on the server. Nothing is generated or published without it.</p>
-      </div>
-    );
-  }
-
   return (
     <div
       className="mx-auto min-h-screen w-full max-w-md bg-white px-4 text-neutral-900"
       style={{ paddingTop: "calc(1rem + env(safe-area-inset-top))", paddingBottom: "calc(7rem + env(safe-area-inset-bottom))" }}
     >
-      <header className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-black tracking-tight">{copy.headerTitle}</h1>
-          <p className="text-[11px] text-neutral-500">{copy.headerTagline}</p>
+      <header className="mb-4 flex items-center gap-2">
+        <button onClick={leave} aria-label="Back" className="flex size-9 shrink-0 items-center justify-center rounded-full text-neutral-600 hover:bg-neutral-100 active:scale-95">
+          <ArrowLeft size={20} />
+        </button>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-lg font-black tracking-tight">{copy.headerTitle}</h1>
+          <p className="truncate text-[11px] text-neutral-500">{copy.headerTagline}</p>
         </div>
-        {stage !== "input" && <button onClick={reset} className="text-xs font-semibold text-neutral-500">Start over</button>}
+        {stage !== "input" && <button onClick={reset} className="shrink-0 text-xs font-semibold text-neutral-500">Start over</button>}
       </header>
 
       {error && <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">{error}</div>}

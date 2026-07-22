@@ -2,17 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Home, UserRound, WandSparkles } from "lucide-react";
+import { Compass, Home, WandSparkles } from "lucide-react";
 import { useDemo } from "@/components/providers/demo-provider";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
+import { Avatar } from "@/components/nest/app-shell/profile-summary";
+import { ButtonLink } from "@/components/ui/button";
 
 // M15.1: the Nestudio app shell (Home · Explore · Create · Notifications · Profile ·
-// /@handle) and the full-screen editor own their own chrome, so this legacy V1 header
-// steps out of the way there. It only renders on the remaining V1 routes.
-const NEST_APP_PREFIXES = ["/home", "/explore", "/create", "/notifications", "/updates", "/profile", "/village", "/nest-editor", "/nest/", "/@"];
+// /@handle), the full-screen editor, and the generation studios own their own chrome,
+// so this legacy V1 header steps out of the way there. It only renders on the remaining
+// V1 routes. Auth state comes from the REAL Supabase session (useNestIdentity), never a
+// separate demo state — so the header can never say "Log in" while you're signed in.
+const NEST_APP_PREFIXES = ["/home", "/explore", "/create", "/notifications", "/updates", "/profile", "/village", "/nest-editor", "/nest/", "/@", "/asset-factory", "/nest-factory"];
 
 export function SiteHeader() {
-  const { user, ownedShop, logout } = useDemo();
+  const { ownedShop } = useDemo();
+  const { signedIn, profile } = useNestIdentity();
   const pathname = usePathname() ?? "";
   if (NEST_APP_PREFIXES.some((p) => pathname === p || pathname.startsWith(p))) return null;
 
@@ -37,10 +42,10 @@ export function SiteHeader() {
               <span className="hidden sm:inline">My place</span>
             </Link>
           )}
-          {user ? (
-            <Button variant="ghost" className="size-10 px-0" onClick={logout} aria-label="Log out">
-              <UserRound size={18} />
-            </Button>
+          {signedIn ? (
+            <Link href="/profile" aria-label="Your profile" className="ml-1 flex items-center">
+              <Avatar username={profile?.username} src={profile?.avatarUrl} size={34} />
+            </Link>
           ) : (
             <ButtonLink href="/auth/login" variant="outline" className="min-h-9 px-4">
               Log in

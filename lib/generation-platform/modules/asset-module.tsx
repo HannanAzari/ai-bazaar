@@ -41,6 +41,7 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
     approveLabel: "Approve & Add",
     reviewQuestion: "Would I proudly place this in a Nest?",
     detailsLabel: "(reference · raw · thumbnail · classification)",
+    backHref: "/nest-editor",
   },
 
   async translate({ description, hasReference, headers }) {
@@ -50,6 +51,7 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
         body: JSON.stringify({ description, hasReference }),
       });
       if (res.status === 401) return { ok: false, error: "", unauthorized: true };
+      if (res.status === 403) return { ok: false, error: "This studio is for founders only.", forbidden: true };
       const j = await res.json();
       if (!res.ok || !j.spec) return { ok: false, error: j.error || "Could not interpret the request." };
       return { ok: true, value: j.spec as NestudioSpec };
@@ -71,6 +73,7 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
           body: JSON.stringify({ subject: spec.generationSubject, id: `factory-${Date.now().toString(36)}` }),
         });
         if (r.status === 401) return { ok: false, error: "", unauthorized: true };
+        if (r.status === 403) return { ok: false, error: "This studio is for founders only.", forbidden: true };
         const rj = await r.json();
         if (!r.ok || !rj.imageDataUrl) return { ok: false, error: rj.error || "Reference generation failed." };
         sourceDataUrl = rj.imageDataUrl as string;

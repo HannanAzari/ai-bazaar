@@ -23,7 +23,7 @@ export function specToNestId(spec: NestSpec): NestId {
 
 export type PublishNestResult =
   | { ok: true; id: string; imageUrl: string; status: string }
-  | { ok: false; error: string; status?: number };
+  | { ok: false; error: string; status?: number; unauthorized?: boolean; forbidden?: boolean };
 
 export async function publishFounderNest(input: {
   spec: NestSpec;
@@ -61,7 +61,7 @@ export async function publishFounderNest(input: {
       }),
     });
     const j = (await res.json().catch(() => ({}))) as { error?: string; imageUrl?: string; status?: string };
-    if (!res.ok) return { ok: false, error: j.error || `Publish failed (HTTP ${res.status}).`, status: res.status };
+    if (!res.ok) return { ok: false, error: j.error || `Publish failed (HTTP ${res.status}).`, status: res.status, unauthorized: res.status === 401, forbidden: res.status === 403 };
     return { ok: true, id, imageUrl: j.imageUrl ?? "", status: j.status ?? "approved" };
   } catch (e) {
     return { ok: false, error: (e as Error).message };

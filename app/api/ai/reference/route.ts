@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildReferencePrompt, REFERENCE_STUDIO_VERSION, REFERENCE_SIZE } from "@/lib/asset-pipeline/reference-studio";
 import { createSupabaseAdminClient, NESTUDIO_BUCKET } from "@/lib/supabase/admin";
-import { assertFounder } from "@/lib/founder-gate";
+import { requireFounder } from "@/lib/founder-role";
 
 // Image generation can take up to a couple of minutes; ask Vercel for headroom
 // (clamped down to the plan's ceiling if lower). Node runtime for Buffer + Storage.
@@ -47,8 +47,8 @@ function safeId(raw: string): string {
 }
 
 export async function POST(request: Request) {
-  const gate = assertFounder(request);
-  if (gate) return gate;
+  const gate = await requireFounder(request);
+  if ("response" in gate) return gate.response;
 
   let body: Body;
   try {

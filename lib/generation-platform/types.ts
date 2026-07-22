@@ -17,12 +17,12 @@ export type UploadMode = "none" | "optional" | "required";
 export type Ownership = { scope: "global" | "private-user"; ownerId: string | null };
 export const FOUNDER_OWNERSHIP: Ownership = { scope: "global", ownerId: null };
 
-/** A module method result. `unauthorized` drives the founder gate uniformly. */
-export type ModuleResult<T> = { ok: true; value: T } | { ok: false; error: string; unauthorized?: boolean };
+/** A module method result. `unauthorized` (401) → sign-in redirect; `forbidden` (403) → role message. */
+export type ModuleResult<T> = { ok: true; value: T } | { ok: false; error: string; unauthorized?: boolean; forbidden?: boolean };
 
 export type PublishOutcome =
   | { ok: true; id: string; imageUrl: string; status: string }
-  | { ok: false; error: string; unauthorized?: boolean };
+  | { ok: false; error: string; unauthorized?: boolean; forbidden?: boolean };
 
 export type SavedInfo = { name: string; id: string; imageDataUrl: string; published: boolean };
 
@@ -40,6 +40,8 @@ export type ModuleCopy = {
   /** Multiple approval questions — ALL must be Yes to approve (Avatar). Overrides reviewQuestion. */
   reviewQuestions?: string[];
   detailsLabel?: string; // toggle caption; omit to hide the Details section
+  /** Fallback route for the header back button (Avatar→/profile, Asset→/nest-editor, Nest→/create). */
+  backHref: string;
 };
 
 export interface GenerationModule<Spec, Result> {

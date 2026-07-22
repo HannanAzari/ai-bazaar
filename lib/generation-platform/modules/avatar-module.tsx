@@ -60,12 +60,14 @@ export const avatarModule: GenerationModule<AvatarSpec, AvatarResult> = {
     reviewQuestion: "Does this respectfully resemble the person?",
     reviewQuestions: ["Does this respectfully resemble the person?", "Would I proudly use this as my Nestudio identity?"],
     detailsLabel: "(engineering: DNA checks · camera · cost)",
+    backHref: "/profile",
   },
 
   async translate({ upload }) {
     if (!upload) return { ok: false, error: "A photo is required." };
     const { status, ok, json } = await post("/api/ai/avatar/translate", { imageDataUrl: upload });
     if (status === 401) return { ok: false, error: "", unauthorized: true };
+    if (status === 403) return { ok: false, error: json.error || "Not allowed.", forbidden: true };
     if (!ok || !json.spec) return { ok: false, error: json.error || "Could not read the photo." };
     return { ok: true, value: json.spec as AvatarSpec };
   },
@@ -80,6 +82,7 @@ export const avatarModule: GenerationModule<AvatarSpec, AvatarResult> = {
     const { positive, negative } = buildAvatarPrompt(spec);
     const { status, ok, json } = await post("/api/ai/avatar/generate", { imageDataUrl: upload, positive, negative });
     if (status === 401) return { ok: false, error: "", unauthorized: true };
+    if (status === 403) return { ok: false, error: json.error || "Not allowed.", forbidden: true };
     if (!ok || !json.imageDataUrl) return { ok: false, error: json.error || "Avatar generation failed." };
     return { ok: true, value: { imageDataUrl: json.imageDataUrl as string, costUsd: json.costUsd ?? null } };
   },
@@ -99,6 +102,7 @@ export const avatarModule: GenerationModule<AvatarSpec, AvatarResult> = {
       active: true,
     });
     if (status === 401) return { ok: false, error: "", unauthorized: true };
+    if (status === 403) return { ok: false, error: json.error || "Not allowed.", forbidden: true };
     if (!ok) return { ok: false, error: json.error || `Publish failed (HTTP ${status}).` };
     return { ok: true, id: json.id, imageUrl: json.publicProfileUrl ?? "", status: json.active ? "active" : "saved" };
   },

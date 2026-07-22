@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { assertFounder } from "@/lib/founder-gate";
+import { requireFounder } from "@/lib/founder-role";
 import { createSupabaseAdminClient, NESTUDIO_BUCKET } from "@/lib/supabase/admin";
 import { NEST_DNA_VERSION, NEST_GEN_SIZE } from "@/lib/nest-factory/nest-dna";
 
@@ -42,8 +42,8 @@ function safeId(raw: string): string {
 }
 
 export async function POST(request: Request) {
-  const gate = assertFounder(request);
-  if (gate) return gate;
+  const gate = await requireFounder(request);
+  if ("response" in gate) return gate.response;
 
   let body: Body;
   try {

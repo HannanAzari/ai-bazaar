@@ -19,17 +19,21 @@ type GateResult = { user: AuthedUser } | { response: NextResponse };
 export async function requireUser(opts?: { allowAnonymous?: boolean }): Promise<GateResult> {
   const supabase = await createSupabaseServerClient();
   if (!supabase) {
-    return { response: NextResponse.json({ error: "Auth is not configured on the server.", configured: false }, { status: 503 }) };
+    // Server misconfig — the Supabase public env vars are missing at RUNTIME (common cause:
+    // NEXT_PUBLIC_SUPABASE_URL/ANON_KEY not set for this Vercel environment, or no redeploy
+    // after adding them). Log the detail; show the user an admin-safe message, never internals.
+    console.error("[requireUser] Supabase server client unavailable — NEXT_PUBLIC_SUPABASE_URL/ANON_KEY missing at runtime.");
+    return { response: NextResponse.json({ error: "Sign-in is temporarily unavailable. Please try again shortly.", code: "auth_unavailable" }, { status: 503 }) };
   }
   const { data, error } = await supabase.auth.getUser();
   const u = data?.user;
   if (error || !u) {
-    return { response: NextResponse.json({ error: "Sign in required.", authorized: false }, { status: 401 }) };
+    return { response: NextResponse.json({ error: "Please sign in to create your avatar.", code: "signin_required", authorized: false }, { status: 401 }) };
   }
   const isAnonymous = (u as { is_anonymous?: boolean }).is_anonymous ?? false;
   // Personal photos + identity: an anonymous guest is not an acceptable owner by default.
   if (isAnonymous && !opts?.allowAnonymous) {
-    return { response: NextResponse.json({ error: "A signed-in account is required for avatars.", authorized: false }, { status: 401 }) };
+    return { response: NextResponse.json({ error: "Please sign in to create your avatar.", code: "signin_required", authorized: false }, { status: 401 }) };
   }
   return { user: { id: u.id, email: u.email ?? null, isAnonymous } };
 }

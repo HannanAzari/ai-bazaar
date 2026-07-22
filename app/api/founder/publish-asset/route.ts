@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { assertFounder } from "@/lib/founder-gate";
+import { requireFounder } from "@/lib/founder-role";
 import { createSupabaseAdminClient, NESTUDIO_BUCKET } from "@/lib/supabase/admin";
 
 // ── Founder-gated global asset publish ───────────────────────────────────────
@@ -56,8 +56,8 @@ function parsePng(dataUrl: string): Buffer | null {
 }
 
 export async function POST(request: Request) {
-  const gate = assertFounder(request);
-  if (gate) return gate;
+  const gate = await requireFounder(request);
+  if ("response" in gate) return gate.response;
 
   const admin = createSupabaseAdminClient();
   if (!admin) {

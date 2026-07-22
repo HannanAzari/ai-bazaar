@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { assertFounder } from "@/lib/founder-gate";
+import { requireFounder } from "@/lib/founder-role";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -166,8 +166,8 @@ async function generateOpenAI(
 }
 
 export async function POST(request: Request) {
-  const gate = assertFounder(request);
-  if (gate) return gate;
+  const gate = await requireFounder(request);
+  if ("response" in gate) return gate.response;
 
   let body: Body;
   try {

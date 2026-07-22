@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { assertFounder } from "@/lib/founder-gate";
+import { requireFounder } from "@/lib/founder-role";
 import {
   buildNestTranslatorSystemPrompt,
   estimateNestCost,
@@ -22,8 +22,8 @@ type Body = { description?: string };
 const WALLS = new Set<string>(NEST_WALL_CONFIGS);
 
 export async function POST(request: Request) {
-  const gate = assertFounder(request);
-  if (gate) return gate;
+  const gate = await requireFounder(request);
+  if ("response" in gate) return gate.response;
 
   let body: Body;
   try {
