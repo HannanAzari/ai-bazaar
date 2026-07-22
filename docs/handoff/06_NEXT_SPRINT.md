@@ -1,0 +1,73 @@
+# 06 · NEXT SPRINT
+
+> **Start here after `01`.** Working document for the next session. Update every sprint.
+> Track: **Founder Edition Creation Studio.** Phase: **Background Factory + Avatar Factory** (D20–D23).
+
+---
+
+## Where we are
+
+**Asset Factory is shipped, deployed, and FROZEN (D19/D20).** Founder-gated Creation Studio at
+`/asset-factory`, deployed to Vercel (`m12-nest-platform` auto-deploy), canonical Supabase
+persistence (Storage + `nest_assets`), mobile-first. The founder now personally generates,
+approves, and grows the library from a phone. **Do not touch the Create flow unless the founder
+reports a bug.** See `PHASE0_ASSET_FACTORY_DEPLOY.md`.
+
+## Current objective
+
+Build **Background Factory** and **Avatar Factory** by **reusing the exact Asset Factory shell**
+(D21): same UX, same translator→spec→review→approve→publish flow, same DB/persistence model, same
+founder gate, same mobile ergonomics. **Only the generation engine + the translator's target schema
+change per type.** No "Unified Studio" milestone (D21) — reuse, don't rebuild.
+
+## Exact deliverables
+
+1. **Background Factory** (`/background-factory`, mirrors `app/asset-factory`):
+   - Background Translator (intent → background spec: category, mood, architecture, walls, floor,
+     palette, lighting, window config, asset-safe zones, canonical camera, cost, safety).
+   - Generation engine tuned for **empty room stages** (no movable furniture; one frozen canonical
+     camera; identical room-stage geometry across all backgrounds).
+   - Same review/approve screen + the extra final gate: *"Could I build ≥3 different Nests in this room?"* (Yes enables publish).
+   - Persistence to **`nest_backgrounds`** — **prepare the additive migration, show it, wait for
+     founder provisioning** (never a parallel/legacy fallback). Same safety as the Laptop write.
+   - **Prove 3 first:** Minimal Flexible Room · Creator Studio · Music Studio — same camera/geometry,
+     distinct identity. Stop and compare before generating more.
+
+2. **Avatar Factory** (`/avatar-factory`, mirrors the shell; **upload-required**):
+   - Avatar Translator (privacy-conscious: presentation, outfit category, palette, hair, accessories,
+     full-body, canonical front pose, expression, transparency, privacy scope, cost, safety). **Never
+     classify ethnicity/religion/health/sexuality/politics; never exaggerate features.**
+   - Generation engine for **full-body, transparent-bg, idle-standing** Nestudio-style avatars
+     (respectful likeness, not photoreal; clean hands/anatomy; reliable foot anchor).
+   - Same review/approve screen + the two final gates: *"Does this respectfully resemble the person?"*
+     and *"Would I proudly represent this person in a Nest?"* (both Yes to approve).
+   - **Privacy from day one:** real-person avatars are **private by default** (`scope: private-user`,
+     `ownerId` = founder/test user), a **Delete Reference and Result** action, reference images never
+     public. Persistence to **`nest_avatars`** — **audit first**, then additive migration shown +
+     founder-provisioned before any write.
+   - **Prove 1 first:** one founder-uploaded photo → idle standing → save privately → place → reload →
+     still present → delete → removed from library + storage.
+
+## Definition of done
+
+- Both factories run the **identical shell/flow** as Asset Factory (only engine + translator target differ).
+- Mobile-first: works from the founder's phone (uploads from photo library, safe-area, no overflow,
+  double-tap guard, recoverable errors).
+- Migrations for `nest_backgrounds` / `nest_avatars` are **additive, shown, and provisioned by the
+  founder** — no destructive DDL, no silent fallback table.
+- The 3-background and 1-avatar proofs pass (founder-run generations; I build + wire dry).
+- Gates green (typecheck · lint · tests · build). Deployed to the Vercel preview.
+
+## Guardrails (do not violate)
+
+- **Asset Factory is frozen** (D20) — no Create-flow redesign.
+- Reuse the shell (D21) — do **not** build three separate apps or a unified-studio abstraction.
+- Founder gate on every generation/publish route (D22). Global publish is founder-only; anonymous never publishes.
+- A generated background must **never change the canonical camera**. A real-person photo must **never** become public.
+- Additive migrations only; show SQL and wait for founder provisioning. No spend by me — the founder runs generations.
+- Do **not** start the Creator Generator or Interaction Engine this sprint (D23).
+
+## After this sprint (D23)
+
+**Creator Generator** (compose a complete starter Nest) → then the **Interaction Engine** (UOS
+surfaces, animation, sound). Not before.
