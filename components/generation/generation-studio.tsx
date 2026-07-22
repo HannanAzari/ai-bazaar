@@ -25,7 +25,9 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
   const [upload, setUpload] = useState<string | null>(null);
   const [spec, setSpec] = useState<Spec | null>(null);
   const [result, setResult] = useState<Result | null>(null);
-  const [proud, setProud] = useState<boolean | null>(null);
+  const questions = module.copy.reviewQuestions ?? [module.copy.reviewQuestion];
+  const [answers, setAnswers] = useState<(boolean | null)[]>(() => questions.map(() => null));
+  const allYes = answers.length === questions.length && answers.every((a) => a === true);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState("");
   const [saved, setSaved] = useState<SavedInfo | null>(null);
@@ -40,21 +42,28 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
   // One in-flight expensive action at a time (double-tap / re-entrancy guard).
   const busy = useRef(false);
 
-  const reset = () => { setStage("input"); setSpec(null); setResult(null); setProud(null); setError(null); setProgress(""); setSaved(null); busy.current = false; };
+  const reset = () => { setStage("input"); setSpec(null); setResult(null); setAnswers(questions.map(() => null)); setError(null); setProgress(""); setSaved(null); setExtraReady(false); busy.current = false; };
+  const setAnswer = (i: number, v: boolean) => setAnswers((prev) => prev.map((a, idx) => (idx === i ? v : a)));
   const saveToken = () => { const t = tokenInput.trim(); if (!t) return; setFounderToken(t); setAuthed(true); setTokenInput(""); setError(null); };
+  const userMode = module.authMode === "user";
   const onAuthError = () => { clearFounderToken(); setAuthed(false); setError("Founder access expired or invalid — re-enter your access code."); };
+  // 401 handling depends on auth mode: user modules show a sign-in prompt (no founder gate).
+  const handleUnauthorized = () => { if (userMode) setError("Please sign in to continue — your session may have expired."); else onAuthError(); };
 
+  const [extraReady, setExtraReady] = useState(false);
   const uploadRequiredMissing = module.uploadMode === "required" && !upload;
-  const canInterpret = Boolean(description.trim()) && !uploadRequiredMissing;
+  // Image-first modules (Avatar) are driven by the upload; text-first modules by the prompt.
+  const baseInput = module.uploadMode === "required" ? Boolean(upload) : Boolean(description.trim());
+  const canInterpret = baseInput && (!module.InputExtra || extraReady);
 
   /* 1 → 2: interpret the request into a spec. */
   const interpret = useCallback(async () => {
     if (!canInterpret || busy.current) return;
     busy.current = true;
     setError(null); setStage("interpreting");
-    const out = await module.translate({ description: description.trim(), hasReference: !!upload, headers: founderHeaders() });
+    const out = await module.translate({ description: description.trim(), upload, hasReference: !!upload, headers: founderHeaders() });
     busy.current = false;
-    if (!out.ok) { if (out.unauthorized) { onAuthError(); } setError(out.unauthorized ? null : out.error); setStage("input"); return; }
+    if (!out.ok) { if (out.unauthorized) handleUnauthorized(); else setError(out.error); setStage("input"); return; }
     setSpec(out.value); setStage("spec");
   }, [canInterpret, description, upload, module]);
 
@@ -63,30 +72,30 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
     if (!spec || busy.current) return;
     if (!module.moderationOk(spec)) { setError(MODERATION_BLOCKED); return; }
     busy.current = true;
-    setError(null); setStage("generating"); setResult(null); setProud(null); setProgress("");
+    setError(null); setStage("generating"); setResult(null); setAnswers(questions.map(() => null)); setProgress("");
     const out = await module.generate({ spec, upload, setProgress, headers: founderHeaders() });
     busy.current = false;
-    if (!out.ok) { if (out.unauthorized) { onAuthError(); } setError(out.unauthorized ? null : out.error); setStage("spec"); return; }
+    if (!out.ok) { if (out.unauthorized) handleUnauthorized(); else setError(out.error); setStage("spec"); return; }
     setResult(out.value); setStage("review");
   }, [spec, upload, module]);
 
   /* 7: approve → publish through the module, mirror locally, then Saved. */
   const approve = useCallback(async () => {
-    if (!spec || !result || proud !== true || busy.current) return;
+    if (!spec || !result || !allYes || busy.current) return;
     busy.current = true;
     setError(null); setStage("publishing");
-    const outcome = await module.publish({ spec, result, ownership: FOUNDER_OWNERSHIP });
+    const outcome = await module.publish({ spec, result, upload, ownership: FOUNDER_OWNERSHIP });
     module.onApproved?.({ spec, result, outcome, ownership: FOUNDER_OWNERSHIP });
     busy.current = false;
     if (!outcome.ok) {
-      if (outcome.unauthorized) { onAuthError(); setStage("review"); return; }
-      setError(`Publish failed: ${outcome.error}. Saved to your local library — you can retry Approve.`);
+      if (outcome.unauthorized) { handleUnauthorized(); setStage("review"); return; }
+      setError(`Publish failed: ${outcome.error}. You can retry Approve.`);
       setStage("review"); // return to review so Approve can be retried
       return;
     }
     setSaved({ name: module.specName(spec), id: outcome.id, imageDataUrl: module.resultImage(result), published: true });
     setStage("saved");
-  }, [spec, result, proud, module]);
+  }, [spec, result, allYes, module]);
 
   const onFile = (f: File | undefined) => {
     if (!f) return;
@@ -101,8 +110,8 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
   const DetailsView = module.DetailsView;
   const SavedView = module.SavedView;
 
-  // ── Founder gate screen ──
-  if (!authed) {
+  // ── Founder gate screen (founder-auth modules only; user modules auth via the server) ──
+  if (!authed && !userMode) {
     return (
       <div
         className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center bg-white px-6 text-neutral-900"
@@ -142,7 +151,8 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
       {/* 1 · INPUT */}
       {stage === "input" && (
         <div className="space-y-3">
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4}
+          {module.InputExtra && <module.InputExtra onReadyChange={setExtraReady} />}
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={module.uploadMode === "required" ? 2 : 4}
             placeholder={copy.inputPlaceholder}
             className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-[15px] outline-none focus:border-neutral-400" />
           {module.uploadMode !== "none" && (
@@ -177,20 +187,24 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
       {/* 5/6 · REVIEW */}
       {stage === "review" && result && spec && (
         <div className="space-y-3">
-          <ReviewView spec={spec} result={result} />
+          <ReviewView spec={spec} result={result} upload={upload} />
           {DetailsView && copy.detailsLabel && (
             <>
               <button onClick={() => setShowDetails((s) => !s)} className="text-[11px] font-semibold text-neutral-500">{showDetails ? "Hide" : "Details"} {copy.detailsLabel}</button>
-              {showDetails && <DetailsView spec={spec} result={result} />}
+              {showDetails && <DetailsView spec={spec} result={result} upload={upload} />}
             </>
           )}
-          <div className="rounded-2xl border border-neutral-200 p-3">
-            <p className="mb-2 text-center text-sm font-bold">{copy.reviewQuestion}</p>
-            <div className="flex gap-2">
-              <button onClick={() => setProud(true)} className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${proud === true ? "bg-emerald-600 text-white" : "border border-neutral-200 text-neutral-700"}`}>Yes</button>
-              <button onClick={() => setProud(false)} className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${proud === false ? "bg-neutral-800 text-white" : "border border-neutral-200 text-neutral-700"}`}>No</button>
-            </div>
-            {proud === false && <p className="mt-2 text-center text-[11px] text-neutral-500">Regenerate or edit the request below.</p>}
+          <div className="space-y-2 rounded-2xl border border-neutral-200 p-3">
+            {questions.map((q, i) => (
+              <div key={i}>
+                <p className="mb-2 text-center text-sm font-bold">{q}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setAnswer(i, true)} className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${answers[i] === true ? "bg-emerald-600 text-white" : "border border-neutral-200 text-neutral-700"}`}>Yes</button>
+                  <button onClick={() => setAnswer(i, false)} className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${answers[i] === false ? "bg-neutral-800 text-white" : "border border-neutral-200 text-neutral-700"}`}>No</button>
+                </div>
+              </div>
+            ))}
+            {answers.some((a) => a === false) && <p className="mt-1 text-center text-[11px] text-neutral-500">Regenerate or edit below.</p>}
           </div>
         </div>
       )}
@@ -210,7 +224,7 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
         {stage === "review" && (<>
           <Secondary onClick={generate}>Regenerate</Secondary>
           <Secondary onClick={() => setStage("spec")}>Edit</Secondary>
-          <Primary onClick={approve} disabled={proud !== true}>{copy.approveLabel}</Primary>
+          <Primary onClick={approve} disabled={!allYes}>{copy.approveLabel}</Primary>
         </>)}
       </StickyBar>
     </div>

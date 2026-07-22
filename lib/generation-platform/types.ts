@@ -36,7 +36,9 @@ export type ModuleCopy = {
   inputHint?: string;
   publishingLabel: string; // "Publishing to your Nestudio library…"
   approveLabel: string; // "Approve & Add" / "Approve & Publish"
-  reviewQuestion: string; // "Would I proudly place this in a Nest?"
+  reviewQuestion: string; // single approval question (Asset/Nest)
+  /** Multiple approval questions — ALL must be Yes to approve (Avatar). Overrides reviewQuestion. */
+  reviewQuestions?: string[];
   detailsLabel?: string; // toggle caption; omit to hide the Details section
 };
 
@@ -44,9 +46,16 @@ export interface GenerationModule<Spec, Result> {
   key: string;
   copy: ModuleCopy;
   uploadMode: UploadMode;
+  /**
+   * Who may use this module:
+   *  - "founder" (default): the founder-token gate screen; token rides every call.
+   *  - "user": the authenticated end-user (real Supabase session, server-enforced by the
+   *    routes). No founder gate screen; a 401 surfaces a "sign in" message instead.
+   */
+  authMode?: "founder" | "user";
 
-  // ── Translator ──
-  translate(a: { description: string; hasReference: boolean; headers: Record<string, string> }): Promise<ModuleResult<Spec>>;
+  // ── Translator ── (`upload` present for image-first modules like Avatar)
+  translate(a: { description: string; upload: string | null; hasReference: boolean; headers: Record<string, string> }): Promise<ModuleResult<Spec>>;
   estimatedCost(spec: Spec): number;
   moderationOk(spec: Spec): boolean;
   specName(spec: Spec): string;
@@ -56,14 +65,17 @@ export interface GenerationModule<Spec, Result> {
   resultImage(r: Result): string; // final data URL → publish + saved preview
   resultCost(r: Result): number | null;
 
-  // ── Publishing (library-specific, shared safety) ──
-  publish(a: { spec: Spec; result: Result; ownership: Ownership }): Promise<PublishOutcome>;
+  // ── Publishing (library-specific, shared safety) ── (`upload` = the source, for Avatar)
+  publish(a: { spec: Spec; result: Result; upload: string | null; ownership: Ownership }): Promise<PublishOutcome>;
   /** Persist the module's local mirror (called after publish, success or failure). */
   onApproved?(a: { spec: Spec; result: Result; outcome: PublishOutcome; ownership: Ownership }): void;
 
   // ── Renderers (the type-specific screens) ──
+  /** Optional extra content in the INPUT stage (e.g. Avatar consent). Interpret is
+   *  blocked until onReadyChange(true) is called. */
+  InputExtra?: FC<{ onReadyChange: (ready: boolean) => void }>;
   SpecView: FC<{ spec: Spec; onChange: (s: Spec) => void }>;
-  ReviewView: FC<{ spec: Spec; result: Result }>;
-  DetailsView?: FC<{ spec: Spec; result: Result }>;
+  ReviewView: FC<{ spec: Spec; result: Result; upload: string | null }>;
+  DetailsView?: FC<{ spec: Spec; result: Result; upload: string | null }>;
   SavedView: FC<{ info: SavedInfo }>;
 }
