@@ -1,17 +1,42 @@
 # 06 · NEXT SPRINT
 
 > **Start here after `01`.** Working document for the next session. Update every sprint.
-> Track: **Founder Edition Creation Studio.** Phase: **Background Factory + Avatar Factory** (D20–D23).
+> Track: **Founder Edition Creation Studio.** Just shipped: **Nest Factory** (D24–D27).
+> Next: **provision `nest_backgrounds` + founder proof → Creator Generator → Interaction Engine.**
 
 ---
 
 ## Where we are
 
-**Asset Factory is shipped, deployed, and FROZEN (D19/D20).** Founder-gated Creation Studio at
-`/asset-factory`, deployed to Vercel (`m12-nest-platform` auto-deploy), canonical Supabase
-persistence (Storage + `nest_assets`), mobile-first. The founder now personally generates,
-approves, and grows the library from a phone. **Do not touch the Create flow unless the founder
-reports a bug.** See `PHASE0_ASSET_FACTORY_DEPLOY.md`.
+- **Asset Factory** — shipped, deployed, **FROZEN** (D19/D20). `/asset-factory`, `nest_assets`. Founder owns it.
+- **Nest Factory** — **shipped this sprint (D24), engineering complete, gates green.** `/nest-factory`,
+  Asset Factory's twin, only the generation engine differs (empty-room text-to-image, architecture
+  only). Publishes to the dedicated **`nest_backgrounds`** library → auto-selectable in Create →
+  Build My Own. **Needs `nest_backgrounds` provisioning + a founder phone test** —
+  see `SPRINT3_NEST_FACTORY.md`.
+
+## Immediate next steps
+
+1. **Founder:** run `supabase/provision/nest_backgrounds_provision.sql` (additive), set Vercel env
+   (already set for Asset Factory — no new vars), then phone-test: describe → generate → approve →
+   publish → Create → Build My Own → decorate → reload. Prove 3 (Minimal · Creator Studio · Music Studio).
+2. **Then build: Creator Generator** — compose a complete starter Nest from the founder's asset +
+   Nest libraries (D27). **Then the Interaction Engine.** (Avatar Factory deferred behind these.)
+
+## Guardrails carried forward
+
+- Asset Factory + Nest Factory Create flows are **frozen** — no redesign without a founder bug report.
+- Founder-gated generation/publish (D22); users never generate Nests (D26).
+- Additive migrations only, shown + founder-provisioned. Never change the canonical camera.
+- Do **not** build AI room decoration / auto-placement / the Interaction Engine yet (D27).
+
+---
+
+## (Archived) prior sprint brief — Background + Avatar factories
+
+> Superseded by the Sprint 3 framing above: "Background Factory" became the **Nest Factory** (D24),
+> and Avatar Factory is deferred behind Creator Generator + Interaction Engine (D27). Original
+> detail retained below for reference.
 
 ## Current objective
 
