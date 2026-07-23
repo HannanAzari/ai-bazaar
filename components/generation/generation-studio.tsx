@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ImagePlus } from "lucide-react";
 import { founderHeaders } from "@/lib/founder-token";
 import { CHECKER, Centered, Primary, Secondary, Spinner, StickyBar } from "@/components/generation/ui";
 import { FOUNDER_OWNERSHIP, type GenerationModule, type SavedInfo } from "@/lib/generation-platform/types";
@@ -150,20 +150,46 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
 
       {error && <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">{error}</div>}
 
-      {/* 1 · INPUT */}
-      {stage === "input" && (
+      {/* 1 · INPUT — required-upload (Avatar) gets a large, friendly photo area */}
+      {stage === "input" && module.uploadMode === "required" && (
+        <div className="space-y-4">
+          {upload ? (
+            <div className="relative mx-auto w-full">
+              <div className="aspect-[3/4] w-full overflow-hidden rounded-3xl border border-timber/15 bg-parchment/40 shadow-soft">
+                {/* eslint-disable-next-line @next/next/no-img-element */}<img src={upload} alt="Your photo" className="h-full w-full object-cover" />
+              </div>
+              <button onClick={() => fileRef.current?.click()} className="absolute right-3 top-3 rounded-full bg-ink/65 px-3.5 py-1.5 text-xs font-bold text-parchment backdrop-blur active:scale-95">Change photo</button>
+            </div>
+          ) : (
+            <button onClick={() => fileRef.current?.click()} className="flex aspect-[3/4] w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-timber/30 bg-parchment/40 text-ink transition hover:border-terracotta/40 active:scale-[0.99]">
+              <span className="grid size-16 place-items-center rounded-full bg-terracotta/12 text-terracotta"><ImagePlus size={28} /></span>
+              <span className="text-lg font-black">Choose a photo</span>
+              <span className="px-8 text-center text-[13px] text-ink/50">A clear photo of you, facing the camera.</span>
+            </button>
+          )}
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
+          {module.InputExtra && <module.InputExtra onReadyChange={setExtraReady} />}
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+            placeholder={copy.inputPlaceholder}
+            className="w-full rounded-2xl border border-timber/20 bg-parchment/40 p-3.5 text-[15px] outline-none focus:border-terracotta/50" />
+          {copy.inputHint && <p className="px-1 text-center text-[12px] leading-relaxed text-ink/45">{copy.inputHint}</p>}
+        </div>
+      )}
+
+      {/* 1 · INPUT — text-first (Asset/Nest), unchanged */}
+      {stage === "input" && module.uploadMode !== "required" && (
         <div className="space-y-3">
           {module.InputExtra && <module.InputExtra onReadyChange={setExtraReady} />}
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={module.uploadMode === "required" ? 2 : 4}
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4}
             placeholder={copy.inputPlaceholder}
             className="w-full rounded-2xl border border-timber/20 bg-parchment/40 p-4 text-[15px] outline-none focus:border-terracotta/50" />
           {module.uploadMode !== "none" && (
             <>
               <div className="flex items-center gap-2">
                 <button onClick={() => fileRef.current?.click()} className="flex-1 rounded-2xl border border-timber/20 bg-parchment/40 py-3 text-sm font-semibold text-ink/70">
-                  {upload ? "✓ Reference added" : module.uploadMode === "required" ? "Upload a photo" : "Upload a reference (optional)"}
+                  {upload ? "✓ Reference added" : "Upload a reference (optional)"}
                 </button>
-                {upload && <button onClick={() => setUpload(null)} className="rounded-xl px-3 py-3 text-xs text-neutral-500">remove</button>}
+                {upload && <button onClick={() => setUpload(null)} className="rounded-xl px-3 py-3 text-xs text-ink/45">remove</button>}
               </div>
               {upload && <div style={CHECKER} className="h-40 overflow-hidden rounded-2xl">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={upload} alt="" className="h-full w-full object-contain" /></div>}
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
@@ -173,7 +199,7 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
         </div>
       )}
 
-      {stage === "interpreting" && <Centered>Interpreting…</Centered>}
+      {stage === "interpreting" && <Centered>{module.uploadMode === "required" ? "Reading your photo…" : "Interpreting…"}</Centered>}
 
       {/* 2/3 · SPEC */}
       {stage === "spec" && spec && (
@@ -208,18 +234,20 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
               {showDetails && <DetailsView spec={spec} result={result} upload={upload} />}
             </>
           )}
-          <div className="space-y-2 rounded-2xl border border-timber/15 bg-parchment/30 p-3">
-            {questions.map((q, i) => (
-              <div key={i}>
-                <p className="mb-2 text-center text-sm font-bold">{q}</p>
-                <div className="flex gap-2">
-                  <button onClick={() => setAnswer(i, true)} className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${answers[i] === true ? "bg-emerald-600 text-white" : "border border-timber/20 bg-white text-ink/70"}`}>Yes</button>
-                  <button onClick={() => setAnswer(i, false)} className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${answers[i] === false ? "bg-ink text-parchment" : "border border-timber/20 bg-white text-ink/70"}`}>No</button>
+          {questions.filter(Boolean).length > 0 && (
+            <div className="space-y-2 rounded-2xl border border-timber/15 bg-parchment/30 p-3">
+              {questions.map((q, i) => (
+                <div key={i}>
+                  <p className="mb-2 text-center text-sm font-bold">{q}</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setAnswer(i, true)} className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${answers[i] === true ? "bg-emerald-600 text-white" : "border border-timber/20 bg-white text-ink/70"}`}>Yes</button>
+                    <button onClick={() => setAnswer(i, false)} className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${answers[i] === false ? "bg-ink text-parchment" : "border border-timber/20 bg-white text-ink/70"}`}>No</button>
+                  </div>
                 </div>
-              </div>
-            ))}
-            {answers.some((a) => a === false) && <p className="mt-1 text-center text-[11px] text-ink/45">Try again or adjust below.</p>}
-          </div>
+              ))}
+              {answers.some((a) => a === false) && <p className="mt-1 text-center text-[11px] text-ink/45">Try again or adjust below.</p>}
+            </div>
+          )}
         </div>
       )}
 
@@ -233,8 +261,8 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
 
       {/* sticky action bar */}
       <StickyBar>
-        {stage === "input" && <Primary onClick={interpret} disabled={!canInterpret}>Interpret →</Primary>}
-        {stage === "spec" && spec && (<><Secondary onClick={reset}>Edit</Secondary><Primary onClick={generate} disabled={!module.moderationOk(spec)}>Generate · ${module.estimatedCost(spec).toFixed(2)}</Primary></>)}
+        {stage === "input" && <Primary onClick={interpret} disabled={!canInterpret}>{copy.interpretLabel ?? "Interpret →"}</Primary>}
+        {stage === "spec" && spec && (<><Secondary onClick={reset}>{copy.editLabel ?? "Edit"}</Secondary><Primary onClick={generate} disabled={!module.moderationOk(spec)}>{copy.generateLabel ?? `Generate · $${module.estimatedCost(spec).toFixed(2)}`}</Primary></>)}
         {stage === "review" && (<>
           <Secondary onClick={generate}>{copy.regenerateLabel ?? "Regenerate"}</Secondary>
           <Secondary onClick={() => setStage("spec")}>{copy.editLabel ?? "Edit"}</Secondary>

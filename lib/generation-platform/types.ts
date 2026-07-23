@@ -43,6 +43,8 @@ export type ModuleCopy = {
   optionalReview?: boolean;
   regenerateLabel?: string; // sticky-bar "Regenerate" override (e.g. "Try again")
   editLabel?: string; // sticky-bar "Edit" override (e.g. "Adjust style")
+  interpretLabel?: string; // input-stage primary override (Avatar: "Continue"); default "Interpret →"
+  generateLabel?: string; // spec-stage primary override (Avatar: "Create Avatar"); default hides cost when set
   detailsLabel?: string; // toggle caption; omit to hide the Details section
   /** Fallback route for the header back button (Avatar→/profile, Asset→/nest-editor, Nest→/create). */
   backHref: string;
