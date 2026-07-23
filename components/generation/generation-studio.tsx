@@ -134,7 +134,7 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
 
   return (
     <div
-      className="mx-auto min-h-screen w-full max-w-md bg-white px-4 text-neutral-900"
+      className="mx-auto min-h-screen w-full max-w-md bg-white px-4 text-ink"
       style={{ paddingTop: "calc(1rem + env(safe-area-inset-top))", paddingBottom: "calc(7rem + env(safe-area-inset-bottom))" }}
     >
       <header className="mb-4 flex items-center gap-2">
@@ -143,9 +143,9 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
         </button>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-black tracking-tight">{copy.headerTitle}</h1>
-          <p className="truncate text-[11px] text-neutral-500">{copy.headerTagline}</p>
+          <p className="truncate text-[11px] text-ink/50">{copy.headerTagline}</p>
         </div>
-        {stage !== "input" && <button onClick={reset} className="shrink-0 text-xs font-semibold text-neutral-500">Start over</button>}
+        {stage !== "input" && <button onClick={reset} className="shrink-0 text-xs font-semibold text-ink/45">Start over</button>}
       </header>
 
       {error && <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">{error}</div>}
@@ -156,11 +156,11 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
           {module.InputExtra && <module.InputExtra onReadyChange={setExtraReady} />}
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={module.uploadMode === "required" ? 2 : 4}
             placeholder={copy.inputPlaceholder}
-            className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-[15px] outline-none focus:border-neutral-400" />
+            className="w-full rounded-2xl border border-timber/20 bg-parchment/40 p-4 text-[15px] outline-none focus:border-terracotta/50" />
           {module.uploadMode !== "none" && (
             <>
               <div className="flex items-center gap-2">
-                <button onClick={() => fileRef.current?.click()} className="flex-1 rounded-2xl border border-neutral-200 bg-neutral-50 py-3 text-sm font-semibold text-neutral-700">
+                <button onClick={() => fileRef.current?.click()} className="flex-1 rounded-2xl border border-timber/20 bg-parchment/40 py-3 text-sm font-semibold text-ink/70">
                   {upload ? "✓ Reference added" : module.uploadMode === "required" ? "Upload a photo" : "Upload a reference (optional)"}
                 </button>
                 {upload && <button onClick={() => setUpload(null)} className="rounded-xl px-3 py-3 text-xs text-neutral-500">remove</button>}
@@ -169,7 +169,7 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
             </>
           )}
-          {copy.inputHint && <p className="text-[11px] text-neutral-500">{copy.inputHint}</p>}
+          {copy.inputHint && <p className="text-[11px] leading-relaxed text-ink/50">{copy.inputHint}</p>}
         </div>
       )}
 
@@ -178,7 +178,7 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
       {/* 2/3 · SPEC */}
       {stage === "spec" && spec && (
         <div className="space-y-3">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-400">Interpreted specification</p>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-ink/40">Details</p>
           <SpecView spec={spec} onChange={setSpec} />
         </div>
       )}
@@ -204,21 +204,21 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
           <ReviewView spec={spec} result={result} upload={upload} />
           {DetailsView && copy.detailsLabel && (
             <>
-              <button onClick={() => setShowDetails((s) => !s)} className="text-[11px] font-semibold text-neutral-500">{showDetails ? "Hide" : "Details"} {copy.detailsLabel}</button>
+              <button onClick={() => setShowDetails((s) => !s)} className="text-[11px] font-semibold text-ink/45">{showDetails ? "Hide" : "Advanced details"} {copy.detailsLabel}</button>
               {showDetails && <DetailsView spec={spec} result={result} upload={upload} />}
             </>
           )}
-          <div className="space-y-2 rounded-2xl border border-neutral-200 p-3">
+          <div className="space-y-2 rounded-2xl border border-timber/15 bg-parchment/30 p-3">
             {questions.map((q, i) => (
               <div key={i}>
                 <p className="mb-2 text-center text-sm font-bold">{q}</p>
                 <div className="flex gap-2">
-                  <button onClick={() => setAnswer(i, true)} className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${answers[i] === true ? "bg-emerald-600 text-white" : "border border-neutral-200 text-neutral-700"}`}>Yes</button>
-                  <button onClick={() => setAnswer(i, false)} className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${answers[i] === false ? "bg-neutral-800 text-white" : "border border-neutral-200 text-neutral-700"}`}>No</button>
+                  <button onClick={() => setAnswer(i, true)} className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${answers[i] === true ? "bg-emerald-600 text-white" : "border border-timber/20 bg-white text-ink/70"}`}>Yes</button>
+                  <button onClick={() => setAnswer(i, false)} className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${answers[i] === false ? "bg-ink text-parchment" : "border border-timber/20 bg-white text-ink/70"}`}>No</button>
                 </div>
               </div>
             ))}
-            {answers.some((a) => a === false) && <p className="mt-1 text-center text-[11px] text-neutral-500">Regenerate or edit below.</p>}
+            {answers.some((a) => a === false) && <p className="mt-1 text-center text-[11px] text-ink/45">Try again or adjust below.</p>}
           </div>
         </div>
       )}
@@ -227,7 +227,7 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
       {stage === "saved" && saved && (
         <div className="space-y-3 text-center">
           <SavedView info={saved} />
-          <button onClick={reset} className="rounded-2xl bg-neutral-900 px-6 py-3 text-sm font-bold text-white">Create another</button>
+          <button onClick={reset} className="rounded-2xl bg-terracotta px-6 py-3 text-sm font-black text-parchment shadow-soft active:scale-[0.98]">Create another</button>
         </div>
       )}
 

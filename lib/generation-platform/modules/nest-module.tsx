@@ -57,7 +57,7 @@ export const nestModule: GenerationModule<NestSpec, NestResult> = {
   specName: (spec) => spec.name,
 
   async generate({ spec, setProgress, headers }) {
-    setProgress("Building the empty Nest…");
+    setProgress("Designing your space");
     try {
       const { positive, negative } = buildNestPrompt(spec);
       const r = await fetch("/api/ai/nest/generate", {
@@ -97,7 +97,7 @@ export const nestModule: GenerationModule<NestSpec, NestResult> = {
     return (
       <>
         <input value={spec.name} onChange={(e) => onChange({ ...spec, name: e.target.value })}
-          className="w-full rounded-xl border border-neutral-200 px-3 py-2 text-base font-bold" />
+          className="w-full rounded-xl border border-timber/20 px-3 py-2 text-base font-bold text-ink" />
         <div className="grid grid-cols-2 gap-2 text-xs">
           <Field k="Category" v={spec.category} />
           <Field k="Mood" v={spec.mood} />
@@ -108,28 +108,24 @@ export const nestModule: GenerationModule<NestSpec, NestResult> = {
           <Field k="Lighting" v={`${spec.lighting} · ${spec.timeOfDay}`} />
           <Field k="Est. cost" v={`$${spec.estimatedCostUsd.toFixed(2)}`} />
         </div>
-        {spec.recommendedAssetTags.length > 0 && <p className="text-[11px] text-neutral-500">suits: {spec.recommendedAssetTags.join(", ")}</p>}
+        {spec.recommendedAssetTags.length > 0 && <p className="text-[11px] text-ink/50">suits: {spec.recommendedAssetTags.join(", ")}</p>}
         <Warn ok={spec.brandNeutral.ok} label="Brand-neutral" note={spec.brandNeutral.note || "generic — no brand"} />
         <Warn ok={spec.moderation.ok} label="Safety" note={spec.moderation.note || "passed"} />
-        <label className="block text-[11px] font-semibold text-neutral-500">Room description (editable)
+        <label className="block text-[11px] font-semibold text-ink/50">Room description (editable)
           <textarea value={spec.generationSubject} onChange={(e) => onChange({ ...spec, generationSubject: e.target.value })} rows={2}
-            className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm font-normal text-neutral-800" />
+            className="mt-1 w-full rounded-xl border border-timber/20 px-3 py-2 text-sm font-normal text-ink/80" />
         </label>
       </>
     );
   },
 
   ReviewView({ spec, result }) {
-    const dna = scoreNestDna(spec);
     return (
       <>
-        <div className="w-full overflow-hidden rounded-2xl border border-neutral-200" style={{ aspectRatio: ASPECT_CSS }}>
+        <div className="w-full overflow-hidden rounded-2xl border border-timber/15 shadow-soft" style={{ aspectRatio: ASPECT_CSS }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}<img src={result.imageDataUrl} alt={spec.name} className="h-full w-full object-cover" />
         </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-bold">{spec.name}</span>
-          <span className="text-neutral-500">${(result.costUsd ?? 0).toFixed(3)} · DNA {(dna.score * 100).toFixed(0)}%</span>
-        </div>
+        <p className="text-center text-base font-black text-ink">{spec.name}</p>
       </>
     );
   },
@@ -137,7 +133,7 @@ export const nestModule: GenerationModule<NestSpec, NestResult> = {
   DetailsView({ spec, result }) {
     const dna = scoreNestDna(spec);
     return (
-      <div className="space-y-2 rounded-2xl border border-neutral-100 bg-neutral-50 p-3 text-[11px]">
+      <div className="space-y-2 rounded-2xl border border-timber/10 bg-parchment/40 p-3 text-[11px] text-ink/60">
         <div className="grid grid-cols-2 gap-1">
           {dna.checks.map((c) => <p key={c.label}>{c.ok ? "✓" : "⚠"} {c.label}</p>)}
         </div>
@@ -149,7 +145,7 @@ export const nestModule: GenerationModule<NestSpec, NestResult> = {
   SavedView({ info }) {
     return (
       <>
-        <div className="mx-auto w-2/3 overflow-hidden rounded-2xl border border-neutral-200" style={{ aspectRatio: ASPECT_CSS }}>
+        <div className="mx-auto w-2/3 overflow-hidden rounded-2xl border border-timber/15 shadow-soft" style={{ aspectRatio: ASPECT_CSS }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}<img src={info.imageDataUrl} alt={info.name} className="h-full w-full object-cover" />
         </div>
         <p className="text-lg font-black">✓ {info.name} published</p>

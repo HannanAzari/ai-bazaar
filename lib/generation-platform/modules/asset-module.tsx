@@ -70,7 +70,7 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
       let sourceDataUrl = upload;
       let referenceUrl: string | null = upload;
       if (!sourceDataUrl) {
-        setProgress("Creating a studio reference…");
+        setProgress("Studying your reference");
         const r = await fetch("/api/ai/reference", {
           method: "POST", headers: { "content-type": "application/json", ...headers },
           body: JSON.stringify({ subject: spec.generationSubject, id: `factory-${Date.now().toString(36)}` }),
@@ -86,7 +86,7 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
       // cause. It is now BEST-EFFORT and NON-BLOCKING: bounded by short timeouts, and on ANY
       // load/inference failure we proceed with the full image (GPT Image isolates on a
       // transparent background natively). The workflow therefore never dead-ends on segmentation.
-      setProgress("Analysing your object…");
+      setProgress("Studying your object");
       const canvas = await sourceToCanvas(sourceDataUrl);
       const original = toRaster(canvas);
       let mask: SegMask | null = null;
@@ -95,11 +95,11 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
         try { mask = (await withTimeout(seg.detect(canvas), 15_000, "seg-detect"))[0]?.mask ?? null; } catch { /* fall through */ }
         if (!mask) { try { mask = await withTimeout(seg.segmentAtPoint(canvas, { x: 0.5, y: 0.5 }), 15_000, "seg-point"); } catch { /* fall through */ } }
       } catch { /* segmenter failed to load in time — fall back to the full image below */ }
-      setProgress("Preparing the object…");
+      setProgress("Shaping it");
       // Clean cutout when segmentation succeeded; otherwise the full image (server isolates it).
       const cutout: RasterImage = mask ? await maskToCutout(canvas, mask) : original;
 
-      setProgress("Generating the Nestudio asset…");
+      setProgress("Crafting your object");
       const honest = await withTimeout(
         generateAssetHonest({
           cutout, original, subject: spec.generationSubject,
@@ -110,7 +110,7 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
         "Generation is taking longer than expected. No charge was completed — please try again.",
       );
       if (!honest.ok) return { ok: false, error: honest.error || "Generation failed." };
-      setProgress("Cleaning transparency…");
+      setProgress("Adding the Nestudio finish");
       return { ok: true, value: { honest, referenceUrl } };
     } catch (e) { return { ok: false, error: (e as Error).message }; }
   },
@@ -141,7 +141,7 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
     return (
       <>
         <input value={spec.name} onChange={(e) => onChange({ ...spec, name: e.target.value })}
-          className="w-full rounded-xl border border-neutral-200 px-3 py-2 text-base font-bold" />
+          className="w-full rounded-xl border border-timber/20 px-3 py-2 text-base font-bold text-ink" />
         <div className="grid grid-cols-2 gap-2 text-xs">
           <Field k="Class" v={spec.objectClass} />
           <Field k="Role" v={spec.visualRole} />
@@ -152,12 +152,12 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
           <Field k="Surface" v={spec.surface} />
           <Field k="Est. cost" v={`$${spec.estimatedCostUsd.toFixed(2)}`} />
         </div>
-        {spec.tags.length > 0 && <p className="text-[11px] text-neutral-500">tags: {spec.tags.join(", ")}</p>}
+        {spec.tags.length > 0 && <p className="text-[11px] text-ink/50">tags: {spec.tags.join(", ")}</p>}
         <Warn ok={spec.brandNeutral.ok} label="Brand-neutral" note={spec.brandNeutral.note || "generic — no brand"} />
         <Warn ok={spec.moderation.ok} label="Safety" note={spec.moderation.note || "passed"} />
-        <label className="block text-[11px] font-semibold text-neutral-500">Generation subject (editable)
+        <label className="block text-[11px] font-semibold text-ink/50">Generation subject (editable)
           <input value={spec.generationSubject} onChange={(e) => onChange({ ...spec, generationSubject: e.target.value })}
-            className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm font-normal text-neutral-800" />
+            className="mt-1 w-full rounded-xl border border-timber/20 px-3 py-2 text-sm font-normal text-ink/80" />
         </label>
       </>
     );
@@ -169,10 +169,7 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
         <div style={CHECKER} className="aspect-square w-full overflow-hidden rounded-2xl border border-neutral-200">
           {/* eslint-disable-next-line @next/next/no-img-element */}<img src={result.honest.finished!.dataUrl} alt={spec.name} className="h-full w-full object-contain" />
         </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-bold">{spec.name}</span>
-          <span className="text-neutral-500">${(result.honest.costUsd ?? 0).toFixed(3)} · {result.honest.pose?.inTolerance ? "pose ✓" : "pose ⚠"}</span>
-        </div>
+        <p className="text-center text-base font-black text-ink">{spec.name}</p>
         {!spec.brandNeutral.ok && <div className="rounded-xl border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-700">Brand-neutrality: {spec.brandNeutral.note}</div>}
       </>
     );
@@ -180,7 +177,7 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
 
   DetailsView({ spec, result }) {
     return (
-      <div className="space-y-2 rounded-2xl border border-neutral-100 bg-neutral-50 p-3 text-[11px]">
+      <div className="space-y-2 rounded-2xl border border-timber/10 bg-parchment/40 p-3 text-[11px] text-ink/60">
         <div className="grid grid-cols-3 gap-2">
           <Thumb label="Studio ref" src={result.referenceUrl} />
           <Thumb label="Raw" src={result.honest.raw?.dataUrl ?? null} checker />

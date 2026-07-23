@@ -30,15 +30,15 @@ function ConsentGate({ onReadyChange }: { onReadyChange: (ready: boolean) => voi
     "I can delete the source photo and the generated result.",
   ];
   return (
-    <div className="space-y-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-      <p className="text-[13px] font-semibold text-neutral-800">Use a clear photo of yourself, or a person who has given you permission.</p>
+    <div className="space-y-2 rounded-2xl border border-timber/15 bg-parchment/40 p-3">
+      <p className="text-[13px] font-semibold text-ink">Use a clear photo of yourself, or a person who has given you permission.</p>
       {items.map((label, i) => (
-        <label key={i} className="flex items-start gap-2 text-[12px] text-neutral-700">
+        <label key={i} className="flex items-start gap-2 text-[12px] text-ink/70">
           <input type="checkbox" checked={c[i]} onChange={(e) => set(i, e.target.checked)} className="mt-0.5 h-4 w-4" />
           <span>{label}</span>
         </label>
       ))}
-      <p className="text-[11px] text-neutral-500">Your photo stays private. It is never shown publicly and can be deleted at any time.</p>
+      <p className="text-[11px] text-ink/45">Your photo stays private. It is never shown publicly and can be deleted at any time.</p>
     </div>
   );
 }
@@ -81,7 +81,7 @@ export const avatarModule: GenerationModule<AvatarSpec, AvatarResult> = {
 
   async generate({ spec, upload, setProgress }) {
     if (!upload) return { ok: false, error: "A photo is required." };
-    setProgress("Creating your avatar…");
+    setProgress("Sculpting your avatar");
     const { positive, negative } = buildAvatarPrompt(spec);
     const { status, ok, json } = await post("/api/ai/avatar/generate", { imageDataUrl: upload, positive, negative });
     if (status === 401) return { ok: false, error: "", unauthorized: true };
@@ -121,20 +121,20 @@ export const avatarModule: GenerationModule<AvatarSpec, AvatarResult> = {
     ];
     return (
       <>
-        <label className="block text-[11px] font-semibold text-neutral-500">Avatar name
+        <label className="block text-[11px] font-semibold text-ink/50">Avatar name
           <input value={spec.displayName} onChange={(e) => onChange({ ...spec, displayName: e.target.value })}
-            className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-base font-bold text-neutral-900" />
+            className="mt-1 w-full rounded-xl border border-timber/20 px-3 py-2 text-base font-bold text-ink" />
         </label>
         <div>
-          <p className="mb-1.5 text-[11px] font-semibold text-neutral-500">Style</p>
+          <p className="mb-1.5 text-[11px] font-semibold text-ink/50">Style</p>
           <div className="flex gap-2">
             {styles.map((s) => (
               <button key={s.key} onClick={() => onChange({ ...spec, styleIntensity: s.key })}
-                className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${spec.styleIntensity === s.key ? "bg-neutral-900 text-white" : "border border-neutral-200 text-neutral-700"}`}>{s.label}</button>
+                className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${spec.styleIntensity === s.key ? "bg-terracotta text-parchment shadow-soft" : "border border-timber/20 bg-white text-ink/70"}`}>{s.label}</button>
             ))}
           </div>
         </div>
-        <p className="text-[11px] text-neutral-500">We&apos;ll keep your face, hair and accessories. Your photo stays private.</p>
+        <p className="text-[11px] text-ink/50">We&apos;ll keep your face, hair and accessories. Your photo stays private.</p>
         {!spec.moderation.ok && <Warn ok={false} label="Safety" note={spec.moderation.note || "flagged"} />}
       </>
     );
@@ -144,7 +144,7 @@ export const avatarModule: GenerationModule<AvatarSpec, AvatarResult> = {
   ReviewView({ spec, result, upload }) {
     return (
       <>
-        <p className="text-center text-lg font-black text-neutral-900">{spec.displayName}</p>
+        <p className="text-center text-lg font-black text-ink">{spec.displayName}</p>
         {/* 1 · the avatar, large, on transparency */}
         <div style={CHECKER} className="mx-auto w-3/4 overflow-hidden rounded-2xl border border-neutral-200">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -171,7 +171,7 @@ export const avatarModule: GenerationModule<AvatarSpec, AvatarResult> = {
   DetailsView({ spec, result }) {
     const dna = scoreAvatarDna(spec);
     return (
-      <div className="space-y-2 rounded-2xl border border-neutral-100 bg-neutral-50 p-3 text-[11px]">
+      <div className="space-y-2 rounded-2xl border border-timber/10 bg-parchment/40 p-3 text-[11px] text-ink/60">
         <div className="grid grid-cols-2 gap-1">{dna.checks.map((c) => <p key={c.label}>{c.ok ? "✓" : "⚠"} {c.label}</p>)}</div>
         <p>camera {spec.canonicalPose} · transparent · privacy {spec.privacyScope} · gen ${(result.costUsd ?? 0).toFixed(3)}</p>
       </div>
