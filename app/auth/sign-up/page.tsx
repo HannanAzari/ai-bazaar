@@ -40,9 +40,9 @@ export default function SignUpPage() {
     <section className="shell grid min-h-[calc(100vh-4rem)] place-items-center py-12">
       <div className="card w-full max-w-md rounded-[2.5rem] p-7 sm:p-9">
         <span className="grid size-12 place-items-center rounded-2xl bg-teal text-white"><Sparkles size={22} /></span>
-        <p className="mt-7 text-xs font-black uppercase tracking-[.2em] text-teal">Your invitation</p>
-        <h1 className="display mt-2 text-4xl">Join the bazaar.</h1>
-        <p className="mt-3 text-sm leading-relaxed text-ink/50">Create your profile, then choose one open village door to call your own.</p>
+        <p className="mt-7 text-xs font-black uppercase tracking-[.2em] text-teal">Nestudio</p>
+        <h1 className="display mt-2 text-4xl">Create your Nest.</h1>
+        <p className="mt-3 text-sm leading-relaxed text-ink/50">Make your account, then step into a space that feels like you.</p>
         <form onSubmit={submit} className="mt-8 space-y-4">
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Display name</span>
@@ -60,7 +60,7 @@ export default function SignUpPage() {
           {notice && <p className="rounded-xl bg-teal/10 px-3 py-2 text-sm font-bold text-teal">{notice}</p>}
           <Button type="submit" variant="accent" className="w-full" disabled={busy}>{busy ? "Creating…" : "Create account"} <ArrowRight size={18} /></Button>
         </form>
-        <p className="mt-6 text-center text-sm text-ink/45">Already have a key? <Link href="/auth/login" className="font-bold text-teal">Log in</Link></p>
+        <p className="mt-6 text-center text-sm text-ink/45">Already have an account? <Link href="/auth/login" className="font-bold text-teal">Log in</Link></p>
       </div>
     </section>
   );

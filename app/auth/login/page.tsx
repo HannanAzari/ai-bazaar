@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, KeyRound, Mail, Store } from "lucide-react";
+import { ArrowRight, Home, KeyRound, Mail } from "lucide-react";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { isDemoMode } from "@/lib/runtime-mode";
 import { Button } from "@/components/ui/button";
@@ -31,9 +31,9 @@ export default function LoginPage() {
   return (
     <section className="shell grid min-h-[calc(100vh-4rem)] place-items-center py-12">
       <div className="card w-full max-w-md rounded-[2.5rem] p-7 sm:p-9">
-        <span className="grid size-12 place-items-center rounded-2xl bg-terracotta text-white"><Store size={22} /></span>
-        <p className="mt-7 text-xs font-black uppercase tracking-[.2em] text-terracotta">Welcome back</p>
-        <h1 className="display mt-2 text-4xl">Open your village door.</h1>
+        <span className="grid size-12 place-items-center rounded-2xl bg-terracotta text-white"><Home size={22} /></span>
+        <p className="mt-7 text-xs font-black uppercase tracking-[.2em] text-terracotta">Nestudio</p>
+        <h1 className="display mt-2 text-4xl">Welcome back to your Nest.</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink/50">{isDemoMode() ? "Demo mode: any email signs you in locally (no password needed)." : "Sign in with your email and password."}</p>
         <form onSubmit={submit} className="mt-8 space-y-4">
           <label className="block">
@@ -53,7 +53,7 @@ export default function LoginPage() {
           {error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-terracotta">{error}</p>}
           <Button type="submit" variant="accent" className="w-full" disabled={busy}>{busy ? "Signing in…" : "Log in"} <ArrowRight size={18} /></Button>
         </form>
-        <p className="mt-6 text-center text-sm text-ink/45">New to the bazaar? <Link href="/auth/sign-up" className="font-bold text-teal">Claim your invitation</Link></p>
+        <p className="mt-6 text-center text-sm text-ink/45">New to Nestudio? <Link href="/auth/sign-up" className="font-bold text-teal">Create your account</Link></p>
       </div>
     </section>
   );
