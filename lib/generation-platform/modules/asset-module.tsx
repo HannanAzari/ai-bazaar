@@ -82,17 +82,22 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
         sourceDataUrl = rj.imageDataUrl as string;
         referenceUrl = sourceDataUrl;
       }
-      // Segmentation is on-device (MediaPipe WASM) and can stall on mobile — bound it (Part 1 root cause).
+      // Segmentation is on-device (MediaPipe WASM) and can stall on mobile — the Part-1 root
+      // cause. It is now BEST-EFFORT and NON-BLOCKING: bounded by short timeouts, and on ANY
+      // load/inference failure we proceed with the full image (GPT Image isolates on a
+      // transparent background natively). The workflow therefore never dead-ends on segmentation.
       setProgress("Analysing your object…");
       const canvas = await sourceToCanvas(sourceDataUrl);
       const original = toRaster(canvas);
-      const seg = await withTimeout(getSegmenter(), 40_000, "Preparing your object is taking too long. Try again, or upload a clearer, well-lit photo with the object centered.");
       let mask: SegMask | null = null;
-      try { mask = (await withTimeout(seg.detect(canvas), 30_000, "Object analysis timed out. Try again with a clearer photo."))[0]?.mask ?? null; } catch (e) { if (/too long|timed out/i.test((e as Error).message)) return { ok: false, error: (e as Error).message }; }
-      if (!mask) { try { mask = await withTimeout(seg.segmentAtPoint(canvas, { x: 0.5, y: 0.5 }), 30_000, "Object analysis timed out. Try again with a clearer photo."); } catch (e) { if (/too long|timed out/i.test((e as Error).message)) return { ok: false, error: (e as Error).message }; } }
-      if (!mask) return { ok: false, error: "Couldn't find the object in the photo. Try a clearer, centered image on a plain background." };
+      try {
+        const seg = await withTimeout(getSegmenter(), 20_000, "seg-load");
+        try { mask = (await withTimeout(seg.detect(canvas), 15_000, "seg-detect"))[0]?.mask ?? null; } catch { /* fall through */ }
+        if (!mask) { try { mask = await withTimeout(seg.segmentAtPoint(canvas, { x: 0.5, y: 0.5 }), 15_000, "seg-point"); } catch { /* fall through */ } }
+      } catch { /* segmenter failed to load in time — fall back to the full image below */ }
       setProgress("Preparing the object…");
-      const cutout: RasterImage = await maskToCutout(canvas, mask);
+      // Clean cutout when segmentation succeeded; otherwise the full image (server isolates it).
+      const cutout: RasterImage = mask ? await maskToCutout(canvas, mask) : original;
 
       setProgress("Generating the Nestudio asset…");
       const honest = await withTimeout(

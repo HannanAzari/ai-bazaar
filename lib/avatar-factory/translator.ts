@@ -8,7 +8,11 @@
 // age. Neutral visual descriptions only — the minimum needed to redraw the person as a
 // Nestudio avatar.
 
-export type AvatarPose = "idle-standing" | "seated" | "greeting"; // only idle-standing generated in v1
+// Reserved pose vocabulary. v1 GENERATES only "idle-standing"; the rest are reserved so future
+// pose generation reuses the SAME frozen avatar identity/version (never redesigns the person).
+export type AvatarPose = "idle-standing" | "seated" | "greeting" | "thinking" | "look-left" | "look-right" | "happy";
+export const AVATAR_POSES: AvatarPose[] = ["idle-standing", "seated", "greeting", "thinking", "look-left", "look-right", "happy"];
+export const AVATAR_V1_POSE: AvatarPose = "idle-standing";
 export type StyleIntensity = "subtle" | "balanced" | "stylised";
 export type AvatarUse = "profile" | "editor";
 

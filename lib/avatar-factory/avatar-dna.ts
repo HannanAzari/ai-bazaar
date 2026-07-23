@@ -1,4 +1,5 @@
 import type { AvatarSpec } from "@/lib/avatar-factory/translator";
+import { VISUAL_DNA_NEGATIVE, visualDnaFragment } from "@/lib/visual-dna";
 
 // ── Avatar DNA — full-body identity generation language + spec-level checks ────
 //
@@ -47,6 +48,7 @@ export function buildAvatarPrompt(spec: AvatarSpec): { positive: string; negativ
     : spec.styleIntensity === "stylised" ? "push the premium 3D stylisation further while keeping a clear likeness"
     : "balanced premium 3D stylisation with a clear likeness";
   const positive = [
+    visualDnaFragment(), // the shared Nestudio world — same as Assets + Empty Nests
     `Generate ${DNA_STYLE}.`,
     `${intensity}.`,
     // IDENTITY PRESERVATION (Part 3): the photo is the identity input, not mere inspiration.
@@ -57,7 +59,8 @@ export function buildAvatarPrompt(spec: AvatarSpec): { positive: string; negativ
     spec.generationSubject ? `Neutral description: ${spec.generationSubject}.` : "",
     "Full body from head to feet, transparent background, no text or logos.",
   ].filter(Boolean).join(" ");
-  return { positive, negative: DNA_NEGATIVE };
+  const negative = Array.from(new Set([...VISUAL_DNA_NEGATIVE, ...DNA_NEGATIVE.split(", ")])).join(", ");
+  return { positive, negative };
 }
 
 // Words that would signal a sensitive-attribute leak into the neutral description.

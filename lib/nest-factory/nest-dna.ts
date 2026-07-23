@@ -1,4 +1,5 @@
 import type { NestSpec } from "@/lib/nest-factory/translator";
+import { visualDnaFragment } from "@/lib/visual-dna";
 
 // ── Nest DNA — the empty-room generation language + a spec-level DNA score ────
 //
@@ -34,6 +35,7 @@ const DNA_NEGATIVE = [
 export function buildNestPrompt(spec: NestSpec): { positive: string; negative: string } {
   const details = spec.architecturalDetails.filter(Boolean).join(", ");
   const positive = [
+    visualDnaFragment(), // the shared Nestudio world — same as Assets + Avatars
     `Generate ${DNA_STYLE}.`,
     `Room type: ${spec.category}. Mood: ${spec.mood}. Architectural style: ${spec.architecturalStyle}.`,
     `Walls: ${spec.walls} configuration. Floor: ${spec.floorMaterial}. Ceiling: ${spec.ceiling}. Windows: ${spec.windows}.`,

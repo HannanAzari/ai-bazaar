@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/user-gate";
+import { requireAvatarAccess } from "@/lib/user-gate";
 import {
   AVATAR_CAMERA_DNA_VERSION,
   buildAvatarTranslatorSystemPrompt,
@@ -26,7 +26,7 @@ function parseDataUrl(dataUrl: string): boolean {
 }
 
 export async function POST(request: Request) {
-  const gate = await requireUser();
+  const gate = await requireAvatarAccess();
   if ("response" in gate) return gate.response;
 
   let body: Body;

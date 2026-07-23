@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/user-gate";
+import { requireAvatarAccess } from "@/lib/user-gate";
 import { AVATAR_DNA_VERSION, AVATAR_GEN_SIZE } from "@/lib/avatar-factory/avatar-dna";
 
 // Avatar Generator — image-to-image full-body avatar from the user's photo. Authenticated
@@ -29,7 +29,7 @@ function parseDataUrl(dataUrl: string): { mimeType: string; data: string } | nul
 }
 
 export async function POST(request: Request) {
-  const gate = await requireUser();
+  const gate = await requireAvatarAccess();
   if ("response" in gate) return gate.response;
 
   let body: Body;
