@@ -35,31 +35,35 @@
 
 ## 🚧 In progress
 
-- **Background Factory + Avatar Factory** — reuse the Asset Factory shell (this sprint, `06`).
+- **Avatar Golden Reference** (D43) — the avatar art-direction brief is written; the founder-run
+  generate→critique→iterate loop finds the definitive style, then it freezes. The ONE open gate.
 - **Founder library growth** — the founder generates/approves assets from a phone (ongoing, owned by founder).
 
-## ✅ Resolved since last state
+## ✅ Resolved since last state (D28–D43)
 
-- **Material-aware render** — `furniture@8` is now material-aware (metal reads as metal, not wooden); the
-  "wooden antique" failure is fixed. The Laptop is the certified v1 benchmark.
-- **Founder-approval gate** — superseded by real founder use (D19): calibration now happens by the founder
-  using the deployed Studio, not a synthetic pre-approval.
-- **localStorage-only inventory** — the Founder Edition now publishes to **Supabase** (Storage + `nest_assets`);
-  local storage is only a retry mirror.
+- **Generation Platform** (D28–D30): Asset/Nest/Avatar are thin modules on one shared `GenerationStudio`.
+- **Nest Factory** shipped + provisioned (D24, `nest_backgrounds`). **Avatar Factory** shipped, founder-only
+  Beta (D31/D32/D39, `user_avatars` + private `avatar-private` bucket; cross-user isolation proven).
+- **Auth = one source of truth** (D35/D36/D37): `getServerUser` + `useNestIdentity`; role-gated founder
+  studios; `/api/auth/whoami` diagnostic; legacy Bazaar/Village public routes redirected.
+- **Reliability** (D39): segmentation is best-effort/non-blocking → the "Preparing…" stall is gone.
+- **Asset classification** (D38): deterministic family defaults (guitar→Identity/PLAY, never Story/static).
+- **Art Engine v1** (D40): one structured Visual DNA → compiler + validators + Golden-Reference slots.
+- **Studio experience** (D41/D42): warm premium Nestudio look; Avatar Studio is a calm "digital self" flow.
 
 ## ⛔ Not started
 
-- The **UOS interaction layer** in code (surfaces/animation/sound) — the **Interaction Engine** (after the factories + Creator Generator, D23).
-- **Creator Generator** (compose a complete starter Nest) — next after the two factories (D23).
-- **AI room composer**, **memory accumulation**, **business mode** — designed on paper, postponed (D15).
+- **Creator Generator** (compose a complete starter Nest) — after the Avatar Golden Reference (D23/D27).
+- The **Interaction Engine** / memory / sound — after Creator Generator (D23). Not before.
+- **furniture@8 → compiler** wiring — asset prompt stays certified; rewiring needs a Laptop re-cert (D40).
 
 ## 🔴 Blocked / needs founder
 
-- **Background + Avatar persistence** blocks on the founder provisioning `nest_backgrounds` / `nest_avatars`
-  (additive migrations shown before any write — same flow as the Laptop).
-- **Vercel env vars** must be set for the deployed Studio to function (`FOUNDER_ACCESS_TOKEN`, keys,
-  `NEXT_PUBLIC_NEST_BACKEND=supabase`) — see `PHASE0_ASSET_FACTORY_DEPLOY.md`.
-- **Clean input photos** at scale — free stock ~60% usable; founder-provided photos preferred for a real library.
+- **Avatar Golden Reference** — needs the founder to generate 3–4 avatars + judge them (Claude can't
+  generate/see avatars). This gates opening avatars to users (`AVATAR_PUBLIC_ENABLED=1`) and everything after.
+- **Vercel env (Preview)** must include `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`,
+  `OPENAI_API_KEY`, `FOUNDER_EMAILS`/`FOUNDER_USER_IDS`, `NEXT_PUBLIC_NEST_BACKEND=supabase` + a redeploy;
+  Supabase Auth redirect URLs must include the preview domain — see `AUTH_ROUTING_SPRINT.md`.
 
 ## ⚠️ Known risks
 
@@ -71,11 +75,11 @@
 
 ## 🎯 Current milestone
 
-**Background Factory + Avatar Factory** — reuse the exact Asset Factory shell (D21); only the generation
-engine + translator target change per type. Backgrounds = empty room stages (one canonical camera);
-Avatars = upload-only, full-body, transparent, private-by-default. Each needs an additive Supabase
-migration (`nest_backgrounds`, `nest_avatars`) shown + founder-provisioned. See `06_NEXT_SPRINT.md`.
-After these: **Creator Generator** → **Interaction Engine** (D23).
+**Avatar Golden Reference v1** (D43) — the definitive Nestudio avatar style. The art-direction brief
+lives in `lib/art-engine/type-dna.ts` (`AVATAR_TYPE_DNA`, `avatar-art-v1-candidate`). Claude cannot
+generate or judge avatars, so the loop is founder-run: generate 3–4 → say what's wrong → Claude tunes
+the prompt words → "That's it" → freeze into `lib/art-engine/golden-references.ts`. Then set
+`AVATAR_PUBLIC_ENABLED=1` and build **Creator Generator** → **Interaction Engine** (D23/D27). See `06_NEXT_SPRINT.md`.
 
 ## 🧾 Technical debt
 

@@ -1,36 +1,45 @@
 # 06 · NEXT SPRINT
 
 > **Start here after `01`.** Working document for the next session. Update every sprint.
-> Track: **Founder Edition Creation Studio.** Just shipped: **Nest Factory** (D24–D27).
-> Next: **provision `nest_backgrounds` + founder proof → Creator Generator → Interaction Engine.**
+> Track: **Founder Edition Creation Studio.** Current gate: **Avatar Golden Reference** (D43).
+> The ONE thing blocking progress is founder-run avatar generation — everything buildable is built.
 
 ---
 
-## Where we are
+## Where we are (2026-07-23)
 
-- **Asset Factory** — shipped, deployed, **FROZEN** (D19/D20). `/asset-factory`, `nest_assets`. Founder owns it.
-- **Nest Factory** — **shipped this sprint (D24), engineering complete, gates green.** `/nest-factory`,
-  Asset Factory's twin, only the generation engine differs (empty-room text-to-image, architecture
-  only). Publishes to the dedicated **`nest_backgrounds`** library → auto-selectable in Create →
-  Build My Own. **Needs `nest_backgrounds` provisioning + a founder phone test** —
-  see `SPRINT3_NEST_FACTORY.md`.
+The three creation engines + the Art Engine are all built and deployed to the
+`m12-nest-platform` Preview. Remaining work is founder-run (generation + eye), not engineering.
 
-## Just shipped: Generation Platform refactor (D28–D30)
+- **Generation Platform** (D28–D30): one shared `GenerationStudio` + `lib/generation-platform`;
+  Asset/Nest/Avatar are thin modules. See `GENERATION_PLATFORM.md`.
+- **Asset Factory** — shipped, **FROZEN** (D19/D20). `/asset-factory` → `nest_assets`. Family
+  defaults fixed classification (D38). furniture@8 stays certified (not compiler-driven yet, D40).
+- **Nest Factory** — shipped (D24). `/nest-factory` → `nest_backgrounds` (provisioned). Empty-room
+  architecture only; selectable in Create → Build My Own.
+- **Avatar Studio** — shipped, **founder-only Beta** (D31/D32/D39). `/profile/avatar` → `user_avatars`
+  + private `avatar-private` bucket (provisioned; cross-user isolation proven, `SPRINT4_AVATAR_FACTORY.md`).
+  UX is premium (D42). **Opens to users only when `AVATAR_PUBLIC_ENABLED=1` after the style is approved.**
+- **Auth** — ONE source of truth: `getServerUser` (server) + `useNestIdentity` (client); role-gated
+  founder studios (D35/D36). `/api/auth/whoami` is the diagnostic (D37). See `AUTH_ROUTING_SPRINT.md`.
+- **Art Engine v1** (D40): `lib/visual-dna` (structured Visual DNA) + `lib/art-engine` (compiler,
+  validators, 5 Golden-Reference slots). Studios are polished + warm (D41/D42).
 
-Asset Factory + Nest Factory are now **modules** on one shared engine
-(`components/generation/generation-studio.tsx` + `lib/generation-platform`). Both factory clients
-dropped from 350/272 lines to **11/11**; the duplicated shell lives once. Behaviour unchanged
-(typecheck · 589 tests · build · browser-verified). See `GENERATION_PLATFORM.md`.
+## The immediate gate — Avatar Golden Reference (founder-run loop, D43)
 
-## Immediate next steps
+The avatar **art-direction brief** is written (`lib/art-engine/type-dna.ts AVATAR_TYPE_DNA`,
+`avatar-art-v1-candidate`). Claude cannot generate or judge avatars (no session/photo/spend), so:
 
-1. **Founder:** run `supabase/provision/nest_backgrounds_provision.sql` (additive), then phone-test
-   the Nest Factory (describe → generate → approve → publish → Create → Build My Own → decorate →
-   reload). Prove 3 (Minimal · Creator Studio · Music Studio).
-2. **Then build: Avatar Factory as the first NEW platform module** (D30) — proof a new engine plugs
-   in with only a module descriptor (`uploadMode:"required"`, avatar translator + engine, publish →
-   `nest_avatars`, four screens). No shell code. Privacy-by-default (see the archived brief below).
-3. **Then: Creator Generator → Interaction Engine.**
+1. **Founder** generates 3–4 avatars (well under the 10–15 cap) from their account.
+2. **Founder** says, per image, what improved / got worse / still feels wrong.
+3. **Claude** tunes the words in `AVATAR_TYPE_DNA`; repeat.
+4. On **"That's it"** → freeze the avatar slot in `lib/art-engine/golden-references.ts`
+   (`approved` + prompt + versions + output URL) = **Avatar Golden Reference v1**, then STOP.
+
+## After the Golden Reference (do NOT start before it)
+
+- Set `AVATAR_PUBLIC_ENABLED=1` (open avatars to users).
+- **Then: Creator Generator → Interaction Engine** (D23, D27) — not before.
 
 ## Guardrails carried forward
 
