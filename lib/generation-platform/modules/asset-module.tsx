@@ -63,6 +63,9 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
   specName: (spec) => spec.name,
 
   async generate({ spec, upload, setProgress, headers }) {
+    // No stage may hang forever — each bounded step has a timeout with a recoverable message.
+    const withTimeout = <T,>(p: Promise<T>, ms: number, msg: string): Promise<T> =>
+      Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
     try {
       let sourceDataUrl = upload;
       let referenceUrl: string | null = upload;
@@ -79,23 +82,30 @@ export const assetModule: GenerationModule<NestudioSpec, AssetResult> = {
         sourceDataUrl = rj.imageDataUrl as string;
         referenceUrl = sourceDataUrl;
       }
-      setProgress("Preparing the object…");
+      // Segmentation is on-device (MediaPipe WASM) and can stall on mobile — bound it (Part 1 root cause).
+      setProgress("Analysing your object…");
       const canvas = await sourceToCanvas(sourceDataUrl);
       const original = toRaster(canvas);
-      const seg = await getSegmenter();
+      const seg = await withTimeout(getSegmenter(), 40_000, "Preparing your object is taking too long. Try again, or upload a clearer, well-lit photo with the object centered.");
       let mask: SegMask | null = null;
-      try { mask = (await seg.detect(canvas))[0]?.mask ?? null; } catch { /* fall through */ }
-      if (!mask) { try { mask = await seg.segmentAtPoint(canvas, { x: 0.5, y: 0.5 }); } catch { /* none */ } }
-      if (!mask) return { ok: false, error: "Could not isolate the object from the image." };
+      try { mask = (await withTimeout(seg.detect(canvas), 30_000, "Object analysis timed out. Try again with a clearer photo."))[0]?.mask ?? null; } catch (e) { if (/too long|timed out/i.test((e as Error).message)) return { ok: false, error: (e as Error).message }; }
+      if (!mask) { try { mask = await withTimeout(seg.segmentAtPoint(canvas, { x: 0.5, y: 0.5 }), 30_000, "Object analysis timed out. Try again with a clearer photo."); } catch (e) { if (/too long|timed out/i.test((e as Error).message)) return { ok: false, error: (e as Error).message }; } }
+      if (!mask) return { ok: false, error: "Couldn't find the object in the photo. Try a clearer, centered image on a plain background." };
+      setProgress("Preparing the object…");
       const cutout: RasterImage = await maskToCutout(canvas, mask);
 
-      setProgress("Rendering the Nestudio asset…");
-      const honest = await generateAssetHonest({
-        cutout, original, subject: spec.generationSubject,
-        mode: upload ? "preserve" : "simplify", material: materialFromSpec(spec),
-        authHeaders: headers,
-      });
+      setProgress("Generating the Nestudio asset…");
+      const honest = await withTimeout(
+        generateAssetHonest({
+          cutout, original, subject: spec.generationSubject,
+          mode: upload ? "preserve" : "simplify", material: materialFromSpec(spec),
+          authHeaders: headers,
+        }),
+        150_000,
+        "Generation is taking longer than expected. No charge was completed — please try again.",
+      );
       if (!honest.ok) return { ok: false, error: honest.error || "Generation failed." };
+      setProgress("Cleaning transparency…");
       return { ok: true, value: { honest, referenceUrl } };
     } catch (e) { return { ok: false, error: (e as Error).message }; }
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { founderHeaders } from "@/lib/founder-token";
@@ -31,7 +31,8 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
   const [result, setResult] = useState<Result | null>(null);
   const questions = module.copy.reviewQuestions ?? [module.copy.reviewQuestion];
   const [answers, setAnswers] = useState<(boolean | null)[]>(() => questions.map(() => null));
-  const allYes = answers.length === questions.length && answers.every((a) => a === true);
+  // optionalReview (Avatar): questions are soft feedback and Approve is always enabled.
+  const canApprove = module.copy.optionalReview ? true : (answers.length === questions.length && answers.every((a) => a === true));
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState("");
   const [saved, setSaved] = useState<SavedInfo | null>(null);
@@ -60,6 +61,16 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
     if (hasDraft && !window.confirm("Leave the studio? Your current draft will be discarded.")) return;
     router.push(module.copy.backHref);
   };
+
+  // "Taking longer than expected" affordance — after 30s in a long stage, offer a way out
+  // (the module's own timeouts still guarantee the promise settles; this is a UI escape hatch).
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (stage !== "generating" && stage !== "publishing") { setSlow(false); return; }
+    const t = setTimeout(() => setSlow(true), 30_000);
+    return () => clearTimeout(t);
+  }, [stage]);
+  const cancelSlow = () => { busy.current = false; setSlow(false); setError("Cancelled. No completed charge — you can try again."); setStage(stage === "publishing" ? "review" : "spec"); };
 
   const [extraReady, setExtraReady] = useState(false);
   const uploadRequiredMissing = module.uploadMode === "required" && !upload;
@@ -92,7 +103,7 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
 
   /* 7: approve → publish through the module, mirror locally, then Saved. */
   const approve = useCallback(async () => {
-    if (!spec || !result || !allYes || busy.current) return;
+    if (!spec || !result || !canApprove || busy.current) return;
     busy.current = true;
     setError(null); setStage("publishing");
     const outcome = await module.publish({ spec, result, upload, ownership: FOUNDER_OWNERSHIP });
@@ -106,7 +117,7 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
     }
     setSaved({ name: module.specName(spec), id: outcome.id, imageDataUrl: module.resultImage(result), published: true });
     setStage("saved");
-  }, [spec, result, allYes, module]);
+  }, [spec, result, canApprove, module]);
 
   const onFile = (f: File | undefined) => {
     if (!f) return;
@@ -172,8 +183,20 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
         </div>
       )}
 
-      {stage === "generating" && <Spinner>{progress || "Generating…"}</Spinner>}
-      {stage === "publishing" && <Spinner>{copy.publishingLabel}</Spinner>}
+      {(stage === "generating" || stage === "publishing") && (
+        <div>
+          <Spinner>{stage === "publishing" ? copy.publishingLabel : (progress || "Generating…")}</Spinner>
+          {slow && (
+            <div className="mx-auto max-w-xs rounded-2xl border border-amber-200 bg-amber-50 p-3 text-center text-[12px] text-amber-800">
+              Taking longer than expected.
+              <div className="mt-2 flex justify-center gap-2">
+                <button onClick={() => setSlow(false)} className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-bold text-amber-800">Keep waiting</button>
+                <button onClick={cancelSlow} className="rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-bold text-white">Cancel safely</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 5/6 · REVIEW */}
       {stage === "review" && result && spec && (
@@ -213,9 +236,9 @@ export function GenerationStudio<Spec, Result>({ module }: { module: GenerationM
         {stage === "input" && <Primary onClick={interpret} disabled={!canInterpret}>Interpret →</Primary>}
         {stage === "spec" && spec && (<><Secondary onClick={reset}>Edit</Secondary><Primary onClick={generate} disabled={!module.moderationOk(spec)}>Generate · ${module.estimatedCost(spec).toFixed(2)}</Primary></>)}
         {stage === "review" && (<>
-          <Secondary onClick={generate}>Regenerate</Secondary>
-          <Secondary onClick={() => setStage("spec")}>Edit</Secondary>
-          <Primary onClick={approve} disabled={!allYes}>{copy.approveLabel}</Primary>
+          <Secondary onClick={generate}>{copy.regenerateLabel ?? "Regenerate"}</Secondary>
+          <Secondary onClick={() => setStage("spec")}>{copy.editLabel ?? "Edit"}</Secondary>
+          <Primary onClick={approve} disabled={!canApprove}>{copy.approveLabel}</Primary>
         </>)}
       </StickyBar>
     </div>

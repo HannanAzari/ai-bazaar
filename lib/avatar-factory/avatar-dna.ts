@@ -9,34 +9,53 @@ import type { AvatarSpec } from "@/lib/avatar-factory/translator";
 
 // Portrait, cover-fit into the editor. Full-body figures read best tall.
 export const AVATAR_GEN_SIZE = "1024x1536";
-export const AVATAR_DNA_VERSION = "avatar-dna-v1";
+// v2 = the premium soft-3D art direction (replaces the rejected flat-vector v1). The style
+// is calibrated + founder-approved in the Avatar Calibration Lab BEFORE user generation.
+export const AVATAR_DNA_VERSION = "avatar-dna-v2-3d";
 
+// The approved Nestudio character direction: a soft, premium, stylised 3D character —
+// Pixar/Nintendo emotional readability, NOT flat vector, NOT photoreal, NOT chibi.
 const DNA_STYLE = [
-  "a single FULL-BODY character avatar of the person in the photo, head to feet, standing naturally and centered",
-  "Nestudio world: warm, minimal, timeless, premium; simplified premium shapes; soft matte shading",
-  "recognisable, respectful likeness of the SAME person — NOT photoreal, NOT uncanny, NOT a caricature",
+  "a single FULL-BODY stylised 3D character portrait of the SAME person in the photo, head to feet, standing naturally and centered",
+  "soft premium 3D character art (Pixar / Nintendo emotional warmth) — rounded, sculpted, dimensional forms with gentle volume",
+  "large expressive but believable eyes with soft catchlights; clean sculpted face; warm friendly readable expression",
+  "dimensional sculpted hair with real volume and soft strands (never a flat colour block); simplified but rich clothing folds",
+  "warm matte materials, subtle ambient occlusion, soft cinematic studio lighting, gentle rim light, soft form shadows on the body",
+  "believable natural proportions (adult, NOT chibi, NOT toy proportions unless requested); strong clear silhouette; readable at small editor size",
+  "recognisable respectful likeness — clearly the same person — stylised, NOT photoreal, NOT flat vector, NOT clip-art, NOT uncanny",
   "front-facing, eye-level, one canonical camera; feet flat with a clean bottom anchor on an invisible ground",
-  "fully transparent background — no room, no floor, no props, no shadow baked in",
-  "clean facial structure; clean hands and limbs; exactly five fingers per hand; correct anatomy",
+  "fully transparent background — no room, no floor, no props; no baked cast shadow on the ground",
+  "clean hands and limbs; exactly five fingers per hand; correct anatomy",
 ].join("; ");
 
 const DNA_NEGATIVE = [
-  "extra fingers", "missing fingers", "malformed hands", "fused fingers", "extra limbs", "extra arms",
-  "extra legs", "deformed anatomy", "distorted proportions", "mutated body", "photoreal skin", "uncanny",
-  "photograph", "3d render", "room", "furniture", "background scene", "floor", "wall", "baked shadow",
+  "flat vector", "flat 2d illustration", "flat colour blocks", "clip art", "sticker", "logo mark", "minimal line art",
+  "cel-shaded flat", "generic avatar", "default character", "photograph", "photoreal skin pores", "uncanny",
+  "chibi", "super-deformed", "toy proportions", "big head tiny body",
+  "extra fingers", "missing fingers", "malformed hands", "fused fingers", "extra limbs", "extra arms", "extra legs",
+  "deformed anatomy", "distorted proportions", "mutated body",
+  "room", "furniture", "background scene", "floor", "wall", "baked ground shadow",
   "multiple people", "duplicate person", "cropped body", "cut-off feet", "floating", "text", "letters",
   "logos", "watermark", "brand marks", "nsfw", "nudity",
 ].join(", ");
 
 export function buildAvatarPrompt(spec: AvatarSpec): { positive: string; negative: string } {
   const accessories = spec.accessories.filter(Boolean).join(", ");
+  // styleIntensity nudges how far from photo → stylised, without changing identity.
+  const intensity =
+    spec.styleIntensity === "subtle" ? "keep stylisation gentle — very close to the real person, just softened and sculpted"
+    : spec.styleIntensity === "stylised" ? "push the premium 3D stylisation further while keeping a clear likeness"
+    : "balanced premium 3D stylisation with a clear likeness";
   const positive = [
     `Generate ${DNA_STYLE}.`,
-    `Style intensity: ${spec.styleIntensity}. Outfit: ${spec.outfitCategory} in ${spec.clothingPalette}. Hair: ${spec.hair}. Expression: ${spec.expression}.`,
+    `${intensity}.`,
+    // IDENTITY PRESERVATION (Part 3): the photo is the identity input, not mere inspiration.
+    "IDENTITY: use the uploaded photo as the identity source. Preserve the person's face shape, hairstyle, hair colour, visible glasses/accessories, facial hair as-is, general expression, skin appearance, and body type. Do NOT change apparent gender presentation, do NOT remove glasses, do NOT invent facial hair, do NOT swap the hairstyle for a generic one, do NOT alter skin tone.",
+    `Outfit: ${spec.outfitCategory} in ${spec.clothingPalette}. Hair: ${spec.hair}. Expression: ${spec.expression}.`,
     `Body proportion family: ${spec.bodyProportionFamily}. Pose: idle standing, arms relaxed at the sides.`,
-    accessories ? `Visible accessories: ${accessories}.` : "",
+    accessories ? `Keep these visible accessories: ${accessories}.` : "",
     spec.generationSubject ? `Neutral description: ${spec.generationSubject}.` : "",
-    "Preserve the person's recognisable identity respectfully. Full body from head to feet, transparent background, no text or logos.",
+    "Full body from head to feet, transparent background, no text or logos.",
   ].filter(Boolean).join(" ");
   return { positive, negative: DNA_NEGATIVE };
 }

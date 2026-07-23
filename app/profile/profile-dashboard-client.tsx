@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import { NestCard } from "@/components/nest/app-shell/nest-card";
 import { ProfileSummary } from "@/components/nest/app-shell/profile-summary";
 import { AvatarManager } from "@/components/nest/app-shell/avatar-manager";
+import { CreatorLab } from "@/components/nest/app-shell/creator-lab";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import {
   listDrafts,
@@ -49,6 +50,7 @@ export function ProfileDashboardClient() {
         </header>
         <ProfileSummary nestCount={published.length} />
         <div className="mt-4"><AvatarManager /></div>
+        <div className="mt-4"><CreatorLab /></div>
       </div>
 
       <div className="space-y-6 pt-4">

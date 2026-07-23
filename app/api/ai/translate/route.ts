@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildTranslatorSystemPrompt, estimateCost, type NestudioSpec } from "@/lib/asset-pipeline/translator";
+import { applyFamilyDefaults, buildTranslatorSystemPrompt, estimateCost, type NestudioSpec } from "@/lib/asset-pipeline/translator";
 import { requireFounder } from "@/lib/founder-role";
 
 export const runtime = "nodejs";
@@ -85,7 +85,9 @@ export async function POST(request: Request) {
       generationSubject: String(p.generationSubject || description).slice(0, 200),
     };
 
-    return NextResponse.json({ spec, model: TRANSLATE_MODEL });
+    // Deterministic family defaults: a guitar can never come back Story/static.
+    const { spec: finalSpec, matched } = applyFamilyDefaults(spec);
+    return NextResponse.json({ spec: finalSpec, model: TRANSLATE_MODEL, familyMatched: matched });
   } catch (err) {
     return NextResponse.json({ error: `translate request failed: ${(err as Error).message}` }, { status: 502 });
   }

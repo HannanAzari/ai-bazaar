@@ -57,6 +57,33 @@ export function estimateCost(hasUploadedReference: boolean): number {
   return Math.round(((hasUploadedReference ? 0 : COST_REFERENCE) + COST_ASSET) * 100) / 100;
 }
 
+// ── Deterministic family defaults ─────────────────────────────────────────────
+//
+// Known object families must never silently become Story/static (the founder saw a
+// guitar classified Story/static — wrong). After the LLM proposes a spec, these rules
+// override class/interaction/surface/placement for recognised families. The founder can
+// still edit the spec before generating.
+type FamilyDefault = Partial<Pick<NestudioSpec, "objectClass" | "interaction" | "surface" | "placement" | "visualRole">>;
+const FAMILY_RULES: { label: string; test: RegExp; apply: FamilyDefault }[] = [
+  { label: "musical-instrument", test: /\b(guitar|bass guitar|electric bass|piano|keyboard|synth(esizer)?|violin|cello|viola|drum kit|drums|saxophone|\bsax\b|trumpet|flute|clarinet|ukulele|banjo|harp|accordion|mandolin)\b/, apply: { objectClass: "Identity", interaction: "PLAY", surface: "player", placement: "floor-or-surface", visualRole: "Hero" } },
+  { label: "turntable-speaker", test: /\b(turntable|record player|vinyl player|speaker|loudspeaker|boombox|hi-?fi|stereo|amplifier|\bamp\b)\b/, apply: { objectClass: "Portal", interaction: "PLAY", surface: "player", placement: "surface" } },
+  { label: "screen-device", test: /\b(tv|television|monitor|laptop|computer|desktop pc|tablet|ipad|game console|playstation|xbox|nintendo)\b/, apply: { objectClass: "Portal", interaction: "SCREEN", surface: "video", placement: "surface" } },
+  { label: "phone", test: /\b(phone|smart-?phone|mobile phone|iphone|cellphone)\b/, apply: { objectClass: "Portal", interaction: "SCREEN", surface: "feed", placement: "surface" } },
+  { label: "camera", test: /\b(camera|dslr|polaroid|camcorder)\b/, apply: { objectClass: "Identity", interaction: "DISPLAY", surface: "gallery", placement: "surface" } },
+  { label: "photo-frame", test: /\b(photo frame|picture frame|framed (photo|picture))\b/, apply: { objectClass: "Memory", interaction: "DISPLAY", surface: "gallery", placement: "wall" } },
+  { label: "bookshelf", test: /\b(bookshelf|bookcase|book shelf)\b/, apply: { objectClass: "Portal", interaction: "DISPLAY", surface: "gallery", placement: "floor" } },
+  { label: "book", test: /\b(book|journal|diary|notebook|photo album)\b/, apply: { objectClass: "Memory", interaction: "BOOK", surface: "story", placement: "surface" } },
+];
+
+/** Apply deterministic family defaults over an LLM spec. Returns the (possibly) adjusted spec + which family matched. */
+export function applyFamilyDefaults(spec: NestudioSpec): { spec: NestudioSpec; matched: string | null } {
+  const hay = `${spec.name} ${spec.tags.join(" ")} ${spec.generationSubject}`.toLowerCase();
+  for (const rule of FAMILY_RULES) {
+    if (rule.test.test(hay)) return { spec: { ...spec, ...rule.apply }, matched: rule.label };
+  }
+  return { spec, matched: null };
+}
+
 /**
  * The system instruction for the translation model. Enumerates the ONLY allowed vocabulary
  * so the output always inherits the Nestudio DNA. Not shown to the user.

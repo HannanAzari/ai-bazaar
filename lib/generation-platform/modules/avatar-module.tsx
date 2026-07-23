@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { buildAvatarPrompt, scoreAvatarDna } from "@/lib/avatar-factory/avatar-dna";
 import { AVATAR_REFERENCE_COST, type AvatarSpec } from "@/lib/avatar-factory/translator";
-import { Field, Warn } from "@/components/generation/ui";
+import { CHECKER, Warn } from "@/components/generation/ui";
 import type { GenerationModule } from "@/lib/generation-platform/types";
 
 // Avatar module — the FIRST user-owned generation type on the shared platform. It plugs
@@ -56,10 +56,13 @@ export const avatarModule: GenerationModule<AvatarSpec, AvatarResult> = {
     inputPlaceholder: "Optional: note a styling preference (e.g. smart-casual, glasses).",
     inputHint: "Full-body avatar, private to you. Idle standing pose.",
     publishingLabel: "Saving your avatar privately…",
-    approveLabel: "Approve & Use",
-    reviewQuestion: "Does this respectfully resemble the person?",
-    reviewQuestions: ["Does this respectfully resemble the person?", "Would I proudly use this as my Nestudio identity?"],
-    detailsLabel: "(engineering: DNA checks · camera · cost)",
+    approveLabel: "Use this avatar",
+    regenerateLabel: "Try again",
+    editLabel: "Adjust style",
+    reviewQuestion: "Does this look like you?",
+    reviewQuestions: ["Does this look like you?"],
+    optionalReview: true, // soft feedback — Use this avatar is always available
+    detailsLabel: "(generation details)",
     backHref: "/profile",
   },
 
@@ -109,50 +112,58 @@ export const avatarModule: GenerationModule<AvatarSpec, AvatarResult> = {
 
   InputExtra: ConsentGate,
 
+  // Simple, human spec screen — pick a style; no engineering fields.
   SpecView({ spec, onChange }) {
+    const styles: { key: AvatarSpec["styleIntensity"]; label: string }[] = [
+      { key: "subtle", label: "Softer" },
+      { key: "balanced", label: "Balanced" },
+      { key: "stylised", label: "Bolder" },
+    ];
     return (
       <>
-        <input value={spec.displayName} onChange={(e) => onChange({ ...spec, displayName: e.target.value })}
-          className="w-full rounded-xl border border-neutral-200 px-3 py-2 text-base font-bold" />
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <Field k="Style" v={spec.styleIntensity} />
-          <Field k="Outfit" v={spec.outfitCategory} />
-          <Field k="Palette" v={spec.clothingPalette} />
-          <Field k="Hair" v={spec.hair} />
-          <Field k="Expression" v={spec.expression} />
-          <Field k="Pose" v={spec.canonicalPose} />
-          <Field k="Privacy" v={spec.privacyScope} />
-          <Field k="Est. cost" v={`$${spec.estimatedCostUsd.toFixed(2)}`} />
+        <label className="block text-[11px] font-semibold text-neutral-500">Avatar name
+          <input value={spec.displayName} onChange={(e) => onChange({ ...spec, displayName: e.target.value })}
+            className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-base font-bold text-neutral-900" />
+        </label>
+        <div>
+          <p className="mb-1.5 text-[11px] font-semibold text-neutral-500">Style</p>
+          <div className="flex gap-2">
+            {styles.map((s) => (
+              <button key={s.key} onClick={() => onChange({ ...spec, styleIntensity: s.key })}
+                className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${spec.styleIntensity === s.key ? "bg-neutral-900 text-white" : "border border-neutral-200 text-neutral-700"}`}>{s.label}</button>
+            ))}
+          </div>
         </div>
-        {spec.accessories.length > 0 && <p className="text-[11px] text-neutral-500">accessories: {spec.accessories.join(", ")}</p>}
-        <Warn ok={spec.moderation.ok} label="Safety" note={spec.moderation.note || "passed"} />
-        <p className="text-[11px] text-neutral-500">Neutral description only — no sensitive attributes are inferred or stored.</p>
+        <p className="text-[11px] text-neutral-500">We&apos;ll keep your face, hair and accessories. Your photo stays private.</p>
+        {!spec.moderation.ok && <Warn ok={false} label="Safety" note={spec.moderation.note || "flagged"} />}
       </>
     );
   },
 
+  // Review leads with the avatar (Part 6): big avatar → resemblance (your photo + face) → actions.
   ReviewView({ spec, result, upload }) {
-    const dna = scoreAvatarDna(spec);
-    const ref = AVATAR_REFERENCE_COST, gen = result.costUsd ?? 0;
     return (
       <>
+        <p className="text-center text-lg font-black text-neutral-900">{spec.displayName}</p>
+        {/* 1 · the avatar, large, on transparency */}
+        <div style={CHECKER} className="mx-auto w-3/4 overflow-hidden rounded-2xl border border-neutral-200">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={result.imageDataUrl} alt={spec.displayName} className="mx-auto h-72 w-full object-contain" />
+        </div>
+        {/* 2 · resemblance: your photo + a tight face crop of the avatar */}
         <div className="grid grid-cols-2 gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <Panel label="Your photo (private)">{upload ? <img src={upload} alt="" className="h-full w-full object-cover" /> : <span className="flex h-full items-center justify-center text-[10px] text-neutral-400">—</span>}</Panel>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <Panel label="Avatar"><img src={result.imageDataUrl} alt={spec.displayName} className="h-full w-full object-contain" /></Panel>
+          <Panel label="Your photo">
+            {upload
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={upload} alt="" className="h-full w-full object-cover" />
+              : <span className="flex h-full items-center justify-center text-[10px] text-neutral-400">—</span>}
+          </Panel>
+          <Panel label="Face">
+            {/* Full-body figure: zoom into the top-centre (head) for a real face crop. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={result.imageDataUrl} alt="" className="w-full" style={{ transform: "scale(3)", transformOrigin: "top center" }} />
+          </Panel>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <Panel label="Face"><img src={result.imageDataUrl} alt="" className="h-full w-full scale-[2.2] object-contain object-top" /></Panel>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <Panel label="Editor size"><img src={result.imageDataUrl} alt="" className="mx-auto h-1/2 object-contain" /></Panel>
-        </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-bold">{spec.displayName}</span>
-          <span className="text-neutral-500">ref ${ref.toFixed(2)} · gen ${gen.toFixed(3)} · total ${(ref + gen).toFixed(3)}</span>
-        </div>
-        <p className="text-[11px] text-neutral-500">identity + anatomy: {dna.score === 1 ? "spec checks pass" : "review carefully"} · your eye decides below.</p>
       </>
     );
   },

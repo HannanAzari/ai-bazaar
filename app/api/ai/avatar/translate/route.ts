@@ -71,25 +71,34 @@ export async function POST(request: Request) {
     let p: Record<string, unknown>;
     try { p = JSON.parse(raw) as Record<string, unknown>; } catch { return NextResponse.json({ error: "Spec JSON parse failed" }, { status: 502 }); }
 
-    const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.map(String).filter(Boolean).slice(0, 6) : []);
+    // Normalise ANY shape (string | array | object) into readable text — the model sometimes
+    // returns e.g. hair as { color, length, style }, which naive String() renders "[object Object]".
+    const norm = (v: unknown, fallback: string): string => {
+      if (typeof v === "string") return v.trim() || fallback;
+      if (typeof v === "number" || typeof v === "boolean") return String(v);
+      if (Array.isArray(v)) return v.map((x) => norm(x, "")).filter(Boolean).join(", ") || fallback;
+      if (v && typeof v === "object") return Object.values(v as Record<string, unknown>).map((x) => norm(x, "")).filter(Boolean).join(" ") || fallback;
+      return fallback;
+    };
+    const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.map((x) => norm(x, "")).filter(Boolean).slice(0, 6) : []);
     const moderation = (p.moderation && typeof p.moderation === "object" ? p.moderation : { ok: true, note: "" }) as AvatarSpec["moderation"];
 
     const spec: AvatarSpec = {
-      displayName: String(p.displayName || "My Avatar").slice(0, 40),
+      displayName: norm(p.displayName, "My Avatar").slice(0, 40),
       styleIntensity: (STYLES.has(String(p.styleIntensity)) ? p.styleIntensity : "balanced") as StyleIntensity,
-      outfitCategory: String(p.outfitCategory || "casual").slice(0, 40),
-      clothingPalette: String(p.clothingPalette || "warm neutrals").slice(0, 60),
-      hair: String(p.hair || "short hair").slice(0, 80),
+      outfitCategory: norm(p.outfitCategory, "casual").slice(0, 40),
+      clothingPalette: norm(p.clothingPalette, "warm neutrals").slice(0, 60),
+      hair: norm(p.hair, "short hair").slice(0, 80),
       accessories: strArr(p.accessories),
-      expression: String(p.expression || "neutral").slice(0, 40),
-      bodyProportionFamily: String(p.bodyProportionFamily || "standard").slice(0, 30),
+      expression: norm(p.expression, "neutral").slice(0, 40),
+      bodyProportionFamily: norm(p.bodyProportionFamily, "standard").slice(0, 30),
       canonicalPose: "idle-standing",
       transparency: true,
       intendedUses: ["profile", "editor"],
       privacyScope: "private-user",
       estimatedCostUsd: estimateAvatarCost(),
-      moderation: { ok: moderation.ok !== false, note: String(moderation.note || "") },
-      generationSubject: String(p.generationSubject || "a person standing with arms relaxed").slice(0, 200),
+      moderation: { ok: moderation.ok !== false, note: norm(moderation.note, "") },
+      generationSubject: norm(p.generationSubject, "a person standing with arms relaxed").slice(0, 200),
     };
 
     return NextResponse.json({ spec, model: MODEL, cameraDnaVersion: AVATAR_CAMERA_DNA_VERSION });

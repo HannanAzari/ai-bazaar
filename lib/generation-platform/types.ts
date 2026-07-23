@@ -37,8 +37,12 @@ export type ModuleCopy = {
   publishingLabel: string; // "Publishing to your Nestudio library…"
   approveLabel: string; // "Approve & Add" / "Approve & Publish"
   reviewQuestion: string; // single approval question (Asset/Nest)
-  /** Multiple approval questions — ALL must be Yes to approve (Avatar). Overrides reviewQuestion. */
+  /** Multiple approval questions — ALL must be Yes to approve (Asset/Nest). Overrides reviewQuestion. */
   reviewQuestions?: string[];
+  /** When true, review questions are OPTIONAL feedback and Approve is always enabled (Avatar). */
+  optionalReview?: boolean;
+  regenerateLabel?: string; // sticky-bar "Regenerate" override (e.g. "Try again")
+  editLabel?: string; // sticky-bar "Edit" override (e.g. "Adjust style")
   detailsLabel?: string; // toggle caption; omit to hide the Details section
   /** Fallback route for the header back button (Avatar→/profile, Asset→/nest-editor, Nest→/create). */
   backHref: string;
