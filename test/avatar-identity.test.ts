@@ -60,8 +60,8 @@ describe("Stage 2 — Character Assembly", () => {
 
   it("holds the identity fixed and builds the body around it", () => {
     const { positive, negative } = buildCharacterAssemblyPrompt(body, "balanced");
-    expect(positive).toMatch(/face.*(fixed|exactly)|keep them exactly/i);
-    expect(positive).toMatch(/do not.*regenerate the face/i);
+    expect(positive).toMatch(/preserve the person from the original photo/i);
+    expect(positive).toMatch(/do not redesign the person/i);
     // the body contract is present and specific
     expect(positive).toContain("athletic");
     expect(positive).toContain("broad shoulders");
@@ -86,8 +86,8 @@ describe("Stage 2 — Character Assembly", () => {
     expect(soft).toContain(STYLE_PRESETS.soft.posture);
     expect(bold).toContain(STYLE_PRESETS.bold.posture);
     // both still refuse to touch identity
-    expect(soft).toMatch(/do not.*change the identity/i);
-    expect(bold).toMatch(/do not.*change the identity/i);
+    expect(soft).toMatch(/do not change identity or body build/i);
+    expect(bold).toMatch(/do not change identity or body build/i);
   });
 
   it("keeps the transparent, anatomy-clean, scene-free contract", () => {

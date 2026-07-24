@@ -87,20 +87,132 @@ export function buildIdentityCapturePrompt(): { positive: string; negative: stri
 }
 
 // ── STAGE 2 · Character Assembly ──────────────────────────────────────────────
-// The approved head image is the primary input (image-to-image). Keep the face; build the body.
+// TWO visual references (architecture correction): the ORIGINAL PHOTO answers WHO (primary
+// likeness), the APPROVED IDENTITY REFERENCE answers HOW THEY APPEAR IN NESTUDIO (hair
+// treatment, face stylisation, material/lighting). The approved portrait is NOT "pixel-locked"
+// — generation may still redraw it, so the original photo stays in the request as the highest
+// identity authority. Keep the face; build the body beneath it.
 export function buildCharacterAssemblyPrompt(body: AvatarBody, style: AvatarStylePreset): { positive: string; negative: string } {
   const s = STYLE_PRESETS[style];
   const positive = [
     visualDnaFragment(), // the shared Nestudio world — read-only
-    "Build a FULL-BODY Nestudio character BELOW the provided head. The face, hair and head from the reference are FIXED — keep them EXACTLY, do not restyle, re-proportion or regenerate the face.",
-    `Body (adapt to the face, do not round it into a mascot): build ${body.build}, ${body.height} height, ${body.shoulders} shoulders, ${body.legLength} legs, ${body.armLength} arms; ${body.stance}.`,
-    `Presentation — ${style}: ${s.palette}; ${s.expression}; ${s.posture}. Presentation only — do NOT change the identity.`,
+    "Two references are provided: (1) the ORIGINAL PHOTO — the real person, HIGHEST identity priority; (2) the APPROVED IDENTITY REFERENCE — the agreed Nestudio interpretation of their face, hair treatment, material and lighting.",
+    "Preserve the person from the ORIGINAL PHOTO and the approved stylised face from the APPROVED IDENTITY REFERENCE. Build a FULL-BODY Nestudio character beneath the approved identity. Do NOT redesign the person.",
+    "Do not broaden the face, do not round the cheeks, do not thicken the neck, do not enlarge the head, do not substitute generic mascot eyes, do not substitute a generic smile.",
+    `Body — adult proportions, built from the selected profile (never inferred from the head): build ${body.build}, ${body.height} height, ${body.shoulders} shoulders, ${body.legLength} legs, ${body.armLength} arms; ${body.stance}. Head roughly 10% smaller than a typical one-shot result, legs long relative to the torso; no childlike or wide-torso defaults.`,
+    `Presentation — ${style}: ${s.palette}; ${s.expression}; ${s.posture}. Presentation only — do NOT change identity or body build.`,
     "Idle standing, arms relaxed, feet flat with a clean bottom anchor. Fully transparent background. Clean five-finger hands, correct anatomy.",
   ].join(" ");
   const negative = [
     "changing the face", "different face", "regenerated face", "generic face", "rounded mascot", "cute-ified", "chibi",
+    "broadened face", "rounded cheeks", "thick neck", "enlarged head", "oversized head", "childlike proportions", "wide torso",
     "extra fingers", "malformed hands", "extra limbs", "deformed anatomy", "cropped", "cut-off feet",
     "room", "furniture", "background", "floor", "wall", "baked ground shadow", "text", "logos", "photoreal", "flat vector", "plastic",
   ].join(", ");
   return { positive, negative };
+}
+
+// ── Dual-reference contract ───────────────────────────────────────────────────
+// Stage 2 REQUIRES both references, ordered by identity authority. Throws if either is
+// missing — the workflow must never silently fall back to a single reference.
+export const STAGE2_REFERENCE_ROLES = ["original-photo", "approved-identity"] as const;
+
+export function assembleReferences(originalPhotoUrl?: string | null, approvedIdentityUrl?: string | null): [string, string] {
+  if (!originalPhotoUrl) throw new Error("Stage 2 requires the ORIGINAL PHOTO (primary likeness reference).");
+  if (!approvedIdentityUrl) throw new Error("Stage 2 requires the APPROVED IDENTITY REFERENCE.");
+  return [originalPhotoUrl, approvedIdentityUrl];
+}
+
+// ── Body proportion safety ────────────────────────────────────────────────────
+// A head-and-shoulders photo carries NO reliable body signal. Build must be an explicit
+// founder/user choice (or a full-body reference) — never inferred from a headshot.
+export const AVATAR_BUILDS: AvatarBuild[] = ["slim", "average", "athletic", "broad", "curvy"];
+
+export const PROPORTION_POLICY = {
+  inferBuildFromHeadshot: false, // NEVER — the #1 cause of "short and rounded" defaults
+  childlikeByDefault: false,
+  headScaleVsOneShot: 0.9, // ~10% smaller head than current one-shot results
+  legsRelativeToTorso: "long",
+  autoWideTorso: false,
+  autoThickNeck: false,
+} as const;
+
+/** Resolve a body from an EXPLICIT build selection. Never reads an image; never guesses. */
+export function resolveAvatarBody(build: AvatarBuild, opts?: { fullBodyReference?: boolean }): AvatarBody {
+  const broad = build === "broad" || build === "athletic";
+  return {
+    version: AVATAR_BODY_VERSION,
+    build,
+    height: "average",
+    shoulders: broad ? "broad" : "average",
+    legLength: "long", // adult proportions — legs long relative to the torso
+    armLength: "average",
+    stance: opts?.fullBodyReference
+      ? "natural adult stance consistent with the full-body reference"
+      : "natural, upright adult stance, weight even, arms resting at the sides",
+  };
+}
+
+// ── FREEZE ── an approved identity, ready to be reused for every future generation.
+export type IdentityApproval = {
+  approvedBy: "founder" | "user";
+  approvedByUserId: string; // owner scope — a frozen identity is always owned; never anonymous
+  at: string; // ISO timestamp (caller-supplied)
+};
+
+export type FrozenIdentity = AvatarIdentity & { frozen: true; approval: IdentityApproval };
+
+export class IdentityFreezeError extends Error {}
+
+/**
+ * Freeze a candidate into an approved identity. Requires EXPLICIT approval with an owner, and
+ * refuses to silently overwrite an identity that is already frozen (create a new one instead).
+ */
+export function freezeIdentity(
+  candidate: AvatarIdentity,
+  approval: IdentityApproval | null | undefined,
+  opts?: { existing?: AvatarIdentity | null },
+): FrozenIdentity {
+  if (opts?.existing?.frozen) {
+    throw new IdentityFreezeError("This identity is already frozen — create a new identity rather than silently overwriting the approved one.");
+  }
+  if (!approval || !approval.approvedByUserId) {
+    throw new IdentityFreezeError("An identity cannot be frozen without explicit founder/user approval.");
+  }
+  return { ...candidate, frozen: true, approval };
+}
+
+// ── COMPOSE ── the full Stage-2 request. Style is presentation only: it never mutates the
+// frozen identity or the chosen body. Returned identity/body are the exact inputs (proof of
+// separation). References are required and ordered by authority.
+export type AssemblyRequest = {
+  positive: string;
+  negative: string;
+  references: [string, string]; // [original photo, approved identity]
+  referenceRoles: typeof STAGE2_REFERENCE_ROLES;
+  identity: AvatarIdentity;
+  body: AvatarBody;
+  style: AvatarStylePreset;
+  pose: "idle-standing";
+};
+
+export function composeAssembly(params: {
+  identity: AvatarIdentity;
+  body: AvatarBody;
+  style: AvatarStylePreset;
+  originalPhotoUrl?: string | null;
+  approvedIdentityUrl?: string | null;
+}): AssemblyRequest {
+  const references = assembleReferences(params.originalPhotoUrl, params.approvedIdentityUrl);
+  const { positive, negative } = buildCharacterAssemblyPrompt(params.body, params.style);
+  return {
+    positive,
+    negative,
+    references,
+    referenceRoles: STAGE2_REFERENCE_ROLES,
+    identity: params.identity, // passed through untouched — presets never change identity
+    body: params.body, // passed through untouched — presets never change build
+    style: params.style,
+    pose: "idle-standing",
+  };
 }
