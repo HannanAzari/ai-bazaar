@@ -12,6 +12,18 @@ import { extractSubdomain, subdomainRewritePath } from "@/lib/subdomain";
 // confusing post-publish login wall Phase 5 removes.
 const PROTECTED = ["/onboarding"];
 
+// Routes that render per-user / session-dependent content must never be cached by a
+// shared CDN — a cached authenticated page can leak one user's view to another. Auth
+// routes (code exchange, bounce) must never be cached either.
+const NO_STORE_PREFIXES = ["/auth", "/profile", "/onboarding", "/creator-studio", "/nest-studio", "/asset-factory", "/nest-factory", "/api/auth", "/api/avatar", "/api/founder"];
+
+function applyNoStore(req: NextRequest, res: NextResponse): NextResponse {
+  if (NO_STORE_PREFIXES.some((p) => req.nextUrl.pathname.startsWith(p))) {
+    res.headers.set("Cache-Control", "private, no-store, max-age=0, must-revalidate");
+  }
+  return res;
+}
+
 export async function middleware(req: NextRequest) {
   // 1. Subdomain rewrite (works in any mode; harmless when there's no subdomain).
   const handle = extractSubdomain(req.headers.get("host"));
@@ -24,7 +36,7 @@ export async function middleware(req: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   // Demo mode: no server session to manage; client guards the studio.
-  if (!url || !key) return NextResponse.next();
+  if (!url || !key) return applyNoStore(req, NextResponse.next({ request: req }));
 
   // 2. Production: refresh the session cookie and gate protected routes.
   const res = NextResponse.next({ request: req });
@@ -45,9 +57,9 @@ export async function middleware(req: NextRequest) {
     const redirect = req.nextUrl.clone();
     redirect.pathname = "/auth/login";
     redirect.searchParams.set("next", req.nextUrl.pathname);
-    return NextResponse.redirect(redirect);
+    return applyNoStore(req, NextResponse.redirect(redirect));
   }
-  return res;
+  return applyNoStore(req, res);
 }
 
 export const config = {

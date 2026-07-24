@@ -2,6 +2,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { AuthClient, AuthCredentials, SessionUser, SignUpInput } from "@/lib/auth/types";
 import { nameFromEmail } from "@/lib/auth/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { authCallbackUrl } from "@/lib/auth/site-url";
 
 // Production auth — real Supabase Auth (email + password) behind the unified
 // AuthClient. Session persistence + token refresh are handled by @supabase/ssr
@@ -37,7 +38,8 @@ export class SupabaseAuthClient implements AuthClient {
       email: input.email,
       password: input.password,
       // The on_auth_user_created trigger reads `display_name` to name the profile.
-      options: { data: { display_name: displayName, name: displayName } },
+      // Email-confirmation links return to /auth/callback on the initiating host (Preview-safe).
+      options: { data: { display_name: displayName, name: displayName }, emailRedirectTo: authCallbackUrl("/onboarding") },
     });
     if (error) throw error;
     // With email confirmation ON, signUp returns a user but NO session. Treat that

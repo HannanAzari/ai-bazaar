@@ -7,6 +7,7 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getSession as localGetSession, signUp as localSignUpStub, signOut as localSignOut } from "@/lib/nest-auth-stub";
 import { nestBackend } from "@/lib/nest-repo";
+import { authCallbackUrl } from "@/lib/auth/site-url";
 
 export type NestSession = { userId: string; username: string; isGuest: boolean };
 
@@ -46,11 +47,16 @@ export async function signUpWithEmail(email: string, password: string): Promise<
 }
 
 /** Supabase backend: OAuth (Google now; Apple later). Redirects the browser. */
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithGoogle(next?: string): Promise<void> {
   const client = createSupabaseBrowserClient();
   if (!client) throw new Error("Supabase unavailable.");
-  const redirectTo = typeof window !== "undefined" ? window.location.href : undefined;
-  const { error } = await client.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
+  // Always return to `${window.location.origin}/auth/callback` (the initiating host), which
+  // exchanges the PKCE code. Never window.location.href / a hard-coded host — that broke
+  // Preview logins because the code came back to a page that never exchanged it.
+  const { error } = await client.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: authCallbackUrl(next) },
+  });
   if (error) throw error;
 }
 
