@@ -1,6 +1,9 @@
+import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { ModerationClient } from "@/components/moderation-client";
 import { Footer } from "@/components/footer";
+import { getServerUser, type ServerAuth } from "@/lib/auth/server-session";
+import { isFounder } from "@/lib/founder-role";
 
 export const metadata = {
   title: "Moderation",
@@ -8,7 +11,15 @@ export const metadata = {
   robots: { index: false },
 };
 
-export default function ModerationPage() {
+// Founder-only. Reuses the SAME server-side founder check as requireFounder / Nestudio
+// Studio (getServerUser + isFounder allowlist) — no founder token, no new permission layer.
+// A non-founder (or an unauthenticated visitor) gets a 404, revealing nothing.
+export function canViewModeration(auth: ServerAuth): boolean {
+  return "user" in auth && isFounder(auth.user);
+}
+
+export default async function ModerationPage() {
+  if (!canViewModeration(await getServerUser())) notFound();
   return (
     <>
       <section className="shell py-12">
