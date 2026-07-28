@@ -66,9 +66,28 @@ export class SupabaseAuthClient implements AuthClient {
     if (error) throw error;
   }
 
+  /**
+   * The current session's user WITHOUT a network round-trip or a token refresh.
+   *
+   * HOTFIX (M23B.1): `getUser()` calls the Auth server and takes the auth Web Lock.
+   * Callers that only need "who is signed in right now" (identity bootstrap, the
+   * auth-state-change handler) use this instead, so they never queue behind — or
+   * deadlock against — a lock that sign-in is already holding.
+   */
+  async getCachedUser(): Promise<SessionUser | null> {
+    const { data } = await this.client.auth.getSession();
+    return mapUser(data.session?.user ?? null);
+  }
+
   subscribe(callback: (user: SessionUser | null) => void) {
     const { data } = this.client.auth.onAuthStateChange((_event, session) => {
-      callback(mapUser(session?.user ?? null));
+      // HOTFIX (M23B.1): supabase-js invokes these callbacks while HOLDING the auth
+      // lock, so calling any other supabase method from inside one deadlocks. The
+      // session is already handed to us here — we use it and never call back into the
+      // client. `setTimeout(0)` additionally pushes the subscriber's own work off the
+      // lock-holding call stack, which is the pattern Supabase documents.
+      const user = mapUser(session?.user ?? null);
+      setTimeout(() => callback(user), 0);
     });
     return () => data.subscription.unsubscribe();
   }

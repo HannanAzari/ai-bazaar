@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { AuthPanel } from "@/components/nest/app-shell/auth-panel";
@@ -11,6 +11,7 @@ import { normalizeUsername, validateUsername } from "@/lib/nest-profile-store";
 import { hashSeed, houseStyleOptions, type House, type HouseStyleKey } from "@/lib/nest-house";
 import { nestBackend } from "@/lib/nest-repo";
 import { z } from "@/lib/nest-layers";
+import { safeReturnTo, shouldLeaveOnboarding } from "@/lib/auth/post-sign-in-route";
 
 // ── M23B §1 — first-time onboarding ──────────────────────────────────────────
 //
@@ -27,7 +28,10 @@ type Step = "identity" | "house";
 
 export function OnboardingClient() {
   const router = useRouter();
-  const { signedIn, loading, profile, onboardingStep, needsOnboarding, saveIdentity, saveHouse } = useNestIdentity();
+  // Carried from the sign-in that sent us here (a Like/Comment/Follow deep-link), so the
+  // creator lands back where they were once onboarding is satisfied.
+  const returnTo = useSearchParams().get("next");
+  const { signedIn, loading, profile, onboardingStep, bootstrap, retryBootstrap, saveIdentity, saveHouse } = useNestIdentity();
 
   // Preserved across back/forward between steps.
   const [displayName, setDisplayName] = useState("");
@@ -47,12 +51,36 @@ export function OnboardingClient() {
   }, [loading, seeded, profile, onboardingStep]);
 
   // A creator who is already fully configured must never be trapped in onboarding.
+  //
+  // HOTFIX (M23B.1): the old condition was `!needsOnboarding`, which is also true while
+  // the profile is LOADING and when it FAILED to load — so this fought /profile's
+  // redirect and the two looped forever. We now leave only when bootstrap has settled and
+  // positively says the profile is complete.
   useEffect(() => {
-    if (loading || !signedIn) return;
-    if (!needsOnboarding) router.replace("/profile");
-  }, [loading, signedIn, needsOnboarding, router]);
+    if (!signedIn) return;
+    if (shouldLeaveOnboarding(bootstrap)) router.replace(safeReturnTo(returnTo) ?? "/profile");
+  }, [signedIn, bootstrap, router, returnTo]);
 
   if (loading) return <Centered><Loader2 className="size-5 animate-spin text-ink/40" /></Centered>;
+
+  // Signed in but the profile could not be read: say so and offer a way forward, rather
+  // than spinning or silently sending them somewhere else.
+  if (signedIn && bootstrap.status === "error") {
+    return (
+      <Centered>
+        <div className="w-full rounded-3xl border border-rose-200 bg-white p-5 text-center shadow-soft">
+          <h1 className="display text-2xl">Almost there.</h1>
+          <p className="mt-2 text-sm text-ink/60">
+            You&rsquo;re signed in, but we couldn&rsquo;t load your Nestudio profile. Please try again.
+          </p>
+          <p className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">{bootstrap.message}</p>
+          <button onClick={() => void retryBootstrap()} className="mt-4 min-h-[48px] w-full rounded-2xl bg-terracotta text-sm font-black text-parchment">
+            Try again
+          </button>
+        </div>
+      </Centered>
+    );
+  }
 
   if (!signedIn) {
     return (
@@ -86,7 +114,7 @@ export function OnboardingClient() {
           onBack={() => setStep("identity")}
           onContinue={async (key) => {
             const r = await saveHouse(key);
-            if (r.ok) router.replace("/profile");
+            if (r.ok) router.replace(safeReturnTo(returnTo) ?? "/profile");
             return r;
           }}
         />

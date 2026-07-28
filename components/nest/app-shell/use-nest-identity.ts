@@ -25,6 +25,8 @@ import { migrateLocalWorkToAccount } from "@/lib/nest-migration";
 import { nestBackend } from "@/lib/nest-repo";
 import * as profileRepo from "@/lib/nest/supabase-profile-repo";
 import { clearLocalSessionState } from "@/lib/nest-session-reset";
+import { BOOTSTRAP_TIMEOUT_MS, isTimeoutError, withTimeout } from "@/lib/with-timeout";
+import type { BootstrapState } from "@/lib/auth/post-sign-in-route";
 
 // M16 → M23B — the ONE hook the app shell reads for identity.
 //
@@ -36,6 +38,14 @@ import { clearLocalSessionState } from "@/lib/nest-session-reset";
 //
 // It also owns the onboarding gate: `needsOnboarding` is true until the creator has a
 // display name, a username AND a house.
+
+/**
+ * What `signIn` resolves to. Authentication and bootstrap are separate outcomes: `ok:true`
+ * means the session exists, and `bootstrap` says whether the profile behind it loaded.
+ */
+export type SignInOutcome =
+  | (Extract<AuthResult, { ok: true }> & { bootstrap: BootstrapState })
+  | Extract<AuthResult, { ok: false }>;
 
 export type IdentityProfile = NestProfile & {
   /** `profiles.house_style` — the one house this creator lives in. */
@@ -62,29 +72,51 @@ export function useNestIdentity() {
   const [profile, setProfile] = useState<IdentityProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+  // `true` once bootstrap has SETTLED for the current account — the difference between
+  // "no profile" and "we don't know yet", which is what the redirect loop conflated.
+  const [profileLoaded, setProfileLoaded] = useState(false);
   // Guards against a slow profile fetch resolving after sign-out and re-populating it.
   const generation = useRef(0);
+  const lastAccountId = useRef<string | null>(null);
 
-  const loadProfile = useCallback(async (acct: NestAccount) => {
+  const loadProfile = useCallback(async (acct: NestAccount): Promise<BootstrapState> => {
     const gen = ++generation.current;
     if (!isSupabase()) {
       migrateLocalWorkToAccount(acct.id, acct.email);
-      setProfile(ensureNestProfile(acct.id, acct.email.split("@")[0]));
-      return;
+      const local = ensureNestProfile(acct.id, acct.email.split("@")[0]);
+      setProfile(local);
+      setProfileLoaded(true);
+      return {
+        status: "ready",
+        profile: { id: local.userId, displayName: local.displayName ?? "", username: local.username },
+      };
     }
+    setProfileLoaded(false);
     try {
-      const p = await profileRepo.getProfile(acct.id);
-      if (gen !== generation.current) return;
+      // HOTFIX (M23B.1): bounded. A bootstrap query that never settles used to leave the
+      // whole app — and the sign-in button — spinning with no way out.
+      const p = await withTimeout(profileRepo.getProfile(acct.id), BOOTSTRAP_TIMEOUT_MS, "Loading your profile");
+      if (gen !== generation.current) return { status: "loading" };
       setProfileError(null);
       // No row yet ⇒ a brand-new account that has not been through onboarding. We do NOT
       // invent a profile here: onboarding writes the row, so "no row" stays meaningful.
       setProfile(p ? toIdentityProfile(p) : null);
+      return { status: "ready", profile: p };
     } catch (e) {
-      if (gen !== generation.current) return;
-      // Loud, per D-10. A profile that cannot be read must not look like a profile that
-      // does not exist — that would push a configured creator back into onboarding.
-      setProfileError(e instanceof Error ? e.message : "Your profile could not be loaded.");
+      if (gen !== generation.current) return { status: "loading" };
+      // Loud, per D-10. A profile that cannot be READ must not look like a profile that
+      // does not EXIST — that would push a configured creator back into onboarding.
+      const message = isTimeoutError(e)
+        ? "Loading your profile is taking longer than expected."
+        : e instanceof Error
+          ? e.message
+          : "Your profile could not be loaded.";
+      setProfileError(message);
       setProfile(null);
+      return { status: "error", message };
+    } finally {
+      // Always — this is what guarantees the UI leaves its loading state.
+      if (gen === generation.current) setProfileLoaded(true);
     }
   }, []);
 
@@ -102,20 +134,37 @@ export function useNestIdentity() {
     getCurrentAccount()
       .then((acct) => {
         if (!alive) return;
-        if (acct) onAuthed(acct);
+        if (acct) { lastAccountId.current = acct.id; onAuthed(acct); }
+        else setProfileLoaded(true);
         setLoading(false);
       })
-      .catch(() => { if (alive) setLoading(false); });
+      .catch(() => { if (alive) { setProfileLoaded(true); setLoading(false); } });
     return () => { alive = false; };
   }, [onAuthed]);
 
-  // React to external auth changes (other tabs, Supabase refresh, sign-out).
+  // React to external auth changes (other tabs, Supabase token refresh, sign-out).
+  //
+  // HOTFIX (M23B.1): the callback now RECEIVES the account. It used to call
+  // `getCurrentAccount()` — i.e. call back into Supabase from inside `onAuthStateChange`,
+  // which supabase-js dispatches while holding the auth lock. That deadlocked, and it is
+  // the reason sign-in never returned.
+  //
+  // It also ignores events for the account we already have. Supabase emits INITIAL_SESSION
+  // and periodic TOKEN_REFRESHED; re-running bootstrap on each of those re-queried the
+  // profile forever.
   useEffect(() => {
-    return onAccountChange(() => {
-      void getCurrentAccount().then((acct) => {
-        if (acct) onAuthed(acct);
-        else { generation.current++; setAccount(null); setProfile(null); }
-      });
+    return onAccountChange((acct) => {
+      if (acct) {
+        if (lastAccountId.current === acct.id) return; // same user, nothing to re-bootstrap
+        lastAccountId.current = acct.id;
+        onAuthed(acct);
+      } else {
+        generation.current++;
+        lastAccountId.current = null;
+        setAccount(null);
+        setProfile(null);
+        setProfileLoaded(true);
+      }
     });
   }, [onAuthed]);
 
@@ -132,19 +181,33 @@ export function useNestIdentity() {
   const signUp = useCallback(
     async (email: string, password: string, name?: string): Promise<AuthResult> => {
       const r = await accountSignUp(email, password, name);
-      if (r.ok) onAuthed(r.account);
+      if (r.ok) { lastAccountId.current = r.account.id; setAccount(r.account); await loadProfile(r.account); }
       return r;
     },
-    [onAuthed],
+    [loadProfile],
   );
 
+  /**
+   * Authenticate, then bootstrap — as two distinct, awaited steps.
+   *
+   * The caller gets `{ ok: true }` only once the session exists, and can then read
+   * `profile` / `profileError` to decide where to go. Bootstrap failure is NOT reported as
+   * an auth failure: `ok` stays true and the profile error is surfaced separately, so a
+   * signed-in creator is never told their password was wrong because a table was missing.
+   */
   const signIn = useCallback(
-    async (email: string, password: string): Promise<AuthResult> => {
+    async (email: string, password: string): Promise<SignInOutcome> => {
       const r = await accountSignIn(email, password);
-      if (r.ok) onAuthed(r.account);
-      return r;
+      if (!r.ok) return r;
+      lastAccountId.current = r.account.id;
+      setAccount(r.account);
+      // Awaited (and internally bounded) so the caller routes on a SETTLED state rather
+      // than racing a redirect against a query that has not come back. The bootstrap is
+      // returned rather than read from React state, which the caller cannot see yet.
+      const bootstrapResult = await loadProfile(r.account);
+      return { ...r, bootstrap: bootstrapResult };
     },
-    [onAuthed],
+    [loadProfile],
   );
 
   /**
@@ -153,11 +216,13 @@ export function useNestIdentity() {
    */
   const signOut = useCallback(async () => {
     generation.current++;
+    lastAccountId.current = null;
     await accountSignOut();
     clearLocalSessionState();
     setAccount(null);
     setProfile(null);
     setProfileError(null);
+    setProfileLoaded(true);
   }, []);
 
   // ── Onboarding writes ──────────────────────────────────────────────────────
@@ -234,6 +299,34 @@ export function useNestIdentity() {
     [account],
   );
 
+  /**
+   * Retry bootstrap after a failure, WITHOUT re-authenticating. The valid session is
+   * preserved — a profile query that failed is not a reason to throw away a good login.
+   */
+  const retryBootstrap = useCallback(async (): Promise<BootstrapState> => {
+    if (!account) return { status: "loading" };
+    return loadProfile(account);
+  }, [account, loadProfile]);
+
+  // The single object every screen reads to decide what to render/route (see
+  // lib/auth/post-sign-in-route.ts). Distinguishing "loading" from "error" from "ready
+  // with no profile" is what stopped /profile and /onboarding fighting each other.
+  const bootstrap: BootstrapState = !account || loading || !profileLoaded
+    ? { status: "loading" }
+    : profileError
+      ? { status: "error", message: profileError }
+      : {
+          status: "ready",
+          profile: profile
+            ? {
+                id: profile.userId,
+                displayName: profile.displayName ?? "",
+                username: profile.username,
+                houseStyle: profile.houseStyle,
+              }
+            : null,
+        };
+
   const onboardingStep = profile
     ? profileRepo.nextOnboardingStep({
         id: profile.userId,
@@ -250,8 +343,11 @@ export function useNestIdentity() {
     profileError,
     signedIn: !!account,
     ownerId: account?.id,
-    /** True once we know the account is signed in but its profile is incomplete. */
-    needsOnboarding: !loading && !!account && !profileError && onboardingStep !== null,
+    bootstrap,
+    profileLoaded,
+    retryBootstrap,
+    /** True once bootstrap has SETTLED and the profile is genuinely incomplete. */
+    needsOnboarding: bootstrap.status === "ready" && onboardingStep !== null,
     onboardingStep,
     houseStyle: profile?.houseStyle,
     signUp,

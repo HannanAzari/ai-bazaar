@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Mail, Sparkles, UserRound } from "lucide-react";
@@ -19,24 +19,36 @@ export default function SignUpPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    // HOTFIX (M23B.1): same discipline as the login form — one request at a time, and the
+    // button always leaves its loading state via `finally`, whatever happens.
+    if (inFlight.current) return;
+    inFlight.current = true;
     setError(""); setNotice("");
     setBusy(true);
-    const r = await signUp(email, password, name);
-    if (r.ok) {
-      trackEvent("signup_completed");
-      // M23B: a new account has no name, handle or house yet — send them to onboarding,
-      // never straight to Home or the editor. Onboarding forwards to /profile when done,
-      // and bounces anyone already configured straight back out.
-      router.push("/onboarding");
-      return;
+    try {
+      const r = await signUp(email, password, name);
+      if (r.ok) {
+        trackEvent("signup_completed");
+        // M23B: a new account has no name, handle or house yet — send them to onboarding,
+        // never straight to Home or the editor. Onboarding forwards to /profile when done,
+        // and bounces anyone already configured straight back out.
+        router.push("/onboarding");
+        return;
+      }
+      // With email confirmation ON, sign-up succeeds but returns no session.
+      if ("needsConfirmation" in r) setNotice("Check your email to confirm your account, then sign in.");
+      else setError(r.error);
+    } catch (e) {
+      console.error("[sign-up] failed:", e);
+      setError(e instanceof Error ? e.message : "Something went wrong creating your account. Please try again.");
+    } finally {
+      setBusy(false);
+      inFlight.current = false;
     }
-    // With email confirmation ON, sign-up succeeds but returns no session.
-    if ("needsConfirmation" in r) setNotice("Check your email to confirm your account, then sign in.");
-    else setError(r.error);
-    setBusy(false);
   };
 
   return (

@@ -41,6 +41,8 @@ export type CreatorProfile = {
   /** The single house the creator chose. Absent ⇒ onboarding is incomplete. */
   houseStyle?: string;
   links?: ProfileLink[];
+  /** True when M23B columns are absent, so `houseStyle`/`links` could not be read. */
+  schemaIncomplete?: boolean;
 };
 
 type ProfileRow = {
@@ -49,14 +51,48 @@ type ProfileRow = {
   username: string | null;
   bio: string | null;
   avatar_url: string | null;
-  house_style: string | null;
-  links: ProfileLink[] | null;
+  house_style?: string | null;
+  links?: ProfileLink[] | null;
 };
 
 const COLS = "id, display_name, username, bio, avatar_url, house_style, links";
 
-function toProfile(r: ProfileRow): CreatorProfile {
+// ── Schema tolerance (HOTFIX M23B.1) ─────────────────────────────────────────
+//
+// `house_style` and `links` only exist once the founder has applied
+// m23b_nest_platform_provision.sql. Until then PostgREST rejects the SELECT above with
+// 42703 (undefined_column) — and a hard failure there meant a successfully-authenticated
+// user could not load a profile, which cascaded into the frozen sign-in.
+//
+// A missing APPLICATION column must never break AUTHENTICATION. So we retry once with the
+// columns that certainly exist, flag the profile as `schemaIncomplete`, and log a loud
+// developer diagnostic naming the exact column. Production keeps working (the creator just
+// has no house yet); development is told precisely what to run.
+const BASE_COLS = "id, display_name, username, bio, avatar_url";
+
+/** True when the error is Postgres/PostgREST telling us a column isn't there. */
+function isMissingColumn(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: string }).code;
+  const message = String((error as { message?: unknown }).message ?? "");
+  return code === "42703" || code === "PGRST204" || /column .* does not exist/i.test(message);
+}
+
+let warnedAboutSchema = false;
+function warnSchemaIncomplete(error: unknown): void {
+  if (warnedAboutSchema) return;
+  warnedAboutSchema = true;
+  console.warn(
+    "[profile-repo] The profiles table is missing M23B columns (house_style / links), so " +
+      "house selection and creator links are unavailable. Sign-in and the rest of the app " +
+      "still work. Fix: apply supabase/provision/m23b_nest_platform_provision.sql. " +
+      `Underlying error: ${String((error as { message?: unknown })?.message ?? error)}`,
+  );
+}
+
+function toProfile(r: ProfileRow, schemaIncomplete = false): CreatorProfile {
   return {
+    ...(schemaIncomplete ? { schemaIncomplete: true } : {}),
     id: r.id,
     displayName: r.display_name,
     ...(r.username ? { username: r.username } : {}),
@@ -86,8 +122,16 @@ export function nextOnboardingStep(p: CreatorProfile | null | undefined): "ident
 // ── Reads ────────────────────────────────────────────────────────────────────
 export async function getProfile(userId: string): Promise<CreatorProfile | null> {
   const { data, error } = await sb().from("profiles").select(COLS).eq("id", userId).maybeSingle();
-  if (error) fail("Loading your profile", error);
-  return data ? toProfile(data as ProfileRow) : null;
+  if (!error) return data ? toProfile(data as ProfileRow) : null;
+
+  // The M23B columns are not there yet — degrade, don't fail. See BASE_COLS above.
+  if (isMissingColumn(error)) {
+    warnSchemaIncomplete(error);
+    const retry = await sb().from("profiles").select(BASE_COLS).eq("id", userId).maybeSingle();
+    if (retry.error) fail("Loading your profile", retry.error);
+    return retry.data ? toProfile(retry.data as ProfileRow, true) : null;
+  }
+  fail("Loading your profile", error);
 }
 
 /** Resolve a creator from their /@handle. Case-insensitive, world-readable. */
@@ -95,18 +139,33 @@ export async function getProfileByUsername(username: string): Promise<CreatorPro
   const u = normalizeUsername(username);
   if (!u) return null;
   const { data, error } = await sb().from("profiles").select(COLS).ilike("username", u).maybeSingle();
-  if (error) fail("Looking up that creator", error);
-  return data ? toProfile(data as ProfileRow) : null;
+  if (!error) return data ? toProfile(data as ProfileRow) : null;
+  if (isMissingColumn(error)) {
+    warnSchemaIncomplete(error);
+    const retry = await sb().from("profiles").select(BASE_COLS).ilike("username", u).maybeSingle();
+    if (retry.error) fail("Looking up that creator", retry.error);
+    return retry.data ? toProfile(retry.data as ProfileRow, true) : null;
+  }
+  fail("Looking up that creator", error);
 }
 
 /** Batch-resolve creators for a feed — one query, not one per card. */
 export async function getProfiles(userIds: string[]): Promise<Map<string, CreatorProfile>> {
   const unique = Array.from(new Set(userIds.filter(Boolean)));
   if (!unique.length) return new Map();
-  const { data, error } = await sb().from("profiles").select(COLS).in("id", unique);
-  if (error) fail("Loading creators", error);
+  const first = await sb().from("profiles").select(COLS).in("id", unique);
+  let data = first.data as ProfileRow[] | null;
+  let incomplete = false;
+  if (first.error) {
+    if (!isMissingColumn(first.error)) fail("Loading creators", first.error);
+    warnSchemaIncomplete(first.error);
+    const retry = await sb().from("profiles").select(BASE_COLS).in("id", unique);
+    if (retry.error) fail("Loading creators", retry.error);
+    data = retry.data as ProfileRow[] | null;
+    incomplete = true;
+  }
   const map = new Map<string, CreatorProfile>();
-  for (const r of (data ?? []) as ProfileRow[]) map.set(r.id, toProfile(r));
+  for (const r of data ?? []) map.set(r.id, toProfile(r, incomplete));
   return map;
 }
 
@@ -124,7 +183,7 @@ export async function searchCreators(query: string, limit = 20): Promise<Creator
     .not("username", "is", null)
     .limit(limit);
   if (error) fail("Searching creators", error);
-  return ((data ?? []) as ProfileRow[]).map(toProfile);
+  return ((data ?? []) as ProfileRow[]).map((r) => toProfile(r));
 }
 
 /** Every creator who has completed onboarding — the Village population. */
@@ -135,7 +194,7 @@ export async function listCreators(limit = 60): Promise<CreatorProfile[]> {
     .not("username", "is", null)
     .limit(limit);
   if (error) fail("Loading creators", error);
-  return ((data ?? []) as ProfileRow[]).map(toProfile);
+  return ((data ?? []) as ProfileRow[]).map((r) => toProfile(r));
 }
 
 /**
@@ -195,7 +254,16 @@ export async function saveHouseStyle(userId: string, houseStyle: string): Promis
     .eq("id", userId)
     .select(COLS)
     .single();
-  if (error) fail("Saving your house", error);
+  if (error) {
+    if (isMissingColumn(error)) {
+      // Honest, specific, and actionable — never a generic "something went wrong".
+      warnSchemaIncomplete(error);
+      throw new NestRepoError(
+        "House selection isn't available yet on this deployment — the database is still being set up. Everything else works.",
+      );
+    }
+    fail("Saving your house", error);
+  }
   return toProfile(data as ProfileRow);
 }
 

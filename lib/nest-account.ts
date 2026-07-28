@@ -104,8 +104,15 @@ function localSignIn(email: string, password: string): AuthResult {
 }
 
 // ── Supabase backend ───────────────────────────────────────────────────────--
+//
+// HOTFIX (M23B.1): this used to be `new SupabaseAuthClient()` on EVERY call. Because
+// `createSupabaseBrowserClient()` was also un-memoised, each auth operation minted a new
+// GoTrueClient contending for the same `lock:sb-<ref>-auth-token` Web Lock — the cause of
+// the frozen "Signing in…". The client is memoised now, and so is this wrapper.
+let authClient: SupabaseAuthClient | null = null;
 function supa(): SupabaseAuthClient {
-  return new SupabaseAuthClient();
+  if (!authClient) authClient = new SupabaseAuthClient();
+  return authClient;
 }
 
 // ── Public API (backend-aware) ───────────────────────────────────────────────
@@ -114,7 +121,11 @@ const isSupabase = () => nestBackend() === "supabase";
 export async function getCurrentAccount(): Promise<NestAccount | null> {
   if (isSupabase()) {
     try {
-      const u = await supa().getInitialUser();
+      // `getCachedUser()` reads the stored session instead of calling the Auth server.
+      // The network round-trip bought us nothing here (the session is validated on the
+      // server by middleware and by RLS on every query) and it took the auth lock, which
+      // is what made identity bootstrap contend with sign-in.
+      const u = await supa().getCachedUser();
       return u ? { id: u.id, email: u.email, createdAt: "" } : null;
     } catch {
       return null;
@@ -158,13 +169,24 @@ export async function signOut(): Promise<void> {
   setSession(null);
 }
 
-/** Subscribe to account changes (this tab + others). Returns an unsubscribe fn. */
-export function onAccountChange(cb: () => void): () => void {
+/**
+ * Subscribe to account changes (this tab + others).
+ *
+ * HOTFIX (M23B.1): the callback now RECEIVES the account. Subscribers used to be handed
+ * nothing and had to call `getCurrentAccount()` to find out who had signed in — i.e. they
+ * called back into Supabase from inside `onAuthStateChange`, which supabase-js dispatches
+ * while holding the auth lock. That is a documented deadlock, and it is why sign-in hung.
+ */
+export function onAccountChange(cb: (account: NestAccount | null) => void): () => void {
   if (!isBrowser()) return () => {};
   if (isSupabase()) {
-    try { return supa().subscribe(() => cb()); } catch { return () => {}; }
+    try {
+      return supa().subscribe((u) => cb(u ? { id: u.id, email: u.email, createdAt: "" } : null));
+    } catch {
+      return () => {};
+    }
   }
-  const h = () => cb();
+  const h = () => cb(localCurrent());
   window.addEventListener(NEST_ACCOUNT_CHANGED, h);
   window.addEventListener("storage", h);
   return () => {

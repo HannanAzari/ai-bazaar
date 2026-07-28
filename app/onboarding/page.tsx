@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { OnboardingClient } from "./onboarding-client";
 
 // M23B — the real first run.
@@ -12,5 +13,12 @@ import { OnboardingClient } from "./onboarding-client";
 export const metadata = { title: "Welcome to Nestudio" };
 
 export default function OnboardingPage() {
-  return <OnboardingClient />;
+  // The client reads `?next=` (the interaction that triggered sign-in) via
+  // `useSearchParams`, which opts this subtree out of static prerendering unless it sits
+  // behind a Suspense boundary. Without it, `next build` fails on this route.
+  return (
+    <Suspense fallback={null}>
+      <OnboardingClient />
+    </Suspense>
+  );
 }

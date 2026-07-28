@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Camera, Loader2, Pencil, Plus, Settings, Trash2, TriangleAlert } from "lucide-react";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
+import { shouldRedirectToOnboarding } from "@/lib/auth/post-sign-in-route";
 import { NestudioStudio } from "@/components/nest/app-shell/nestudio-studio";
 import { IdentityBox } from "@/components/nest/profile/identity-box";
 import { HouseScene } from "@/components/nest/profile/house-scene";
@@ -34,7 +35,7 @@ const VISIBILITY_LABEL: Record<string, string> = {
 
 export function ProfileDashboardClient() {
   const router = useRouter();
-  const { ownerId, signedIn, loading, profile, profileError, needsOnboarding, updateProfile } = useNestIdentity();
+  const { ownerId, signedIn, loading, profile, profileError, bootstrap, retryBootstrap, updateProfile } = useNestIdentity();
   const { drafts, published, loading: nestsLoading, error: nestsError } = useCreatorNests(ownerId, { includeDrafts: true });
   const [followers, setFollowers] = useState(0);
   const [views, setViews] = useState(0);
@@ -42,11 +43,16 @@ export function ProfileDashboardClient() {
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // M23B §1 — a signed-in creator who has not finished onboarding is sent to finish it,
-  // rather than being shown a Profile with no name, handle or house.
+  // M23B §1 — a signed-in creator who has not finished onboarding is sent to finish it.
+  //
+  // HOTFIX (M23B.1): this used to fire while the profile was still null-because-loading,
+  // and /onboarding bounced straight back once the profile FAILED to load — an infinite
+  // redirect loop that re-queried the profile dozens of times and kept the auth lock
+  // saturated. `shouldRedirectToOnboarding` only answers true on a SETTLED, genuinely
+  // incomplete profile; loading and error both mean "stay put".
   useEffect(() => {
-    if (!loading && signedIn && needsOnboarding) router.replace("/onboarding");
-  }, [loading, signedIn, needsOnboarding, router]);
+    if (signedIn && shouldRedirectToOnboarding(bootstrap)) router.replace("/onboarding");
+  }, [signedIn, bootstrap, router]);
 
   useEffect(() => {
     if (!ownerId) return;
@@ -95,7 +101,7 @@ export function ProfileDashboardClient() {
           <TriangleAlert className="mx-auto size-6 text-rose-600" />
           <p className="mt-2 font-black text-ink">We couldn&rsquo;t load your profile</p>
           <p className="mx-auto mt-1 max-w-xs text-xs text-ink/55">{profileError}</p>
-          <button onClick={() => window.location.reload()} className="mt-3 min-h-[44px] rounded-xl bg-terracotta px-5 text-sm font-bold text-parchment">
+          <button onClick={() => void retryBootstrap()} className="mt-3 min-h-[44px] rounded-xl bg-terracotta px-5 text-sm font-bold text-parchment">
             Try again
           </button>
         </div>
@@ -103,9 +109,9 @@ export function ProfileDashboardClient() {
     );
   }
 
-  // Onboarding is in flight (the effect above is redirecting) — render nothing rather
-  // than a half-built Profile.
-  if (!profile?.username) return null;
+  // Still resolving, or the redirect above is in flight — render nothing rather than a
+  // half-built Profile that would flash and then navigate away.
+  if (bootstrap.status === "loading" || !profile?.username) return null;
 
   return (
     <div className="flex min-h-full flex-col gap-2.5 pb-2">
