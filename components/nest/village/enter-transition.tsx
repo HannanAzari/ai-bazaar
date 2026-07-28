@@ -1,4 +1,5 @@
 "use client";
+import { z } from "@/lib/nest-layers";
 
 import { useEffect } from "react";
 import type { HouseStyle } from "@/lib/nest-house";
@@ -30,7 +31,7 @@ export function DoorTransition({
 
   return (
     // Fade the overlay in so entering/leaving eases in rather than cutting to black.
-    <div className="nest-fade fixed inset-0 z-[70] grid place-items-center overflow-hidden bg-[#241811]" role="status" aria-label={text}>
+    <div className={`nest-fade fixed inset-0 ${z.modal} grid place-items-center overflow-hidden bg-[#241811]`} role="status" aria-label={text}>
       {/* warm light flooding out from behind the door */}
       <div
         className={entering ? "nest-door-flood absolute inset-0" : "absolute inset-0"}

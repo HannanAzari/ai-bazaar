@@ -15,7 +15,11 @@ import { ButtonLink } from "@/components/ui/button";
 // separate demo state — so the header can never say "Log in" while you're signed in.
 // M21 (N-08): "/auth" added — signing in used to render the legacy V1 header, so auth
 // felt like leaving the app. The Nestudio auth screens now stand on their own.
-const NEST_APP_PREFIXES = ["/auth", "/home", "/explore", "/create", "/notifications", "/updates", "/profile", "/village", "/nest-editor", "/nest/", "/@", "/asset-factory", "/nest-factory"];
+// Routes that own their whole viewport and render their own chrome. `/onboarding` is on
+// the list as of M23B: it is a full-screen two-step flow, and the marketing header both
+// stole vertical space (pushing Continue below the fold on a 375px screen) and offered
+// navigation away from a flow the user has not finished.
+const NEST_APP_PREFIXES = ["/auth", "/home", "/explore", "/create", "/notifications", "/updates", "/profile", "/village", "/nest-editor", "/nest/", "/@", "/asset-factory", "/nest-factory", "/onboarding"];
 
 export function SiteHeader() {
   const { ownedShop } = useDemo();

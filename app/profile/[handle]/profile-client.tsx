@@ -7,14 +7,16 @@ import { DoorOpen, Home } from "lucide-react";
 import { Avatar } from "@/components/nest/app-shell/profile-summary";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { getNestProfile, onNestProfilesChanged, resolveByUsername, type NestProfile } from "@/lib/nest-profile-store";
-import { onDocsChanged } from "@/lib/nest-document-store";
+import { nestBackend } from "@/lib/nest-repo";
+import { getProfileByUsername } from "@/lib/nest/supabase-profile-repo";
+import { useCreatorNests } from "@/components/nest/profile/use-creator-nests";
 import { resolveTemplate } from "@/lib/nest-production-library";
 import { FollowButton } from "@/components/nest/social/follow-button";
 import { DoorTransition } from "@/components/nest/village/enter-transition";
 import { deriveHouse } from "@/lib/nest-house";
 import { followerCount, onSocialChanged, viewsForOwner } from "@/lib/nest-social";
 import { profileLinks } from "@/lib/profile-links";
-import { creatorReel, reelEntryPoint, type ReelEntry } from "@/lib/nest-reel";
+
 import { IdentityBox } from "@/components/nest/profile/identity-box";
 import { HouseScene } from "@/components/nest/profile/house-scene";
 import { TopControls } from "@/components/nest/profile/top-controls";
@@ -26,24 +28,37 @@ import { TopControls } from "@/components/nest/profile/top-controls";
 export function ProfileClient({ handle }: { handle: string }) {
   const router = useRouter();
   const { ownerId } = useNestIdentity();
-  const [profile, setProfile] = useState<NestProfile | null | undefined>(undefined); // undefined = resolving
-  const [reel, setReel] = useState<ReelEntry[]>([]);
+  const [profile, setProfile] = useState<(NestProfile & { houseStyle?: string }) | null | undefined>(undefined); // undefined = resolving
   const [followers, setFollowers] = useState(0);
   const [views, setViews] = useState(0);
   const [entering, setEntering] = useState(false);
 
+  // M23B §5 — a creator is resolved from the SHARED `profiles` table, so a visitor can
+  // reach a person who has never opened this browser. `resolveByUsername` (localStorage)
+  // survives only for the local/demo backend.
   useEffect(() => {
-    const resolve = () => setProfile(resolveByUsername(handle) ?? null);
-    resolve();
-    return onNestProfilesChanged(resolve);
+    let alive = true;
+    if (nestBackend() !== "supabase") {
+      const resolve = () => setProfile(resolveByUsername(handle) ?? null);
+      resolve();
+      return onNestProfilesChanged(resolve);
+    }
+    void getProfileByUsername(handle)
+      .then((p) => {
+        if (!alive) return;
+        setProfile(
+          p
+            ? { userId: p.id, username: p.username, displayName: p.displayName, bio: p.bio, avatarUrl: p.avatarUrl, links: p.links, houseStyle: p.houseStyle }
+            : null,
+        );
+      })
+      .catch(() => { if (alive) setProfile(null); });
+    return () => { alive = false; };
   }, [handle]);
 
-  useEffect(() => {
-    if (!profile) return;
-    const load = () => setReel(creatorReel(profile.userId));
-    load();
-    return onDocsChanged(load);
-  }, [profile]);
+  // Published only — a visitor never sees this creator's drafts, and RLS would refuse
+  // them anyway.
+  const { published } = useCreatorNests(profile?.userId, { includeDrafts: false });
 
   useEffect(() => {
     if (!profile) return;
@@ -52,19 +67,25 @@ export function ProfileClient({ handle }: { handle: string }) {
     return onSocialChanged(refresh);
   }, [profile]);
 
-  const live = profile ? getNestProfile(profile.userId) ?? profile : null;
+  const live = useMemo<(NestProfile & { houseStyle?: string }) | null>(() => {
+    if (!profile) return null;
+    if (nestBackend() === "supabase") return profile;
+    return { ...(getNestProfile(profile.userId) ?? profile), houseStyle: profile.houseStyle };
+  }, [profile]);
 
   const house = useMemo(() => {
     if (!live) return null;
-    const first = reelEntryPoint(reel);
-    const tpl = first?.entry.doc.sourceTemplateId ? resolveTemplate(first.entry.doc.sourceTemplateId) : undefined;
+    const first = published[0];
+    const tpl = first?.doc.sourceTemplateId ? resolveTemplate(first.doc.sourceTemplateId) : undefined;
     return deriveHouse({
       creator: { id: live.userId, username: live.username, displayName: live.displayName },
+      // The house this creator picked in onboarding.
+      houseStyle: live.houseStyle,
       persona: tpl?.persona,
       bio: live.bio,
-      nestHref: first?.url,
+      nestHref: first?.viewHref,
     });
-  }, [live, reel]);
+  }, [live, published]);
 
   if (profile === undefined) {
     return <div className="mt-10 h-24 animate-pulse rounded-2xl border border-timber/15 bg-white/60" />;
@@ -85,7 +106,7 @@ export function ProfileClient({ handle }: { handle: string }) {
   }
 
   const isOwn = ownerId === profile.userId;
-  const first = reelEntryPoint(reel);
+  const first = published[0];
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2.5 pb-2">
@@ -97,7 +118,7 @@ export function ProfileClient({ handle }: { handle: string }) {
         bio={live.bio}
         avatarUrl={live.avatarUrl}
         followers={followers}
-        nests={reel.length}
+        nests={published.length}
         views={views}
         links={profileLinks(live)}
         action={
@@ -128,7 +149,7 @@ export function ProfileClient({ handle }: { handle: string }) {
       )}
 
       {entering && first ? (
-        <DoorTransition style={house.style} mode="enter" onDone={() => router.push(first.url)} label={`Stepping into ${house.name}'s Nest…`} />
+        <DoorTransition style={house.style} mode="enter" onDone={() => router.push(first.viewHref!)} label={`Stepping into ${house.name}'s Nest…`} />
       ) : null}
     </div>
   );

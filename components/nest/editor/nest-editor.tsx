@@ -31,7 +31,7 @@ import {
   GOLDEN_LIVING_NEST_INTERACTIONS_BY_ID,
   GOLDEN_LIVING_NEST_TEMPLATE,
 } from "@/lib/fixtures/golden-living-nest";
-import { productionEditorCatalog, productionStarterDocument } from "@/lib/nest-editor-bridge";
+import { editableObjectsToPlacements, productionEditorCatalog, productionStarterDocument } from "@/lib/nest-editor-bridge";
 import { hydrateLibrary, onProductionChanged } from "@/lib/nest-production-library";
 import { useRouter } from "next/navigation";
 import { useAiLivingAssets } from "@/lib/nest-editor-ai-bridge";
@@ -63,6 +63,7 @@ import { HotspotBindingSheet } from "@/components/nest/editor/hotspot-binding-sh
 import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor-types";
 import { canRedo, canUndo, createHistory, pushHistory, redoHistory, undoHistory, type History } from "@/lib/nest-editor-history";
 import { clearDraft, importDocumentJson, loadDraft, saveDraft } from "@/lib/nest-editor-storage";
+import { loadDoc, persistDoc } from "@/lib/nest-repo";
 import { canFlipX, canRotate, editorWarnings, guardrailForAsset } from "@/lib/nest-editor-policy";
 import { pushRecent } from "@/lib/nest-editor-asset-index";
 import { placementWarnings, supportCandidates } from "@/lib/nest-placement";
@@ -513,10 +514,39 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   };
 
   // Document operations
-  const saveNow = () => {
-    const r = saveDraft({ ...doc, updatedAt: new Date().toISOString() });
-    setSaveState(r.ok ? "saved" : "unsaved");
-    flash(r.ok ? "Saved ✓" : `Save failed: ${r.error}`);
+  // M23B §4 — explicit Save writes the CANONICAL draft, not just the local autosave.
+  //
+  // Before this, Save only wrote `nestudio:nest-editor:v1:<docId>` — a store nothing but
+  // the editor reads — so the creator's Profile kept showing an older composition and it
+  // looked like a rendering bug. Save now persists the full composition through the repo,
+  // then clears the autosave: once saved, the two stores cannot disagree, because only
+  // one of them still exists.
+  const saveNow = async () => {
+    if (!documentId) {
+      // No document id ⇒ a scratch session (direct /nest-editor). Autosave is all there is.
+      const r = saveDraft({ ...doc, updatedAt: new Date().toISOString() });
+      setSaveState(r.ok ? "saved" : "unsaved");
+      flash(r.ok ? "Saved ✓" : `Save failed: ${r.error}`);
+      return;
+    }
+    setSaveState("saving");
+    try {
+      const current = await loadDoc(documentId);
+      if (!current) throw new Error("This Nest no longer exists.");
+      await persistDoc({
+        ...current,
+        title: doc.name || current.title,
+        placements: editableObjectsToPlacements(doc.objects),
+      });
+      clearDraft(documentId); // the canonical version is now the only version
+      setSaveState("saved");
+      flash("Saved ✓");
+    } catch (e) {
+      // Loud (D-10). The autosave is deliberately LEFT IN PLACE so the work survives —
+      // but we never claim it saved.
+      setSaveState("unsaved");
+      flash(`Save failed: ${e instanceof Error ? e.message : "unknown error"}`);
+    }
   };
   const resetSceneContext = () => {
     setSelectedId(undefined);
@@ -624,7 +654,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                     onFit={setZoomFit}
                     onZoomIn={zoomIn}
                     onZoomOut={zoomOut}
-                    onSave={saveNow}
+                    onSave={() => void saveNow()}
                     onLoad={load}
                     onImport={() => fileRef.current?.click()}
                     onExport={exportJson}
@@ -636,7 +666,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
               <button type="button" onClick={() => setShowPublish(true)} className="ml-1 inline-flex h-9 items-center gap-1 rounded-full bg-[#d9913c] px-3 text-xs font-bold text-white hover:brightness-95"><Upload className="h-4 w-4" /> Publish</button>
               {/* Done saves + returns the creator to their Profile (M15.1). Always fully
                   visible — the top bar no longer carries a width-shifting save label. */}
-              <button type="button" title={saveState === "saved" ? "All changes saved" : "Save & finish"} onClick={() => { saveNow(); window.location.href = "/profile"; }} className="ml-1.5 inline-flex h-9 shrink-0 items-center gap-1 rounded-full bg-ink px-3 text-xs font-bold text-parchment hover:bg-ink/85"><Check className="h-4 w-4" /> Done</button>
+              <button type="button" title={saveState === "saved" ? "All changes saved" : "Save & finish"} onClick={() => { void saveNow().then(() => { window.location.href = "/profile"; }); }} className="ml-1.5 inline-flex h-9 shrink-0 items-center gap-1 rounded-full bg-ink px-3 text-xs font-bold text-parchment hover:bg-ink/85"><Check className="h-4 w-4" /> Done</button>
             </div>
             <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onImportFile(f); e.target.value = ""; }} />
           </header>

@@ -1,18 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { LayoutGrid, Rows3, Search, Trees } from "lucide-react";
+import { LayoutGrid, Loader2, Rows3, Search, Trees, TriangleAlert } from "lucide-react";
 import { useDiscovery } from "@/components/nest/app-shell/use-discovery";
-import { DiscoveryNestCard } from "@/components/nest/app-shell/discovery";
+import { CreatorAvatar, DiscoveryNestCard } from "@/components/nest/app-shell/discovery";
 import { collectCategories, collectTags, filterByTag, searchDiscovery } from "@/lib/nest-discovery";
+import { nestBackend } from "@/lib/nest-repo";
+import { searchCreators, type CreatorProfile } from "@/lib/nest/supabase-profile-repo";
 
-// M17 — Explore is search/discovery (distinct from Home's feed). Search by title,
-// creator, or tags; filter by category (persona) chips + trending tag chips; grid/list
-// toggle. Still no likes/comments/recommendations — just finding a Nest to wander into.
+// M17 → M23B — Explore is search/discovery (distinct from Home's feed).
+//
+// It searched only the Nests already loaded into the feed, so a real creator who had not
+// published — or whose Nest was below the feed limit — was unfindable. Creator search now
+// queries the shared `profiles` table directly, so any normal user is discoverable by
+// @handle or display name.
 export function ExploreClient() {
-  const { items } = useDiscovery();
+  const { items, loading, error } = useDiscovery();
   const [query, setQuery] = useState("");
+  const [creators, setCreators] = useState<CreatorProfile[]>([]);
   const [tag, setTag] = useState<string>();
   const [category, setCategory] = useState<string>();
   const [layout, setLayout] = useState<"grid" | "row">("grid");
@@ -28,6 +34,19 @@ export function ExploreClient() {
   }, [items, query, category, tag]);
 
   const filtering = !!(query.trim() || tag || category);
+
+  // Debounced creator search against Supabase — real people, not fixtures.
+  useEffect(() => {
+    const q = query.trim();
+    if (!q || nestBackend() !== "supabase") { setCreators([]); return; }
+    let alive = true;
+    const t = setTimeout(() => {
+      void searchCreators(q)
+        .then((rows) => { if (alive) setCreators(rows); })
+        .catch(() => { if (alive) setCreators([]); });
+    }, 300);
+    return () => { alive = false; clearTimeout(t); };
+  }, [query]);
 
   return (
     <div className="space-y-4 pt-1">
@@ -72,6 +91,40 @@ export function ExploreClient() {
         </div>
       ) : null}
 
+      {/* Creators lead the results when you are searching for a person. */}
+      {creators.length > 0 ? (
+        <section aria-label="Creators">
+          <p className="mb-2 text-xs font-black uppercase tracking-wider text-ink/45">Creators</p>
+          <ul className="space-y-1.5">
+            {creators.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/@${c.username}`}
+                  className="flex min-h-[56px] items-center gap-3 rounded-2xl border border-timber/15 bg-white px-3 shadow-soft active:scale-[0.99]"
+                >
+                  <CreatorAvatar creator={{ username: c.username, displayName: c.displayName }} size={36} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-black text-ink">{c.displayName}</span>
+                    <span className="block truncate text-[12px] text-ink/50">@{c.username}</span>
+                  </span>
+                  <span className="shrink-0 pr-1 text-[11px] font-bold text-ink/40">Visit →</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {/* A backend failure is stated, not shown as "no results" (D-10). */}
+      {error ? (
+        <div className="flex items-start gap-2 rounded-2xl border border-rose-200 bg-white px-3 py-2.5">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-rose-600" />
+          <p className="text-[12px] leading-snug text-ink/70">
+            <strong className="font-black text-rose-700">Nests couldn&rsquo;t load.</strong> {error}
+          </p>
+        </div>
+      ) : null}
+
       <section>
         <div className="mb-2 flex items-center justify-between">
           <div className="flex items-baseline gap-2">
@@ -84,7 +137,11 @@ export function ExploreClient() {
           </div>
         </div>
 
-        {results.length === 0 ? (
+        {loading && results.length === 0 ? (
+          <div className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-timber/25 bg-white/60 p-8 text-sm text-ink/45">
+            <Loader2 className="size-4 animate-spin" /> Loading Nests…
+          </div>
+        ) : results.length === 0 ? (
           /* M22 — the action depends on WHY it's empty. Mid-search the useful move is to get
              back to browsing, not to be told to build a home; with no data at all, Create is
              genuinely the way forward. Same box, honest priority. */

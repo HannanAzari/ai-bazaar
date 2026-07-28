@@ -276,3 +276,82 @@ formula, so the editor and every preview are mathematically the same by construc
   Profile. Fixing that is a persistence change, deliberately out of scope for M23A.
 - Storage remains localStorage-backed; cross-account visibility is unchanged until the migration
   is provisioned.
+
+---
+
+# M23B — LIVE SCHEMA VERIFIED, and the storage half implemented
+
+## The live check this document has been asking for, finally run
+
+Against project `srrmkdsvldlyllsxyhtq` on 2026-07-28, via PostgREST with the service-role key
+(no DB password or Supabase CLI is available on this machine, so `pg_policies` / `pg_indexes` /
+`pg_constraint` could not be read directly — those inspections are moot for tables that do not
+exist, and the SQL file ends with a verification block for the founder to run):
+
+```
+select to_regclass('public.nests');         →  NULL
+select to_regclass('public.nest_objects');  →  NULL
+```
+
+| Table | Live | Rows |
+|---|---|---|
+| `nests`, `nest_objects` | ❌ absent | — |
+| `nest_backgrounds`, `nest_templates` | ❌ absent | — |
+| `nest_likes`, `nest_comments`, `creator_follows` | ❌ absent | — |
+| `nest_assets` | ✅ present, shape matches the migration exactly | 1 |
+| `profiles` | ✅ present, legacy shape, **no `house_style`** | 5 |
+| `notifications` | ✅ present — the **legacy** pre-pivot table (`user_id`, `shop_id`→`shops`) | 0 |
+
+**Conclusion: `supabase/migrations/20260702_01_nest_platform.sql` was never applied.** Only the
+standalone `provision/` scripts were — which is why `nest_assets` exists alone while the other
+four tables from the same file do not.
+
+This also **corrects §3 and §6 of the audit above**: `supabase/provision/nests_canonical_provision.sql`
+is not merely "awaiting provisioning", it **cannot run** — its first statement ALTERs
+`public.nest_objects`. It is superseded by `supabase/provision/m23b_nest_platform_provision.sql`.
+
+Two further findings the earlier audit could not have known:
+
+- **The base migration alone would break every insert.** `nests.background_id` is `not null
+  references nest_backgrounds(id)` and that table would be created empty, while the curated
+  library actually ships as an in-repo fixture. The new file drops both FKs.
+- **`20260703_01_nest_social.sql` would abort.** `create table if not exists public.notifications`
+  skips the legacy table, then its policies reference `recipient_id`; the live column is `user_id`.
+
+## §1 of this audit is now false, deliberately
+
+> "nothing user-made reaches the server"
+
+That was true when written. As of M23B the write and read paths both go to Supabase, the
+silent `catch { /* fall back */ }` blocks are gone, `listMyNests` is called (alongside new
+`listPublicNests` / `listPublishedNestsByOwner`), and `use-discovery.ts` queries the shared
+tables instead of `listPublished()` on localStorage.
+
+## §3's "storage gaps" are closed
+
+| Was missing | Now |
+|---|---|
+| no `overlay` / `w` / `h` columns | present, plus `flip_x`, `interaction`, `label`, `link_url` |
+| `asset_id` FK → `nest_assets` rejected `"overlay:text"` | no FK; integrity enforced in `resolveAsset` |
+| `rotation` written as hard-coded `0`, never read back | carried both directions, asserted by `test/nest-placement-fidelity.test.ts` |
+
+`migrateLocalNestsToSupabase()` was **deleted** rather than left unused: it dropped `ownerId`,
+`createdAt`, `overlay`, `w`, `h` and `rotation`, and regenerated slugs — a loaded gun in the
+codebase. The backfill decision is therefore explicit: **accept the reset.** Existing local
+content was made against a store that was never shared.
+
+## The M23A "known remaining mismatch" is resolved
+
+- Editor-only state (`hotspots`, `surfaces`, `interactionId`, `contentBinding`, `locked`,
+  `hidden`, `contactShadow`, `variantId`, `plane`) now round-trips through
+  `NestPlacement.interaction`.
+- Draft vs saved is one rule, not two stores — see `lib/nest-draft-reconcile.ts` and D-17.
+
+## One more rendering bug, found in the browser during M23B
+
+`NestPreview`'s root was `relative` with `z-index: auto`, so it never formed a stacking context
+and each placement's inline `zIndex` escaped into the **feed card's** stacking context. A sofa
+with `zIndex: 3` genuinely painted over the creator row and Nest title. This is the
+"furniture covering metadata" item in the founder screenshots, and it was a stacking-context
+bug, not a layout one. Fixed with `isolate` on that single root — which fixes the Profile card,
+search thumbnail and full Nest view at the same time.

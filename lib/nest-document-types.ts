@@ -6,6 +6,30 @@
 
 export type NestVisibility = "draft" | "public" | "unlisted" | "followers" | "private";
 
+/**
+ * M23B — the editor-only state a placement used to lose the moment it left the canvas.
+ * M23A unified *geometry*; this carries the rest of what a creator configured (which
+ * hotspots are live, what content is bound to a surface, whether an object is locked)
+ * so a published Nest behaves for a visitor the way it behaved in the editor.
+ *
+ * Stored as one `jsonb` column (`nest_objects.interaction`) rather than a column per
+ * field: it is a passthrough bag owned by the editor, and widening it must not need a
+ * migration.
+ */
+export type NestPlacementInteraction = {
+  /** Semantic interaction id (TV→video, frame→gallery, …). */
+  interactionId?: string;
+  contentBinding?: import("@/lib/nest-types").NestContentBinding;
+  hotspots?: import("@/lib/nest-hotspot-types").NestAssetHotspot[];
+  surfaces?: import("@/lib/nest-surface-types").ObjectSurfaceContent;
+  /** Depth plane the editor placed this object on. */
+  plane?: import("@/lib/nest-editor-types").EditorPlane;
+  locked?: boolean;
+  hidden?: boolean;
+  contactShadow?: boolean;
+  variantId?: string;
+};
+
 /** One placed object inside a Nest (a Placement with a stable id for selection). */
 export type NestPlacement = {
   id: string;
@@ -26,6 +50,12 @@ export type NestPlacement = {
   h?: number;
   /** M23A — horizontal mirroring, so a flipped object stays flipped after publish/reload. */
   flipX?: boolean;
+  /** M23B — creator-authored label shown on/near the object. */
+  label?: string;
+  /** M23B — creator-authored link target for the object. */
+  linkUrl?: string;
+  /** M23B — everything else the editor configured on this instance (see the type). */
+  interaction?: NestPlacementInteraction;
 };
 
 export type NestDocument = {

@@ -85,6 +85,47 @@ export const HOUSE_STYLES: Record<string, HouseStyle> = {
 /** Fallback when a persona doesn't map to a specific style. */
 export const DEFAULT_STYLE_KEY = "cottage";
 
+// ── M23B — the house is CHOSEN, not derived ───────────────────────────────────
+//
+// M19 derived a house from the creator's persona because there was nothing to store it
+// in. Onboarding now asks the creator to pick one, and `profiles.house_style` remembers
+// it. Persona derivation survives only as the fallback for a creator who has not chosen
+// yet (or for the generated neighbours that keep the Village alive).
+
+/** The catalogue the onboarding carousel offers. Order is the display order. */
+export const HOUSE_STYLE_KEYS = ["cottage", "creator", "garden", "writer", "minimalist", "gamer"] as const;
+export type HouseStyleKey = (typeof HOUSE_STYLE_KEYS)[number];
+
+/** One-line character notes, so a creator picks a home rather than a colour swatch. */
+export const HOUSE_STYLE_BLURB: Record<string, string> = {
+  cottage: "Warm brick and a red roof. The classic front door.",
+  creator: "A green-roofed loft with big working windows.",
+  garden: "Low, leafy, and half-buried in its own flowerbeds.",
+  writer: "Amber timber and a chimney that always seems lit.",
+  minimalist: "Pale, quiet, and uncluttered. Nothing shouts.",
+  gamer: "Deep wood and slate, glowing from the inside at night.",
+};
+
+export const DEFAULT_HOUSE_STYLE_KEY: HouseStyleKey = "cottage";
+
+export function isHouseStyleKey(key: string | undefined | null): key is HouseStyleKey {
+  return !!key && (HOUSE_STYLE_KEYS as readonly string[]).includes(key);
+}
+
+/** Resolve a stored `profiles.house_style` to its palette. Unknown keys fall back. */
+export function styleByKey(key?: string | null): HouseStyle {
+  return (key && HOUSE_STYLES[key]) || HOUSE_STYLES[DEFAULT_HOUSE_STYLE_KEY];
+}
+
+/** The carousel's options: palette + label + blurb, in display order. */
+export function houseStyleOptions(): { key: HouseStyleKey; style: HouseStyle; blurb: string }[] {
+  return HOUSE_STYLE_KEYS.map((key) => ({
+    key,
+    style: HOUSE_STYLES[key],
+    blurb: HOUSE_STYLE_BLURB[key] ?? "",
+  }));
+}
+
 // Persona labels come from templates ("Creator", "Gamer", "Writer", "Minimalist"),
 // but published Nests can borrow any persona — normalize loosely by keyword so new
 // personas still land on a cozy style instead of the bare fallback.
@@ -214,8 +255,10 @@ export function deriveHouse(input: {
   bio?: string;
   nestHref?: string;
   latestNestTitle?: string;
+  /** M23B — the creator's CHOSEN house (`profiles.house_style`). Wins over persona. */
+  houseStyle?: string;
 }): House {
-  const { creator, persona, bio, nestHref, latestNestTitle } = input;
+  const { creator, persona, bio, nestHref, latestNestTitle, houseStyle } = input;
   const id = creator.username ?? creator.id ?? creator.displayName ?? "nest";
   const seed = hashSeed(`house:${id}`);
   return {
@@ -225,7 +268,7 @@ export function deriveHouse(input: {
     name: creator.displayName ?? (creator.username ? `@${creator.username}` : "A Nestudio creator"),
     bio,
     persona,
-    style: styleFor(persona),
+    style: isHouseStyleKey(houseStyle) ? styleByKey(houseStyle) : styleFor(persona),
     seed,
     isReal: true,
     online: presenceFromSeed(seed),
@@ -246,6 +289,8 @@ export function houseFromItems(items: DiscoveryItem[]): House | null {
     ...deriveHouse({
       creator: primary.creator,
       persona: primary.category,
+      // The creator CHOSE this in onboarding; persona is only the fallback.
+      houseStyle: primary.creator.houseStyle,
       nestHref: primary.href,
       latestNestTitle: primary.title,
     }),

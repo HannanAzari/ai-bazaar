@@ -10,7 +10,15 @@ import type { NestDocument, NestVisibility } from "@/lib/nest-document-types";
 import type { ProductionTemplate } from "@/lib/nest-production-types";
 
 export type DiscoverySource = "published" | "curated" | "demo";
-export type DiscoveryCreator = { id?: string; username?: string; displayName?: string };
+export type DiscoveryCreator = {
+  id?: string;
+  username?: string;
+  displayName?: string;
+  /** M23B — the creator's CHOSEN house (`profiles.house_style`), so the Village and the
+   *  arrival screen show the house they picked in onboarding, not one derived from a
+   *  Nest's persona. */
+  houseStyle?: string;
+};
 
 export type DiscoveryItem = {
   /** Stable React key. */

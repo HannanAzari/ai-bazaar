@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Camera, Pencil, Plus, Trash2 } from "lucide-react";
+import { Camera, Loader2, Pencil, Plus, Settings, Trash2, TriangleAlert } from "lucide-react";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { NestudioStudio } from "@/components/nest/app-shell/nestudio-studio";
 import { IdentityBox } from "@/components/nest/profile/identity-box";
@@ -15,18 +15,12 @@ import { NestPreview } from "@/components/nest/app-shell/nest-preview";
 import { AuthPanel } from "@/components/nest/app-shell/auth-panel";
 import { Avatar } from "@/components/nest/app-shell/profile-summary";
 import { deriveHouse } from "@/lib/nest-house";
+import { SettingsSheet } from "@/components/nest/profile/settings-sheet";
+import { useCreatorNests, type CreatorNest } from "@/components/nest/profile/use-creator-nests";
 import { resolveTemplate } from "@/lib/nest-production-library";
 import { followerCount, onSocialChanged, viewsForOwner } from "@/lib/nest-social";
 import { profileLinks } from "@/lib/profile-links";
 import { deleteAvatar, getActiveAvatar, type UserAvatar } from "@/lib/avatar-factory/avatar-repo";
-import {
-  listDrafts,
-  listPublished,
-  onDocsChanged,
-  publishedUrl,
-  type PublishedNest,
-} from "@/lib/nest-document-store";
-import type { NestDocument } from "@/lib/nest-document-types";
 import type { NestSocials, ProfileLink } from "@/lib/nest-profile-store";
 
 // Day 3.3 — the creator's own Profile uses the SAME structure as the public one
@@ -39,19 +33,20 @@ const VISIBILITY_LABEL: Record<string, string> = {
 };
 
 export function ProfileDashboardClient() {
-  const { ownerId, signedIn, profile, claimUsername, updateProfile, signOut } = useNestIdentity();
-  const [drafts, setDrafts] = useState<NestDocument[]>([]);
-  const [published, setPublished] = useState<PublishedNest[]>([]);
+  const router = useRouter();
+  const { ownerId, signedIn, loading, profile, profileError, needsOnboarding, updateProfile } = useNestIdentity();
+  const { drafts, published, loading: nestsLoading, error: nestsError } = useCreatorNests(ownerId, { includeDrafts: true });
   const [followers, setFollowers] = useState(0);
   const [views, setViews] = useState(0);
   const [editing, setEditing] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // M23B §1 — a signed-in creator who has not finished onboarding is sent to finish it,
+  // rather than being shown a Profile with no name, handle or house.
   useEffect(() => {
-    const load = () => { setDrafts(listDrafts(ownerId)); setPublished(listPublished(ownerId)); };
-    load();
-    return onDocsChanged(load);
-  }, [ownerId]);
+    if (!loading && signedIn && needsOnboarding) router.replace("/onboarding");
+  }, [loading, signedIn, needsOnboarding, router]);
 
   useEffect(() => {
     if (!ownerId) return;
@@ -66,6 +61,8 @@ export function ProfileDashboardClient() {
     const tpl = newest?.doc.sourceTemplateId ? resolveTemplate(newest.doc.sourceTemplateId) : undefined;
     return deriveHouse({
       creator: { id: profile.userId, username: profile.username, displayName: profile.displayName },
+      // The house the creator CHOSE in onboarding — persona is only the fallback.
+      houseStyle: profile.houseStyle,
       persona: tpl?.persona,
       bio: profile.bio,
     });
@@ -89,13 +86,44 @@ export function ProfileDashboardClient() {
     );
   }
 
-  if (!profile?.username) {
-    return <ClaimHandle onClaim={claimUsername} onSignOut={signOut} email={profile?.userId ? undefined : undefined} />;
+  // A profile that FAILED to load is not a profile that is missing. Saying so keeps a
+  // configured creator from being pushed back through onboarding by an outage (D-10).
+  if (profileError) {
+    return (
+      <div className="pt-2">
+        <div className="rounded-2xl border border-rose-200 bg-white p-5 text-center shadow-soft">
+          <TriangleAlert className="mx-auto size-6 text-rose-600" />
+          <p className="mt-2 font-black text-ink">We couldn&rsquo;t load your profile</p>
+          <p className="mx-auto mt-1 max-w-xs text-xs text-ink/55">{profileError}</p>
+          <button onClick={() => window.location.reload()} className="mt-3 min-h-[44px] rounded-xl bg-terracotta px-5 text-sm font-bold text-parchment">
+            Try again
+          </button>
+        </div>
+      </div>
+    );
   }
+
+  // Onboarding is in flight (the effect above is redirecting) — render nothing rather
+  // than a half-built Profile.
+  if (!profile?.username) return null;
 
   return (
     <div className="flex min-h-full flex-col gap-2.5 pb-2">
-      <TopControls onBack={() => history.back()} backLabel="Back" />
+      <TopControls
+        onBack={() => history.back()}
+        backLabel="Back"
+        action={
+          // §2 — the gear exists only on your OWN Profile. On a visitor's view of this
+          // creator it is not hidden with CSS; it is simply never rendered.
+          <button
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Settings"
+            className="grid size-9 place-items-center rounded-full border border-timber/20 bg-white text-ink/60 active:scale-95"
+          >
+            <Settings className="size-4" />
+          </button>
+        }
+      />
 
       <IdentityBox
         username={profile.username}
@@ -128,7 +156,7 @@ export function ProfileDashboardClient() {
       ) : null}
 
       {/* the creator's Nests — editable, compact, no identity repeated */}
-      <NestList drafts={drafts} published={published} />
+      <NestList drafts={drafts} published={published} loading={nestsLoading} error={nestsError} />
 
       <div className="mt-2">
         <NestudioStudio />
@@ -149,6 +177,7 @@ export function ProfileDashboardClient() {
         }}
       />
       <AvatarModal open={avatarOpen} onClose={() => setAvatarOpen(false)} username={profile.username} avatarUrl={profile.avatarUrl} />
+      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }
@@ -156,18 +185,41 @@ export function ProfileDashboardClient() {
 // ── Nest list ────────────────────────────────────────────────────────────────
 // Compact rows, not oversized cards. Draft and Published are visually distinct. Creating
 // happens through the existing global Create tab — no extra Create buttons here.
-function NestList({ drafts, published }: { drafts: NestDocument[]; published: PublishedNest[] }) {
-  const items = [
-    ...drafts.map((doc) => ({ key: doc.id, doc, href: `/nest-editor?document=${doc.id}`, label: "Draft", draft: true })),
-    ...published.map((entry) => ({
-      key: entry.ref.slug,
-      doc: entry.doc,
-      href: `/nest-editor?document=${entry.doc.id}`,
-      label: VISIBILITY_LABEL[entry.ref.visibility] ?? entry.ref.visibility,
-      draft: false,
-      viewHref: publishedUrl(entry),
-    })),
-  ];
+function NestList({
+  drafts,
+  published,
+  loading,
+  error,
+}: {
+  drafts: CreatorNest[];
+  published: CreatorNest[];
+  loading: boolean;
+  error: string | null;
+}) {
+  const items = [...drafts, ...published].map((n) => ({
+    key: n.key,
+    doc: n.doc,
+    href: n.editHref,
+    label: n.isDraft ? "Draft" : VISIBILITY_LABEL[n.visibility] ?? n.visibility,
+    draft: n.isDraft,
+  }));
+
+  if (loading && items.length === 0) {
+    return (
+      <div className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-timber/25 bg-white/60 px-4 py-5 text-sm text-ink/45">
+        <Loader2 className="size-4 animate-spin" /> Loading your Nests…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-white px-4 py-4 text-center">
+        <p className="text-sm font-black text-rose-700">Your Nests couldn&rsquo;t load</p>
+        <p className="mx-auto mt-1 max-w-xs text-xs text-ink/55">{error}</p>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (
@@ -343,29 +395,3 @@ function AvatarModal({ open, onClose, username, avatarUrl }: { open: boolean; on
     </CenteredModal>
   );
 }
-
-// Claiming the handle is a precondition for having a House at all.
-function ClaimHandle({ onClaim, onSignOut }: { onClaim: (u: string) => { ok: boolean; error?: string }; onSignOut: () => void; email?: string }) {
-  const [v, setV] = useState("");
-  const [error, setError] = useState<string>();
-  return (
-    <div className="pt-2">
-      <div className="rounded-2xl border border-timber/15 bg-white p-4 shadow-soft">
-        <p className="font-black text-ink">Claim your username</p>
-        <p className="mt-0.5 text-xs text-ink/50">Your Nest lives at /@yourname.</p>
-        <div className="mt-3 flex items-stretch gap-2">
-          <div className="flex flex-1 items-center rounded-xl border border-timber/20 bg-parchment px-3">
-            <span className="text-sm font-bold text-ink/40">@</span>
-            <input value={v} onChange={(e) => setV(e.target.value)} placeholder="username" aria-label="Username" style={{ fontSize: 16 }} className="min-h-[44px] w-full bg-transparent outline-none" />
-          </div>
-          <button onClick={() => { const r = onClaim(v); setError(r.ok ? undefined : r.error); }} disabled={!v.trim()}
-            className="min-h-[44px] rounded-xl bg-terracotta px-4 text-sm font-bold text-parchment disabled:opacity-50">Claim</button>
-        </div>
-        <p className="mt-2 text-[11px] text-ink/45">Lowercase, 3–20 characters (letters, numbers, underscore). This becomes your permanent @handle.</p>
-        {error ? <p className="mt-1 text-xs font-bold text-terracotta">{error}</p> : null}
-        <button onClick={onSignOut} className="mt-3 min-h-[36px] text-xs font-bold text-ink/45">Sign out</button>
-      </div>
-    </div>
-  );
-}
-

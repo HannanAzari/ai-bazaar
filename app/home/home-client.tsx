@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Trees } from "lucide-react";
+import { Loader2, Trees, TriangleAlert } from "lucide-react";
 import { BottomNav } from "@/components/nest/app-shell/bottom-nav";
 import { DiscoveryFeed } from "@/components/nest/app-shell/discovery";
 import { useDiscovery } from "@/components/nest/app-shell/use-discovery";
@@ -11,7 +11,7 @@ import { useDiscovery } from "@/components/nest/app-shell/use-discovery";
 // only scroller; the persistent BottomNav still sits on top. Published Nests lead, with
 // curated examples keeping it alive, and a "make your own" card closing the stream.
 export function HomeClient() {
-  const { items } = useDiscovery();
+  const { items, loading, error } = useDiscovery();
 
   return (
     <>
@@ -31,8 +31,24 @@ export function HomeClient() {
             </Link>
           </div>
         </header>
+        {/* M23B — an empty feed used to be indistinguishable from a broken backend.
+            Now Home says which one it is. */}
+        {error ? (
+          <div className="mx-4 flex items-start gap-2 rounded-2xl border border-rose-200 bg-white px-3 py-2.5">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-rose-600" />
+            <p className="text-[12px] leading-snug text-ink/70">
+              <strong className="font-black text-rose-700">We couldn&rsquo;t load Nests.</strong> {error}
+            </p>
+          </div>
+        ) : null}
         <div className="min-h-0 flex-1">
-          <DiscoveryFeed items={items} />
+          {loading && items.length === 0 ? (
+            <div className="flex h-full items-center justify-center gap-2 text-sm text-ink/45">
+              <Loader2 className="size-4 animate-spin" /> Finding cozy Nests…
+            </div>
+          ) : (
+            <DiscoveryFeed items={items} />
+          )}
         </div>
       </div>
       <BottomNav />

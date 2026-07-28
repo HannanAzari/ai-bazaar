@@ -1,4 +1,5 @@
 "use client";
+import { z } from "@/lib/nest-layers";
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -45,7 +46,7 @@ export function CenteredModal({
   // block for fixed-position descendants — without this the modal is clipped to the card.
   return createPortal(
     <div
-      className={`modal-fade fixed inset-0 z-[80] flex items-center justify-center p-5 ${tone === "dark" ? "bg-black/70 backdrop-blur-sm" : "bg-black/40"}`}
+      className={`modal-fade fixed inset-0 ${z.modal} flex items-center justify-center p-5 ${tone === "dark" ? "bg-black/70 backdrop-blur-sm" : "bg-black/40"}`}
       onClick={onClose}
     >
       <style>{`@keyframes modal-fade { from { opacity: 0 } to { opacity: 1 } } .modal-fade { animation: modal-fade .22s ease-out both } @keyframes modal-pop { from { opacity: 0; transform: scale(.96) } to { opacity: 1; transform: scale(1) } } .modal-pop { animation: modal-pop .26s cubic-bezier(.32,.72,0,1) both } @media (prefers-reduced-motion: reduce) { .modal-fade, .modal-pop { animation: none } }`}</style>

@@ -11,7 +11,7 @@ import type { NestApprovalStatus } from "@/lib/nest-types";
 import { CURRENT_NEST_DNA_VERSION, NEST_CAMERA_CONTRACT_VERSION } from "@/lib/nest-types";
 import type { LivingNestAsset, LivingNestSlotType } from "@/lib/nest-visual-types";
 import type { EditableNestDocument, EditableNestObject, EditorPlane } from "@/lib/nest-editor-types";
-import type { NestDocument, NestPlacement } from "@/lib/nest-document-types";
+import type { NestDocument, NestPlacement, NestPlacementInteraction } from "@/lib/nest-document-types";
 import type { ProductionAsset, ProductionHotspot } from "@/lib/nest-production-types";
 import type { NestEditableSurface } from "@/lib/nest-types";
 import { getAssets, getBackgrounds, getTemplates, resolveAsset, resolveBackground } from "@/lib/nest-production-library";
@@ -148,10 +148,11 @@ function placementToObject(p: NestPlacement, index: number): EditableNestObject 
       width,
       height,
       anchor: { x: clamp01(x + width / 2), y: clamp01(y + height / 2) },
-      plane: "foreground",
+      plane: p.interaction?.plane ?? "foreground",
       zIndex: p.zIndex ?? index + 1,
       ...(p.rotation ? { rotation: p.rotation } : {}),
       ...(p.flipX ? { flipX: true } : {}),
+      ...interactionToObject(p.interaction),
       overlay: p.overlay,
     };
   }
@@ -172,17 +173,59 @@ function placementToObject(p: NestPlacement, index: number): EditableNestObject 
     width,
     height,
     anchor: { x: clamp01(cx), y: clamp01(baseY) },
-    plane: planeForAsset(prod),
+    plane: p.interaction?.plane ?? planeForAsset(prod),
     zIndex: p.zIndex ?? index + 1,
     ...(p.rotation ? { rotation: p.rotation } : {}),
     ...(p.flipX ? { flipX: true } : {}),
+    // Seeded hotspots are the catalog default; anything the creator actually configured
+    // and saved wins over them.
     ...(hotspots.length ? { hotspots } : {}),
+    ...interactionToObject(p.interaction),
   };
+}
+
+/** The stored `interaction` bag → the fields it came from on EditableNestObject. */
+function interactionToObject(i?: NestPlacementInteraction): Partial<EditableNestObject> {
+  if (!i) return {};
+  return {
+    ...(i.interactionId ? { interactionId: i.interactionId } : {}),
+    ...(i.contentBinding ? { contentBinding: i.contentBinding } : {}),
+    ...(i.hotspots?.length ? { hotspots: i.hotspots } : {}),
+    ...(i.surfaces ? { surfaces: i.surfaces } : {}),
+    ...(i.locked ? { locked: true } : {}),
+    ...(i.hidden ? { hidden: true } : {}),
+    ...(i.contactShadow != null ? { contactShadow: i.contactShadow } : {}),
+    ...(i.variantId ? { variantId: i.variantId } : {}),
+  };
+}
+
+/**
+ * M23B — the editor-only state a placement must carry with it.
+ *
+ * M23A unified geometry but left this behind: hotspots, surface content, the interaction
+ * id, lock/hide and the depth plane lived only on `EditableNestObject`, so a visitor
+ * opening a published Nest got the right-looking room with none of the behaviour the
+ * creator configured. `interaction` is a passthrough bag persisted as one jsonb column.
+ */
+function objectInteraction(o: EditableNestObject): NestPlacementInteraction | undefined {
+  const bag: NestPlacementInteraction = {
+    ...(o.interactionId ? { interactionId: o.interactionId } : {}),
+    ...(o.contentBinding ? { contentBinding: o.contentBinding } : {}),
+    ...(o.hotspots?.length ? { hotspots: o.hotspots } : {}),
+    ...(o.surfaces ? { surfaces: o.surfaces } : {}),
+    ...(o.plane ? { plane: o.plane } : {}),
+    ...(o.locked ? { locked: true } : {}),
+    ...(o.hidden ? { hidden: true } : {}),
+    ...(o.contactShadow != null ? { contactShadow: o.contactShadow } : {}),
+    ...(o.variantId ? { variantId: o.variantId } : {}),
+  };
+  return Object.keys(bag).length ? bag : undefined;
 }
 
 /** Reverse: editor objects → production placements (to save edits before publish). */
 export function editableObjectsToPlacements(objects: EditableNestObject[]): NestPlacement[] {
   return objects.map((o, i) => {
+    const extras = objectInteraction(o);
     // Overlays store their box top-left + size + content (no asset/scale semantics).
     if (o.overlay) {
       return {
@@ -195,6 +238,7 @@ export function editableObjectsToPlacements(objects: EditableNestObject[]): Nest
         zIndex: o.zIndex ?? i + 1,
         ...(o.rotation ? { rotation: o.rotation } : {}),
         ...(o.flipX ? { flipX: true } : {}),
+        ...(extras ? { interaction: extras } : {}),
         overlay: o.overlay,
       };
     }
@@ -207,6 +251,7 @@ export function editableObjectsToPlacements(objects: EditableNestObject[]): Nest
       zIndex: o.zIndex ?? i + 1,
       ...(o.rotation ? { rotation: o.rotation } : {}),
       ...(o.flipX ? { flipX: true } : {}),
+      ...(extras ? { interaction: extras } : {}),
     };
   });
 }

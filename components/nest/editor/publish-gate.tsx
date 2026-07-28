@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
 import { loadDoc, persistDoc, publish, type PublishResult } from "@/lib/nest-repo";
 import { setDocOwner } from "@/lib/nest-document-store";
+import { clearDraft } from "@/lib/nest-editor-storage";
 import { editableObjectsToPlacements } from "@/lib/nest-editor-bridge";
 import { PUBLISH_VISIBILITY_OPTIONS, type NestPublishVisibility } from "@/lib/nest-production-types";
 import type { EditableNestObject } from "@/lib/nest-editor-types";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { AuthPanel } from "@/components/nest/app-shell/auth-panel";
+import { z } from "@/lib/nest-layers";
 
 // M16 publish flow on the real account: delayed sign-up preserved (guests draft;
 // publishing prompts a real account) → claim a username → choose visibility → publish.
@@ -49,13 +51,19 @@ export function PublishGate({
     setBusy(true);
     setError(undefined);
     try {
-      // Sync the editor's current layout + the chosen name into the doc + stamp ownership.
+      // M23B §4 — publishing persists the COMPLETE current composition first, so the
+      // published version is exactly what the creator was looking at. `publish()` then
+      // either returns a real payload-free `/nest/<slug>` or throws; it no longer
+      // degrades to a `?c=` link that only the recipient of that exact URL can open.
       const doc = await loadDoc(documentId);
       const title = name.trim() || doc?.title || "My Nest";
       if (doc) await persistDoc({ ...doc, ownerId, title, placements: editableObjectsToPlacements(objects) });
       setDocOwner(documentId, ownerId);
       const r = await publish(documentId, visibility, ownerId);
-      if (r) setResult(r); else setError("Publish failed.");
+      // The canonical published version now IS the truth — drop the local autosave so the
+      // editor cannot reopen an older in-progress copy over the top of it (§4).
+      clearDraft(documentId);
+      setResult(r);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Publish failed.");
     } finally {
@@ -70,7 +78,7 @@ export function PublishGate({
   const heading = result ? "Your Nest is live" : !signedIn ? "Create an account to publish" : !hasUsername ? "Claim your username" : "Publish your Nest";
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-3 sm:items-center" onClick={onClose}>
+    <div className={`fixed inset-0 ${z.modal} flex items-end justify-center bg-black/50 p-3 sm:items-center`} onClick={onClose}>
       <style>{`@keyframes publish-pop { 0% { transform: scale(0.4); opacity: 0 } 60% { transform: scale(1.12) } 100% { transform: scale(1); opacity: 1 } } .publish-pop { animation: publish-pop .42s cubic-bezier(.22,.61,.36,1) both } @media (prefers-reduced-motion: reduce) { .publish-pop { animation: none } }`}</style>
       <div className="w-full max-w-[420px] rounded-3xl border border-[#e0d5b8] bg-[#f7f0dd] p-5 text-ink shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-2 flex items-start justify-between">

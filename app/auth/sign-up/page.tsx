@@ -27,7 +27,10 @@ export default function SignUpPage() {
     const r = await signUp(email, password, name);
     if (r.ok) {
       trackEvent("signup_completed");
-      router.push("/create"); // M21: straight into the canonical Create → editor → publish journey.
+      // M23B: a new account has no name, handle or house yet — send them to onboarding,
+      // never straight to Home or the editor. Onboarding forwards to /profile when done,
+      // and bounces anyone already configured straight back out.
+      router.push("/onboarding");
       return;
     }
     // With email confirmation ON, sign-up succeeds but returns no session.

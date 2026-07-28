@@ -37,7 +37,19 @@ export function NestPreview({
     : { inset: 0 };
 
   return (
-    <div className={`relative overflow-hidden bg-[#e9e0c8] ${rounded} ${className}`}>
+    // M23B §8 — `isolate` is load-bearing, not decoration.
+    //
+    // Each placement carries an inline `zIndex` (1…n) from placementStyle. This root was
+    // `relative` with z-index:auto, so it did NOT form a stacking context and those
+    // z-indexes leaked into whatever ancestor did — the feed card. A sofa with zIndex 3
+    // therefore competed with, and painted OVER, the creator row and Nest title rendered
+    // as later siblings. That is the "furniture covering metadata" bug in the founder's
+    // screenshots.
+    //
+    // `isolation: isolate` contains the room's internal paint order inside the room,
+    // where it belongs. Fixing it here fixes every surface at once — feed, Profile card,
+    // search thumbnail and the full Nest view — instead of patching each one.
+    <div className={`relative isolate overflow-hidden bg-[#e9e0c8] ${rounded} ${className}`}>
       {/* soft shimmer until the room's background paints in — no blank pop */}
       {background && !loaded ? <div className="nest-shimmer absolute inset-0" /> : null}
       <div className="absolute overflow-hidden" style={stageStyle}>

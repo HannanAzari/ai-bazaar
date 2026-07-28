@@ -1,13 +1,16 @@
-import { redirect } from "next/navigation";
+import { OnboardingClient } from "./onboarding-client";
 
-// M21 — /onboarding used to run the pre-pivot shop/house funnel and finished on
-// `/shop/<address>`, a route that now redirects to /home. A brand-new user therefore
-// completed onboarding and landed on the feed with nothing to show for it (the single
-// worst friction point in the app — see docs/BETA_NAVIGATION_AUDIT.md, N-01).
+// M23B — the real first run.
 //
-// The canonical first run is Create → editor → publish, so this route now forwards there.
-// The legacy implementation is preserved next to this file (…legacy-shop-onboarding.tsx.bak)
-// rather than deleted, so nothing is lost if the flow is ever revisited.
+// M21 pointed this route at /create, so a brand-new account landed in the editor with no
+// name, no @handle and no house — nothing a visitor could arrive at. The first
+// experience is now identity → house → your own Profile, and nothing else: bio, links
+// and avatar stay editable later from the Profile itself.
+//
+// An already-configured creator never sees this (the client forwards them to /profile);
+// a partially-configured one resumes at exactly the step they are missing.
+export const metadata = { title: "Welcome to Nestudio" };
+
 export default function OnboardingPage() {
-  redirect("/create");
+  return <OnboardingClient />;
 }

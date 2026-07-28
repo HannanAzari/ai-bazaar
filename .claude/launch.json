@@ -9,6 +9,13 @@
       "autoPort": true
     },
     {
+      "name": "nestudio-local-backend",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "PATH=/Users/hannan/.nvm/versions/node/v20.20.2/bin:$PATH NEXT_PUBLIC_NEST_BACKEND=local NEXT_PUBLIC_SUPABASE_URL= NEXT_PUBLIC_SUPABASE_ANON_KEY= npm run dev -- --port 3002"],
+      "port": 3002,
+      "autoPort": true
+    },
+    {
       "name": "asset-factory-dev",
       "runtimeExecutable": "/bin/sh",
       "runtimeArgs": ["-c", "cd apps/asset-factory && PATH=/Users/hannan/.nvm/versions/node/v20.20.2/bin:$PATH npm run dev"],
