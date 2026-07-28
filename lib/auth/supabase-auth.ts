@@ -32,6 +32,14 @@ export class SupabaseAuthClient implements AuthClient {
     return mapUser(data.user ?? null);
   }
 
+  /**
+   * Create an account, and only report success if Supabase genuinely created one.
+   *
+   * HOTFIX (M23B.2): the founder created an account through the UI, was taken to
+   * onboarding, and the user did not exist in Authentication → Users. Every branch below
+   * exists so that can never be reported as success again — the checks are ordered from
+   * "definitely didn't happen" to "happened but isn't usable yet".
+   */
   async signUp(input: SignUpInput): Promise<SessionUser> {
     const displayName = input.name?.trim() || nameFromEmail(input.email);
     const { data, error } = await this.client.auth.signUp({
@@ -42,12 +50,31 @@ export class SupabaseAuthClient implements AuthClient {
       options: { data: { display_name: displayName, name: displayName }, emailRedirectTo: authCallbackUrl("/onboarding") },
     });
     if (error) throw error;
-    // With email confirmation ON, signUp returns a user but NO session. Treat that
-    // as "confirm your email" rather than a logged-in state (an unconfirmed user
-    // has no session cookie, so every RLS-guarded call would fail).
-    if (!data.session) {
+
+    // 1. No user object at all ⇒ nothing was created. Previously this fell through to the
+    //    session check and produced a misleading "confirm your email" message.
+    if (!data.user?.id) {
+      throw new Error("Sign-up did not create an account. Please try again.");
+    }
+
+    // 2. Supabase's anti-enumeration response for an email that ALREADY exists: a
+    //    user-shaped object with an EMPTY `identities` array and no session. Without this
+    //    check it looks like a brand-new signup that merely needs confirming — so the
+    //    person is told to check an email that never arrives, for an account they already
+    //    have. (This project currently returns a plain 422 instead, but the obfuscated
+    //    form turns on with a project setting, so we handle both.)
+    const identities = (data.user as { identities?: unknown[] }).identities;
+    if (Array.isArray(identities) && identities.length === 0) {
+      throw new Error("An account with this email already exists. Sign in instead.");
+    }
+
+    // 3. A user exists but there is no session ⇒ email confirmation is ON. Real, but not
+    //    usable yet: an unconfirmed user has no session cookie, so every RLS-guarded call
+    //    would fail. The caller renders this as "check your email", not as signed-in.
+    if (!data.session?.access_token) {
       throw new Error("Check your email to confirm your account, then sign in.");
     }
+
     const user = mapUser(data.user);
     if (!user) throw new Error("Sign-up returned no user.");
     return user;

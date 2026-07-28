@@ -16,12 +16,55 @@
 
 import { nestBackend } from "@/lib/nest-repo";
 import { SupabaseAuthClient } from "@/lib/auth/supabase-auth";
+import { authDiagnostics, describeAuthTarget } from "@/lib/supabase/project-info";
 
 export type NestAccount = { id: string; email: string; createdAt: string };
+
+/** Which store actually holds this account. `local` means Supabase never saw it. */
+export type AccountBackend = "local" | "supabase";
+
 export type AuthResult =
-  | { ok: true; account: NestAccount }
+  | { ok: true; account: NestAccount; backend: AccountBackend }
   | { ok: false; error: string }
   | { ok: false; needsConfirmation: true; error: string };
+
+/**
+ * HOTFIX (M23B.2): log WHERE an auth call is going, every time, in development.
+ *
+ * The founder's account went to localStorage and the app said "success". Nothing in the
+ * console said which project — or that there was no project. Now every sign-up and
+ * sign-in prints its target first, so the answer is one glance away.
+ */
+/**
+ * A deployment that HAS a Supabase project but is resolving to the local backend is
+ * misconfigured, not "in demo mode". Creating a local account there is worse than
+ * failing: it hands the person a session for an account that does not exist anywhere,
+ * which is precisely how a founder ended up on the onboarding screen for a user Supabase
+ * had never heard of.
+ *
+ * So we refuse BEFORE writing anything. Returning the error from here — rather than from
+ * each form — means every current and future caller is covered, and no local row or
+ * session is created along the way.
+ */
+function misconfiguredBackendError(): AuthResult | null {
+  const d = authDiagnostics(nestBackend());
+  if (d.resolvedBackend === "supabase" || !d.hasUrl) return null;
+  console.error(`[auth] refusing to use the local backend: ${describeAuthTarget(d)}`);
+  return {
+    ok: false,
+    error:
+      "This deployment is misconfigured: accounts cannot be saved to Supabase right now, " +
+      "so we haven't created one. Please tell the Nestudio team.",
+  };
+}
+
+function logAuthTarget(op: string): void {
+  if (process.env.NODE_ENV === "production") return;
+  const d = authDiagnostics(nestBackend());
+  const line = `[auth] ${op} → ${describeAuthTarget(d)}`;
+  if (d.resolvedBackend === "local") console.warn(line);
+  else console.info(line);
+}
 
 const ACCOUNTS_KEY = "nestudio-accounts"; // Record<emailLower, StoredAccount>
 const SESSION_KEY = "nestudio-account-session"; // accountId
@@ -92,7 +135,7 @@ function localSignUp(email: string, password: string): AuthResult {
   accounts[e] = account;
   writeAccounts(accounts);
   setSession(account.id);
-  return { ok: true, account: toAccount(account) };
+  return { ok: true, account: toAccount(account), backend: "local" };
 }
 
 function localSignIn(email: string, password: string): AuthResult {
@@ -100,7 +143,7 @@ function localSignIn(email: string, password: string): AuthResult {
   const account = readAccounts()[e];
   if (!account || account.ph !== demoHash(password)) return { ok: false, error: "Wrong email or password." };
   setSession(account.id);
-  return { ok: true, account: toAccount(account) };
+  return { ok: true, account: toAccount(account), backend: "local" };
 }
 
 // ── Supabase backend ───────────────────────────────────────────────────────--
@@ -135,10 +178,15 @@ export async function getCurrentAccount(): Promise<NestAccount | null> {
 }
 
 export async function signUp(email: string, password: string, name?: string): Promise<AuthResult> {
+  logAuthTarget("signUp");
+  const misconfigured = misconfiguredBackendError();
+  if (misconfigured) return misconfigured;
   if (isSupabase()) {
     try {
       const u = await supa().signUp({ email, password, name });
-      return { ok: true, account: { id: u.id, email: u.email, createdAt: "" } };
+      // `u.id` is the real auth.users id returned by Supabase. We only get here when a
+      // user AND a session came back — see SupabaseAuthClient.signUp.
+      return { ok: true, account: { id: u.id, email: u.email, createdAt: "" }, backend: "supabase" };
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Sign-up failed.";
       // SupabaseAuthClient throws this exact message when email confirmation is ON.
@@ -150,10 +198,13 @@ export async function signUp(email: string, password: string, name?: string): Pr
 }
 
 export async function signIn(email: string, password: string): Promise<AuthResult> {
+  logAuthTarget("signIn");
+  const misconfigured = misconfiguredBackendError();
+  if (misconfigured) return misconfigured;
   if (isSupabase()) {
     try {
       const u = await supa().signIn({ email, password });
-      return { ok: true, account: { id: u.id, email: u.email, createdAt: "" } };
+      return { ok: true, account: { id: u.id, email: u.email, createdAt: "" }, backend: "supabase" };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : "Sign-in failed." };
     }

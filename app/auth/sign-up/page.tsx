@@ -8,6 +8,9 @@ import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { isDemoMode } from "@/lib/runtime-mode";
 import { trackEvent } from "@/lib/events";
 import { Button } from "@/components/ui/button";
+import { AuthEnvironmentNotice } from "@/components/auth/auth-environment-notice";
+import { nestBackend } from "@/lib/nest-repo";
+import { authDiagnostics, describeAuthTarget } from "@/lib/supabase/project-info";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -32,6 +35,18 @@ export default function SignUpPage() {
     try {
       const r = await signUp(email, password, name);
       if (r.ok) {
+        // HOTFIX (M23B.2): do NOT report success or continue unless the account was
+        // genuinely created in Supabase. `backend === "local"` means it went to
+        // localStorage — which is exactly how a founder ended up on the onboarding screen
+        // for an account that did not exist in Authentication → Users.
+        if (r.backend !== "supabase" && authDiagnostics(nestBackend()).hasUrl) {
+          console.error("[sign-up] refused to continue:", describeAuthTarget(authDiagnostics(nestBackend())));
+          setError(
+            "Your account was not saved to Supabase, so we haven't signed you in. " +
+              "This deployment is misconfigured — please tell the Nestudio team.",
+          );
+          return;
+        }
         trackEvent("signup_completed");
         // M23B: a new account has no name, handle or house yet — send them to onboarding,
         // never straight to Home or the editor. Onboarding forwards to /profile when done,
@@ -58,7 +73,8 @@ export default function SignUpPage() {
         <p className="mt-7 text-xs font-black uppercase tracking-[.2em] text-teal">Nestudio</p>
         <h1 className="display mt-2 text-4xl">Create your Nest.</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink/50">Make your account, then step into a space that feels like you.</p>
-        <form onSubmit={submit} className="mt-8 space-y-4">
+        <AuthEnvironmentNotice className="mt-5" />
+        <form onSubmit={submit} className="mt-6 space-y-4">
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Display name</span>
             <span className="flex items-center gap-3 rounded-2xl border border-ink/10 bg-white px-4"><UserRound size={18} className="text-ink/30" /><input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" className="min-h-14 w-full bg-transparent outline-none" /></span>

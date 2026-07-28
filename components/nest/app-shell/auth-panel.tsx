@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
+import { AuthEnvironmentNotice } from "@/components/auth/auth-environment-notice";
+import { nestBackend } from "@/lib/nest-repo";
+import { authDiagnostics } from "@/lib/supabase/project-info";
 
 // M16 — a small email sign-up / sign-in panel (real Nest account). Shared by the
 // Profile guest state and the publish gate so identity is claimed the same way
@@ -21,7 +24,16 @@ export function AuthPanel({ onAuthed, intro }: { onAuthed?: () => void; intro?: 
     setNotice(undefined);
     const r = mode === "signup" ? await signUp(email, password) : await signIn(email, password);
     setBusy(false);
-    if (r.ok) { onAuthed?.(); return; }
+    if (r.ok) {
+      // Same rule as the full sign-up page: never treat a localStorage account as a real
+      // one on a deployment that has Supabase configured (M23B.2).
+      if (r.backend !== "supabase" && authDiagnostics(nestBackend()).hasUrl) {
+        setError("Your account was not saved to Supabase. This deployment is misconfigured.");
+        return;
+      }
+      onAuthed?.();
+      return;
+    }
     if ("needsConfirmation" in r) { setNotice(r.error); return; }
     setError(r.error);
   }
@@ -29,6 +41,7 @@ export function AuthPanel({ onAuthed, intro }: { onAuthed?: () => void; intro?: 
   return (
     <div className="space-y-3">
       {intro ? <p className="text-sm text-ink/55">{intro}</p> : null}
+      <AuthEnvironmentNotice />
       <div className="flex rounded-full bg-parchment p-1 text-sm font-bold">
         <button onClick={() => { setMode("signup"); setError(undefined); setNotice(undefined); }} className={`flex-1 rounded-full py-1.5 transition ${mode === "signup" ? "bg-white text-ink shadow-soft" : "text-ink/50"}`}>Sign up</button>
         <button onClick={() => { setMode("signin"); setError(undefined); setNotice(undefined); }} className={`flex-1 rounded-full py-1.5 transition ${mode === "signin" ? "bg-white text-ink shadow-soft" : "text-ink/50"}`}>Sign in</button>

@@ -32,12 +32,42 @@ import {
 } from "@/lib/nest-document-store";
 import { resolveTemplate } from "@/lib/nest-production-library";
 import { getSession as localSession } from "@/lib/nest-auth-stub";
+import { hasSupabaseEnv } from "@/lib/supabase/project-info";
 import * as sbRepo from "@/lib/nest/supabase-nest-repo";
 import { NestRepoError } from "@/lib/nest/supabase-nest-repo";
 
 export type NestBackend = "local" | "supabase";
+
+/**
+ * Which backend this build actually uses.
+ *
+ * HOTFIX (M23B.2) — THE BUG THIS FIXES:
+ *
+ *     return process.env.NEXT_PUBLIC_NEST_BACKEND === "supabase" ? "supabase" : "local";
+ *
+ * `NEXT_PUBLIC_*` is inlined at BUILD time. If that one variable was missing, misspelled,
+ * or simply not set for a given Vercel environment, this silently returned "local" — and
+ * "local" means sign-up writes an account to **localStorage**. The UI then reported
+ * success and moved on, while Supabase never heard about the user. That is exactly what
+ * the founder saw: an account created in the app that does not exist in
+ * Authentication → Users.
+ *
+ * The presence of a configured Supabase project is now the source of truth, and the flag
+ * is only an explicit override:
+ *
+ *   • `NEXT_PUBLIC_NEST_BACKEND=local`     → local, deliberately (demo/offline dev)
+ *   • `NEXT_PUBLIC_NEST_BACKEND=supabase`  → supabase, explicitly
+ *   • unset / anything else                → supabase IF Supabase env is present, else local
+ *
+ * So a deployment that has `NEXT_PUBLIC_SUPABASE_URL` + `_ANON_KEY` can no longer fall
+ * into demo mode by omission. If it has neither, it is genuinely unconfigured — and the
+ * auth screens say so loudly rather than quietly pretending to create accounts.
+ */
 export function nestBackend(): NestBackend {
-  return process.env.NEXT_PUBLIC_NEST_BACKEND === "supabase" ? "supabase" : "local";
+  const explicit = process.env.NEXT_PUBLIC_NEST_BACKEND;
+  if (explicit === "local") return "local";
+  if (explicit === "supabase") return "supabase";
+  return hasSupabaseEnv() ? "supabase" : "local";
 }
 const isSupabaseBackend = () => nestBackend() === "supabase";
 

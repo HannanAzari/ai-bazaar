@@ -8,6 +8,7 @@ import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { isDemoMode } from "@/lib/runtime-mode";
 import { createSignInFlow, type SignInFlowResult } from "@/lib/auth/sign-in-flow";
 import { Button } from "@/components/ui/button";
+import { AuthEnvironmentNotice } from "@/components/auth/auth-environment-notice";
 
 // ── HOTFIX M23B.1 — the button always leaves its loading state ───────────────
 //
@@ -102,7 +103,8 @@ export default function LoginPage() {
         <p className="mt-7 text-xs font-black uppercase tracking-[.2em] text-terracotta">Nestudio</p>
         <h1 className="display mt-2 text-4xl">Welcome back to your Nest.</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink/50">{isDemoMode() ? "Demo mode: any email signs you in locally (no password needed)." : "Sign in with your email and password."}</p>
-        <form onSubmit={submit} className="mt-8 space-y-4">
+        <AuthEnvironmentNotice className="mt-5" />
+        <form onSubmit={submit} className="mt-6 space-y-4">
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Email</span>
             <span className="flex items-center gap-3 rounded-2xl border border-ink/10 bg-white px-4">
