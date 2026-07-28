@@ -24,6 +24,8 @@ export type NestPlacement = {
   /** Normalized overlay box width/height (overlays only). */
   w?: number;
   h?: number;
+  /** M23A — horizontal mirroring, so a flipped object stays flipped after publish/reload. */
+  flipX?: boolean;
 };
 
 export type NestDocument = {

@@ -16,6 +16,7 @@ import type { ProductionAsset, ProductionHotspot } from "@/lib/nest-production-t
 import type { NestEditableSurface } from "@/lib/nest-types";
 import { getAssets, getBackgrounds, getTemplates, resolveAsset, resolveBackground } from "@/lib/nest-production-library";
 import { createEditorDocumentFromTemplate } from "@/lib/nest-editor";
+import { placementBox, scaleFromWidth } from "@/lib/nest-geometry";
 import { predefinedHotspotsForInstance } from "@/lib/nest-hotspot-catalog";
 import { registerAssetSurfaces } from "@/lib/nest-surface-catalog";
 import type { EditableSurfaceDef, SurfaceContentType, SurfaceType } from "@/lib/nest-surface-types";
@@ -150,19 +151,17 @@ function placementToObject(p: NestPlacement, index: number): EditableNestObject 
       plane: "foreground",
       zIndex: p.zIndex ?? index + 1,
       ...(p.rotation ? { rotation: p.rotation } : {}),
+      ...(p.flipX ? { flipX: true } : {}),
       overlay: p.overlay,
     };
   }
   const prod = resolveAsset(p.assetId);
-  const [aw, ah] = (prod?.visualBounds?.aspect ?? "1:1").split(":").map(Number);
-  const ratio = aw && ah ? aw / ah : 1; // pixel w/h
-  const width = clamp((p.scale ?? 0.4) * 0.5, 0.06, 0.7);
-  // Convert pixel aspect to a normalized box height on the 3:4 (0.75) scene.
-  const height = clamp((width / ratio) * 0.75, 0.04, 0.95);
+  // M23A — geometry comes from lib/nest-geometry (the ONE canonical formula, shared with
+  // NestPreview). This used to be a second, slightly different copy of the same maths.
+  const box = placementBox(p, index);
+  const { x, y, w: width, h: height } = box;
   const cx = p.x;
   const baseY = p.y;
-  const x = clamp01(cx - width / 2);
-  const y = clamp01(baseY - height);
   const instanceId = p.id || `${p.assetId}-${index}`;
   const hotspots = seedHotspots(p.assetId, instanceId, prod);
   return {
@@ -176,6 +175,7 @@ function placementToObject(p: NestPlacement, index: number): EditableNestObject 
     plane: planeForAsset(prod),
     zIndex: p.zIndex ?? index + 1,
     ...(p.rotation ? { rotation: p.rotation } : {}),
+    ...(p.flipX ? { flipX: true } : {}),
     ...(hotspots.length ? { hotspots } : {}),
   };
 }
@@ -194,6 +194,7 @@ export function editableObjectsToPlacements(objects: EditableNestObject[]): Nest
         h: o.height,
         zIndex: o.zIndex ?? i + 1,
         ...(o.rotation ? { rotation: o.rotation } : {}),
+        ...(o.flipX ? { flipX: true } : {}),
         overlay: o.overlay,
       };
     }
@@ -202,9 +203,10 @@ export function editableObjectsToPlacements(objects: EditableNestObject[]): Nest
       assetId: o.assetId,
       x: clamp01(o.anchor?.x ?? o.x + o.width / 2),
       y: clamp01(o.anchor?.y ?? o.y + o.height),
-      scale: clamp((o.width ?? 0.2) / 0.5, 0.05, 1.4),
+      scale: scaleFromWidth(o.width),
       zIndex: o.zIndex ?? i + 1,
       ...(o.rotation ? { rotation: o.rotation } : {}),
+      ...(o.flipX ? { flipX: true } : {}),
     };
   });
 }

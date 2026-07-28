@@ -2,16 +2,22 @@
 
 import { useState } from "react";
 import { resolveAsset, resolveBackground } from "@/lib/nest-production-library";
+import { OverlayContent } from "@/components/nest/overlay-content";
+import { inPaintOrder, placementStyle } from "@/lib/nest-geometry";
 import type { NestDocument } from "@/lib/nest-document-types";
 
-// M17.1 — a composed Nest thumbnail: the real room, with the creator's actual placed
-// furniture/assets, at any size. Shared by discovery cards, the feed, and profile cards
-// so a Nest card shows what the creator MADE — not just an empty shell.
+// M17.1 — a composed Nest: the real room with the creator's actual placed assets, at any size.
+// Shared by Profile cards, discovery cards, the feed and the full visitor view.
+//
+// M23A — this component no longer invents its own layout. Geometry comes from
+// `lib/nest-geometry.placementStyle`, the SAME function the editor canvas uses, so a Nest is
+// identical in the editor, on a Profile card, in the feed, in search and at full screen.
+// It previously computed `width = scale * 55%` (vs the editor's `scale * 0.5`), ignored
+// height, dropped every text/image overlay, and lost mirroring.
 //
 // Beta Polish 1: an optional `safe` inset. When set, the whole room stage (background +
-// furniture together, so nothing detaches from the floor) is confined to a band, leaving
-// the top/bottom as reserved UI zones — furniture can never sit under the identity header
-// or the action buttons. `overflow-hidden` on the stage clips anything that would spill.
+// objects together, so nothing detaches from the floor) is confined to a band, leaving the
+// top/bottom as reserved UI zones. `overflow-hidden` clips anything that would spill.
 export function NestPreview({
   doc,
   className = "",
@@ -21,7 +27,7 @@ export function NestPreview({
   doc: NestDocument;
   className?: string;
   rounded?: string;
-  /** Reserve top/bottom bands (fractions of height) that furniture must stay clear of. */
+  /** Reserve top/bottom bands (fractions of height) that objects must stay clear of. */
   safe?: { top?: number; bottom?: number };
 }) {
   const background = resolveBackground(doc.backgroundId);
@@ -47,24 +53,35 @@ export function NestPreview({
         ) : (
           <div className="grid size-full place-items-center text-xs text-ink/40">No preview</div>
         )}
-        {doc.placements
-          .slice()
-          .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
-          .map((p) => {
-            const asset = resolveAsset(p.assetId); // resolves even archived assets → cards never break
-            if (!asset) return null;
-            const widthPct = Math.max(8, Math.min(60, (p.scale ?? 0.4) * 55));
+
+        {inPaintOrder(doc.placements).map((p, i) => {
+          const style = placementStyle(p, i);
+
+          // Overlays (text / image stickers) are creator content, not catalog assets. They
+          // used to be dropped here because `resolveAsset("overlay:text")` is undefined —
+          // which is why stickers were invisible everywhere except the editor.
+          if (p.overlay) {
             return (
-              <div
-                key={p.id}
-                className="absolute"
-                style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, width: `${widthPct}%`, transform: `translate(-50%, -100%) rotate(${p.rotation ?? 0}deg)`, zIndex: p.zIndex ?? 1 }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element -- local curated art */}
-                <img src={asset.variants.standard ?? asset.cutoutUrl ?? asset.imageUrl} alt={asset.name} className="w-full object-contain drop-shadow" loading="lazy" />
+              <div key={p.id} className="absolute" style={style}>
+                <OverlayContent overlay={p.overlay} />
               </div>
             );
-          })}
+          }
+
+          const asset = resolveAsset(p.assetId); // resolves archived assets too → cards never break
+          if (!asset) return null;
+          return (
+            <div key={p.id} className="absolute" style={style}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- local curated art */}
+              <img
+                src={asset.variants.standard ?? asset.cutoutUrl ?? asset.imageUrl}
+                alt={asset.name}
+                className="h-full w-full object-contain drop-shadow"
+                loading="lazy"
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
