@@ -15,16 +15,29 @@ export function nestThumb(doc: NestDocument): string | undefined {
   return bg?.variants.mobile ?? bg?.variants.standard ?? bg?.imageUrl;
 }
 
+// Optional status colour for the corner badge. Omitted → the original neutral badge, so
+// every existing caller (explore, discovery, public /@handle) renders exactly as before.
+export type NestCardTone = "draft" | "public" | "unlisted" | "followers" | "private";
+const TONE_CLASS: Record<NestCardTone, string> = {
+  draft: "bg-white/85 text-ink ring-1 ring-inset ring-timber/20",
+  public: "bg-[#4d7358] text-white",
+  unlisted: "bg-[#5b7a99] text-white",
+  followers: "bg-terracotta text-parchment",
+  private: "bg-ink/85 text-parchment",
+};
+
 export function NestCard({
   doc,
   href,
   subtitle,
   badge,
+  tone,
 }: {
   doc: NestDocument;
   href: string;
   subtitle?: string;
   badge?: string;
+  tone?: NestCardTone;
 }) {
   return (
     <Link
@@ -34,7 +47,7 @@ export function NestCard({
       <div className="relative">
         <NestPreview doc={doc} className="aspect-[4/5] w-full" />
         {badge ? (
-          <span className="absolute left-2 top-2 rounded-full bg-ink/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-parchment">
+          <span className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide shadow-sm ${tone ? TONE_CLASS[tone] : "bg-ink/80 text-parchment"}`}>
             {badge}
           </span>
         ) : null}

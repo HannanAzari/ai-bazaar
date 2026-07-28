@@ -47,7 +47,7 @@ export default function LoginPage() {
             <span className="mb-2 block text-sm font-bold">Password</span>
             <span className="flex items-center gap-3 rounded-2xl border border-ink/10 bg-white px-4">
               <KeyRound size={18} className="text-ink/30" />
-              <input required={!isDemoMode()} type="password" minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={isDemoMode() ? "Not needed in demo" : "At least 6 characters"} className="h-13 min-h-14 w-full bg-transparent outline-none" />
+              <input required={!isDemoMode()} type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={isDemoMode() ? "Not needed in demo" : "At least 8 characters"} className="h-13 min-h-14 w-full bg-transparent outline-none" />
             </span>
           </label>
           {error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-terracotta">{error}</p>}

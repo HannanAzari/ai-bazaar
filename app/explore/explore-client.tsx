@@ -85,12 +85,21 @@ export function ExploreClient() {
         </div>
 
         {results.length === 0 ? (
+          /* M22 — the action depends on WHY it's empty. Mid-search the useful move is to get
+             back to browsing, not to be told to build a home; with no data at all, Create is
+             genuinely the way forward. Same box, honest priority. */
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-timber/25 bg-white/60 p-8 text-center">
-            <p className="text-sm text-ink/55">No Nests match your search yet.</p>
-            <div className="flex gap-2">
-              <Link href="/create" className="rounded-xl bg-terracotta px-4 py-2.5 text-sm font-bold text-parchment">Create a Nest</Link>
-              {filtering ? <button onClick={() => { setQuery(""); setTag(undefined); setCategory(undefined); }} className="rounded-xl border border-timber/20 bg-white px-4 py-2.5 text-sm font-bold text-ink/70">Clear filters</button> : null}
-            </div>
+            {filtering ? (
+              <>
+                <p className="text-sm text-ink/55">Nothing here yet — try a different word.</p>
+                <button onClick={() => { setQuery(""); setTag(undefined); setCategory(undefined); }} className="rounded-xl bg-terracotta px-4 py-2.5 text-sm font-bold text-parchment">Clear search</button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-ink/55">No Nests to wander yet. Be the first.</p>
+                <Link href="/create" className="rounded-xl bg-terracotta px-4 py-2.5 text-sm font-bold text-parchment">Create a Nest</Link>
+              </>
+            )}
           </div>
         ) : layout === "grid" ? (
           <div className="grid grid-cols-2 gap-3">

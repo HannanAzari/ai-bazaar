@@ -9,7 +9,7 @@
  */
 import { NestFactoryClient } from "./nest-factory-client";
 
-export const metadata = { title: "Nest Factory · Nestudio", robots: { index: false, follow: false } };
+export const metadata = { title: "Nest Factory", robots: { index: false, follow: false } };
 
 export default function NestFactoryPage() {
   return <NestFactoryClient />;

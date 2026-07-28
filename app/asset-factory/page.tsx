@@ -10,7 +10,7 @@
  */
 import { AssetFactoryClient } from "./asset-factory-client";
 
-export const metadata = { title: "Asset Factory · Nestudio", robots: { index: false, follow: false } };
+export const metadata = { title: "Asset Factory", robots: { index: false, follow: false } };
 
 export default function AssetFactoryPage() {
   return <AssetFactoryClient />;

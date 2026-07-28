@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ReviewClient } from "./review-client";
 
 export const metadata: Metadata = {
-  title: "Asset Review · Nestudio",
+  title: "Asset Review",
   robots: { index: false, follow: false },
 };
 

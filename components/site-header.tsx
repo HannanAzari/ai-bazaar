@@ -13,7 +13,9 @@ import { ButtonLink } from "@/components/ui/button";
 // so this legacy V1 header steps out of the way there. It only renders on the remaining
 // V1 routes. Auth state comes from the REAL Supabase session (useNestIdentity), never a
 // separate demo state — so the header can never say "Log in" while you're signed in.
-const NEST_APP_PREFIXES = ["/home", "/explore", "/create", "/notifications", "/updates", "/profile", "/village", "/nest-editor", "/nest/", "/@", "/asset-factory", "/nest-factory"];
+// M21 (N-08): "/auth" added — signing in used to render the legacy V1 header, so auth
+// felt like leaving the app. The Nestudio auth screens now stand on their own.
+const NEST_APP_PREFIXES = ["/auth", "/home", "/explore", "/create", "/notifications", "/updates", "/profile", "/village", "/nest-editor", "/nest/", "/@", "/asset-factory", "/nest-factory"];
 
 export function SiteHeader() {
   const { ownedShop } = useDemo();

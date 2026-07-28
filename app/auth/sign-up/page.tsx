@@ -27,7 +27,7 @@ export default function SignUpPage() {
     const r = await signUp(email, password, name);
     if (r.ok) {
       trackEvent("signup_completed");
-      router.push("/onboarding"); // New accounts land in onboarding to reach their first room fast.
+      router.push("/create"); // M21: straight into the canonical Create → editor → publish journey.
       return;
     }
     // With email confirmation ON, sign-up succeeds but returns no session.
@@ -54,7 +54,7 @@ export default function SignUpPage() {
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Password</span>
-            <input required={!isDemoMode()} type="password" minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={isDemoMode() ? "Not needed in demo" : "At least 6 characters"} className="min-h-14 w-full rounded-2xl border border-ink/10 bg-white px-4 outline-none" />
+            <input required={!isDemoMode()} type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={isDemoMode() ? "Not needed in demo" : "At least 8 characters"} className="min-h-14 w-full rounded-2xl border border-ink/10 bg-white px-4 outline-none" />
           </label>
           {error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-terracotta">{error}</p>}
           {notice && <p className="rounded-xl bg-teal/10 px-3 py-2 text-sm font-bold text-teal">{notice}</p>}

@@ -18,6 +18,10 @@ export type NestSocials = {
   youtube?: string;
 };
 
+/** M20 — an arbitrary creator link. Platforms are never hard-coded: a creator may add
+ *  Spotify, Steam, Discord, Patreon, a shop… The label is optional (we derive one). */
+export type ProfileLink = { label?: string; url: string };
+
 export type NestProfile = {
   /** = the Nest account id. */
   userId: string;
@@ -26,7 +30,10 @@ export type NestProfile = {
   displayName?: string;
   bio?: string;
   avatarUrl?: string;
+  /** Legacy fixed four. Still read so existing profiles keep working. */
   socials?: NestSocials;
+  /** M20 — unlimited creator links. */
+  links?: ProfileLink[];
 };
 
 function read(): Record<string, NestProfile> {
@@ -120,7 +127,7 @@ export function ensureNestProfile(userId: string, displayName?: string): NestPro
 /** Patch mutable profile fields (NOT the username — use claimUsername for that). */
 export function updateNestProfile(
   userId: string,
-  patch: Partial<Pick<NestProfile, "displayName" | "bio" | "avatarUrl" | "socials">>,
+  patch: Partial<Pick<NestProfile, "displayName" | "bio" | "avatarUrl" | "socials" | "links">>,
 ): NestProfile {
   const store = read();
   const current = store[userId] ?? { userId };

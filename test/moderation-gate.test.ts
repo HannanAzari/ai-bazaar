@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { canViewModeration } from "@/app/moderation/page";
+import { canViewModeration } from "@/lib/auth/moderation-access";
 import type { ServerAuth } from "@/lib/auth/server-session";
 
 // Focused access-control tests for the /moderation gate. It reuses the existing role-based

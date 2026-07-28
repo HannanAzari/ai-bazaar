@@ -287,15 +287,18 @@ function CreateCard() {
 }
 
 function SourceBadge({ source, floating }: { source: DiscoveryItem["source"]; floating?: boolean }) {
-  const label = source === "published" ? "Live" : source === "curated" ? "Example" : "Demo";
-  const base = "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider";
+  // M22 — a real person's home needs no label. We used to stamp every card with the data
+  // source ("Live" / "Demo" / "Example"), which read as livestream / fake to a first-time
+  // visitor and made the product feel like a work in progress. Only the curated samples are
+  // still marked, gently, so nobody mistakes a showcase room for someone's real Nest.
+  if (source === "published") return null;
+  const base = "rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider";
   if (floating) {
-    const dot = source === "published" ? "bg-meadow-shade" : "bg-ink/35";
     return (
-      <span className={`inline-flex items-center gap-1.5 ${base} bg-white/90 text-ink/70 shadow-soft ring-1 ring-black/5 backdrop-blur`}>
-        <span className={`size-1.5 rounded-full ${dot}`} /> {label}
+      <span className={`inline-flex items-center gap-1.5 ${base} bg-white/80 text-ink/55 shadow-soft ring-1 ring-black/5 backdrop-blur`}>
+        Example
       </span>
     );
   }
-  return <span className={`absolute left-2 top-2 ${base} bg-ink/80 text-parchment`}>{label}</span>;
+  return <span className={`absolute left-2 top-2 ${base} bg-ink/55 text-parchment`}>Example</span>;
 }

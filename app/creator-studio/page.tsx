@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CreatorStudioClient } from "./creator-studio-client";
 
 export const metadata: Metadata = {
-  title: "AI Creator Studio · Nestudio",
+  title: "AI Creator Studio",
   robots: { index: false, follow: false },
 };
 

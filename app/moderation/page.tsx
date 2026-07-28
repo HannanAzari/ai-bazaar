@@ -2,8 +2,8 @@ import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { ModerationClient } from "@/components/moderation-client";
 import { Footer } from "@/components/footer";
-import { getServerUser, type ServerAuth } from "@/lib/auth/server-session";
-import { isFounder } from "@/lib/founder-role";
+import { getServerUser } from "@/lib/auth/server-session";
+import { canViewModeration } from "@/lib/auth/moderation-access";
 
 export const metadata = {
   title: "Moderation",
@@ -11,13 +11,10 @@ export const metadata = {
   robots: { index: false },
 };
 
-// Founder-only. Reuses the SAME server-side founder check as requireFounder / Nestudio
-// Studio (getServerUser + isFounder allowlist) — no founder token, no new permission layer.
-// A non-founder (or an unauthenticated visitor) gets a 404, revealing nothing.
-export function canViewModeration(auth: ServerAuth): boolean {
-  return "user" in auth && isFounder(auth.user);
-}
-
+// Founder-only. `canViewModeration` (in lib/auth/moderation-access) reuses the SAME server-side
+// founder check as requireFounder / Nestudio Studio. A non-founder or unauthenticated visitor
+// gets a 404, revealing nothing. (The predicate lives in a lib module, not exported from this
+// page, because App Router page files may only export page fields.)
 export default async function ModerationPage() {
   if (!canViewModeration(await getServerUser())) notFound();
   return (

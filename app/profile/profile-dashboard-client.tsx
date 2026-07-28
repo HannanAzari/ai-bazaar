@@ -1,13 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
-import { NestCard } from "@/components/nest/app-shell/nest-card";
-import { ProfileSummary } from "@/components/nest/app-shell/profile-summary";
-import { AvatarManager } from "@/components/nest/app-shell/avatar-manager";
-import { NestudioStudio } from "@/components/nest/app-shell/nestudio-studio";
+import { useRouter } from "next/navigation";
+import { Camera, Pencil, Plus, Trash2 } from "lucide-react";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
+import { NestudioStudio } from "@/components/nest/app-shell/nestudio-studio";
+import { IdentityBox } from "@/components/nest/profile/identity-box";
+import { HouseScene } from "@/components/nest/profile/house-scene";
+import { TopControls } from "@/components/nest/profile/top-controls";
+import { BottomSheet } from "@/components/nest/social/bottom-sheet";
+import { CenteredModal } from "@/components/nest/profile/modal";
+import { NestPreview } from "@/components/nest/app-shell/nest-preview";
+import { AuthPanel } from "@/components/nest/app-shell/auth-panel";
+import { Avatar } from "@/components/nest/app-shell/profile-summary";
+import { deriveHouse } from "@/lib/nest-house";
+import { resolveTemplate } from "@/lib/nest-production-library";
+import { followerCount, onSocialChanged, viewsForOwner } from "@/lib/nest-social";
+import { profileLinks } from "@/lib/profile-links";
+import { deleteAvatar, getActiveAvatar, type UserAvatar } from "@/lib/avatar-factory/avatar-repo";
 import {
   listDrafts,
   listPublished,
@@ -16,119 +27,345 @@ import {
   type PublishedNest,
 } from "@/lib/nest-document-store";
 import type { NestDocument } from "@/lib/nest-document-types";
-import { onNotificationsChanged, todayCounts } from "@/lib/nest-notifications-store";
+import type { NestSocials, ProfileLink } from "@/lib/nest-profile-store";
 
-// M15.1 — the creator's private Profile / My Place dashboard (was `/home`). Profile
-// summary + Continue creating (drafts) + Published Nests + Create-New shortcut. This is
-// where the editor + publish flow return to. Home is now discovery (see app/home).
+// Day 3.3 — the creator's own Profile uses the SAME structure as the public one
+// (top controls → compact identity box → House scene) so they are one product. The only
+// differences are the actions: no Follow, discreet owner editing, and an editable Nest list
+// instead of the public "Enter Nests" button.
+
+const VISIBILITY_LABEL: Record<string, string> = {
+  public: "Public", unlisted: "Unlisted", followers: "Followers", private: "Private",
+};
 
 export function ProfileDashboardClient() {
-  const { ownerId, signedIn } = useNestIdentity();
+  const { ownerId, signedIn, profile, claimUsername, updateProfile, signOut } = useNestIdentity();
   const [drafts, setDrafts] = useState<NestDocument[]>([]);
   const [published, setPublished] = useState<PublishedNest[]>([]);
+  const [followers, setFollowers] = useState(0);
+  const [views, setViews] = useState(0);
+  const [editing, setEditing] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
 
   useEffect(() => {
-    const load = () => {
-      setDrafts(listDrafts(ownerId));
-      setPublished(listPublished(ownerId));
-    };
+    const load = () => { setDrafts(listDrafts(ownerId)); setPublished(listPublished(ownerId)); };
     load();
     return onDocsChanged(load);
   }, [ownerId]);
 
-  const empty = drafts.length === 0 && published.length === 0;
-
-  return (
-    <div className="pt-1">
-      {/* Identity stays pinned while your Nests scroll underneath — "this place is mine". */}
-      <div className="sticky top-0 z-10 -mx-4 space-y-3 bg-parchment/95 px-4 pb-3 backdrop-blur">
-        <header className="flex items-center justify-between">
-          <h1 className="display text-3xl">Profile</h1>
-          <Link href="/create" aria-label="Create a new Nest" className="flex items-center gap-1 rounded-full bg-terracotta px-3.5 py-2 text-xs font-black text-parchment shadow-soft active:scale-95">
-            <Plus className="size-4" /> New
-          </Link>
-        </header>
-        <ProfileSummary nestCount={published.length} />
-        <div className="mt-4"><AvatarManager /></div>
-        <div className="mt-4"><NestudioStudio /></div>
-      </div>
-
-      <div className="space-y-6 pt-4">
-      <ActivityToday ownerId={ownerId} />
-      {empty ? (
-        <div className="rounded-3xl border border-dashed border-timber/25 bg-white/60 p-8 text-center">
-          <p className="display text-2xl">Your Nest awaits</p>
-          <p className="mx-auto mt-1 max-w-xs text-sm text-ink/50">Make your first Nest — a cozy space that feels like you. It only takes a couple of minutes.</p>
-          <div className="mt-4 flex justify-center gap-2">
-            <Link href="/create" className="inline-flex items-center gap-1 rounded-xl bg-terracotta px-5 py-3 text-sm font-bold text-parchment">
-              <Plus className="size-4" /> Create a Nest
-            </Link>
-            <Link href="/home" className="inline-flex items-center rounded-xl border border-timber/20 bg-white px-5 py-3 text-sm font-bold text-ink/70">Explore examples</Link>
-          </div>
-        </div>
-      ) : null}
-
-      {drafts.length > 0 ? (
-        <Section title="Continue creating" hint="Pick up where you left off.">
-          <Grid>
-            {drafts.map((doc) => (
-              <NestCard key={doc.id} doc={doc} href={`/nest-editor?document=${doc.id}`} subtitle="Draft" badge="Draft" />
-            ))}
-          </Grid>
-        </Section>
-      ) : null}
-
-      {published.length > 0 ? (
-        <Section title="Published Nests" hint={signedIn ? undefined : "Sign in to keep these on every device."}>
-          <Grid>
-            {published.map((entry) => (
-              <NestCard key={entry.ref.slug} doc={entry.doc} href={publishedUrl(entry)} subtitle={entry.ref.visibility} badge="Live" />
-            ))}
-          </Grid>
-        </Section>
-      ) : null}
-      </div>
-    </div>
-  );
-}
-
-// Owner-only "someone interacted with your work today" summary — the M18 retention hook.
-function ActivityToday({ ownerId }: { ownerId?: string }) {
-  const [t, setT] = useState({ likes: 0, follows: 0, comments: 0 });
   useEffect(() => {
     if (!ownerId) return;
-    const refresh = () => setT(todayCounts(ownerId));
+    const refresh = () => { setFollowers(followerCount(ownerId)); setViews(viewsForOwner(ownerId)); };
     refresh();
-    return onNotificationsChanged(refresh);
+    return onSocialChanged(refresh);
   }, [ownerId]);
 
-  const parts = [
-    t.follows ? `+${t.follows} follower${t.follows === 1 ? "" : "s"}` : null,
-    t.likes ? `+${t.likes} like${t.likes === 1 ? "" : "s"}` : null,
-    t.comments ? `+${t.comments} comment${t.comments === 1 ? "" : "s"}` : null,
-  ].filter(Boolean);
-  if (parts.length === 0) return null;
+  const house = useMemo(() => {
+    if (!profile?.username) return null;
+    const newest = published[0];
+    const tpl = newest?.doc.sourceTemplateId ? resolveTemplate(newest.doc.sourceTemplateId) : undefined;
+    return deriveHouse({
+      creator: { id: profile.userId, username: profile.username, displayName: profile.displayName },
+      persona: tpl?.persona,
+      bio: profile.bio,
+    });
+  }, [profile, published]);
+
+  // Signed out / no handle yet — the account gates come first; the arrival needs a handle.
+  if (!signedIn) {
+    return (
+      <div className="pt-2">
+        <div className="rounded-2xl border border-timber/15 bg-white p-5 shadow-soft">
+          <div className="mb-3 flex items-center gap-3">
+            <Avatar />
+            <div>
+              <p className="font-black text-ink">Make this your Nest</p>
+              <p className="text-xs text-ink/50">Sign up to own your Nests across devices.</p>
+            </div>
+          </div>
+          <AuthPanel />
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile?.username) {
+    return <ClaimHandle onClaim={claimUsername} onSignOut={signOut} email={profile?.userId ? undefined : undefined} />;
+  }
 
   return (
-    <div className="rounded-2xl border border-timber/15 bg-gradient-to-br from-[#f6e7c6] to-[#ecd9ad] px-4 py-3 shadow-soft">
-      <p className="text-[11px] font-black uppercase tracking-wider text-terracotta">Today</p>
-      <p className="mt-0.5 text-sm font-bold text-ink">{parts.join(" · ")}</p>
+    <div className="flex min-h-full flex-col gap-2.5 pb-2">
+      <TopControls onBack={() => history.back()} backLabel="Back" />
+
+      <IdentityBox
+        username={profile.username}
+        displayName={profile.displayName}
+        bio={profile.bio}
+        avatarUrl={profile.avatarUrl}
+        followers={followers}
+        nests={published.length}
+        views={views}
+        links={profileLinks(profile)}
+        onAvatarClick={() => setAvatarOpen(true)}
+        avatarLabel="Change your profile photo"
+        action={
+          <button
+            onClick={() => setEditing(true)}
+            aria-label="Edit profile"
+            className="inline-flex min-h-[36px] items-center gap-1 rounded-full border border-timber/20 px-3 text-xs font-bold text-ink/70 active:scale-95"
+          >
+            <Pencil className="size-3.5" /> Edit
+          </button>
+        }
+      />
+
+      {/* the same House the public sees — how visitors arrive */}
+      {house ? (
+        <HouseScene
+          house={house}
+          className="min-h-[164px] shrink-0"
+        />
+      ) : null}
+
+      {/* the creator's Nests — editable, compact, no identity repeated */}
+      <NestList drafts={drafts} published={published} />
+
+      <div className="mt-2">
+        <NestudioStudio />
+      </div>
+
+      <EditIdentitySheet
+        open={editing}
+        onClose={() => setEditing(false)}
+        displayName={profile.displayName}
+        bio={profile.bio}
+        socials={profile.socials}
+        links={profile.links}
+        onSave={(patch) => {
+          // legacy fixed socials were migrated into `links` rows — clear them so a link is
+          // stored in exactly one place (profileLinks() also de-dupes defensively).
+          updateProfile({ ...patch, socials: { website: undefined, github: undefined, twitter: undefined, youtube: undefined } });
+          setEditing(false);
+        }}
+      />
+      <AvatarModal open={avatarOpen} onClose={() => setAvatarOpen(false)} username={profile.username} avatarUrl={profile.avatarUrl} />
     </div>
   );
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <div className="mb-2 flex items-baseline justify-between">
-        <h2 className="text-lg font-black text-ink">{title}</h2>
-        {hint ? <span className="text-[11px] text-ink/45">{hint}</span> : null}
+// ── Nest list ────────────────────────────────────────────────────────────────
+// Compact rows, not oversized cards. Draft and Published are visually distinct. Creating
+// happens through the existing global Create tab — no extra Create buttons here.
+function NestList({ drafts, published }: { drafts: NestDocument[]; published: PublishedNest[] }) {
+  const items = [
+    ...drafts.map((doc) => ({ key: doc.id, doc, href: `/nest-editor?document=${doc.id}`, label: "Draft", draft: true })),
+    ...published.map((entry) => ({
+      key: entry.ref.slug,
+      doc: entry.doc,
+      href: `/nest-editor?document=${entry.doc.id}`,
+      label: VISIBILITY_LABEL[entry.ref.visibility] ?? entry.ref.visibility,
+      draft: false,
+      viewHref: publishedUrl(entry),
+    })),
+  ];
+
+  if (items.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-timber/25 bg-white/60 px-4 py-5 text-center">
+        <p className="text-sm font-black text-ink">No Nests yet</p>
+        <p className="mt-0.5 text-xs text-ink/50">Use Create to make your first one.</p>
       </div>
-      {children}
+    );
+  }
+
+  return (
+    <section aria-label="Your Nests" className="space-y-1.5">
+      <h2 className="px-0.5 text-[11px] font-bold uppercase tracking-wide text-ink/40">Your Nests</h2>
+      {items.map((it) => (
+        <div key={it.key} className="flex items-center gap-3 rounded-2xl border border-timber/15 bg-white/90 p-2 shadow-soft">
+          <Link href={it.href} className="flex min-w-0 flex-1 items-center gap-3">
+            <span className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-timber/10">
+              <NestPreview doc={it.doc} className="h-full w-full" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-black text-ink">{it.doc.title}</span>
+              <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${it.draft ? "bg-ink/8 text-ink/60" : "bg-[#4d7358] text-white"}`}>
+                {it.label}
+              </span>
+            </span>
+          </Link>
+          <span className="shrink-0 pr-1 text-[11px] font-bold text-ink/45">Edit →</span>
+        </div>
+      ))}
     </section>
   );
 }
 
-function Grid({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-2 gap-3">{children}</div>;
+// ── Owner editing — a focused sheet, never an inline form ────────────────────
+
+function EditIdentitySheet({
+  open, onClose, displayName, bio, socials, links, onSave,
+}: {
+  open: boolean; onClose: () => void;
+  displayName?: string; bio?: string; socials?: NestSocials; links?: ProfileLink[];
+  onSave: (patch: { displayName?: string; bio?: string; links?: ProfileLink[] }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [b, setB] = useState("");
+  const [rows, setRows] = useState<ProfileLink[]>([]);
+
+  // Re-seed on open. Legacy fixed socials are migrated into the unlimited-rows model so a
+  // creator's existing four links keep working and become editable/removable like any other.
+  useEffect(() => {
+    if (!open) return;
+    setName(displayName ?? "");
+    setB(bio ?? "");
+    const legacy: ProfileLink[] = [];
+    if (socials?.website) legacy.push({ label: "Website", url: socials.website });
+    if (socials?.github) legacy.push({ label: "GitHub", url: socials.github });
+    if (socials?.twitter) legacy.push({ label: "Twitter", url: socials.twitter });
+    if (socials?.youtube) legacy.push({ label: "YouTube", url: socials.youtube });
+    const custom = links ?? [];
+    setRows([...legacy, ...custom].length ? [...legacy, ...custom] : [{ label: "", url: "" }]);
+  }, [open, displayName, bio, socials, links]);
+
+  const setRow = (i: number, patch: Partial<ProfileLink>) =>
+    setRows((r) => r.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+
+  return (
+    <BottomSheet open={open} onClose={onClose} title="Edit profile">
+      <div className="space-y-3 overflow-y-auto p-4 pt-1">
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-wider text-ink/45">Display name</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Display name" style={{ fontSize: 16 }}
+            className="min-h-[44px] w-full rounded-xl border border-timber/20 bg-white px-3 outline-none focus:border-terracotta/50" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-wider text-ink/45">Bio</span>
+          <textarea value={b} onChange={(e) => setB(e.target.value)} rows={3} aria-label="Bio" placeholder="A short line about your Nest…" style={{ fontSize: 16 }}
+            className="w-full rounded-xl border border-timber/20 bg-white p-3 outline-none focus:border-terracotta/50" />
+        </label>
+
+        {/* Unlimited links — no platform is hard-coded. Label is optional; we derive one. */}
+        <div>
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-wider text-ink/45">Links</span>
+          <div className="space-y-2">
+            {rows.map((row, i) => (
+              <div key={i} className="flex items-start gap-2">
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <input value={row.label ?? ""} onChange={(e) => setRow(i, { label: e.target.value })}
+                    placeholder="Label (optional)" aria-label={`Link ${i + 1} label`} style={{ fontSize: 16 }}
+                    className="min-h-[40px] w-full rounded-xl border border-timber/20 bg-white px-3 text-sm outline-none focus:border-terracotta/50" />
+                  <input value={row.url} onChange={(e) => setRow(i, { url: e.target.value })}
+                    placeholder="https://…" aria-label={`Link ${i + 1} URL`} inputMode="url" style={{ fontSize: 16 }}
+                    className="min-h-[40px] w-full rounded-xl border border-timber/20 bg-white px-3 text-sm outline-none focus:border-terracotta/50" />
+                </div>
+                <button onClick={() => setRows((r) => r.filter((_, idx) => idx !== i))}
+                  aria-label={`Remove link ${i + 1}`}
+                  className="mt-0.5 grid size-11 shrink-0 place-items-center rounded-xl text-ink/40 hover:bg-white hover:text-rose-600">
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setRows((r) => [...r, { label: "", url: "" }])}
+            className="mt-2 inline-flex min-h-[40px] items-center gap-1 rounded-xl border border-dashed border-timber/30 px-3 text-xs font-bold text-ink/60 active:scale-95">
+            <Plus className="size-4" /> Add link
+          </button>
+        </div>
+
+        <button
+          onClick={() => onSave({
+            displayName: name.trim() || undefined,
+            bio: b.trim() || undefined,
+            links: rows.map((r) => ({ label: r.label?.trim() || undefined, url: r.url.trim() })).filter((r) => r.url),
+          })}
+          className="min-h-[48px] w-full rounded-xl bg-ink text-sm font-bold text-parchment active:scale-[0.99]"
+        >
+          Save
+        </button>
+      </div>
+    </BottomSheet>
+  );
 }
+
+// Day 3.4 — a focused, centred profile-photo modal (was a bottom sheet with a single
+// action). Shows the current avatar (or the placeholder), one primary action into the
+// EXISTING Avatar Generator at /profile/avatar, and Remove only when there's one to remove.
+function AvatarModal({ open, onClose, username, avatarUrl }: { open: boolean; onClose: () => void; username?: string; avatarUrl?: string }) {
+  const router = useRouter();
+  const [active, setActive] = useState<UserAvatar | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { if (open) void getActiveAvatar().then(setActive); }, [open]);
+
+  const remove = async () => {
+    if (!active) return;
+    setBusy(true); setError(null);
+    const res = await deleteAvatar(active.id);
+    setBusy(false);
+    if (!res.ok) { setError(res.error || "Could not remove the avatar."); return; }
+    onClose();
+    router.refresh(); // the identity box picks up the cleared avatar
+  };
+
+  const has = Boolean(active ?? avatarUrl);
+  const preview = active?.publicProfileUrl ?? avatarUrl ?? null;
+
+  return (
+    <CenteredModal open={open} onClose={onClose} title="Your avatar">
+      <div className="flex flex-col items-center gap-4">
+        <div className="grid size-28 place-items-center overflow-hidden rounded-3xl border border-timber/15 bg-parchment">
+          {preview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={preview} alt="Your avatar" className="size-full object-cover" />
+          ) : (
+            <Avatar username={username} size={72} />
+          )}
+        </div>
+
+        <div className="w-full space-y-2">
+          <Link
+            href="/profile/avatar"
+            className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta text-sm font-black text-parchment active:scale-[0.99]"
+          >
+            <Camera className="size-4" /> {has ? "Change avatar" : "Create avatar"}
+          </Link>
+          {has ? (
+            <button onClick={remove} disabled={busy} className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white text-sm font-bold text-rose-600 disabled:opacity-50">
+              <Trash2 className="size-4" /> {busy ? "Removing…" : "Remove avatar"}
+            </button>
+          ) : null}
+          {error ? <p className="text-center text-[11px] text-rose-700">{error}</p> : null}
+        </div>
+      </div>
+    </CenteredModal>
+  );
+}
+
+// Claiming the handle is a precondition for having a House at all.
+function ClaimHandle({ onClaim, onSignOut }: { onClaim: (u: string) => { ok: boolean; error?: string }; onSignOut: () => void; email?: string }) {
+  const [v, setV] = useState("");
+  const [error, setError] = useState<string>();
+  return (
+    <div className="pt-2">
+      <div className="rounded-2xl border border-timber/15 bg-white p-4 shadow-soft">
+        <p className="font-black text-ink">Claim your username</p>
+        <p className="mt-0.5 text-xs text-ink/50">Your Nest lives at /@yourname.</p>
+        <div className="mt-3 flex items-stretch gap-2">
+          <div className="flex flex-1 items-center rounded-xl border border-timber/20 bg-parchment px-3">
+            <span className="text-sm font-bold text-ink/40">@</span>
+            <input value={v} onChange={(e) => setV(e.target.value)} placeholder="username" aria-label="Username" style={{ fontSize: 16 }} className="min-h-[44px] w-full bg-transparent outline-none" />
+          </div>
+          <button onClick={() => { const r = onClaim(v); setError(r.ok ? undefined : r.error); }} disabled={!v.trim()}
+            className="min-h-[44px] rounded-xl bg-terracotta px-4 text-sm font-bold text-parchment disabled:opacity-50">Claim</button>
+        </div>
+        <p className="mt-2 text-[11px] text-ink/45">Lowercase, 3–20 characters (letters, numbers, underscore). This becomes your permanent @handle.</p>
+        {error ? <p className="mt-1 text-xs font-bold text-terracotta">{error}</p> : null}
+        <button onClick={onSignOut} className="mt-3 min-h-[36px] text-xs font-bold text-ink/45">Sign out</button>
+      </div>
+    </div>
+  );
+}
+
