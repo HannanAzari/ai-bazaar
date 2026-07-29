@@ -24,6 +24,7 @@ function NestPreviewImpl({
   rounded = "",
   safe,
   interactive = false,
+  surround = false,
 }: {
   doc: NestDocument;
   className?: string;
@@ -39,6 +40,12 @@ function NestPreviewImpl({
    * composition changes — no mode recomputes a position, a size or a paint order.
    */
   interactive?: boolean;
+  /**
+   * M24C §7 — fill the space around the fixed-aspect scene with a blurred, darkened copy
+   * of the room's own background instead of flat colour. For immersive surfaces (the full
+   * Nest, Editor Preview); off for thumbnails and cards, where there is no spare space.
+   */
+  surround?: boolean;
 }) {
   const background = resolveBackground(doc.backgroundId);
   const [loaded, setLoaded] = useState(false);
@@ -88,6 +95,30 @@ function NestPreviewImpl({
     <div className={`relative isolate overflow-hidden bg-[#e9e0c8] ${rounded} ${className}`}>
       {/* soft shimmer until the room's background paints in — no blank pop */}
       {background && !loaded ? <div className="nest-shimmer absolute inset-0" /> : null}
+
+      {/* ── M24C §7 — the immersive surround ──────────────────────────────────
+          The scene is a fixed 3:4 box, so on a taller viewport there is space above and
+          below it. Flat colour there looked accidental — like the room had been pasted
+          onto a coloured page.
+
+          Instead the room's OWN background fills the viewport behind it, enlarged and
+          blurred, with a soft dark wash. The crisp scene sits on top of a continuation of
+          itself, so there is no hard colour boundary and the framing reads as deliberate.
+          It works for dark and light rooms alike because it is sampled from the room.
+
+          `aria-hidden` + no interactive children: this is atmosphere, never a second copy
+          of the Nest. Objects are NOT duplicated here. */}
+      {background && surround ? (
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element -- local curated art */}
+          <img
+            src={background.variants.standard ?? background.imageUrl}
+            alt=""
+            className={`absolute inset-0 size-full scale-125 object-cover blur-2xl transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/25 to-black/50" />
+        </div>
+      ) : null}
       {/* Flex-centre the scene, then lock its aspect. `h-full aspect-[3/4] max-w-full`
           fits the box inside the container on BOTH axes: a tall container clamps width,
           a wide one clamps height, and the aspect never changes. */}

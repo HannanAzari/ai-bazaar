@@ -37,8 +37,14 @@ describe("there is only one renderer", () => {
   });
 
   it("Preview and the visitor pass the same interactive flag, so behaviour matches", () => {
-    expect(editor).toContain('<NestPreview doc={previewDoc} className="size-full" interactive />');
-    expect(visitor).toContain("interactive />");
+    // Asserted as properties, not as an exact literal — adding a prop to both surfaces
+    // (M24C's `surround`) is a legitimate change and should not fail this.
+    const previewTag = editor.slice(editor.indexOf("<NestPreview doc={previewDoc}"));
+    expect(previewTag.slice(0, 140)).toContain("interactive");
+    expect(previewTag.slice(0, 140)).toContain("surround");
+    const visitorTag = visitor.slice(visitor.indexOf("<NestPreview doc={doc}"));
+    expect(visitorTag.slice(0, 140)).toContain("interactive");
+    expect(visitorTag.slice(0, 140)).toContain("surround");
   });
 
   it("Preview builds its document with the SAME function publish uses", () => {

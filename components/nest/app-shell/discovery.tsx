@@ -288,7 +288,7 @@ function FeedCard({ item }: { item: DiscoveryItem }) {
     <article className="relative h-full w-full snap-start snap-always overflow-hidden bg-[#e9e0c8]">
       {/* Full-bleed composed room — the Nest is the hero, edge to edge. Tapping visits it. */}
       <Link href={item.href} className={`absolute inset-0 ${z.room}`} aria-label={`Visit ${item.title}`}>
-        <NestPreview doc={item.doc} className="size-full" />
+        <NestPreview doc={item.doc} className="size-full" surround />
       </Link>
 
       {/* Lighting — legibility only, never a panel. A whisper at the top for the badge; at

@@ -6,6 +6,7 @@ import { loadDoc, persistDoc, publish, type PublishResult } from "@/lib/nest-rep
 import { setDocOwner } from "@/lib/nest-document-store";
 import { clearDraft } from "@/lib/nest-editor-storage";
 import { editableObjectsToPlacements } from "@/lib/nest-editor-bridge";
+import type { NestSceneExtras } from "@/lib/nest-document-types";
 import { PUBLISH_VISIBILITY_OPTIONS, type NestPublishVisibility } from "@/lib/nest-production-types";
 import type { EditableNestObject } from "@/lib/nest-editor-types";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
@@ -18,10 +19,13 @@ import { z } from "@/lib/nest-layers";
 export function PublishGate({
   documentId,
   objects,
+  scene,
   onClose,
 }: {
   documentId?: string;
   objects: EditableNestObject[];
+  /** M24C — focus regions + detail scenes, so publishing never drops them. */
+  scene?: NestSceneExtras;
   onClose: () => void;
 }) {
   const { account, profile, loading, signedIn, ownerId, claimUsername } = useNestIdentity();
@@ -57,7 +61,7 @@ export function PublishGate({
       // degrades to a `?c=` link that only the recipient of that exact URL can open.
       const doc = await loadDoc(documentId);
       const title = name.trim() || doc?.title || "My Nest";
-      if (doc) await persistDoc({ ...doc, ownerId, title, placements: editableObjectsToPlacements(objects) });
+      if (doc) await persistDoc({ ...doc, ownerId, title, placements: editableObjectsToPlacements(objects), ...(scene ? { scene } : {}) });
       setDocOwner(documentId, ownerId);
       const r = await publish(documentId, visibility, ownerId);
       // The canonical published version now IS the truth — drop the local autosave so the

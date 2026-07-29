@@ -11,7 +11,8 @@ import type { NestApprovalStatus } from "@/lib/nest-types";
 import { CURRENT_NEST_DNA_VERSION, NEST_CAMERA_CONTRACT_VERSION } from "@/lib/nest-types";
 import type { LivingNestAsset, LivingNestSlotType } from "@/lib/nest-visual-types";
 import type { EditableNestDocument, EditableNestObject, EditorPlane } from "@/lib/nest-editor-types";
-import type { NestDocument, NestPlacement, NestPlacementInteraction } from "@/lib/nest-document-types";
+import type { NestDocument, NestPlacement, NestPlacementInteraction, NestSceneExtras } from "@/lib/nest-document-types";
+import { NEST_SCENE_VERSION } from "@/lib/nest-document-types";
 import type { ProductionAsset, ProductionHotspot } from "@/lib/nest-production-types";
 import type { NestEditableSurface } from "@/lib/nest-types";
 import { getAssets, getBackgrounds, getTemplates, resolveAsset, resolveBackground } from "@/lib/nest-production-library";
@@ -277,8 +278,34 @@ export function nestDocumentToEditable(doc: NestDocument): EditableNestDocument 
   return {
     ...base,
     id: doc.id,
+    name: doc.title || base.name,
+    // ── M24C §4 — THE BACKGROUND BUG ──────────────────────────────────────────
+    //
+    // This set `backgroundImageUrl` but NOT `backgroundId`, so a reopened editor kept
+    // the golden-living fixture's id from `base`. Preview builds its document from
+    // `doc.backgroundId`, `resolveBackground()` then found nothing, and the room rendered
+    // as a plain beige field. Worse: saving or publishing from a reopened editor wrote
+    // that wrong id back, so the background could be lost permanently.
+    backgroundId: doc.backgroundId || base.backgroundId,
     backgroundImageUrl: bg?.variants?.standard ?? bg?.imageUrl ?? base.backgroundImageUrl,
     objects: doc.placements.map(placementToObject),
+    // ── M24C §1 — focus regions and their child scenes come BACK ──────────────
+    ...(doc.scene?.focusAreas ? { focusAreas: doc.scene.focusAreas } : {}),
+    ...(doc.scene?.detailScenes ? { detailScenes: doc.scene.detailScenes } : {}),
+  };
+}
+
+/**
+ * M24C §1 — capture the scene state that is not a root placement.
+ *
+ * Pair this with `editableObjectsToPlacements()` on every save/publish: together they are
+ * the complete canonical document. Using only the placements is what lost the plant.
+ */
+export function editableSceneExtras(doc: EditableNestDocument): NestSceneExtras {
+  return {
+    version: NEST_SCENE_VERSION,
+    ...(doc.focusAreas?.length ? { focusAreas: doc.focusAreas } : {}),
+    ...(doc.detailScenes?.length ? { detailScenes: doc.detailScenes } : {}),
   };
 }
 

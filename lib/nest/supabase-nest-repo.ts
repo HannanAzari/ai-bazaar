@@ -22,6 +22,7 @@ import type {
   NestDocument,
   NestPlacement,
   NestPlacementInteraction,
+  NestSceneExtras,
   NestVisibility,
 } from "@/lib/nest-document-types";
 import type { NestOverlay } from "@/lib/nest-editor-types";
@@ -77,6 +78,8 @@ type NestRow = {
   source_template_id: string | null;
   created_at: string;
   updated_at: string;
+  /** M24C — focus regions + detail scenes. Null on pre-M24C rows. */
+  scene_extras: NestSceneExtras | null;
 };
 
 type ObjectRow = {
@@ -97,7 +100,39 @@ type ObjectRow = {
   link_url: string | null;
 };
 
-const NEST_COLS = "id, slug, owner_id, title, background_id, visibility, source_template_id, created_at, updated_at";
+const NEST_COLS_BASE = "id, slug, owner_id, title, background_id, visibility, source_template_id, created_at, updated_at";
+
+// ── M24C — schema tolerance ──────────────────────────────────────────────────
+//
+// `scene_extras` only exists once the founder has applied m24b_provision.sql. Selecting it
+// unconditionally took the WHOLE app down against the live database ("column
+// nests.scene_extras does not exist" on every feed read) — a self-inflicted outage of
+// exactly the kind M23B.2 fixed for `profiles.house_style`.
+//
+// A column that is not there yet must degrade a FEATURE, never break the product. We
+// probe once, remember the answer, and fall back to the base column set.
+let sceneExtrasAvailable: boolean | null = null;
+
+const NEST_COLS = () =>
+  sceneExtrasAvailable === false ? NEST_COLS_BASE : `${NEST_COLS_BASE}, scene_extras`;
+
+/** True when the error is Postgres telling us the column isn't there. */
+function isMissingSceneColumn(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: string }).code;
+  const message = String((error as { message?: unknown }).message ?? "");
+  return code === "42703" || /scene_extras|draft_doc/.test(message);
+}
+
+function noteSceneColumnMissing(error: unknown): void {
+  if (sceneExtrasAvailable === false) return;
+  sceneExtrasAvailable = false;
+  console.warn(
+    "[nest-repo] `nests.scene_extras` is missing, so focus regions and detail scenes " +
+      "cannot be saved or restored. Everything else works. Fix: apply " +
+      `supabase/provision/m24b_provision.sql. Underlying error: ${String((error as { message?: unknown })?.message ?? error)}`,
+  );
+}
 const NEST_COLS_WITH_DRAFT = `${NEST_COLS}, draft_doc, draft_updated_at`;
 const OBJECT_COLS = "id, nest_id, asset_id, x, y, scale, rotation, z_index, w, h, flip_x, overlay, interaction, label, link_url";
 
@@ -153,6 +188,7 @@ function toDoc(nest: NestRow, objects: ObjectRow[]): NestDocument {
     ...(nest.source_template_id ? { sourceTemplateId: nest.source_template_id } : {}),
     createdAt: nest.created_at,
     updatedAt: nest.updated_at,
+    ...(nest.scene_extras ? { scene: nest.scene_extras } : {}),
     placements: [...objects].sort((a, b) => a.z_index - b.z_index).map(rowToPlacement),
   };
 }
@@ -204,7 +240,7 @@ export async function createNest(input: {
       visibility: "draft",
       source_template_id: input.sourceTemplateId ?? null,
     })
-    .select(NEST_COLS)
+    .select(NEST_COLS_BASE)
     .single();
   if (error || !data) fail("Creating a Nest", error);
   await replaceObjects((data as NestRow).id, input.placements);
@@ -215,7 +251,11 @@ export async function createNest(input: {
 
 export async function getNest(id: string): Promise<NestDocument | undefined> {
   const client = sb();
-  const { data: nest, error } = await client.from("nests").select(NEST_COLS).eq("id", id).maybeSingle();
+  let { data: nest, error } = await client.from("nests").select(NEST_COLS()).eq("id", id).maybeSingle();
+  if (error && isMissingSceneColumn(error)) {
+    noteSceneColumnMissing(error);
+    ({ data: nest, error } = await client.from("nests").select(NEST_COLS_BASE).eq("id", id).maybeSingle());
+  }
   if (error) fail("Loading a Nest", error);
   if (!nest) return undefined;
   const { data: objects, error: objErr } = await client
@@ -223,7 +263,7 @@ export async function getNest(id: string): Promise<NestDocument | undefined> {
     .select(OBJECT_COLS)
     .eq("nest_id", id);
   if (objErr) fail("Loading the Nest composition", objErr);
-  return toDoc(nest as NestRow, (objects ?? []) as ObjectRow[]);
+  return toDoc(nest as unknown as NestRow, (objects ?? []) as ObjectRow[]);
 }
 
 /**
@@ -237,11 +277,30 @@ export async function saveNest(doc: NestDocument): Promise<NestDocument> {
     .update({
       title: doc.title,
       background_id: doc.backgroundId,
+      // M24C — focus regions + detail scenes travel with every save, when the column
+      // exists. Without it the rest of the save still succeeds (see noteSceneColumnMissing).
+      ...(sceneExtrasAvailable === false ? {} : { scene_extras: doc.scene ?? null }),
       ...(doc.sourceTemplateId ? { source_template_id: doc.sourceTemplateId } : {}),
       updated_at: now(),
     })
     .eq("id", doc.id);
-  if (error) fail("Saving your Nest", error);
+  if (error) {
+    if (isMissingSceneColumn(error)) {
+      noteSceneColumnMissing(error);
+      const retry = await client
+        .from("nests")
+        .update({
+          title: doc.title,
+          background_id: doc.backgroundId,
+          ...(doc.sourceTemplateId ? { source_template_id: doc.sourceTemplateId } : {}),
+          updated_at: now(),
+        })
+        .eq("id", doc.id);
+      if (retry.error) fail("Saving your Nest", retry.error);
+    } else {
+      fail("Saving your Nest", error);
+    }
+  }
   await replaceObjects(doc.id, doc.placements);
   const fresh = await getNest(doc.id);
   if (!fresh) throw new NestRepoError("Saved, but the Nest could not be read back.");
@@ -276,15 +335,19 @@ export async function publishNest(
 /** Resolve a published Nest by slug. RLS returns it only if world-readable or owned. */
 export async function resolveNestBySlug(slug: string): Promise<NestDocument | undefined> {
   const client = sb();
-  const { data: nest, error } = await client.from("nests").select(NEST_COLS).eq("slug", slug).maybeSingle();
+  let { data: nest, error } = await client.from("nests").select(NEST_COLS()).eq("slug", slug).maybeSingle();
+  if (error && isMissingSceneColumn(error)) {
+    noteSceneColumnMissing(error);
+    ({ data: nest, error } = await client.from("nests").select(NEST_COLS_BASE).eq("slug", slug).maybeSingle());
+  }
   if (error) fail("Opening this Nest", error);
   if (!nest) return undefined;
   const { data: objects, error: objErr } = await client
     .from("nest_objects")
     .select(OBJECT_COLS)
-    .eq("nest_id", (nest as NestRow).id);
+    .eq("nest_id", (nest as unknown as NestRow).id);
   if (objErr) fail("Opening this Nest", objErr);
-  return toDoc(nest as NestRow, (objects ?? []) as ObjectRow[]);
+  return toDoc(nest as unknown as NestRow, (objects ?? []) as ObjectRow[]);
 }
 
 export async function deleteNest(id: string): Promise<void> {
@@ -307,6 +370,8 @@ export type DraftDoc = {
   title: string;
   backgroundId: string;
   placements: NestPlacement[];
+  /** M24C — a draft that dropped focus/surface state would lose the creator's work. */
+  scene?: NestSceneExtras;
 };
 
 /** Save work-in-progress WITHOUT touching what visitors currently see. */
@@ -315,7 +380,15 @@ export async function saveNestDraft(nestId: string, draft: DraftDoc): Promise<vo
     .from("nests")
     .update({ draft_doc: draft, draft_updated_at: now() })
     .eq("id", nestId);
-  if (error) fail("Saving your draft", error);
+  if (error) {
+    if (isMissingSceneColumn(error)) {
+      noteSceneColumnMissing(error);
+      throw new NestRepoError(
+        "Draft saving isn't available on this deployment yet — the database is still being set up.",
+      );
+    }
+    fail("Saving your draft", error);
+  }
 }
 
 /** The pending draft for a Nest, or null when there is no unpublished work. */
@@ -325,7 +398,11 @@ export async function getNestDraft(nestId: string): Promise<DraftDoc | null> {
     .select("draft_doc")
     .eq("id", nestId)
     .maybeSingle();
-  if (error) fail("Loading your draft", error);
+  if (error) {
+    // The draft column is part of the same unapplied migration; degrade, don't break.
+    if (isMissingSceneColumn(error)) { noteSceneColumnMissing(error); return null; }
+    fail("Loading your draft", error);
+  }
   return ((data as { draft_doc: DraftDoc | null } | null)?.draft_doc) ?? null;
 }
 
@@ -352,7 +429,12 @@ export async function publishNestDraft(
     const client = sb();
     const { error } = await client
       .from("nests")
-      .update({ title: draft.title, background_id: draft.backgroundId, updated_at: now() })
+      .update({
+        title: draft.title,
+        background_id: draft.backgroundId,
+        ...(sceneExtrasAvailable === false ? {} : { scene_extras: draft.scene ?? null }),
+        updated_at: now(),
+      })
       .eq("id", nestId);
     if (error) fail("Publishing your draft", error);
     await replaceObjects(nestId, draft.placements);
@@ -369,7 +451,7 @@ export async function nestIdsWithDrafts(ownerId: string): Promise<Set<string>> {
     .select("id")
     .eq("owner_id", ownerId)
     .not("draft_doc", "is", null);
-  if (error) { console.warn("[nest-repo] draft lookup failed:", error); return new Set(); }
+  if (error) { console.warn("[nest-repo] draft lookup unavailable:", error); return new Set(); }
   return new Set(((data ?? []) as { id: string }[]).map((r) => r.id));
 }
 
@@ -401,40 +483,53 @@ async function attachObjects(nests: NestRow[]): Promise<NestListing[]> {
 }
 
 /** Every world-readable Nest, newest first. The real feed behind Home + Explore. */
+async function selectNests(
+  build: (cols: string) => PromiseLike<{ data: unknown; error: unknown }>,
+  op: string,
+): Promise<NestRow[]> {
+  let { data, error } = await build(NEST_COLS());
+  if (error && isMissingSceneColumn(error)) {
+    noteSceneColumnMissing(error);
+    ({ data, error } = await build(NEST_COLS_BASE));
+  }
+  if (error) fail(op, error);
+  return (data ?? []) as NestRow[];
+}
+
 export async function listPublicNests(limit = 60): Promise<NestListing[]> {
-  const { data, error } = await sb()
-    .from("nests")
-    .select(NEST_COLS)
-    .in("visibility", ["public", "unlisted"])
-    .not("slug", "is", null)
-    .order("updated_at", { ascending: false })
-    .limit(limit);
-  if (error) fail("Loading the Nest feed", error);
-  return attachObjects((data ?? []) as NestRow[]);
+  const rows = await selectNests(
+    (cols) =>
+      sb().from("nests").select(cols)
+        .in("visibility", ["public", "unlisted"])
+        .not("slug", "is", null)
+        .order("updated_at", { ascending: false })
+        .limit(limit),
+    "Loading the Nest feed",
+  );
+  return attachObjects(rows);
 }
 
 /** A creator's published Nests — what a visitor sees on their Profile and in their House. */
 export async function listPublishedNestsByOwner(ownerId: string): Promise<NestListing[]> {
-  const { data, error } = await sb()
-    .from("nests")
-    .select(NEST_COLS)
-    .eq("owner_id", ownerId)
-    .in("visibility", ["public", "unlisted"])
-    .not("slug", "is", null)
-    .order("updated_at", { ascending: false });
-  if (error) fail("Loading this creator's Nests", error);
-  return attachObjects((data ?? []) as NestRow[]);
+  const rows = await selectNests(
+    (cols) =>
+      sb().from("nests").select(cols)
+        .eq("owner_id", ownerId)
+        .in("visibility", ["public", "unlisted"])
+        .not("slug", "is", null)
+        .order("updated_at", { ascending: false }),
+    "Loading this creator's Nests",
+  );
+  return attachObjects(rows);
 }
 
 /** Everything the signed-in creator owns, drafts included. Owner-only by RLS. */
 export async function listMyNests(): Promise<NestListing[]> {
   const uid = await currentUserId();
   if (!uid) return [];
-  const { data, error } = await sb()
-    .from("nests")
-    .select(NEST_COLS)
-    .eq("owner_id", uid)
-    .order("updated_at", { ascending: false });
-  if (error) fail("Loading your Nests", error);
-  return attachObjects((data ?? []) as NestRow[]);
+  const rows = await selectNests(
+    (cols) => sb().from("nests").select(cols).eq("owner_id", uid).order("updated_at", { ascending: false }),
+    "Loading your Nests",
+  );
+  return attachObjects(rows);
 }

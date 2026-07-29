@@ -58,6 +58,26 @@ export type NestPlacement = {
   interaction?: NestPlacementInteraction;
 };
 
+/**
+ * M24C §1 — the creator-authored scene state that is NOT a root placement.
+ *
+ * `EditableNestDocument` has carried `focusAreas` and `detailScenes` for a long time, but
+ * nothing ever serialised them: `editableObjectsToPlacements()` walks `doc.objects`, which
+ * is the MAIN scene only. So a plant placed inside a Focus region lived in React state and
+ * was destroyed the moment the editor unmounted — the exact regression the founder hit.
+ *
+ * These travel with the document now, through save, draft, publish and visitor load.
+ */
+export type NestSceneExtras = {
+  /** Bumped when the shape changes, so a migration can be written rather than guessed. */
+  version: number;
+  focusAreas?: import("@/lib/nest-focus-types").NestFocusArea[];
+  detailScenes?: import("@/lib/nest-focus-types").NestDetailScene[];
+};
+
+/** The current scene-document version. */
+export const NEST_SCENE_VERSION = 1;
+
 export type NestDocument = {
   id: string;
   ownerId?: string;
@@ -69,6 +89,8 @@ export type NestDocument = {
   updatedAt: string;
   /** Set when the doc was seeded from a template (templates are just docs). */
   sourceTemplateId?: string;
+  /** M24C — focus regions and their child scenes. Absent on pre-M24C documents. */
+  scene?: NestSceneExtras;
 };
 
 /** Visibilities whose published URL is self-contained (shareable cross-browser). */

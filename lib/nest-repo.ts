@@ -153,6 +153,7 @@ export async function saveWork(
     title: doc.title,
     backgroundId: doc.backgroundId,
     placements: doc.placements,
+    scene: doc.scene, // M24C — focus/detail scenes must survive a draft too
   });
   return { target: "draft" };
 }

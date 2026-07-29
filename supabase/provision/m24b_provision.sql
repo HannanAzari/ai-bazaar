@@ -59,6 +59,18 @@ end $$;
 alter table public.nests add column if not exists draft_doc jsonb;
 alter table public.nests add column if not exists draft_updated_at timestamptz;
 
+-- ── M24C — focus regions and their child scenes ──────────────────────────────
+--
+-- `nest_objects` holds the MAIN scene's placements. Focus regions, and the objects a
+-- creator places INSIDE them, are not root placements — they lived only in the editor's
+-- React state and were destroyed when it unmounted. (A plant placed inside a Focus region
+-- vanished on save; that is the regression fixture.)
+--
+-- One jsonb column rather than more tables: this is a nested authoring structure the
+-- editor owns wholesale, it is always read and written together with the Nest, and
+-- widening it must not need another migration.
+alter table public.nests add column if not exists scene_extras jsonb;
+
 create index if not exists nests_with_draft_idx on public.nests (owner_id)
   where draft_doc is not null;
 

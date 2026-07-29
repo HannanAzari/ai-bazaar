@@ -31,7 +31,7 @@ import {
   GOLDEN_LIVING_NEST_INTERACTIONS_BY_ID,
   GOLDEN_LIVING_NEST_TEMPLATE,
 } from "@/lib/fixtures/golden-living-nest";
-import { editableObjectsToPlacements, productionEditorCatalog, productionStarterDocument } from "@/lib/nest-editor-bridge";
+import { editableObjectsToPlacements, editableSceneExtras, productionEditorCatalog, productionStarterDocument } from "@/lib/nest-editor-bridge";
 import { hydrateLibrary, onProductionChanged } from "@/lib/nest-production-library";
 import { useRouter } from "next/navigation";
 import { useAiLivingAssets } from "@/lib/nest-editor-ai-bridge";
@@ -388,10 +388,11 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
       title: doc.name,
       visibility: "draft",
       placements: editableObjectsToPlacements(doc.objects),
+      scene: editableSceneExtras(doc),
       createdAt: "",
       updatedAt: "",
     }),
-    [documentId, doc.id, doc.backgroundId, doc.name, doc.objects],
+    [documentId, doc.id, doc.backgroundId, doc.name, doc.objects, doc.focusAreas, doc.detailScenes],
   );
 
   const flash = (text: string) => {
@@ -554,7 +555,15 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
       // stays exactly as it was until the creator presses Publish.
       const isPublished = current.visibility !== "draft";
       const { target } = await saveWork(
-        { ...current, title: doc.name || current.title, placements: editableObjectsToPlacements(doc.objects) },
+        {
+          ...current,
+          title: doc.name || current.title,
+          backgroundId: doc.backgroundId || current.backgroundId,
+          placements: editableObjectsToPlacements(doc.objects),
+          // M24C — focus regions + their child objects. Saving only the placements is
+          // what destroyed a plant placed inside a Focus region.
+          scene: editableSceneExtras(doc),
+        },
         isPublished,
       );
       clearDraft(documentId); // the canonical version is now the only version
@@ -636,7 +645,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
             Exactly what visitors see
           </p>
           <div className="w-full max-w-[420px] overflow-hidden rounded-2xl border border-ink/10 shadow-lift" style={{ aspectRatio: "3 / 4" }}>
-            <NestPreview doc={previewDoc} className="size-full" interactive />
+            <NestPreview doc={previewDoc} className="size-full" interactive surround />
           </div>
         </div>
       ) : (
@@ -953,7 +962,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
 
       {toast ? <div className="pointer-events-none absolute bottom-20 left-1/2 z-[70] -translate-x-1/2 rounded-full bg-ink/90 px-4 py-2 text-xs font-bold text-parchment shadow-lg">{toast}</div> : null}
 
-      {showPublish ? <PublishGate documentId={documentId} objects={doc.objects} onClose={() => setShowPublish(false)} /> : null}
+      {showPublish ? <PublishGate documentId={documentId} objects={doc.objects} scene={editableSceneExtras(doc)} onClose={() => setShowPublish(false)} /> : null}
 
       <CreateAssetSheet
         open={createOpen}
