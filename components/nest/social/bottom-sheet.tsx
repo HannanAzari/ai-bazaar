@@ -52,6 +52,18 @@ export function BottomSheet({ open, onClose, title, children }: { open: boolean;
     return () => { document.body.style.overflow = previous; };
   }, [open]);
 
+  // NOTE on the animation below: it deliberately has NO `fill-mode`.
+  //
+  // It used to be `both`, which holds the FROM keyframe (`opacity: 0`,
+  // `translateY(100%)`) whenever the animation is not actively advancing — a throttled
+  // background tab, a low-power device, or an automated browser. The sheet then sits
+  // entirely below the fold, fully interactive but invisible and untappable. Caught while
+  // probing the overlay stack: the panel measured `top = viewportH` with the animation
+  // stuck at `currentTime: 0`.
+  //
+  // Without a fill-mode the resting state is the natural one, so a sheet that fails to
+  // animate is simply a sheet that appears instantly — the safe direction.
+
   // ── §4 — iOS keyboard ──────────────────────────────────────────────────────
   //
   // On iOS Safari the software keyboard does NOT resize the layout viewport, so a sheet
@@ -84,7 +96,7 @@ export function BottomSheet({ open, onClose, title, children }: { open: boolean;
 
   return createPortal(
     <div className={`sheet-fade fixed inset-0 ${z.drawer} flex items-end justify-center bg-black/40 sm:items-center`} onClick={onClose}>
-      <style>{`@keyframes sheet-up { from { transform: translateY(100%) } to { transform: translateY(0) } } .sheet-up { animation: sheet-up .38s cubic-bezier(.32,.72,0,1) both } @keyframes sheet-fade { from { opacity: 0 } to { opacity: 1 } } .sheet-fade { animation: sheet-fade .3s ease-out both } @media (prefers-reduced-motion: reduce) { .sheet-up, .sheet-fade { animation: none } }`}</style>
+      <style>{`@keyframes sheet-up { from { transform: translateY(100%) } to { transform: translateY(0) } } .sheet-up { animation: sheet-up .38s cubic-bezier(.32,.72,0,1) } @keyframes sheet-fade { from { opacity: 0 } to { opacity: 1 } } .sheet-fade { animation: sheet-fade .3s ease-out } @media (prefers-reduced-motion: reduce) { .sheet-up, .sheet-fade { animation: none } }`}</style>
       <div
         ref={panel}
         tabIndex={-1}

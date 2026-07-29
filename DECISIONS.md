@@ -130,3 +130,25 @@ a unique index on `(target, viewer_key, view_day)` so recording is an atomic
 `public.notifications`, which has been receiving follow/like/comment rows since M23B. The
 badge refetches on tab focus rather than via Realtime, because Realtime is not configured
 for this project and the sprint forbids building on a maybe. **Status: in force (M24).**
+
+**D-24 · ONE SceneRenderer.** Preview, the feed, Profile cards and visitors all
+instantiate `NestPreview` with the same canonical document, built by the same function
+publish uses. Modes may vary only `interactive`. *Why:* three renderers existed and Preview
+showed a scene no visitor could get. **Status: in force (M24B), `test/nest-scene-renderer.test.ts`.**
+
+**D-25 · The scene is a fixed-aspect box everywhere.** Objects and background share one
+coordinate space; the stage letterboxes inside its container. *Why:* the renderer stretched
+to the container's aspect and cropped the background, so the two drifted apart by a
+different amount on every screen. **Status: in force (M24B).**
+
+**D-26 · Drafts never touch the live Nest.** Saving a published Nest writes
+`nests.draft_doc`; visitors read `nest_objects`, so a draft cannot leak. Publish promotes it
+and clears the draft only after the live version is written. **Status: in force (M24B).**
+
+**D-27 · No profile or house views.** A Nest has Views/Likes/Comments; a creator's totals
+are the SUM over their published Nests (rooms.xyz model). `profile_views` was removed before
+shipping. **Status: in force (M24B), supersedes part of D-22.**
+
+**D-28 · Overlay animations carry no fill-mode.** `fill: both` holds the from-state
+(`opacity: 0`) whenever an animation is throttled, making a sheet invisible and untappable.
+**Status: in force (M24B).**

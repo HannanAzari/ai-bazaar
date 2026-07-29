@@ -2,7 +2,7 @@
 
 > **START HERE.** This is the entry point for a new session. It is grounded in the repository
 > as of the commit below, not in prior chat context.
-> Read this, then **`M24_SPRINT_REPORT.md`** (current state, the deployment blocker, and the
+> Read this, then **`M24B_SPRINT_REPORT.md`** (current state, the deployment blocker, and the
 > one manual SQL action). `M23B_SPRINT_REPORT.md` is the prior sprint's record.
 > Everything else is reference.
 
@@ -150,7 +150,8 @@ and must not be swept into commits. Always stage explicitly.
 | Document | Purpose |
 |---|---|
 | **`CTO_HANDOFF.md`** | this file — orientation |
-| **`M24_SPRINT_REPORT.md`** | current sprint: what shipped, the deployment blocker, the manual SQL |
+| **`M24B_SPRINT_REPORT.md`** | CURRENT: parity, drafts, delete, views, the deployment blocker |
+| **`M24_SPRINT_REPORT.md`** | prior sprint record |
 | **`M23B_SPRINT_REPORT.md`** | what M23B changed + its manual SQL action (applied) |
 | **`NEXT_SPRINT.md`** | the shared-persistence sprint (implemented by M23B; its test scenario is still the acceptance script) |
 | **`ROADMAP.md`** | done / unverified / blocked / deferred / future |

@@ -31,6 +31,13 @@ export type CreatorNest = {
   viewHref?: string;
   /** M24B §4 — published, but with unpublished edits waiting. */
   hasPendingDraft?: boolean;
+  /**
+   * M24B §1 — saved before explicit w/h existed, so its geometry is still DERIVED rather
+   * than replayed. It renders exactly as it always has; it simply will not be
+   * pixel-identical to the editor until the creator saves it once. We never backfill:
+   * inferring the original boxes would be guessing at what they intended.
+   */
+  isLegacyLayout?: boolean;
 };
 
 export type CreatorNestsState = {
@@ -44,9 +51,15 @@ export type CreatorNestsState = {
   remove: (nestId: string) => Promise<void>;
 };
 
+/** A placement with no explicit box predates M24's geometry contract. */
+function hasLegacyLayout(l: NestListing): boolean {
+  return l.doc.placements.some((p) => p.w == null || p.h == null);
+}
+
 function toCreatorNest(l: NestListing): CreatorNest {
   const isDraft = l.doc.visibility === "draft" || !l.slug;
   return {
+    isLegacyLayout: hasLegacyLayout(l),
     key: l.slug ?? l.doc.id,
     doc: l.doc,
     slug: l.slug,

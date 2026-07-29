@@ -269,6 +269,12 @@ function NestList({
                     Draft changes
                   </span>
                 ) : null}
+                {/* §1 — creator-only. Never shown to visitors: this list is the owner's. */}
+                {n.isLegacyLayout ? (
+                  <span className="inline-block rounded-full bg-ink/8 px-2 py-0.5 text-[10px] font-bold text-ink/55">
+                    Re-save to update layout
+                  </span>
+                ) : null}
               </span>
             </span>
           </Link>
