@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { Bell, Compass, Home, Plus, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
-import { onNotificationsChanged, unreadCount } from "@/lib/nest-notifications-store";
+import { useUnreadNotifications } from "@/components/nest/social/use-notifications";
 
 // The permanent mobile app shell nav (M15.1). Five cozy tabs, **icons only** —
 // Home (discovery) · Explore (search) · Create · Notifications · Profile (dashboard).
@@ -30,15 +30,10 @@ function isActive(pathname: string, href: string): boolean {
 
 export function BottomNav() {
   const pathname = usePathname() ?? "";
-  const { ownerId } = useNestIdentity();
-  const [unread, setUnread] = useState(0);
-
-  useEffect(() => {
-    if (!ownerId) { setUnread(0); return; }
-    const refresh = () => setUnread(unreadCount(ownerId));
-    refresh();
-    return onNotificationsChanged(refresh);
-  }, [ownerId]);
+  // M24 §3 — the badge reads the SHARED unread count, which is backed by the real
+  // notifications table and refetches when the tab regains focus. It used to read
+  // localStorage, so a follow or like from another account never lit it up.
+  const unread = useUnreadNotifications();
 
   return (
     <nav

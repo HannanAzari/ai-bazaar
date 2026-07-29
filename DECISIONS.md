@@ -84,3 +84,49 @@ reopen the canonical document wins unless the autosave is strictly newer, and th
 announced to the creator. *Why:* the editor used to prefer the autosave unconditionally, so a
 creator's Profile could show an older room indefinitely and it looked like a render bug.
 **Status: in force (M23B), `lib/nest-draft-reconcile.ts`.**
+
+**D-18 · The published Nest REPLAYS the creator's approved box; it never rebuilds it.**
+A placement stores `w`/`h` with `x`/`y` as the box top-left, and `placementBox()` returns it
+verbatim. Editor Preview renders the canonical document through the visitor's own renderer,
+built with the same function publish uses. *Why:* geometry used to be re-derived from
+`scale` plus the asset catalogue's aspect ratio, so height changed, and because the top is
+computed from the height the object also MOVED. **Status: in force (M24), asserted by
+`test/nest-editor-publish-parity.test.ts`.**
+**Known limitation:** rows written before M24 have NULL `w`/`h` and keep the legacy
+derivation. They are correct-as-published but will not match their editor state until the
+creator re-saves. We do not backfill — inferring the original boxes would be guessing at
+creator intent.
+
+**D-19 · The Supabase library is MERGED over the bundled fixture, never a replacement.**
+Supabase rows win on id collision; the fixture fills the gaps. *Why:* `fetchLibrary()` used
+to replace the fixture whenever the query succeeded. Applying the M23B SQL made it succeed
+with the one row `nest_assets` contains, so the catalogue collapsed to a single laptop and
+every published Nest lost its objects. **Status: in force (M24).**
+
+**D-20 · One house per style, everywhere.** `houseStyleSeed(styleKey)` seeds the building,
+so a chosen style renders identically in onboarding, both Profiles, the House arrival and
+the Village. Creators who have not chosen one still vary per-creator, so the Village is not
+a row of clones. *Why:* the two surfaces used different seeds and `houseFeatures()` decodes
+the whole building from the seed — same colours, different architecture.
+**Status: in force (M24), asserted by `test/nest-house-parity.test.ts`.**
+
+**D-21 · Overlays render in the ROOT stacking context.** Sheets and modals portal to
+`document.body`. *Why:* a `z-index` only means something inside its own stacking context;
+the owner menu lives inside an `absolute z-40` header, so the sheet's `z-60` was scoped to
+that header and the engagement rail painted over it. **Status: in force (M24).**
+
+**D-22 · A view is a person who stayed, counted once a day.** Recorded after ~2.5s of
+VISIBLE dwell, never for the owner, never from a thumbnail or Preview, and deduplicated by
+a unique index on `(target, viewer_key, view_day)` so recording is an atomic
+`insert … on conflict do nothing`.
+*Beta simplifications, deliberately chosen and recorded rather than hidden:*
+ • the bucket is a UTC **day**, not a rolling 24 hours — a viewer either side of midnight
+   UTC counts twice;
+ • an anonymous viewer is a random key in their own browser, so clearing site data or
+   rotating it allows inflation. It is a vanity metric, not billing.
+**Status: in force (M24), pending `supabase/provision/m24_views_provision.sql`.**
+
+**D-23 · One notifications backend — the existing table.** The read side now uses
+`public.notifications`, which has been receiving follow/like/comment rows since M23B. The
+badge refetches on tab focus rather than via Realtime, because Realtime is not configured
+for this project and the sprint forbids building on a maybe. **Status: in force (M24).**

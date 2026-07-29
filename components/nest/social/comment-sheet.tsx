@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Send, Trash2 } from "lucide-react";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { BottomSheet } from "@/components/nest/social/bottom-sheet";
@@ -51,6 +51,16 @@ export function CommentSheet({
   const [loading, setLoading] = useState(false);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const composer = useRef<HTMLInputElement>(null);
+
+  // §4 — focus the composer when a signed-in viewer opens the sheet, so commenting is one
+  // tap rather than two. Guests are NOT auto-focused: raising the keyboard just to show
+  // them an auth gate is hostile.
+  useEffect(() => {
+    if (!open || !ownerId) return;
+    const t = setTimeout(() => composer.current?.focus(), 250); // after the slide-up
+    return () => clearTimeout(t);
+  }, [open, ownerId]);
 
   const load = useCallback(async () => {
     if (!isSupabase()) {
@@ -148,8 +158,10 @@ export function CommentSheet({
           <p role="alert" className="px-4 pb-1 text-[11px] font-bold text-terracotta">{error}</p>
         ) : null}
 
-        <div className="flex items-center gap-2 border-t border-timber/15 px-3 py-2.5">
+        {/* Pinned composer: `shrink-0` keeps it on screen however long the list gets. */}
+        <div className="flex shrink-0 items-center gap-2 border-t border-timber/15 px-3 py-2.5">
           <input
+            ref={composer}
             value={body}
             onChange={(e) => setBody(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") void submit(); }}

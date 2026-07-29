@@ -16,6 +16,9 @@ import { DoorTransition } from "@/components/nest/village/enter-transition";
 import { deriveHouse } from "@/lib/nest-house";
 import { onSocialChanged, viewsForOwner } from "@/lib/nest-social";
 import { useCreatorSocial } from "@/components/nest/social/use-creator-social";
+import { useRecordProfileView } from "@/components/nest/social/use-record-view";
+import { profileViewCount } from "@/lib/nest/supabase-views-repo";
+import { nestBackend as backendForViews } from "@/lib/nest-repo";
 import { profileLinks } from "@/lib/profile-links";
 
 import { IdentityBox } from "@/components/nest/profile/identity-box";
@@ -64,12 +67,26 @@ export function ProfileClient({ handle }: { handle: string }) {
   // page (or anywhere else) moves it here immediately, with no reload.
   const { followerCount: followers } = useCreatorSocial(profile?.userId);
 
+  // M24 §2 — the real, shared Profile/House view count.
+  const [viewNonce, setViewNonce] = useState(0);
+  useRecordProfileView(profile?.userId, {
+    ready: !!profile,
+    isOwner: !!profile && ownerId === profile.userId,
+    viewerId: ownerId,
+    onCounted: () => setViewNonce((n) => n + 1),
+  });
+
   useEffect(() => {
     if (!profile) return;
-    const refresh = () => setViews(viewsForOwner(profile.userId));
-    refresh();
-    return onSocialChanged(refresh);
-  }, [profile]);
+    if (backendForViews() !== "supabase") {
+      const refresh = () => setViews(viewsForOwner(profile.userId));
+      refresh();
+      return onSocialChanged(refresh);
+    }
+    let alive = true;
+    void profileViewCount(profile.userId).then((n) => { if (alive) setViews(n); });
+    return () => { alive = false; };
+  }, [profile, viewNonce]);
 
   const live = useMemo<(NestProfile & { houseStyle?: string }) | null>(() => {
     if (!profile) return null;

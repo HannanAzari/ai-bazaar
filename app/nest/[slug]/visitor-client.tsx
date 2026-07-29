@@ -13,7 +13,7 @@ import { listPublishedNestsByOwner } from "@/lib/nest/supabase-nest-repo";
 import { getProfile, type CreatorProfile } from "@/lib/nest/supabase-profile-repo";
 import { resolvePublishedBySlug } from "@/lib/nest-document-store";
 import { getNestProfile, type ProfileLink } from "@/lib/nest-profile-store";
-import { recordView } from "@/lib/nest-social";
+import { useRecordNestView } from "@/components/nest/social/use-record-view";
 import { formatCount } from "@/lib/nest-engagement";
 import { profileLinks } from "@/lib/profile-links";
 import { CreatorAvatar, ShareButton } from "@/components/nest/app-shell/discovery";
@@ -113,7 +113,7 @@ type SiblingNest = { slug: string; title: string; doc: NestDocument };
 
 function VisitorView({ doc, slug }: { doc: NestDocument; slug: string }) {
   const router = useRouter();
-  const { ownerId } = useNestIdentity();
+  const { ownerId, loading: loadingIdentity } = useNestIdentity();
   const [leaving, setLeaving] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [creator, setCreator] = useState<Creator>({ id: doc.ownerId });
@@ -152,11 +152,10 @@ function VisitorView({ doc, slug }: { doc: NestDocument; slug: string }) {
     [creator.houseStyle, tpl?.persona],
   );
 
-  // Count the visit once per load — never the owner's own views.
-  useEffect(() => {
-    if (ownerId === undefined) return; // wait until identity resolves
-    if (!isOwner) recordView(slug);
-  }, [slug, isOwner, ownerId]);
+  // M24 §2 — a real, shared view: recorded in Supabase after ~2.5s of visible dwell,
+  // never for the owner, and deduplicated to one per viewer per day by the database.
+  // `ready` waits for identity so the owner check is trustworthy.
+  useRecordNestView(slug, { ready: !loadingIdentity, isOwner, viewerId: ownerId });
 
   function leave() { setLeaving(true); }
   function afterLeave() {

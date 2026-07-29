@@ -21,6 +21,8 @@ import { useCreatorNests, type CreatorNest } from "@/components/nest/profile/use
 import { resolveTemplate } from "@/lib/nest-production-library";
 import { onSocialChanged, viewsForOwner } from "@/lib/nest-social";
 import { useCreatorSocial } from "@/components/nest/social/use-creator-social";
+import { profileViewCount } from "@/lib/nest/supabase-views-repo";
+import { nestBackend as backendForViews } from "@/lib/nest-repo";
 import { profileLinks } from "@/lib/profile-links";
 import { deleteAvatar, getActiveAvatar, type UserAvatar } from "@/lib/avatar-factory/avatar-repo";
 import type { NestSocials, ProfileLink } from "@/lib/nest-profile-store";
@@ -57,11 +59,18 @@ export function ProfileDashboardClient() {
   // M24 §8 — one shared source for the follower count (see use-creator-social).
   const { followerCount: followers } = useCreatorSocial(ownerId);
 
+  // M24 §2 — the creator's own Profile shows the real, shared view count. Their own
+  // visits are excluded at the point of recording, so this never counts themselves.
   useEffect(() => {
     if (!ownerId) return;
-    const refresh = () => setViews(viewsForOwner(ownerId));
-    refresh();
-    return onSocialChanged(refresh);
+    if (backendForViews() !== "supabase") {
+      const refresh = () => setViews(viewsForOwner(ownerId));
+      refresh();
+      return onSocialChanged(refresh);
+    }
+    let alive = true;
+    void profileViewCount(ownerId).then((n) => { if (alive) setViews(n); });
+    return () => { alive = false; };
   }, [ownerId]);
 
   const house = useMemo(() => {

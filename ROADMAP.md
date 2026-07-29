@@ -30,7 +30,21 @@ Legend — ✅ complete & verified · 🟨 implemented, **unverified in deployme
 - **Creator-side signed-in flows** — Profile edit sheet, avatar modal, Settings-adjacent paths were
   validated by types/tests/routes, **not** by a signed-in walkthrough.
 
-## ⛔ Blocked — on ONE founder action
+## ⛔ Blocked — deployment
+
+**The Vercel project is disabled** (`402 DEPLOYMENT_DISABLED`). No branch push can produce a
+Preview until billing/usage is cleared in the Vercel dashboard. This is not a code or build
+problem — `next build` passes (132 pages). Exact action in `M24_SPRINT_REPORT.md`.
+
+**`supabase/provision/m24_views_provision.sql` is unapplied** — view counts read 0 until the
+founder runs it. Nothing else depends on it.
+
+## ✅ Unblocked since M23B — the SQL was applied
+
+`m23b_nest_platform_provision.sql` is live: nests, nest_objects, likes, comments, follows and
+the profile columns all exist and hold real rows.
+
+## ⛔ Previously blocked — on ONE founder action
 
 Everything below is **implemented in code** and gated only on the founder applying
 `supabase/provision/m23b_nest_platform_provision.sql`. Live inspection (2026-07-28) confirmed

@@ -2,7 +2,8 @@
 
 > **START HERE.** This is the entry point for a new session. It is grounded in the repository
 > as of the commit below, not in prior chat context.
-> Read this, then **`M23B_SPRINT_REPORT.md`** (the current state and the one manual SQL action).
+> Read this, then **`M24_SPRINT_REPORT.md`** (current state, the deployment blocker, and the
+> one manual SQL action). `M23B_SPRINT_REPORT.md` is the prior sprint's record.
 > Everything else is reference.
 
 | | |
@@ -10,7 +11,7 @@
 | **Branch** | `m12-nest-platform` (auto-deploys to a Vercel **Preview**; never merge to `main`) |
 | **Latest verified commit** | `e1fd940` — *fix(nest): one canonical geometry so a Nest renders identically everywhere* (2026-07-28). Verified via `git log`; local `HEAD` == `origin/m12-nest-platform`. |
 | **Gates at that commit** | typecheck ✅ · eslint 0 errors ✅ · **688 tests / 77 files** ✅ · `next build` ✅ (133 pages) |
-| **Deployment** | The push **triggered** a Vercel Preview build. **Deployment success and the Preview URL were NOT verified** — they cannot be read from the repository. Treat as unconfirmed. |
+| **Deployment** | ⛔ **BLOCKED.** The Vercel project returns `402 DEPLOYMENT_DISABLED` (account/billing disabled), so no push can deploy. Not a build failure — `next build` passes locally. See `M24_SPRINT_REPORT.md` for the exact dashboard action. |
 
 ---
 
@@ -149,7 +150,8 @@ and must not be swept into commits. Always stage explicitly.
 | Document | Purpose |
 |---|---|
 | **`CTO_HANDOFF.md`** | this file — orientation |
-| **`M23B_SPRINT_REPORT.md`** | what M23B changed + the one manual SQL action |
+| **`M24_SPRINT_REPORT.md`** | current sprint: what shipped, the deployment blocker, the manual SQL |
+| **`M23B_SPRINT_REPORT.md`** | what M23B changed + its manual SQL action (applied) |
 | **`NEXT_SPRINT.md`** | the shared-persistence sprint (implemented by M23B; its test scenario is still the acceptance script) |
 | **`ROADMAP.md`** | done / unverified / blocked / deferred / future |
 | **`DECISIONS.md`** | product + engineering decisions and why |
