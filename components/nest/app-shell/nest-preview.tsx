@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { resolveAsset, resolveBackground } from "@/lib/nest-production-library";
 import { OverlayContent } from "@/components/nest/overlay-content";
-import { inPaintOrder, placementStyle } from "@/lib/nest-geometry";
+import { inPaintOrder, placementStyle, SCENE_ASPECT } from "@/lib/nest-geometry";
 import type { NestDocument } from "@/lib/nest-document-types";
 
 // M17.1 — a composed Nest: the real room with the creator's actual placed assets, at any size.
@@ -32,9 +32,32 @@ export function NestPreview({
 }) {
   const background = resolveBackground(doc.backgroundId);
   const [loaded, setLoaded] = useState(false);
-  const stageStyle: React.CSSProperties = safe
+
+  // ── M24B §1 — THE SCENE IS A FIXED-ASPECT BOX, ALWAYS ──────────────────────
+  //
+  // This is the remaining displacement (the Welcome text, the photo, the bookshelf).
+  //
+  // The editor lays the scene out in a strict 3:4 box, so object percentages and the
+  // background share ONE coordinate space. This renderer used to stretch its stage to
+  // `inset: 0` of whatever container it was handed — in the full Nest that is roughly
+  // 375×812 (aspect 0.46), in a feed card the same, on a Profile card something else
+  // again. The background `<img>` then used `object-cover`, so it was CROPPED to fill
+  // that box, while objects were still positioned as percentages of the CONTAINER.
+  //
+  // Background and objects therefore drifted apart by however much the container's aspect
+  // differed from 3:4 — a systematic offset present on every surface, independent of the
+  // w/h persistence fix, and DIFFERENT on each screen size. That is why the published
+  // scene looked "reinterpreted" rather than replayed.
+  //
+  // The stage is now always the scene's aspect, centred and letterboxed inside whatever
+  // container it is given, so a percentage resolves to the same point in the editor, in
+  // Preview, in the feed and for a visitor. `object-contain` keeps the background in that
+  // same space instead of cropping it out of alignment.
+  //
+  // `safe` still reserves top/bottom bands; it just does so inside the aspect-locked box.
+  const stageStyle: React.CSSProperties | undefined = safe
     ? { top: `${(safe.top ?? 0) * 100}%`, bottom: `${(safe.bottom ?? 0) * 100}%`, left: 0, right: 0 }
-    : { inset: 0 };
+    : undefined;
 
   return (
     // M23B §8 — `isolate` is load-bearing, not decoration.
@@ -52,13 +75,36 @@ export function NestPreview({
     <div className={`relative isolate overflow-hidden bg-[#e9e0c8] ${rounded} ${className}`}>
       {/* soft shimmer until the room's background paints in — no blank pop */}
       {background && !loaded ? <div className="nest-shimmer absolute inset-0" /> : null}
-      <div className="absolute overflow-hidden" style={stageStyle}>
+      {/* Flex-centre the scene, then lock its aspect. `h-full aspect-[3/4] max-w-full`
+          fits the box inside the container on BOTH axes: a tall container clamps width,
+          a wide one clamps height, and the aspect never changes. */}
+      <div className="absolute inset-0 flex items-center justify-center" style={safe ? undefined : { containerType: "size" }}>
+        <div
+          className={safe ? "absolute overflow-hidden" : "relative overflow-hidden"}
+          style={
+            safe
+              ? stageStyle
+              : {
+                  // Fit a SCENE_ASPECT box inside the container on both axes.
+                  //
+                  // `height:100%` + `aspect-ratio` + `max-width` does NOT work: an explicit
+                  // height is definite, so aspect-ratio can only derive the width, and
+                  // max-width then clamps it and breaks the ratio. Container-query units
+                  // let the WIDTH be constrained by both axes up front, after which the
+                  // height follows from the ratio and nothing needs clamping.
+                  width: `min(100cqw, ${SCENE_ASPECT * 100}cqh)`,
+                  aspectRatio: `${SCENE_ASPECT}`,
+                }
+          }
+        >
         {background ? (
           // eslint-disable-next-line @next/next/no-img-element -- local curated art; next/image adds no value here
           <img
             src={background.variants.standard ?? background.imageUrl}
             alt={background.name}
-            className={`absolute inset-0 size-full object-cover transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+            // `object-fill`, not `cover`: the stage already IS the scene's aspect, so
+            // filling it is exact. `cover` would crop and re-introduce the offset.
+            className={`absolute inset-0 size-full object-fill transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
             loading="lazy"
             onLoad={() => setLoaded(true)}
           />
@@ -110,6 +156,7 @@ export function NestPreview({
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
