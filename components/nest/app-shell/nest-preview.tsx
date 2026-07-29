@@ -4,6 +4,10 @@ import { memo, useMemo, useState } from "react";
 import { resolveAsset, resolveBackground } from "@/lib/nest-production-library";
 import { OverlayContent } from "@/components/nest/overlay-content";
 import { inPaintOrder, placementStyle, SCENE_ASPECT } from "@/lib/nest-geometry";
+import { ArrowLeft, Maximize2 } from "lucide-react";
+import { focusCameraTransform, focusObjectsInPaintOrder, resolveFocusRegions, resolvePlacementSurfaces } from "@/lib/nest-scene";
+import type { EditableNestObject } from "@/lib/nest-editor-types";
+import type { SurfaceContent } from "@/lib/nest-surface-types";
 import type { NestDocument } from "@/lib/nest-document-types";
 
 // M17.1 — a composed Nest: the real room with the creator's actual placed assets, at any size.
@@ -53,6 +57,18 @@ function NestPreviewImpl({
   // on a list that changes only when the document does.
   const ordered = useMemo(() => inPaintOrder(doc.placements), [doc.placements]);
 
+  // M24D §2 — one deep, desaturated colour derived from the room, so the matte belongs to
+  // this Nest rather than being a generic grey. Deterministic from the background id, so
+  // it never flickers between renders and needs no pixel sampling.
+  const matte = useMemo(() => matteTintFor(doc.backgroundId), [doc.backgroundId]);
+
+  // M24D §1 — focus navigation. `null` is the main scene. Preview and visitor share this
+  // exact state machine; only the chrome around them differs.
+  const focusRegions = useMemo(() => resolveFocusRegions(doc), [doc]);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const activeFocus = focusId ? focusRegions.find((f) => f.area.id === focusId) ?? null : null;
+  const camera = activeFocus ? focusCameraTransform(activeFocus.crop) : null;
+
   // ── M24B §1 — THE SCENE IS A FIXED-ASPECT BOX, ALWAYS ──────────────────────
   //
   // This is the remaining displacement (the Welcome text, the photo, the bookshelf).
@@ -96,29 +112,21 @@ function NestPreviewImpl({
       {/* soft shimmer until the room's background paints in — no blank pop */}
       {background && !loaded ? <div className="nest-shimmer absolute inset-0" /> : null}
 
-      {/* ── M24C §7 — the immersive surround ──────────────────────────────────
-          The scene is a fixed 3:4 box, so on a taller viewport there is space above and
-          below it. Flat colour there looked accidental — like the room had been pasted
-          onto a coloured page.
+      {/* ── M24D §2 — the adaptive matte ──────────────────────────────────────
+          The previous treatment enlarged and blurred the room and laid a dark wash over
+          it. On real rooms that produced visible green/beige/dark bands — it read as an
+          accident rather than a frame.
 
-          Instead the room's OWN background fills the viewport behind it, enlarged and
-          blurred, with a soft dark wash. The crisp scene sits on top of a continuation of
-          itself, so there is no hard colour boundary and the framing reads as deliberate.
-          It works for dark and light rooms alike because it is sampled from the room.
+          This is a restrained matte instead: ONE deep desaturated colour derived from the
+          room, a soft vertical gradient, a gentle radial glow behind the scene and an edge
+          vignette. No enlarged image, so there is nothing to band. The effect is a gallery
+          wall or a theatre stage — the room is lit, the surround recedes.
 
-          `aria-hidden` + no interactive children: this is atmosphere, never a second copy
-          of the Nest. Objects are NOT duplicated here. */}
-      {background && surround ? (
-        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element -- local curated art */}
-          <img
-            src={background.variants.standard ?? background.imageUrl}
-            alt=""
-            className={`absolute inset-0 size-full scale-125 object-cover blur-2xl transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/25 to-black/50" />
-        </div>
-      ) : null}
+          Geometry is untouched: this paints behind the fixed 3:4 stage and never moves it.
+          It is also where a future 9:16 `immersiveBackgroundUrl` would render (see
+          lib/nest-scene.ts) without changing a single object coordinate. */}
+      {surround ? <SceneSurround tint={matte} /> : null}
+
       {/* Flex-centre the scene, then lock its aspect. `h-full aspect-[3/4] max-w-full`
           fits the box inside the container on BOTH axes: a tall container clamps width,
           a wide one clamps height, and the aspect never changes. */}
@@ -141,6 +149,17 @@ function NestPreviewImpl({
                 }
           }
         >
+        {/* One transform for the entire scene. Scaling THIS element moves the background,
+            every object, every hotspot and every focus target together — which is what
+            makes a focused view a camera move rather than a different layout. */}
+        <div
+          className="absolute inset-0 origin-center transition-transform duration-500 ease-[cubic-bezier(.32,.72,0,1)] motion-reduce:transition-none"
+          style={
+            camera
+              ? { transform: `scale(${camera.scale})`, transformOrigin: `${camera.originX}% ${camera.originY}%` }
+              : undefined
+          }
+        >
         {background ? (
           // eslint-disable-next-line @next/next/no-img-element -- local curated art; next/image adds no value here
           <img
@@ -156,6 +175,9 @@ function NestPreviewImpl({
           <div className="grid size-full place-items-center text-xs text-ink/40">No preview</div>
         )}
 
+        {/* M24D §1 — FOCUS: the camera moves the whole scene under one transform, so the
+            background and every object travel together. A focused view is the main scene
+            transformed, never a scene re-laid-out. */}
         {ordered.map((p, i) => {
           const style = placementStyle(p, i);
 
@@ -201,9 +223,42 @@ function NestPreviewImpl({
               loading="lazy"
             />
           );
+          const surfaces = resolvePlacementSurfaces(p);
+          const withSurfaces = surfaces.length ? (
+            <span className="absolute inset-0">
+              {art}
+              {/* M24D §1 — SURFACE: the creator's assigned content, drawn into the
+                  asset-local rectangle from the catalogue. It comes from the placement's
+                  own `interaction.surfaces` bag, so it needs no editor state and renders
+                  identically in Preview and for a visitor. */}
+              {surfaces.map((sf) => (
+                <span
+                  key={sf.id}
+                  className="absolute overflow-hidden"
+                  style={{
+                    left: `${sf.bounds.x * 100}%`,
+                    top: `${sf.bounds.y * 100}%`,
+                    width: `${sf.bounds.width * 100}%`,
+                    height: `${sf.bounds.height * 100}%`,
+                  }}
+                >
+                  <SurfaceContentView content={sf.content} />
+                </span>
+              ))}
+            </span>
+          ) : null;
+
           return (
             <div key={p.id} className="absolute" style={style} title={p.label || undefined}>
-              {interactive && link ? (
+              {withSurfaces ? (
+                interactive && link ? (
+                  <a href={link} target="_blank" rel="noreferrer noopener" onClick={(e) => e.stopPropagation()} aria-label={p.label || asset.name} className="block size-full">
+                    {withSurfaces}
+                  </a>
+                ) : (
+                  withSurfaces
+                )
+              ) : interactive && link ? (
                 <a
                   href={link}
                   target="_blank"
@@ -220,9 +275,141 @@ function NestPreviewImpl({
             </div>
           );
         })}
+
+          {/* Focus TARGETS — only in the main view, and only when interactive. A visitor
+              gets a discoverable tap area, never the editor's rectangle. */}
+          {interactive && !activeFocus
+            ? focusRegions.map((f) => (
+                <button
+                  key={f.area.id}
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); setFocusId(f.area.id); }}
+                  aria-label={f.area.name ? `Look closer: ${f.area.name}` : "Look closer"}
+                  className="absolute rounded-2xl ring-1 ring-white/0 transition hover:ring-white/40 focus-visible:ring-white/70"
+                  style={{
+                    left: `${f.crop.x * 100}%`,
+                    top: `${f.crop.y * 100}%`,
+                    width: `${f.crop.width * 100}%`,
+                    height: `${f.crop.height * 100}%`,
+                    zIndex: 900,
+                  }}
+                >
+                  <span className="absolute bottom-1 right-1 grid size-6 place-items-center rounded-full bg-black/45 text-white opacity-80 backdrop-blur-sm">
+                    <Maximize2 className="size-3" />
+                  </span>
+                </button>
+              ))
+            : null}
+        </div>
+
+        {/* Objects the creator placed INSIDE the focus. They live in the focused view's
+            own 0..1 space (its base is the parent crop), so they are NOT under the camera
+            transform — scaling them again would double-apply the zoom. */}
+        {activeFocus
+          ? focusObjectsInPaintOrder(activeFocus.objects).map((o) => (
+              <div
+                key={o.instanceId}
+                className="absolute"
+                style={{
+                  left: `${o.x * 100}%`,
+                  top: `${o.y * 100}%`,
+                  width: `${o.width * 100}%`,
+                  height: `${o.height * 100}%`,
+                  zIndex: o.zIndex ?? 1,
+                  transform: [o.rotation ? `rotate(${o.rotation}deg)` : "", o.flipX ? "scaleX(-1)" : ""].filter(Boolean).join(" ") || undefined,
+                  transformOrigin: "center",
+                }}
+              >
+                <FocusChild object={o} />
+              </div>
+            ))
+          : null}
+
+        {/* Return to the main scene. Present in BOTH modes — a visitor who cannot get back
+            out of a focus is trapped. */}
+        {interactive && activeFocus ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); e.preventDefault(); setFocusId(null); }}
+            className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm transition active:scale-95"
+            style={{ zIndex: 950 }}
+          >
+            <ArrowLeft className="size-3.5" /> Back to the room
+          </button>
+        ) : null}
         </div>
       </div>
     </div>
+  );
+}
+
+// ── M24D §2 — the matte ──────────────────────────────────────────────────────
+
+/**
+ * A deep, desaturated colour derived from the room id.
+ *
+ * Deterministic rather than pixel-sampled: sampling would need the image decoded and would
+ * flicker on every load, and the point is a calm surround, not an exact match. The hue
+ * comes from the background id so each room keeps its own consistent frame; saturation and
+ * lightness are pinned low so it always recedes behind the scene.
+ */
+function matteTintFor(backgroundId: string): string {
+  let h = 0;
+  for (let i = 0; i < backgroundId.length; i += 1) h = (h * 31 + backgroundId.charCodeAt(i)) >>> 0;
+  return `hsl(${h % 360} 14% 11%)`;
+}
+
+/** The gallery-wall surround: flat tint, soft gradient, glow behind the room, vignette. */
+function SceneSurround({ tint }: { tint: string }) {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden" style={{ backgroundColor: tint }}>
+      {/* a barely-there vertical lift, so the matte is not a dead flat field */}
+      <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0.05), transparent 38%, rgba(0,0,0,0.22))" }} />
+      {/* warm glow behind the room, as if it were lit on a stage */}
+      <div className="absolute inset-0" style={{ background: "radial-gradient(58% 42% at 50% 46%, rgba(255,214,150,0.13), transparent 70%)" }} />
+      {/* edge vignette keeps the eye on the scene and the controls readable */}
+      <div className="absolute inset-0" style={{ background: "radial-gradient(120% 90% at 50% 50%, transparent 52%, rgba(0,0,0,0.42))" }} />
+    </div>
+  );
+}
+
+/** One object inside a focus scene. Same art resolution as the main scene. */
+function FocusChild({ object }: { object: EditableNestObject }) {
+  if (object.overlay) return <OverlayContent overlay={object.overlay} />;
+  const asset = resolveAsset(object.assetId);
+  if (!asset) {
+    return <div className="size-full rounded-lg border-2 border-dashed border-white/30 bg-white/5" />;
+  }
+  return (
+    /* eslint-disable-next-line @next/next/no-img-element -- local curated art */
+    <img
+      src={asset.variants.standard ?? asset.cutoutUrl ?? asset.imageUrl}
+      alt={asset.name}
+      className="h-full w-full object-contain drop-shadow"
+      loading="lazy"
+    />
+  );
+}
+
+
+/** Creator-assigned surface content: an image, a line of text, or a sticker. */
+function SurfaceContentView({ content }: { content: SurfaceContent }) {
+  if (content.kind === "image") {
+    return (
+      /* eslint-disable-next-line @next/next/no-img-element -- creator upload / remote thumb */
+      <img
+        src={content.src}
+        alt=""
+        className={`size-full ${content.fit === "contain" ? "object-contain" : "object-cover"}`}
+        loading="lazy"
+      />
+    );
+  }
+  if (content.kind === "sticker") {
+    return <span className="grid size-full place-items-center text-[3vmin]">{content.emoji}</span>;
+  }
+  return (
+    <span className="grid size-full place-items-center px-[4%] text-center text-[2.2vmin] font-bold leading-tight text-white">
+      {content.text}
+    </span>
   );
 }
 
