@@ -8,6 +8,7 @@ import { createFromBackground, createFromTemplate } from "@/lib/nest-repo";
 import { setDocOwner } from "@/lib/nest-document-store";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import type { ProductionBackground, ProductionTemplate } from "@/lib/nest-production-types";
+import { BOTTOM_NAV_CLEARANCE, z } from "@/lib/nest-layers";
 
 // Phase 2 — the Create tab, the single creation entry point. Quick Start (a ready
 // template) or Build My Own (a chosen room) → creates a NestDocument → opens the one
@@ -77,45 +78,43 @@ export function CreateClient() {
 
       {step === "entry" ? <Entry onQuick={() => setStep("quick")} onBuild={() => setStep("build")} onAi={isFounder ? () => router.push("/creator-studio") : undefined} /> : null}
 
+      {/* M24 §5 — Quick Start and Build My Own are ONE interaction, not two look-alike
+          implementations. Both render <SelectionStep>, so the carousel behaviour, the
+          selected state and the sticky action bar can never drift apart again. */}
       {step === "quick" ? (
-        <section className="space-y-4">
-          <Header title="Quick Start" subtitle="Pick a ready-made Nest. You can change everything later." />
-          <SwipeRow>
-            {templates.map((t) => (
-              <TemplateCard key={t.id} t={t} selected={t.id === selTpl} onSelect={() => setSelTpl(t.id)} />
-            ))}
-            {templates.length === 0 ? <EmptyNote label="No templates are published yet." /> : null}
-          </SwipeRow>
-          {template ? (
-            <div className="space-y-2 rounded-2xl border border-timber/15 bg-white p-4 shadow-soft">
-              <p className="text-sm font-bold">{template.name} · <span className="text-ink/50">{template.persona}</span></p>
-              <button onClick={() => startTemplate(template.id)} disabled={busy} className={btnPrimary}>{busy ? "Opening…" : "Use this template →"}</button>
-              <button onClick={() => setSelTpl(undefined)} className={btnGhost}>Change template</button>
-            </div>
-          ) : (
-            <p className="px-1 text-xs text-ink/50">Tap a template to choose it. No sign-up needed to start.</p>
-          )}
-        </section>
+        <SelectionStep
+          title="Quick Start"
+          subtitle="Pick a ready-made Nest. You can change everything later."
+          emptyLabel="No templates are published yet."
+          hint="Tap a template to choose it. No sign-up needed to start."
+          isEmpty={templates.length === 0}
+          selectedLabel={template ? `${template.name} · ${template.persona}` : null}
+          actionLabel={busy ? "Opening…" : "Start building →"}
+          onAction={template ? () => startTemplate(template.id) : undefined}
+          busy={busy}
+        >
+          {templates.map((t) => (
+            <TemplateCard key={t.id} t={t} selected={t.id === selTpl} onSelect={() => setSelTpl(t.id)} />
+          ))}
+        </SelectionStep>
       ) : null}
 
       {step === "build" ? (
-        <section className="space-y-4">
-          <Header title="Build My Own" subtitle="Choose a room to start from, then design every detail." />
-          <SwipeRow>
-            {backgrounds.map((b) => (
-              <BackgroundCard key={b.id} b={b} selected={b.id === selBg} onSelect={() => setSelBg(b.id)} />
-            ))}
-            {backgrounds.length === 0 ? <EmptyNote label="No rooms are published yet." /> : null}
-          </SwipeRow>
-          {background ? (
-            <div className="space-y-2 rounded-2xl border border-timber/15 bg-white p-4 shadow-soft">
-              <p className="text-sm font-bold">{background.name} · <span className="text-ink/50">{background.style}</span></p>
-              <button onClick={() => startBackground(background.id, background.name)} disabled={busy} className={btnPrimary}>{busy ? "Opening…" : "Start with this room →"}</button>
-            </div>
-          ) : (
-            <p className="px-1 text-xs text-ink/50">Tap a room to choose it. No sign-up needed to start.</p>
-          )}
-        </section>
+        <SelectionStep
+          title="Build My Own"
+          subtitle="Choose a room to start from, then design every detail."
+          emptyLabel="No rooms are published yet."
+          hint="Tap a room to choose it. No sign-up needed to start."
+          isEmpty={backgrounds.length === 0}
+          selectedLabel={background ? `${background.name} · ${background.style}` : null}
+          actionLabel={busy ? "Opening…" : "Start building →"}
+          onAction={background ? () => startBackground(background.id, background.name) : undefined}
+          busy={busy}
+        >
+          {backgrounds.map((b) => (
+            <BackgroundCard key={b.id} b={b} selected={b.id === selBg} onSelect={() => setSelBg(b.id)} />
+          ))}
+        </SelectionStep>
       ) : null}
     </div>
   );
@@ -157,6 +156,63 @@ function Header({ title, subtitle }: { title: string; subtitle: string }) {
       <h1 className="display text-3xl">{title}</h1>
       <p className="mt-1 text-sm text-ink/55">{subtitle}</p>
     </div>
+  );
+}
+
+/**
+ * M24 §5 — one selection step: heading, horizontal carousel, and a sticky action bar.
+ *
+ * The action used to sit in a card BELOW the carousel, so on a phone you selected a room
+ * and then had to scroll to find the button. The bar is now pinned above the bottom nav
+ * and the Safari toolbar, and it names what you picked — so the choice and the
+ * confirmation are visible together, without scrolling.
+ */
+function SelectionStep({
+  title,
+  subtitle,
+  hint,
+  emptyLabel,
+  isEmpty,
+  selectedLabel,
+  actionLabel,
+  onAction,
+  busy,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  hint: string;
+  emptyLabel: string;
+  isEmpty: boolean;
+  selectedLabel: string | null;
+  actionLabel: string;
+  onAction?: () => void;
+  busy: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3">
+      <Header title={title} subtitle={subtitle} />
+      <SwipeRow>
+        {children}
+        {isEmpty ? <EmptyNote label={emptyLabel} /> : null}
+      </SwipeRow>
+
+      {/* Sticky, safe-area aware, and clear of the bottom nav. */}
+      <div
+        className={`sticky bottom-0 -mx-4 border-t border-timber/10 bg-parchment/95 px-4 pt-3 backdrop-blur ${z.chrome}`}
+        style={{ paddingBottom: BOTTOM_NAV_CLEARANCE }}
+      >
+        {selectedLabel ? (
+          <>
+            <p className="mb-2 truncate text-[12px] font-bold text-ink/60">{selectedLabel}</p>
+            <button onClick={onAction} disabled={busy} className={btnPrimary}>{actionLabel}</button>
+          </>
+        ) : (
+          <p className="pb-1 text-center text-xs text-ink/50">{hint}</p>
+        )}
+      </div>
+    </section>
   );
 }
 

@@ -63,6 +63,33 @@ const toTemplate = (r: TplRow): ProductionTemplate => ({
  * for THAT category rather than failing the whole load — so the DB asset catalog still
  * powers the editor while backgrounds/templates keep working from the fixture.
  */
+/**
+ * Supabase rows MERGED over the bundled fixture, keyed by id.
+ *
+ * ── M24 §7 — this is the fix for "Asset Factory assets don't appear", and for the
+ *    objects that vanished from published Nests ──
+ *
+ * This used to be a REPLACEMENT: `error ? fixture : rows`. While `nest_assets` did not
+ * exist the query errored, the fixture was used, and everything worked. The moment the
+ * M23B SQL was applied the query started SUCCEEDING with the one row the table happens to
+ * contain — so the entire fixture catalogue was discarded and the library became a single
+ * laptop.
+ *
+ * Live proof at the time of writing: published Nests reference 8 asset ids
+ * (ast-avatar, ast-bookshelf, ast-floor-lamp, ast-framed-photo, ast-lr-sofa-boucle,
+ * ast-lr-table-oak-round, ast-so-shelf-tall, ast-tv) and `nest_assets` holds exactly one
+ * (ast-laptop-v1-certified). Every one of those 8 became unresolvable at once — which is
+ * both the empty Asset Library and the "objects disappear" report, from one line of code.
+ *
+ * Supabase is canonical where it has an opinion: a row with the same id WINS, so an
+ * Asset-Factory asset overrides its bundled ancestor. The fixture only fills the gaps.
+ */
+function mergeById<T extends { id: string }>(fixture: T[], rows: T[]): T[] {
+  const byId = new Map(fixture.map((item) => [item.id, item]));
+  for (const row of rows) byId.set(row.id, row); // Supabase wins on collision
+  return Array.from(byId.values());
+}
+
 export async function fetchLibrary(): Promise<ProductionLibrary> {
   const client = sb();
   const [bg, as, tp] = await Promise.all([
@@ -70,11 +97,32 @@ export async function fetchLibrary(): Promise<ProductionLibrary> {
     client.from("nest_assets").select("*"),
     client.from("nest_templates").select("*"),
   ]);
-  return {
-    backgrounds: bg.error ? NEST_PRODUCTION_LIBRARY_V1.backgrounds : (bg.data as BgRow[]).map(toBackground),
-    assets: as.error ? NEST_PRODUCTION_LIBRARY_V1.assets : (as.data as AssetRow[]).map(toAsset),
-    templates: tp.error ? NEST_PRODUCTION_LIBRARY_V1.templates : (tp.data as TplRow[]).map(toTemplate),
+
+  const library: ProductionLibrary = {
+    backgrounds: bg.error
+      ? NEST_PRODUCTION_LIBRARY_V1.backgrounds
+      : mergeById(NEST_PRODUCTION_LIBRARY_V1.backgrounds, (bg.data as BgRow[]).map(toBackground)),
+    assets: as.error
+      ? NEST_PRODUCTION_LIBRARY_V1.assets
+      : mergeById(NEST_PRODUCTION_LIBRARY_V1.assets, (as.data as AssetRow[]).map(toAsset)),
+    templates: tp.error
+      ? NEST_PRODUCTION_LIBRARY_V1.templates
+      : mergeById(NEST_PRODUCTION_LIBRARY_V1.templates, (tp.data as TplRow[]).map(toTemplate)),
   };
+
+  // §7 — the development-only diagnostic. Says which project answered, how many rows came
+  // back, and how many assets the editor ended up with, so "my asset isn't in the library"
+  // is a one-glance question rather than an investigation.
+  if (process.env.NODE_ENV !== "production") {
+    const ref = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/^https?:\/\//, "").split(".")[0] || "unknown";
+    console.info(
+      `[asset-library] project=${ref} · assets: ${as.error ? `FAILED (${as.error.message})` : `${(as.data ?? []).length} from Supabase`} ` +
+        `+ ${NEST_PRODUCTION_LIBRARY_V1.assets.length} bundled → ${library.assets.length} total · ` +
+        `backgrounds ${library.backgrounds.length} · templates ${library.templates.length}`,
+    );
+  }
+
+  return library;
 }
 
 /** Admin curation write (approve/feature/hide/archive). Never deletes. */

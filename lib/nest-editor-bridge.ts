@@ -16,7 +16,7 @@ import type { ProductionAsset, ProductionHotspot } from "@/lib/nest-production-t
 import type { NestEditableSurface } from "@/lib/nest-types";
 import { getAssets, getBackgrounds, getTemplates, resolveAsset, resolveBackground } from "@/lib/nest-production-library";
 import { createEditorDocumentFromTemplate } from "@/lib/nest-editor";
-import { placementBox, scaleFromWidth } from "@/lib/nest-geometry";
+import { hasExplicitBox, placementBox, scaleFromWidth } from "@/lib/nest-geometry";
 import { predefinedHotspotsForInstance } from "@/lib/nest-hotspot-catalog";
 import { registerAssetSurfaces } from "@/lib/nest-surface-catalog";
 import type { EditableSurfaceDef, SurfaceContentType, SurfaceType } from "@/lib/nest-surface-types";
@@ -161,8 +161,11 @@ function placementToObject(p: NestPlacement, index: number): EditableNestObject 
   // NestPreview). This used to be a second, slightly different copy of the same maths.
   const box = placementBox(p, index);
   const { x, y, w: width, h: height } = box;
-  const cx = p.x;
-  const baseY = p.y;
+  // M24 — with an explicit box, `p.x/p.y` are the box top-left, so the base anchor is
+  // derived from the box. Legacy rows still carry the anchor directly in `p.x/p.y`.
+  const explicit = hasExplicitBox(p);
+  const cx = explicit ? x + width / 2 : p.x;
+  const baseY = explicit ? y + height : p.y;
   const instanceId = p.id || `${p.assetId}-${index}`;
   const hotspots = seedHotspots(p.assetId, instanceId, prod);
   return {
@@ -242,11 +245,19 @@ export function editableObjectsToPlacements(objects: EditableNestObject[]): Nest
         overlay: o.overlay,
       };
     }
+    // M24 — persist the creator's ACTUAL box, not just a scale to re-derive it from.
+    //
+    // `x, y` are the box top-left (matching overlays) and `w, h` are the box, so
+    // `placementBox()` replays exactly what the editor drew. `scale` is still written for
+    // backwards compatibility with anything reading the old shape, but it is no longer
+    // what geometry is rebuilt from.
     return {
       id: o.instanceId || `pl-${i}`,
       assetId: o.assetId,
-      x: clamp01(o.anchor?.x ?? o.x + o.width / 2),
-      y: clamp01(o.anchor?.y ?? o.y + o.height),
+      x: clamp01(o.x),
+      y: clamp01(o.y),
+      w: o.width,
+      h: o.height,
       scale: scaleFromWidth(o.width),
       zIndex: o.zIndex ?? i + 1,
       ...(o.rotation ? { rotation: o.rotation } : {}),

@@ -37,6 +37,8 @@ import { useRouter } from "next/navigation";
 import { useAiLivingAssets } from "@/lib/nest-editor-ai-bridge";
 import { useMyAvatarLivingAsset } from "@/lib/avatar-factory/avatar-editor-bridge";
 import { PublishGate } from "@/components/nest/editor/publish-gate";
+import { NestPreview } from "@/components/nest/app-shell/nest-preview";
+import type { NestDocument } from "@/lib/nest-document-types";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import {
   addImageOverlay,
@@ -377,6 +379,21 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
     return () => clearTimeout(saveTimer.current);
   }, [doc]);
 
+  // M24 — the canonical document, built with the SAME function publish uses. Preview,
+  // publish and the public viewer therefore all read one representation.
+  const previewDoc: NestDocument = useMemo(
+    () => ({
+      id: documentId ?? doc.id,
+      backgroundId: doc.backgroundId,
+      title: doc.name,
+      visibility: "draft",
+      placements: editableObjectsToPlacements(doc.objects),
+      createdAt: "",
+      updatedAt: "",
+    }),
+    [documentId, doc.id, doc.backgroundId, doc.name, doc.objects],
+  );
+
   const flash = (text: string) => {
     setToast(text);
     setTimeout(() => setToast((t) => (t === text ? null : t)), 2200);
@@ -596,29 +613,29 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
 
   const ui = (
     <div className="fixed inset-0 z-[110] flex flex-col overflow-hidden overscroll-none bg-parchment" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)", touchAction: "none" }}>
-      {/* PREVIEW: the EXACT visitor experience — the same NestSceneNavigator + cinematic
-          stage + focus-first resolution. Authored Focus Areas work here just like the
-          visitor route (no static stage, no separate preview renderer). */}
+      {/* ── PREVIEW ────────────────────────────────────────────────────────────
+          M24 — Preview now renders the CANONICAL DOCUMENT through NestPreview: the
+          same component, fed the same data, that a visitor gets on /nest/<slug>.
+
+          It used to render `doc` (the EditableNestDocument) through NestSceneNavigator —
+          a THIRD renderer, different from both the editor canvas and the public viewer.
+          So "Preview" was showing a scene no visitor would ever see, which is why the
+          published Nest "felt reconstructed": it genuinely was, by different code.
+
+          Building `previewDoc` with the exact function publish uses
+          (`editableObjectsToPlacements`) means Preview and Publish cannot disagree —
+          what you approve here is literally the document that gets written. */}
       {mode === "preview" ? (
         <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-3">
           <button type="button" onClick={exitPreview} className="absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-ink/85 px-3 py-1.5 text-xs font-bold text-parchment" style={{ marginTop: "env(safe-area-inset-top)" }}>
             <ArrowLeft className="h-4 w-4" /> Edit
           </button>
-          {/* Internal debug: reveal focus-area + hotspot regions (template-author/internal only). */}
-          {caps.showDebug ? (
-            <button type="button" onClick={() => setPreviewHotspots((v) => !v)} aria-pressed={previewHotspots} className={`absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold ${previewHotspots ? "bg-teal text-white" : "bg-ink/15 text-ink/60"}`} style={{ marginTop: "env(safe-area-inset-top)" }} title="Internal: show hotspot regions">
-              <Eye className="h-4 w-4" /> Hotspots
-            </button>
-          ) : null}
-          <NestSceneNavigator
-            key={previewFocusId ?? "preview"}
-            doc={doc}
-            assetsById={ASSETS}
-            interactionsById={GOLDEN_LIVING_NEST_INTERACTIONS_BY_ID}
-            baseTemplate={GOLDEN_LIVING_NEST_TEMPLATE}
-            debug={previewHotspots}
-            autoEnterFocusId={previewFocusId}
-          />
+          <p className="absolute inset-x-0 top-3 z-10 text-center text-[11px] font-bold uppercase tracking-wider text-ink/40" style={{ marginTop: "env(safe-area-inset-top)" }}>
+            Exactly what visitors see
+          </p>
+          <div className="w-full max-w-[420px] overflow-hidden rounded-2xl border border-ink/10 shadow-lift" style={{ aspectRatio: "3 / 4" }}>
+            <NestPreview doc={previewDoc} className="size-full" />
+          </div>
         </div>
       ) : (
         <>

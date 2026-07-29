@@ -19,7 +19,8 @@ import { deriveHouse } from "@/lib/nest-house";
 import { SettingsSheet } from "@/components/nest/profile/settings-sheet";
 import { useCreatorNests, type CreatorNest } from "@/components/nest/profile/use-creator-nests";
 import { resolveTemplate } from "@/lib/nest-production-library";
-import { followerCount, onSocialChanged, viewsForOwner } from "@/lib/nest-social";
+import { onSocialChanged, viewsForOwner } from "@/lib/nest-social";
+import { useCreatorSocial } from "@/components/nest/social/use-creator-social";
 import { profileLinks } from "@/lib/profile-links";
 import { deleteAvatar, getActiveAvatar, type UserAvatar } from "@/lib/avatar-factory/avatar-repo";
 import type { NestSocials, ProfileLink } from "@/lib/nest-profile-store";
@@ -37,7 +38,6 @@ export function ProfileDashboardClient() {
   const router = useRouter();
   const { ownerId, signedIn, loading, profile, profileError, bootstrap, retryBootstrap, updateProfile } = useNestIdentity();
   const { drafts, published, loading: nestsLoading, error: nestsError } = useCreatorNests(ownerId, { includeDrafts: true });
-  const [followers, setFollowers] = useState(0);
   const [views, setViews] = useState(0);
   const [editing, setEditing] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -54,9 +54,12 @@ export function ProfileDashboardClient() {
     if (signedIn && shouldRedirectToOnboarding(bootstrap)) router.replace("/onboarding");
   }, [signedIn, bootstrap, router]);
 
+  // M24 §8 — one shared source for the follower count (see use-creator-social).
+  const { followerCount: followers } = useCreatorSocial(ownerId);
+
   useEffect(() => {
     if (!ownerId) return;
-    const refresh = () => { setFollowers(followerCount(ownerId)); setViews(viewsForOwner(ownerId)); };
+    const refresh = () => setViews(viewsForOwner(ownerId));
     refresh();
     return onSocialChanged(refresh);
   }, [ownerId]);
@@ -115,9 +118,10 @@ export function ProfileDashboardClient() {
 
   return (
     <div className="flex min-h-full flex-col gap-2.5 pb-2">
+      {/* M24 §11 — no Back button. Profile is a bottom-nav TAB, not a nested modal page:
+          `history.back()` from here lands wherever the user happened to come from, which
+          is why it "navigates incorrectly". The nav is the way out. */}
       <TopControls
-        onBack={() => history.back()}
-        backLabel="Back"
         action={
           // §2 — the gear exists only on your OWN Profile. On a visitor's view of this
           // creator it is not hidden with CSS; it is simply never rendered.

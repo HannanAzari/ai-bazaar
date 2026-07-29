@@ -109,14 +109,21 @@ describe("editor ⇄ document round-trip preserves the composition", () => {
   });
 
   it("keeps an asset's geometry stable across the round-trip", () => {
+    // M24 changed what `x`/`y` MEAN once `w`/`h` are present: they are the box top-left
+    // (the contract overlays always had) rather than the base centre. Comparing the raw
+    // fields across the round-trip therefore compares two different coordinate systems.
+    //
+    // What actually has to hold — and what the founder sees — is that the RENDERED BOX is
+    // unchanged. That is asserted directly, which is a stronger check than the old one:
+    // it covers height too, and height is exactly what used to drift.
     const editable = nestDocumentToEditable(CANONICAL_TEST_NEST);
     const back = editableObjectsToPlacements(editable.objects);
-    const before = byId("p-small");
-    const after = back.find((p) => p.id === "p-small")!;
-    expect(after.x).toBeCloseTo(before.x, 2);
-    expect(after.y).toBeCloseTo(before.y, 2);
-    expect(after.scale).toBeCloseTo(before.scale!, 2);
-    // and the box the two produce is the same
-    expect(placementBox(after).w).toBeCloseTo(placementBox(before).w, 3);
+    const before = placementBox(byId("p-small"));
+    const after = placementBox(back.find((p) => p.id === "p-small")!);
+
+    expect(after.x).toBeCloseTo(before.x, 6);
+    expect(after.y).toBeCloseTo(before.y, 6);
+    expect(after.w).toBeCloseTo(before.w, 6);
+    expect(after.h).toBeCloseTo(before.h, 6);
   });
 });

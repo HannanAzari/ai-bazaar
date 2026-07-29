@@ -297,7 +297,38 @@ function FeedCard({ item }: { item: DiscoveryItem }) {
       <div className={`pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/18 to-transparent ${z.scrim}`} />
       <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/45 to-transparent ${z.scrim}`} />
 
-      <div className={`pointer-events-none absolute left-4 top-4 ${z.chrome}`}>
+      {/* ── M24 §6 · TOP — identity left, Follow right ────────────────────────
+          Creator metadata used to sit at the BOTTOM, stacked above the tags and the
+          Visit House button, all competing for the same corner while the Follow pill
+          crowded the avatar. Identity now owns the top of the card and the actions own
+          the bottom, so nothing collides and the room keeps the middle. */}
+      <div className={`pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 px-4 pt-4 ${z.chrome}`}>
+        <div className="pointer-events-auto flex min-w-0 items-start gap-2.5">
+          {item.creator.username ? (
+            <Link href={`/@${item.creator.username}`} className="shrink-0">
+              <CreatorAvatar creator={item.creator} size={38} tone="light" />
+            </Link>
+          ) : (
+            <CreatorAvatar creator={item.creator} size={38} tone="light" />
+          )}
+          <span className="min-w-0 leading-tight">
+            <span className="block truncate text-[15px] font-black tracking-tight text-white [text-shadow:0_1px_6px_rgba(0,0,0,0.45)]">
+              {item.creator.displayName ?? (item.creator.username ? `@${item.creator.username}` : "A Nestudio creator")}
+            </span>
+            {item.creator.username ? (
+              <span className="block truncate text-xs font-medium text-white/75">@{item.creator.username}</span>
+            ) : null}
+            {item.tags.length ? <span className="mt-1 block"><NestTags tags={item.tags} tone="light" max={2} /></span> : null}
+          </span>
+        </div>
+        {/* Owner sees no Follow — you cannot follow yourself, and the owner's controls
+            live in the Nest's own menu, never overlaid on the artwork. */}
+        <div className="pointer-events-auto shrink-0">
+          <FollowButton creatorId={item.creator.id} tone="light" compact />
+        </div>
+      </div>
+
+      <div className={`pointer-events-none absolute left-4 top-[4.75rem] ${z.chrome}`}>
         <span className="pointer-events-auto"><SourceBadge source={item.source} floating /></span>
       </div>
 
@@ -310,13 +341,11 @@ function FeedCard({ item }: { item: DiscoveryItem }) {
         </div>
       </div>
 
-      {/* Identity + title + one CTA, kept compact and clear of the nav + the rail. */}
-      <div className={`pointer-events-none absolute inset-x-0 bottom-0 space-y-2.5 px-5 pr-16 pt-5 ${z.chrome}`} style={{ paddingBottom: NAV_CLEAR }}>
-        <div className="pointer-events-auto"><CreatorRow creator={item.creator} /></div>
+      {/* ── BOTTOM — the Nest's name and the one CTA, clear of the rail and the nav ── */}
+      <div className={`pointer-events-none absolute inset-x-0 bottom-0 space-y-2 px-5 pr-16 pt-5 ${z.chrome}`} style={{ paddingBottom: NAV_CLEAR }}>
         <h2 className="display text-[21px] font-black leading-[1.12] tracking-tight text-white [text-shadow:0_2px_14px_rgba(0,0,0,0.45)]">{item.title}</h2>
-        {item.tags.length ? <div className="pointer-events-auto"><NestTags tags={item.tags} tone="light" max={2} /></div> : null}
         {item.creator.username ? (
-          <div className="pointer-events-auto pt-0.5">
+          <div className="pointer-events-auto">
             <Link href={`/@${item.creator.username}`} className="inline-flex items-center justify-center gap-1.5 rounded-full bg-terracotta px-4 py-2 text-sm font-black text-parchment shadow-lift transition active:scale-95">
               <Home className="size-4" /> Visit House
             </Link>

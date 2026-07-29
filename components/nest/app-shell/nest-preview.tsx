@@ -81,7 +81,23 @@ export function NestPreview({
           }
 
           const asset = resolveAsset(p.assetId); // resolves archived assets too → cards never break
-          if (!asset) return null;
+          if (!asset) {
+            // M24 — an object the catalogue can't resolve used to `return null`, so it
+            // simply VANISHED from the published Nest while still sitting in the editor.
+            // That is the "some objects disappear" report, and silently dropping a
+            // creator's work is exactly the failure mode this programme exists to remove.
+            //
+            // We keep its footprint and say what's wrong. In production it reads as a
+            // quiet gap rather than a lie; in development it names the missing id.
+            if (process.env.NODE_ENV !== "production") {
+              console.warn(`[nest-preview] asset "${p.assetId}" is not in the library — rendering a placeholder.`);
+            }
+            return (
+              <div key={p.id} className="absolute" style={style} aria-hidden>
+                <div className="size-full rounded-lg border-2 border-dashed border-ink/25 bg-ink/[0.04]" />
+              </div>
+            );
+          }
           return (
             <div key={p.id} className="absolute" style={style}>
               {/* eslint-disable-next-line @next/next/no-img-element -- local curated art */}

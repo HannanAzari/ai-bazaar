@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Check, UserPlus } from "lucide-react";
-import { isFollowing as localIsFollowing, onSocialChanged, toggleFollow as localToggleFollow } from "@/lib/nest-social";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { AuthGateSheet } from "@/components/nest/social/auth-gate-sheet";
-import { nestBackend } from "@/lib/nest-repo";
-import * as social from "@/lib/nest/supabase-social-repo";
+import { useCreatorSocial } from "@/components/nest/social/use-creator-social";
 
 // M18 → M23B — a real follow against the shared `creator_follows` table, so Account A
 // genuinely gains a follower when Account B taps this — on any device.
@@ -15,24 +13,11 @@ import * as social from "@/lib/nest/supabase-social-repo";
 // does not exist is exactly the class of lie this sprint exists to remove.
 export function FollowButton({ creatorId, tone = "ink", compact = false }: { creatorId?: string; tone?: "ink" | "light"; compact?: boolean }) {
   const { ownerId } = useNestIdentity();
-  const [following, setFollowing] = useState(false);
+  // M24 §8 — follow state comes from the SHARED store, so pressing Follow here also moves
+  // the follower count on the Profile, in the creator drawer and on every visible card.
+  const { following, setFollowing } = useCreatorSocial(creatorId);
   const [gate, setGate] = useState(false);
   const [morph, setMorph] = useState(false);
-
-  useEffect(() => {
-    if (!creatorId) return;
-    if (nestBackend() !== "supabase") {
-      const refresh = () => setFollowing(localIsFollowing(ownerId, creatorId));
-      refresh();
-      return onSocialChanged(refresh);
-    }
-    if (!ownerId) { setFollowing(false); return; }
-    let alive = true;
-    void social.isFollowing(ownerId, creatorId)
-      .then((v) => { if (alive) setFollowing(v); })
-      .catch(() => { if (alive) setFollowing(false); });
-    return () => { alive = false; };
-  }, [creatorId, ownerId]);
 
   // No creator to follow, or it's you → no button.
   if (!creatorId || creatorId === ownerId) return null;
@@ -41,18 +26,7 @@ export function FollowButton({ creatorId, tone = "ink", compact = false }: { cre
     if (!ownerId) { setGate(true); return; }
     setMorph(true);
     setTimeout(() => setMorph(false), 360);
-
-    if (nestBackend() !== "supabase") {
-      setFollowing(localToggleFollow(ownerId, creatorId!));
-      return;
-    }
-    const next = !following;
-    setFollowing(next); // optimistic
-    try {
-      await social.setFollowing(ownerId, creatorId!, next);
-    } catch {
-      setFollowing(!next); // never leave "Following" over a follow that didn't persist
-    }
+    await setFollowing(!following, ownerId);
   }
 
   const light = tone === "light";

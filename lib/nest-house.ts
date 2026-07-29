@@ -112,6 +112,30 @@ export function isHouseStyleKey(key: string | undefined | null): key is HouseSty
   return !!key && (HOUSE_STYLE_KEYS as readonly string[]).includes(key);
 }
 
+/**
+ * M24 §3 — ONE canonical house per style.
+ *
+ * The founder reported that the house picked in onboarding did not match the house on
+ * their Profile: "only the colours roughly match". Both screens already render the same
+ * `HouseExterior` component with the same palette — what differed was the SEED.
+ *
+ *   onboarding      hashSeed(`house-preview:${styleKey}`)
+ *   Profile/Village hashSeed(`house:${creatorId}`)
+ *
+ * `houseFeatures(seed)` decodes roof shape, window shape and count, door type, garden
+ * decoration, mailbox, chimney, tree side, fence and porch from that number. Two different
+ * seeds therefore produced two genuinely different buildings that happened to share a
+ * colour scheme.
+ *
+ * The style is now the only input, so "Garden Cottage" is the same building in the
+ * carousel, on the creator's Profile, on a visitor's view of it, at the House arrival and
+ * in the Village. Creator-specific variation is deliberately gone: a chosen style is a
+ * promise about what you are choosing.
+ */
+export function houseStyleSeed(styleKey: string): number {
+  return hashSeed(`house-style:${styleKey}`);
+}
+
 /** Resolve a stored `profiles.house_style` to its palette. Unknown keys fall back. */
 export function styleByKey(key?: string | null): HouseStyle {
   return (key && HOUSE_STYLES[key]) || HOUSE_STYLES[DEFAULT_HOUSE_STYLE_KEY];
@@ -260,7 +284,12 @@ export function deriveHouse(input: {
 }): House {
   const { creator, persona, bio, nestHref, latestNestTitle, houseStyle } = input;
   const id = creator.username ?? creator.id ?? creator.displayName ?? "nest";
-  const seed = hashSeed(`house:${id}`);
+  // M24 §3 — a CHOSEN style pins the whole building, so onboarding and every other
+  // surface render the identical house. Creators who have not chosen one yet (and the
+  // generated neighbours that keep the Village populated) still vary per-creator.
+  const seed = isHouseStyleKey(houseStyle)
+    ? houseStyleSeed(houseStyle)
+    : hashSeed(`house:${id}`);
   return {
     id,
     ownerId: creator.id,

@@ -14,6 +14,8 @@
 // Kept in its own module so the list is auditable in one place and testable without a
 // React tree.
 
+import { resetSocialStore } from "@/lib/nest-social-store";
+
 /** Keys wiped on sign-out. Each one is per-user state, not shared reference data. */
 export const SESSION_SCOPED_KEYS = [
   "nestudio-account-session", // the local/demo session pointer
@@ -37,6 +39,9 @@ export const SESSION_SCOPED_PREFIXES = ["nestudio:nest-editor:v1:"] as const;
  */
 export function clearLocalSessionState(): void {
   if (typeof window === "undefined") return;
+  // M24 §8 — drop the in-memory social cache as well, so the next account never sees the
+  // previous one's like/follow state before the first fetch lands.
+  resetSocialStore();
   try {
     for (const key of SESSION_SCOPED_KEYS) window.localStorage.removeItem(key);
     // Snapshot the key list first — removing while iterating shifts the indices.

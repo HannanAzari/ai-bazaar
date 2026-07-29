@@ -15,6 +15,7 @@ import {
   onSocialChanged,
 } from "@/lib/nest-social";
 import { getNestProfile } from "@/lib/nest-profile-store";
+import * as store from "@/lib/nest-social-store";
 
 // M18 → M23B — comments as a slide-up sheet (Instagram/TikTok feel), not a forum page.
 // Newest first, creator badge beside the owner's own comments, delete your own, auth
@@ -86,6 +87,9 @@ export function CommentSheet({
       if (isSupabase()) await social.addComment(nestId, ownerId, text, nestOwnerId, nestTitle);
       else localAdd(nestId, ownerId, text);
       setBody("");
+      // M24 §8 — the count moves everywhere immediately (Home card, full-Nest rail),
+      // not just in this sheet after a refetch.
+      store.applyCommentDelta(nestId, 1);
       await load();
       onChanged?.();
     } catch (e) {
@@ -100,6 +104,7 @@ export function CommentSheet({
     try {
       if (isSupabase()) await social.deleteComment(id, ownerId);
       else localDelete(id, ownerId);
+      store.applyCommentDelta(nestId, -1);
       await load();
       onChanged?.();
     } catch (e) {

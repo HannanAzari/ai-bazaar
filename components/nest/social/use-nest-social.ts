@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { nestBackend } from "@/lib/nest-repo";
 import * as social from "@/lib/nest/supabase-social-repo";
@@ -11,6 +11,7 @@ import {
   onSocialChanged,
   toggleLike as localToggleLike,
 } from "@/lib/nest-social";
+import * as store from "@/lib/nest-social-store";
 
 // ── M23B §7 — one hook behind Like / Comments ────────────────────────────────
 //
@@ -38,45 +39,52 @@ export type NestSocial = {
   refresh: () => void;
 };
 
+const EMPTY: store.NestSocialCounts = { likeCount: 0, liked: false, commentCount: 0 };
+
 export function useNestSocial(nestSlug: string, nestOwnerId?: string, nestTitle?: string): NestSocial {
   const { ownerId } = useNestIdentity();
-  const [state, setState] = useState({ likeCount: 0, liked: false, commentCount: 0 });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [nonce, setNonce] = useState(0);
   const inFlight = useRef(false);
+  const errorRef = useRef<string | null>(null);
+  const loadingRef = useRef(true);
 
-  const refresh = useCallback(() => setNonce((n) => n + 1), []);
+  // M24 §8 — read through the SHARED store. Every surface showing this Nest (Home card,
+  // full Nest, drawer, Profile preview) subscribes to the same entry, so one tap moves
+  // all of them in the same tick instead of each waiting for its own refetch.
+  store.getVersion(); // referenced so the dependency is obvious to readers
+  const counts = useSyncExternalStore(
+    store.subscribe,
+    () => store.getNestCounts(nestSlug) ?? EMPTY,
+    () => EMPTY,
+  );
+
+  const load = useCallback(async () => {
+    if (!isSupabase()) {
+      store.setNestCounts(nestSlug, {
+        likeCount: localLikeCount(nestSlug),
+        liked: localIsLiked(nestSlug, ownerId),
+        commentCount: localCommentCount(nestSlug),
+      });
+      loadingRef.current = false;
+      return;
+    }
+    try {
+      const s = await social.loadSocialState(nestSlug, ownerId);
+      errorRef.current = null;
+      store.setNestCounts(nestSlug, s);
+    } catch (e) {
+      errorRef.current = e instanceof Error ? e.message : "Engagement could not be loaded.";
+    } finally {
+      loadingRef.current = false;
+    }
+  }, [nestSlug, ownerId]);
+
+  const refresh = useCallback(() => { void load(); }, [load]);
 
   useEffect(() => {
-    if (!isSupabase()) {
-      const sync = () =>
-        setState({
-          likeCount: localLikeCount(nestSlug),
-          liked: localIsLiked(nestSlug, ownerId),
-          commentCount: localCommentCount(nestSlug),
-        });
-      sync();
-      setLoading(false);
-      return onSocialChanged(sync);
-    }
-
-    let alive = true;
-    setLoading(true);
-    void social
-      .loadSocialState(nestSlug, ownerId)
-      .then((s) => {
-        if (!alive) return;
-        setError(null);
-        setState(s);
-      })
-      .catch((e: unknown) => {
-        if (!alive) return;
-        setError(e instanceof Error ? e.message : "Engagement could not be loaded.");
-      })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [nestSlug, ownerId, nonce]);
+    loadingRef.current = true;
+    void load();
+    if (!isSupabase()) return onSocialChanged(() => void load());
+  }, [load]);
 
   const toggleLike = useCallback(async (): Promise<boolean> => {
     if (!ownerId) return false; // guest → caller opens the auth gate
@@ -88,25 +96,20 @@ export function useNestSocial(nestSlug: string, nestOwnerId?: string, nestTitle?
     }
 
     inFlight.current = true;
-    const previous = state;
-    const next = {
-      ...state,
-      liked: !state.liked,
-      likeCount: Math.max(0, state.likeCount + (state.liked ? -1 : 1)),
-    };
-    setState(next); // optimistic
-    setError(null);
+    const previous = store.getNestCounts(nestSlug);
+    const next = store.applyLike(nestSlug, !(previous?.liked ?? false)); // optimistic, everywhere
+    errorRef.current = null;
     try {
-      if (next.liked) await social.like(nestSlug, ownerId, nestOwnerId, nestTitle);
+      if (next?.liked) await social.like(nestSlug, ownerId, nestOwnerId, nestTitle);
       else await social.unlike(nestSlug, ownerId);
     } catch (e) {
-      setState(previous); // roll back — never show a like that didn't persist
-      setError(e instanceof Error ? e.message : "Your like could not be saved.");
+      store.revertNest(nestSlug, previous); // never show a like that didn't persist
+      errorRef.current = e instanceof Error ? e.message : "Your like could not be saved.";
     } finally {
       inFlight.current = false;
     }
     return true;
-  }, [ownerId, nestSlug, nestOwnerId, nestTitle, state]);
+  }, [ownerId, nestSlug, nestOwnerId, nestTitle]);
 
-  return { ...state, loading, error, toggleLike, refresh };
+  return { ...counts, loading: loadingRef.current, error: errorRef.current, toggleLike, refresh };
 }

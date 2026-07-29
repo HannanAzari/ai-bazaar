@@ -8,9 +8,9 @@ import { AuthPanel } from "@/components/nest/app-shell/auth-panel";
 import { HouseExterior } from "@/components/nest/village/house-exterior";
 import { isUsernameAvailable as serverUsernameAvailable } from "@/lib/nest/supabase-profile-repo";
 import { normalizeUsername, validateUsername } from "@/lib/nest-profile-store";
-import { hashSeed, houseStyleOptions, type House, type HouseStyleKey } from "@/lib/nest-house";
+import { houseStyleOptions, houseStyleSeed, type House, type HouseStyleKey } from "@/lib/nest-house";
 import { nestBackend } from "@/lib/nest-repo";
-import { z } from "@/lib/nest-layers";
+import { safeBottom, z } from "@/lib/nest-layers";
 import { safeReturnTo, shouldLeaveOnboarding } from "@/lib/auth/post-sign-in-route";
 
 // ── M23B §1 — first-time onboarding ──────────────────────────────────────────
@@ -95,7 +95,7 @@ export function OnboardingClient() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[100dvh] w-full max-w-[460px] flex-col px-5 pb-6 pt-5">
+    <div className="mx-auto flex h-[100dvh] w-full max-w-[460px] flex-col overflow-hidden px-5 pb-2 pt-4">
       <StepDots step={step} />
       {step === "identity" ? (
         <IdentityStep
@@ -300,7 +300,8 @@ function previewHouse(key: string, label: string): House {
     id: `preview-${key}`,
     name: label,
     style: houseStyleOptions().find((o) => o.key === key)!.style,
-    seed: hashSeed(`house-preview:${key}`),
+    // M24 §3 — the SAME seed the Profile/Village will use, so what you pick is what you get.
+    seed: houseStyleSeed(key),
     isReal: false,
     online: false,
   };
@@ -350,13 +351,16 @@ function HouseStep({
   };
 
   return (
-    <div className="flex flex-1 flex-col">
-      <button onClick={onBack} className="-ml-1 mb-3 inline-flex min-h-[36px] items-center gap-1 self-start text-[13px] font-bold text-ink/50">
+    // M24 §4 — the whole decision fits ONE screen. `min-h-0` lets the carousel shrink
+    // instead of pushing the action below the fold, and the CTA is pinned in a
+    // safe-area-aware bar so Safari's bottom toolbar can never sit on top of it.
+    <div className="flex min-h-0 flex-1 flex-col">
+      <button onClick={onBack} className="-ml-1 mb-2 inline-flex min-h-[36px] items-center gap-1 self-start text-[13px] font-bold text-ink/50">
         <ArrowLeft className="size-4" /> Back
       </button>
 
-      <h1 className="display text-3xl leading-tight">Pick your house</h1>
-      <p className="mb-5 mt-1.5 text-sm text-ink/55">This is how visitors arrive at your Nests. You get one.</p>
+      <h1 className="display text-2xl leading-tight">Pick your house</h1>
+      <p className="mb-3 mt-1 text-[13px] text-ink/55">This is how visitors arrive at your Nests. You get one.</p>
 
       {/* full-bleed track so a card can sit centred on a 375px screen */}
       <div
@@ -364,7 +368,7 @@ function HouseStep({
         onScroll={onScroll}
         role="radiogroup"
         aria-label="House style"
-        className="-mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-mx-5 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {options.map((o, i) => {
           const active = i === index;
@@ -374,20 +378,20 @@ function HouseStep({
               role="radio"
               aria-checked={active}
               onClick={() => select(i)}
-              className={`relative flex w-[70vw] max-w-[280px] shrink-0 snap-center flex-col overflow-hidden rounded-3xl border-2 bg-white text-left transition ${
+              className={`relative flex h-full w-[70vw] max-w-[280px] shrink-0 snap-center flex-col overflow-hidden rounded-3xl border-2 bg-white text-left transition ${
                 active ? "border-terracotta shadow-lift" : "border-timber/15 opacity-70"
               }`}
             >
               <span
-                className="flex aspect-[4/5] items-end justify-center px-5 pb-4"
+                className="flex min-h-0 flex-1 items-end justify-center px-5 pb-3"
                 style={{ background: `linear-gradient(#dfe9ee, ${o.style.ground})` }}
               >
-                <HouseExterior house={previewHouse(o.key, o.style.label)} className="w-full" />
+                <HouseExterior house={previewHouse(o.key, o.style.label)} className="max-h-full w-full" />
               </span>
-              <span className="flex items-start justify-between gap-2 p-3.5">
+              <span className="flex shrink-0 items-start justify-between gap-2 p-3">
                 <span className="min-w-0">
                   <span className="block truncate text-[15px] font-black text-ink">{o.style.label}</span>
-                  <span className="mt-0.5 block text-[12px] leading-snug text-ink/50">{o.blurb}</span>
+                  <span className="mt-0.5 block line-clamp-2 text-[12px] leading-snug text-ink/50">{o.blurb}</span>
                 </span>
                 {active ? (
                   <span className={`grid size-6 shrink-0 place-items-center rounded-full bg-terracotta text-parchment ${z.hotspots}`}>
@@ -401,26 +405,28 @@ function HouseStep({
       </div>
 
       {/* position dots — these page the CAROUSEL, not Nests (see D-06) */}
-      <div className="mt-3 flex justify-center gap-1.5">
+      <div className="mt-2 flex shrink-0 justify-center gap-1.5">
         {options.map((o, i) => (
           <span key={o.key} className={`h-1 rounded-full transition-all ${i === index ? "w-5 bg-terracotta" : "w-1.5 bg-ink/15"}`} />
         ))}
       </div>
 
       {error ? (
-        <p role="alert" className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">{error}</p>
+        <p role="alert" className="mt-2 shrink-0 rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">{error}</p>
       ) : null}
 
-      <div className="flex-1" />
-
-      <button
-        onClick={submit}
-        disabled={busy}
-        className="mt-6 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-terracotta text-[15px] font-black text-parchment transition disabled:opacity-40 active:scale-[0.99]"
-      >
-        {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-        Move in <ArrowRight className="size-4" />
-      </button>
+      {/* §4 — the action bar. Never scrolled to, never under Safari's toolbar: it names
+          the house you are committing to, so the choice and the confirmation are one. */}
+      <div className="shrink-0 pt-3" style={{ paddingBottom: safeBottom("0.5rem") }}>
+        <button
+          onClick={submit}
+          disabled={busy}
+          className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-terracotta text-[15px] font-black text-parchment transition disabled:opacity-40 active:scale-[0.99]"
+        >
+          {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+          Move into {selected.style.label} <ArrowRight className="size-4" />
+        </button>
+      </div>
     </div>
   );
 }

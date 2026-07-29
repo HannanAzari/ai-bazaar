@@ -14,7 +14,8 @@ import { resolveTemplate } from "@/lib/nest-production-library";
 import { FollowButton } from "@/components/nest/social/follow-button";
 import { DoorTransition } from "@/components/nest/village/enter-transition";
 import { deriveHouse } from "@/lib/nest-house";
-import { followerCount, onSocialChanged, viewsForOwner } from "@/lib/nest-social";
+import { onSocialChanged, viewsForOwner } from "@/lib/nest-social";
+import { useCreatorSocial } from "@/components/nest/social/use-creator-social";
 import { profileLinks } from "@/lib/profile-links";
 
 import { IdentityBox } from "@/components/nest/profile/identity-box";
@@ -29,7 +30,6 @@ export function ProfileClient({ handle }: { handle: string }) {
   const router = useRouter();
   const { ownerId } = useNestIdentity();
   const [profile, setProfile] = useState<(NestProfile & { houseStyle?: string }) | null | undefined>(undefined); // undefined = resolving
-  const [followers, setFollowers] = useState(0);
   const [views, setViews] = useState(0);
   const [entering, setEntering] = useState(false);
 
@@ -60,9 +60,13 @@ export function ProfileClient({ handle }: { handle: string }) {
   // them anyway.
   const { published } = useCreatorNests(profile?.userId, { includeDrafts: false });
 
+  // M24 §8 — the follower count is read from the SHARED store, so tapping Follow on this
+  // page (or anywhere else) moves it here immediately, with no reload.
+  const { followerCount: followers } = useCreatorSocial(profile?.userId);
+
   useEffect(() => {
     if (!profile) return;
-    const refresh = () => { setFollowers(followerCount(profile.userId)); setViews(viewsForOwner(profile.userId)); };
+    const refresh = () => setViews(viewsForOwner(profile.userId));
     refresh();
     return onSocialChanged(refresh);
   }, [profile]);
@@ -110,7 +114,9 @@ export function ProfileClient({ handle }: { handle: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2.5 pb-2">
-      <TopControls onBack={() => router.push("/village")} />
+      {/* M24 §11 — no Back button here either; the bottom nav and the House/Village
+          links are the real navigation. */}
+      <TopControls />
 
       <IdentityBox
         username={live.username}
