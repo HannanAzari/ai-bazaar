@@ -1,8 +1,12 @@
-// ── M24 §2 — Views, persisted and deduplicated ───────────────────────────────
+// ── M24B §3 — Views, persisted and deduplicated ──────────────────────────────
+//
+// M24B simplification (rooms.xyz model): there is no such thing as a profile view or a
+// house view. A Nest has Views/Likes/Comments; a creator's Profile shows the SUM over
+// their published Nests. `profile_views` was removed before it ever shipped.
 //
 // View counts were localStorage-only, so they were per-browser and read 0 for everyone
-// else. These are the shared counters, backed by `nest_views` / `profile_views`
-// (supabase/provision/m24_views_provision.sql).
+// else. This is the shared counter, backed by `nest_views`
+// (supabase/provision/m24b_provision.sql).
 //
 // The dedup rule — one view per viewer per Nest per UTC day — is enforced by a unique
 // index, so recording a view is a single atomic `insert … on conflict do nothing`. No
@@ -94,39 +98,5 @@ export async function viewCountForSlugs(slugs: string[]): Promise<number> {
     .select("id", { count: "exact", head: true })
     .in("nest_slug", slugs);
   if (error) { quietly("viewCountForSlugs", error); return 0; }
-  return count ?? 0;
-}
-
-// ── Profile / House views ────────────────────────────────────────────────────
-
-/**
- * Record a view of a creator's Profile or House.
- *
- * The owner viewing their own Profile is excluded here rather than at the call site, so
- * every current and future entry point inherits the rule.
- */
-export async function recordProfileView(profileId: string, viewerId?: string): Promise<boolean> {
-  const client = sb();
-  if (!client || !profileId) return false;
-  if (viewerId && viewerId === profileId) return false; // never count your own
-  const { data, error } = await client
-    .from("profile_views")
-    .insert({ profile_id: profileId, viewer_key: viewerKey(viewerId) })
-    .select("id");
-  if (error) {
-    if ((error as { code?: string }).code !== "23505") quietly("recordProfileView", error);
-    return false;
-  }
-  return (data?.length ?? 0) > 0;
-}
-
-export async function profileViewCount(profileId: string): Promise<number> {
-  const client = sb();
-  if (!client || !profileId) return 0;
-  const { count, error } = await client
-    .from("profile_views")
-    .select("id", { count: "exact", head: true })
-    .eq("profile_id", profileId);
-  if (error) { quietly("profileViewCount", error); return 0; }
   return count ?? 0;
 }

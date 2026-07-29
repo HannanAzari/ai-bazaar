@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { NestEditor } from "@/components/nest/editor/nest-editor";
 import { canEditDoc } from "@/lib/nest-document-store";
-import { loadDoc } from "@/lib/nest-repo";
+import { loadDoc, loadPendingDraft } from "@/lib/nest-repo";
 import { nestDocumentToEditable } from "@/lib/nest-editor-bridge";
 import { loadDraft } from "@/lib/nest-editor-storage";
 import { reconcileDraft } from "@/lib/nest-draft-reconcile";
@@ -25,10 +25,16 @@ export function NestEditorMount({ documentId, pickAssetId }: { documentId?: stri
     if (!documentId) { setState("ready"); return; }
     if (idLoading) return; // wait for identity so ownership isn't misjudged
     let alive = true;
-    loadDoc(documentId)
-      .then((doc) => {
+    Promise.all([loadDoc(documentId), loadPendingDraft(documentId).catch(() => null)])
+      .then(([liveDoc, pendingDraft]) => {
         if (!alive) return;
-        if (doc && !canEditDoc(doc, ownerId)) { setState("denied"); return; }
+        if (liveDoc && !canEditDoc(liveDoc, ownerId)) { setState("denied"); return; }
+        // M24B §4 — reopen the creator's unpublished work, not the live version. This is
+        // what makes editing across several sessions possible: the published Nest keeps
+        // serving visitors while the draft is what you come back to.
+        const doc = liveDoc && pendingDraft
+          ? { ...liveDoc, title: pendingDraft.title, backgroundId: pendingDraft.backgroundId, placements: pendingDraft.placements }
+          : liveDoc;
 
         // M23B §4 — the canonical document wins unless the autosave is strictly newer,
         // i.e. unless the creator left with unsaved work. M14 preferred the autosave

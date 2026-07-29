@@ -70,27 +70,6 @@ describe("recording a Nest view", () => {
   });
 });
 
-describe("recording a Profile view", () => {
-  it("records when someone else opens the Profile", async () => {
-    const { recordProfileView } = await import("@/lib/nest/supabase-views-repo");
-    await expect(recordProfileView("creator-1", "visitor-2")).resolves.toBe(true);
-    expect(insert).toHaveBeenCalledWith({ profile_id: "creator-1", viewer_key: "visitor-2" });
-  });
-
-  it("NEVER counts the creator viewing their own Profile", async () => {
-    const { recordProfileView } = await import("@/lib/nest/supabase-views-repo");
-    await expect(recordProfileView("creator-1", "creator-1")).resolves.toBe(false);
-    expect(insert).not.toHaveBeenCalled();
-  });
-
-  it("still counts an anonymous visitor", async () => {
-    const { recordProfileView } = await import("@/lib/nest/supabase-views-repo");
-    await expect(recordProfileView("creator-1")).resolves.toBe(true);
-    expect(insert.mock.calls[0][0]).toMatchObject({ profile_id: "creator-1" });
-    expect((insert.mock.calls[0][0] as { viewer_key: string }).viewer_key).toMatch(/^anon-/);
-  });
-});
-
 describe("the dwell rule is a real threshold", () => {
   it("waits long enough to exclude an accidental tap", async () => {
     const { VIEW_DWELL_MS } = await import("@/components/nest/social/use-record-view");

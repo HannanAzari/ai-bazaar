@@ -57,6 +57,11 @@ let libraryCache: ProductionLibrary | null = null;
  * On failure or in local mode it's a no-op — the fixture + localStorage path stays
  * (safe local fallback). Notifies subscribers so onboarding/admin re-render.
  */
+// M24B §2 — an approved Asset-Factory asset must appear WITHOUT a manual refresh.
+// `hydrateLibrary()` already re-pulls on every call (there is no once-only guard), so a
+// refresh is just another call. Named separately so call sites read as intent.
+export const refreshLibrary = (): Promise<void> => hydrateLibrary();
+
 export async function hydrateLibrary(): Promise<void> {
   if (libraryBackend() !== "supabase") return;
   try {

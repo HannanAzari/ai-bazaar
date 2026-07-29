@@ -65,7 +65,7 @@ import { HotspotBindingSheet } from "@/components/nest/editor/hotspot-binding-sh
 import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor-types";
 import { canRedo, canUndo, createHistory, pushHistory, redoHistory, undoHistory, type History } from "@/lib/nest-editor-history";
 import { clearDraft, importDocumentJson, loadDraft, saveDraft } from "@/lib/nest-editor-storage";
-import { loadDoc, persistDoc } from "@/lib/nest-repo";
+import { loadDoc, saveWork } from "@/lib/nest-repo";
 import { canFlipX, canRotate, editorWarnings, guardrailForAsset } from "@/lib/nest-editor-policy";
 import { pushRecent } from "@/lib/nest-editor-asset-index";
 import { placementWarnings, supportCandidates } from "@/lib/nest-placement";
@@ -550,14 +550,16 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
     try {
       const current = await loadDoc(documentId);
       if (!current) throw new Error("This Nest no longer exists.");
-      await persistDoc({
-        ...current,
-        title: doc.name || current.title,
-        placements: editableObjectsToPlacements(doc.objects),
-      });
+      // M24B §4 — a PUBLISHED Nest saves to its draft, so the live version visitors see
+      // stays exactly as it was until the creator presses Publish.
+      const isPublished = current.visibility !== "draft";
+      const { target } = await saveWork(
+        { ...current, title: doc.name || current.title, placements: editableObjectsToPlacements(doc.objects) },
+        isPublished,
+      );
       clearDraft(documentId); // the canonical version is now the only version
       setSaveState("saved");
-      flash("Saved ✓");
+      flash(target === "draft" ? "Draft saved — your live Nest is unchanged" : "Saved ✓");
     } catch (e) {
       // Loud (D-10). The autosave is deliberately LEFT IN PLACE so the work survives —
       // but we never claim it saved.
@@ -634,7 +636,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
             Exactly what visitors see
           </p>
           <div className="w-full max-w-[420px] overflow-hidden rounded-2xl border border-ink/10 shadow-lift" style={{ aspectRatio: "3 / 4" }}>
-            <NestPreview doc={previewDoc} className="size-full" />
+            <NestPreview doc={previewDoc} className="size-full" interactive />
           </div>
         </div>
       ) : (

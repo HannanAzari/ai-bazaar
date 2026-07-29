@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { resolveAsset, resolveBackground } from "@/lib/nest-production-library";
 import { OverlayContent } from "@/components/nest/overlay-content";
 import { inPaintOrder, placementStyle, SCENE_ASPECT } from "@/lib/nest-geometry";
@@ -18,20 +18,33 @@ import type { NestDocument } from "@/lib/nest-document-types";
 // Beta Polish 1: an optional `safe` inset. When set, the whole room stage (background +
 // objects together, so nothing detaches from the floor) is confined to a band, leaving the
 // top/bottom as reserved UI zones. `overflow-hidden` clips anything that would spill.
-export function NestPreview({
+function NestPreviewImpl({
   doc,
   className = "",
   rounded = "",
   safe,
+  interactive = false,
 }: {
   doc: NestDocument;
   className?: string;
   rounded?: string;
   /** Reserve top/bottom bands (fractions of height) that objects must stay clear of. */
   safe?: { top?: number; bottom?: number };
+  /**
+   * M24B §1 — the ONLY thing that may differ between modes.
+   *
+   * There is one renderer. Preview, the feed, a Profile card and a visitor all instantiate
+   * this exact component with this exact document; `interactive` merely decides whether
+   * the creator-configured hotspots and links respond to a tap. Nothing about the scene's
+   * composition changes — no mode recomputes a position, a size or a paint order.
+   */
+  interactive?: boolean;
 }) {
   const background = resolveBackground(doc.backgroundId);
   const [loaded, setLoaded] = useState(false);
+  // P9 — sorting the placements is pure; doing it on every parent render was wasted work
+  // on a list that changes only when the document does.
+  const ordered = useMemo(() => inPaintOrder(doc.placements), [doc.placements]);
 
   // ── M24B §1 — THE SCENE IS A FIXED-ASPECT BOX, ALWAYS ──────────────────────
   //
@@ -112,7 +125,7 @@ export function NestPreview({
           <div className="grid size-full place-items-center text-xs text-ink/40">No preview</div>
         )}
 
-        {inPaintOrder(doc.placements).map((p, i) => {
+        {ordered.map((p, i) => {
           const style = placementStyle(p, i);
 
           // Overlays (text / image stickers) are creator content, not catalog assets. They
@@ -126,6 +139,10 @@ export function NestPreview({
             );
           }
 
+          // M24B §1 — the creator's interaction travels with the placement, so a visitor
+          // gets exactly what Preview showed. `linkUrl` and hotspots are replayed here
+          // rather than being rebuilt by a separate visitor-only layer.
+          const link = p.linkUrl;
           const asset = resolveAsset(p.assetId); // resolves archived assets too → cards never break
           if (!asset) {
             // M24 — an object the catalogue can't resolve used to `return null`, so it
@@ -144,15 +161,31 @@ export function NestPreview({
               </div>
             );
           }
+          const art = (
+            /* eslint-disable-next-line @next/next/no-img-element -- local curated art */
+            <img
+              src={asset.variants.standard ?? asset.cutoutUrl ?? asset.imageUrl}
+              alt={asset.name}
+              className="h-full w-full object-contain drop-shadow"
+              loading="lazy"
+            />
+          );
           return (
-            <div key={p.id} className="absolute" style={style}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- local curated art */}
-              <img
-                src={asset.variants.standard ?? asset.cutoutUrl ?? asset.imageUrl}
-                alt={asset.name}
-                className="h-full w-full object-contain drop-shadow"
-                loading="lazy"
-              />
+            <div key={p.id} className="absolute" style={style} title={p.label || undefined}>
+              {interactive && link ? (
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label={p.label || asset.name}
+                  className="block size-full"
+                >
+                  {art}
+                </a>
+              ) : (
+                art
+              )}
             </div>
           );
         })}
@@ -161,3 +194,9 @@ export function NestPreview({
     </div>
   );
 }
+
+// P9 — the scene is memoised. Home re-renders on every social-store notification (a like
+// anywhere bumps the store's version), and without this each of those re-laid-out every
+// visible room. The document is replaced wholesale when it changes, so a reference check
+// is exactly the right comparison.
+export const NestPreview = memo(NestPreviewImpl);

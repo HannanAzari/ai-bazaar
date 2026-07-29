@@ -8,7 +8,7 @@ import { createFromBackground, createFromTemplate } from "@/lib/nest-repo";
 import { setDocOwner } from "@/lib/nest-document-store";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import type { ProductionBackground, ProductionTemplate } from "@/lib/nest-production-types";
-import { BOTTOM_NAV_CLEARANCE, z } from "@/lib/nest-layers";
+import { BOTTOM_NAV_CLEARANCE } from "@/lib/nest-layers";
 
 // Phase 2 — the Create tab, the single creation entry point. Quick Start (a ready
 // template) or Build My Own (a chosen room) → creates a NestDocument → opens the one
@@ -198,18 +198,18 @@ function SelectionStep({
         {isEmpty ? <EmptyNote label={emptyLabel} /> : null}
       </SwipeRow>
 
-      {/* Sticky, safe-area aware, and clear of the bottom nav. */}
-      <div
-        className={`sticky bottom-0 -mx-4 border-t border-timber/10 bg-parchment/95 px-4 pt-3 backdrop-blur ${z.chrome}`}
-        style={{ paddingBottom: BOTTOM_NAV_CLEARANCE }}
-      >
+      {/* M24B §8 — the action lives with the selection, in normal flow.
+          A sticky bar overlaid the carousel and clipped the cards behind it; this keeps
+          every card fully visible and still needs no scrolling, because the row + this
+          block fit one screen together. */}
+      <div className="pb-2" style={{ paddingBottom: BOTTOM_NAV_CLEARANCE }}>
         {selectedLabel ? (
-          <>
-            <p className="mb-2 truncate text-[12px] font-bold text-ink/60">{selectedLabel}</p>
+          <div className="rounded-2xl border border-terracotta/30 bg-white p-3 shadow-soft">
+            <p className="mb-2 truncate text-[13px] font-black text-ink">{selectedLabel}</p>
             <button onClick={onAction} disabled={busy} className={btnPrimary}>{actionLabel}</button>
-          </>
+          </div>
         ) : (
-          <p className="pb-1 text-center text-xs text-ink/50">{hint}</p>
+          <p className="text-center text-xs text-ink/50">{hint}</p>
         )}
       </div>
     </section>
@@ -217,12 +217,19 @@ function SelectionStep({
 }
 
 function SwipeRow({ children }: { children: React.ReactNode }) {
-  return <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">{children}</div>;
+    // M24B §8 — `overflow-y-visible` matters: a horizontal scroller with `overflow-x:auto`
+  // makes the CROSS axis `auto` too unless it is explicitly visible, which clipped the
+  // cards' shadows and ring. `py` gives the selected card's ring room to breathe.
+  return (
+    <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-visible px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {children}
+    </div>
+  );
 }
 
 function TemplateCard({ t, selected, onSelect }: { t: ProductionTemplate; selected: boolean; onSelect: () => void }) {
   return (
-    <button onClick={onSelect} className={`w-[220px] shrink-0 snap-center overflow-hidden rounded-2xl border bg-white text-left transition ${selected ? "border-terracotta ring-2 ring-terracotta" : "border-timber/15"}`}>
+    <button onClick={onSelect} className={`w-[220px] shrink-0 snap-center rounded-2xl border bg-white text-left transition ${selected ? "border-terracotta ring-2 ring-terracotta" : "border-timber/15"}`}>
       <PreviewImage src={t.previewImage} alt={t.name} />
       <div className="p-3">
         <p className="text-sm font-bold">{t.name}</p>
@@ -235,7 +242,7 @@ function TemplateCard({ t, selected, onSelect }: { t: ProductionTemplate; select
 
 function BackgroundCard({ b, selected, onSelect }: { b: ProductionBackground; selected: boolean; onSelect: () => void }) {
   return (
-    <button onClick={onSelect} className={`w-[220px] shrink-0 snap-center overflow-hidden rounded-2xl border bg-white text-left transition ${selected ? "border-terracotta ring-2 ring-terracotta" : "border-timber/15"}`}>
+    <button onClick={onSelect} className={`w-[220px] shrink-0 snap-center rounded-2xl border bg-white text-left transition ${selected ? "border-terracotta ring-2 ring-terracotta" : "border-timber/15"}`}>
       <PreviewImage src={b.variants.standard ?? b.imageUrl} alt={b.name} />
       <div className="p-3">
         <p className="text-sm font-bold">{b.name}</p>

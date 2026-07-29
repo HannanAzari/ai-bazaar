@@ -16,8 +16,7 @@ import { DoorTransition } from "@/components/nest/village/enter-transition";
 import { deriveHouse } from "@/lib/nest-house";
 import { onSocialChanged, viewsForOwner } from "@/lib/nest-social";
 import { useCreatorSocial } from "@/components/nest/social/use-creator-social";
-import { useRecordProfileView } from "@/components/nest/social/use-record-view";
-import { profileViewCount } from "@/lib/nest/supabase-views-repo";
+import { viewCountForSlugs } from "@/lib/nest/supabase-views-repo";
 import { nestBackend as backendForViews } from "@/lib/nest-repo";
 import { profileLinks } from "@/lib/profile-links";
 
@@ -67,15 +66,8 @@ export function ProfileClient({ handle }: { handle: string }) {
   // page (or anywhere else) moves it here immediately, with no reload.
   const { followerCount: followers } = useCreatorSocial(profile?.userId);
 
-  // M24 §2 — the real, shared Profile/House view count.
-  const [viewNonce, setViewNonce] = useState(0);
-  useRecordProfileView(profile?.userId, {
-    ready: !!profile,
-    isOwner: !!profile && ownerId === profile.userId,
-    viewerId: ownerId,
-    onCounted: () => setViewNonce((n) => n + 1),
-  });
-
+  // M24B §3 — a creator's Views is the SUM over their published Nests. There is no
+  // separate profile/house view; the rooms.xyz model has one counter per Nest.
   useEffect(() => {
     if (!profile) return;
     if (backendForViews() !== "supabase") {
@@ -84,9 +76,10 @@ export function ProfileClient({ handle }: { handle: string }) {
       return onSocialChanged(refresh);
     }
     let alive = true;
-    void profileViewCount(profile.userId).then((n) => { if (alive) setViews(n); });
+    const slugs = published.map((n) => n.slug).filter((s): s is string => !!s);
+    void viewCountForSlugs(slugs).then((n) => { if (alive) setViews(n); });
     return () => { alive = false; };
-  }, [profile, viewNonce]);
+  }, [profile, published]);
 
   const live = useMemo<(NestProfile & { houseStyle?: string }) | null>(() => {
     if (!profile) return null;

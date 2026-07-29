@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { nestBackend } from "@/lib/nest-repo";
-import { listMyNests, listPublishedNestsByOwner, type NestListing } from "@/lib/nest/supabase-nest-repo";
+import { deleteNest, listMyNests, listPublishedNestsByOwner, nestIdsWithDrafts, type NestListing } from "@/lib/nest/supabase-nest-repo";
 import { listDrafts, listPublished, onDocsChanged, publishedUrl } from "@/lib/nest-document-store";
 import type { NestDocument, NestVisibility } from "@/lib/nest-document-types";
 
@@ -29,6 +29,8 @@ export type CreatorNest = {
   editHref: string;
   /** Where anyone views it. Absent for an unpublished draft — there is nothing to view. */
   viewHref?: string;
+  /** M24B §4 — published, but with unpublished edits waiting. */
+  hasPendingDraft?: boolean;
 };
 
 export type CreatorNestsState = {
@@ -38,6 +40,8 @@ export type CreatorNestsState = {
   loading: boolean;
   error: string | null;
   reload: () => void;
+  /** M24B §6 — delete a Nest (draft, published or unlisted). Removes it everywhere. */
+  remove: (nestId: string) => Promise<void>;
 };
 
 function toCreatorNest(l: NestListing): CreatorNest {
@@ -99,9 +103,11 @@ export function useCreatorNests(ownerId: string | undefined, options: { includeD
     void (async () => {
       try {
         const listings = includeDrafts ? await listMyNests() : await listPublishedNestsByOwner(ownerId);
+        // M24B §4 — mark which published Nests have unpublished edits waiting.
+        const withDrafts = includeDrafts ? await nestIdsWithDrafts(ownerId) : new Set<string>();
         if (!alive) return;
         setError(null);
-        setNests(listings.map(toCreatorNest));
+        setNests(listings.map((l) => ({ ...toCreatorNest(l), hasPendingDraft: withDrafts.has(l.doc.id) })));
       } catch (e) {
         if (!alive) return;
         // Loud: an empty Profile must not be how a creator finds out the backend is down.
@@ -115,6 +121,15 @@ export function useCreatorNests(ownerId: string | undefined, options: { includeD
     return () => { alive = false; };
   }, [ownerId, includeDrafts, nonce]);
 
+  const remove = useCallback(
+    async (nestId: string) => {
+      await deleteNest(nestId);
+      // Drop it locally at once so the Profile updates without waiting for a refetch.
+      setNests((prev) => prev.filter((n) => n.doc.id !== nestId));
+    },
+    [],
+  );
+
   return {
     nests,
     drafts: nests.filter((n) => n.isDraft),
@@ -122,5 +137,6 @@ export function useCreatorNests(ownerId: string | undefined, options: { includeD
     loading,
     error,
     reload,
+    remove,
   };
 }

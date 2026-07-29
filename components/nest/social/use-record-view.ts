@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { nestBackend } from "@/lib/nest-repo";
-import { recordNestView, recordProfileView } from "@/lib/nest/supabase-views-repo";
+import { recordNestView } from "@/lib/nest/supabase-views-repo";
 
 // ── M24 §2 — what counts as a view ───────────────────────────────────────────
 //
@@ -76,12 +76,5 @@ function useDwellView(record: (() => Promise<boolean>) | null, options: Options)
 export function useRecordNestView(nestSlug: string | undefined, options: Options = {}) {
   const { viewerId } = options;
   const record = nestSlug ? () => recordNestView(nestSlug, viewerId) : null;
-  useDwellView(record, options);
-}
-
-/** Count a view of a creator's Profile / House. Never counts the creator themselves. */
-export function useRecordProfileView(profileId: string | undefined, options: Options = {}) {
-  const { viewerId } = options;
-  const record = profileId ? () => recordProfileView(profileId, viewerId) : null;
   useDwellView(record, options);
 }

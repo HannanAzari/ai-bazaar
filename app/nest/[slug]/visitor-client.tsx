@@ -177,7 +177,7 @@ function VisitorView({ doc, slug }: { doc: NestDocument; slug: string }) {
       {/* ── ROOM (LAYER.room / objects) — the exact canonical composition ──────
           Same NestPreview, same lib/nest-geometry placementBox, as the editor. */}
       <div className={`absolute inset-0 ${z.room}`}>
-        <NestPreview doc={doc} className="absolute inset-0 size-full" />
+        <NestPreview doc={doc} className="absolute inset-0 size-full" interactive />
       </div>
 
       <div

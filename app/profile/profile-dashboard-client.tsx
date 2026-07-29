@@ -21,7 +21,7 @@ import { useCreatorNests, type CreatorNest } from "@/components/nest/profile/use
 import { resolveTemplate } from "@/lib/nest-production-library";
 import { onSocialChanged, viewsForOwner } from "@/lib/nest-social";
 import { useCreatorSocial } from "@/components/nest/social/use-creator-social";
-import { profileViewCount } from "@/lib/nest/supabase-views-repo";
+import { viewCountForSlugs } from "@/lib/nest/supabase-views-repo";
 import { nestBackend as backendForViews } from "@/lib/nest-repo";
 import { profileLinks } from "@/lib/profile-links";
 import { deleteAvatar, getActiveAvatar, type UserAvatar } from "@/lib/avatar-factory/avatar-repo";
@@ -39,7 +39,7 @@ const VISIBILITY_LABEL: Record<string, string> = {
 export function ProfileDashboardClient() {
   const router = useRouter();
   const { ownerId, signedIn, loading, profile, profileError, bootstrap, retryBootstrap, updateProfile } = useNestIdentity();
-  const { drafts, published, loading: nestsLoading, error: nestsError } = useCreatorNests(ownerId, { includeDrafts: true });
+  const { drafts, published, loading: nestsLoading, error: nestsError, remove } = useCreatorNests(ownerId, { includeDrafts: true });
   const [views, setViews] = useState(0);
   const [editing, setEditing] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -59,8 +59,7 @@ export function ProfileDashboardClient() {
   // M24 §8 — one shared source for the follower count (see use-creator-social).
   const { followerCount: followers } = useCreatorSocial(ownerId);
 
-  // M24 §2 — the creator's own Profile shows the real, shared view count. Their own
-  // visits are excluded at the point of recording, so this never counts themselves.
+  // M24B §3 — Views = the SUM over this creator's published Nests (rooms.xyz model).
   useEffect(() => {
     if (!ownerId) return;
     if (backendForViews() !== "supabase") {
@@ -69,9 +68,10 @@ export function ProfileDashboardClient() {
       return onSocialChanged(refresh);
     }
     let alive = true;
-    void profileViewCount(ownerId).then((n) => { if (alive) setViews(n); });
+    const slugs = published.map((n) => n.slug).filter((s): s is string => !!s);
+    void viewCountForSlugs(slugs).then((n) => { if (alive) setViews(n); });
     return () => { alive = false; };
-  }, [ownerId]);
+  }, [ownerId, published]);
 
   const house = useMemo(() => {
     if (!profile?.username) return null;
@@ -175,7 +175,7 @@ export function ProfileDashboardClient() {
       ) : null}
 
       {/* the creator's Nests — editable, compact, no identity repeated */}
-      <NestList drafts={drafts} published={published} loading={nestsLoading} error={nestsError} />
+      <NestList drafts={drafts} published={published} loading={nestsLoading} error={nestsError} onDelete={remove} />
 
       <div className="mt-2">
         <NestudioStudio />
@@ -209,19 +209,16 @@ function NestList({
   published,
   loading,
   error,
+  onDelete,
 }: {
   drafts: CreatorNest[];
   published: CreatorNest[];
   loading: boolean;
   error: string | null;
+  onDelete: (nestId: string) => Promise<void>;
 }) {
-  const items = [...drafts, ...published].map((n) => ({
-    key: n.key,
-    doc: n.doc,
-    href: n.editHref,
-    label: n.isDraft ? "Draft" : VISIBILITY_LABEL[n.visibility] ?? n.visibility,
-    draft: n.isDraft,
-  }));
+  const [confirming, setConfirming] = useState<CreatorNest | null>(null);
+  const items = [...drafts, ...published];
 
   if (loading && items.length === 0) {
     return (
@@ -252,23 +249,116 @@ function NestList({
   return (
     <section aria-label="Your Nests" className="space-y-1.5">
       <h2 className="px-0.5 text-[11px] font-bold uppercase tracking-wide text-ink/40">Your Nests</h2>
-      {items.map((it) => (
-        <div key={it.key} className="flex items-center gap-3 rounded-2xl border border-timber/15 bg-white/90 p-2 shadow-soft">
-          <Link href={it.href} className="flex min-w-0 flex-1 items-center gap-3">
+      {items.map((n) => (
+        <div key={n.key} className="flex items-center gap-3 rounded-2xl border border-timber/15 bg-white/90 p-2 shadow-soft">
+          {/* M24B §5 — the whole row IS the edit control. There is no separate "Edit"
+              button that does nothing: one target, one behaviour. */}
+          <Link href={n.editHref} className="flex min-w-0 flex-1 items-center gap-3">
             <span className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-timber/10">
-              <NestPreview doc={it.doc} className="h-full w-full" />
+              <NestPreview doc={n.doc} className="h-full w-full" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-black text-ink">{it.doc.title}</span>
-              <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${it.draft ? "bg-ink/8 text-ink/60" : "bg-[#4d7358] text-white"}`}>
-                {it.label}
+              <span className="block truncate text-sm font-black text-ink">{n.doc.title}</span>
+              <span className="mt-0.5 flex flex-wrap items-center gap-1">
+                <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${n.isDraft ? "bg-ink/8 text-ink/60" : "bg-[#4d7358] text-white"}`}>
+                  {n.isDraft ? "Draft" : VISIBILITY_LABEL[n.visibility] ?? n.visibility}
+                </span>
+                {/* §4 — live, but with unpublished edits waiting. */}
+                {n.hasPendingDraft ? (
+                  <span className="inline-block rounded-full bg-[#d9913c]/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#8a5c1b]">
+                    Draft changes
+                  </span>
+                ) : null}
               </span>
             </span>
           </Link>
-          <span className="shrink-0 pr-1 text-[11px] font-bold text-ink/45">Edit →</span>
+
+          <span className="flex shrink-0 items-center gap-1 pr-0.5">
+            <Link
+              href={n.editHref}
+              aria-label={`Edit ${n.doc.title}`}
+              className="grid size-9 place-items-center rounded-full text-ink/50 hover:bg-parchment hover:text-ink"
+            >
+              <Pencil className="size-4" />
+            </Link>
+            <button
+              onClick={() => setConfirming(n)}
+              aria-label={`Delete ${n.doc.title}`}
+              className="grid size-9 place-items-center rounded-full text-ink/40 hover:bg-rose-50 hover:text-rose-600"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          </span>
         </div>
       ))}
+
+      <DeleteNestModal
+        nest={confirming}
+        onClose={() => setConfirming(null)}
+        onConfirm={async () => {
+          if (!confirming) return;
+          await onDelete(confirming.doc.id);
+          setConfirming(null);
+        }}
+      />
     </section>
+  );
+}
+
+// ── M24B §6 — deleting a Nest ────────────────────────────────────────────────
+//
+// Deleting the `nests` row cascades `nest_objects`, and likes/comments/views are keyed by
+// slug so they simply stop being reachable. The Nest leaves the feed, Explore, the
+// Profile, the House and search at once — there is no second index to keep in step.
+function DeleteNestModal({
+  nest,
+  onClose,
+  onConfirm,
+}: {
+  nest: CreatorNest | null;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <CenteredModal open={!!nest} onClose={busy ? () => {} : onClose} title="Delete Nest?">
+      <div className="space-y-4">
+        <p className="text-[13px] leading-snug text-ink/70">
+          <strong className="font-black text-ink">{nest?.doc.title}</strong> will be removed from
+          your Profile, your House, Home, Explore and search.
+          <br />
+          <strong className="font-black">This cannot be undone.</strong>
+        </p>
+        {error ? (
+          <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-[13px] font-bold text-rose-700">{error}</p>
+        ) : null}
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="min-h-[48px] flex-1 rounded-xl border border-timber/20 bg-white text-sm font-black text-ink/70 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={async () => {
+              setBusy(true);
+              setError(null);
+              try { await onConfirm(); } catch (e) {
+                setError(e instanceof Error ? e.message : "That Nest could not be deleted.");
+              } finally { setBusy(false); }
+            }}
+            disabled={busy}
+            className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-rose-600 text-sm font-black text-white disabled:opacity-40"
+          >
+            {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+            {busy ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </div>
+    </CenteredModal>
   );
 }
 

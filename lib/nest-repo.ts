@@ -125,6 +125,44 @@ export async function persistDoc(doc: NestDocument): Promise<NestDocument> {
   return localSaveDoc(doc);
 }
 
+// ── M24B §4 — the draft workflow ─────────────────────────────────────────────
+//
+// A Nest that is already PUBLISHED must keep serving its live version while the creator
+// edits over several sessions. Saving therefore routes two ways:
+//
+//   • never published  → save straight to the live row (there are no visitors to protect)
+//   • published        → save to `draft_doc`; visitors keep seeing the published version
+//
+// Publish then promotes the draft atomically. This is the YouTube model, and it is why
+// "Save" can no longer be allowed to write over a live Nest.
+
+/** Save work in progress. Returns where it went, so the editor can say so. */
+export async function saveWork(
+  doc: NestDocument,
+  isPublished: boolean,
+): Promise<{ target: "draft" | "live" }> {
+  if (!isSupabaseBackend()) {
+    localSaveDoc(doc);
+    return { target: "live" };
+  }
+  if (!isPublished) {
+    await sbRepo.saveNest(doc);
+    return { target: "live" };
+  }
+  await sbRepo.saveNestDraft(doc.id, {
+    title: doc.title,
+    backgroundId: doc.backgroundId,
+    placements: doc.placements,
+  });
+  return { target: "draft" };
+}
+
+/** The pending draft for a Nest, if any — the editor prefers it when reopening. */
+export async function loadPendingDraft(nestId: string): Promise<sbRepo.DraftDoc | null> {
+  if (!isSupabaseBackend()) return null;
+  return sbRepo.getNestDraft(nestId);
+}
+
 // ── Publish ──────────────────────────────────────────────────────────────────
 /**
  * Publish a Nest. On the Supabase backend this either produces a real, payload-free
@@ -136,7 +174,9 @@ export async function publish(
   visibility: NestVisibility,
   ownerId?: string,
 ): Promise<PublishResult> {
-  if (isSupabaseBackend()) return sbRepo.publishNest(id, visibility);
+  // M24B §4 — promote any pending draft in the same step, so Publish always ships what
+  // the creator has been working on rather than the older live version.
+  if (isSupabaseBackend()) return sbRepo.publishNestDraft(id, visibility);
   const local = localPublish(id, visibility, ownerId ?? localSession()?.userId ?? "local-owner");
   if (!local) throw new NestRepoError("That Nest could not be found in this browser.");
   return local;

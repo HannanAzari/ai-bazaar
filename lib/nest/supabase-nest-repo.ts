@@ -98,6 +98,7 @@ type ObjectRow = {
 };
 
 const NEST_COLS = "id, slug, owner_id, title, background_id, visibility, source_template_id, created_at, updated_at";
+const NEST_COLS_WITH_DRAFT = `${NEST_COLS}, draft_doc, draft_updated_at`;
 const OBJECT_COLS = "id, nest_id, asset_id, x, y, scale, rotation, z_index, w, h, flip_x, overlay, interaction, label, link_url";
 
 // ── Mapping (the lossless part) ──────────────────────────────────────────────
@@ -287,8 +288,89 @@ export async function resolveNestBySlug(slug: string): Promise<NestDocument | un
 }
 
 export async function deleteNest(id: string): Promise<void> {
+  // `nest_objects` cascades from `nests`, and likes/comments/views are keyed by slug and
+  // simply stop being reachable — the Nest disappears from the feed, Explore, the Profile,
+  // the House and search the moment the row is gone.
   const { error } = await sb().from("nests").delete().eq("id", id);
   if (error) fail("Deleting your Nest", error);
+}
+
+// ── M24B §4 — the draft workflow ─────────────────────────────────────────────
+//
+// A published Nest stays LIVE and untouched while its creator edits over several
+// sessions, exactly like a YouTube draft. The unpublished scene lives in one `draft_doc`
+// jsonb column on `nests`, never in `nest_objects` — visitors read `nest_objects`, so a
+// draft physically cannot leak to them. Publishing is then one swap, not a diff.
+
+/** The unpublished scene: the same canonical document every renderer consumes. */
+export type DraftDoc = {
+  title: string;
+  backgroundId: string;
+  placements: NestPlacement[];
+};
+
+/** Save work-in-progress WITHOUT touching what visitors currently see. */
+export async function saveNestDraft(nestId: string, draft: DraftDoc): Promise<void> {
+  const { error } = await sb()
+    .from("nests")
+    .update({ draft_doc: draft, draft_updated_at: now() })
+    .eq("id", nestId);
+  if (error) fail("Saving your draft", error);
+}
+
+/** The pending draft for a Nest, or null when there is no unpublished work. */
+export async function getNestDraft(nestId: string): Promise<DraftDoc | null> {
+  const { data, error } = await sb()
+    .from("nests")
+    .select("draft_doc")
+    .eq("id", nestId)
+    .maybeSingle();
+  if (error) fail("Loading your draft", error);
+  return ((data as { draft_doc: DraftDoc | null } | null)?.draft_doc) ?? null;
+}
+
+export async function discardNestDraft(nestId: string): Promise<void> {
+  const { error } = await sb()
+    .from("nests")
+    .update({ draft_doc: null, draft_updated_at: null })
+    .eq("id", nestId);
+  if (error) fail("Discarding your draft", error);
+}
+
+/**
+ * Promote the pending draft to the live Nest, then clear it.
+ *
+ * The composition is replaced first and the draft cleared only afterwards, so a failure
+ * mid-way leaves the draft intact and recoverable rather than losing the creator's work.
+ */
+export async function publishNestDraft(
+  nestId: string,
+  visibility: NestVisibility,
+): Promise<{ slug: string; url: string; visibility: NestVisibility }> {
+  const draft = await getNestDraft(nestId);
+  if (draft) {
+    const client = sb();
+    const { error } = await client
+      .from("nests")
+      .update({ title: draft.title, background_id: draft.backgroundId, updated_at: now() })
+      .eq("id", nestId);
+    if (error) fail("Publishing your draft", error);
+    await replaceObjects(nestId, draft.placements);
+  }
+  const result = await publishNest(nestId, visibility);
+  if (draft) await discardNestDraft(nestId); // only once the live version is safely written
+  return result;
+}
+
+/** Which of a creator's Nests have unpublished work waiting. */
+export async function nestIdsWithDrafts(ownerId: string): Promise<Set<string>> {
+  const { data, error } = await sb()
+    .from("nests")
+    .select("id")
+    .eq("owner_id", ownerId)
+    .not("draft_doc", "is", null);
+  if (error) { console.warn("[nest-repo] draft lookup failed:", error); return new Set(); }
+  return new Set(((data ?? []) as { id: string }[]).map((r) => r.id));
 }
 
 // ── Listings ─────────────────────────────────────────────────────────────────
