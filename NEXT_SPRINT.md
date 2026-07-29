@@ -1,105 +1,100 @@
-# NEXT SPRINT — Shared persistence & cross-account discoverability
+# NEXT SPRINT — M25: Prove it, on a real deployment, with two real accounts
 
-> **STATUS (M23B): the implementation section below is DONE.** All of steps 1–7 are
-> implemented; see `M23B_SPRINT_REPORT.md`. What remains of this document is its value as the
-> **acceptance script** — the two-account testing scenario at the bottom is exactly what to run
-> once `supabase/provision/m23b_nest_platform_provision.sql` has been applied.
->
-> One correction to the prerequisites below: the live checks were run, and BOTH
-> `to_regclass` calls returned NULL. The corrective migration named here
-> (`nests_canonical_provision.sql`) could not run and has been superseded.
-
-> Read `CTO_HANDOFF.md` first.
-> This conclusion was verified against the code, not assumed: `lib/nest-repo.ts` still routes
-> through `catch { /* fall back */ }` to localStorage, `use-discovery.ts` still imports only
-> `listPublished` (localStorage) + curated fixtures, and `listMyNests()` in
-> `lib/nest/supabase-nest-repo.ts` is **called from nowhere**.
+> Read `CTO_HANDOFF.md` first. The previous sprint document (shared persistence) is fully
+> implemented; its acceptance script is preserved below in §4 because it is still the right
+> test.
 
 ## Objective
 
-A Nest published by **any** account is stored in Supabase and resolvable by **any other** account,
-at a stable payload-free URL, subject only to its visibility. Drafts stay owner-only.
+Stop writing features. **Verify the ones that exist**, end to end, on a live Preview, with
+two real non-founder accounts — then fix only what that walkthrough breaks.
 
-## Prerequisite checks — DO THESE FIRST, WRITE NO CODE UNTIL THEY PASS
+Everything in M23B → M24D is implemented and locally green (900 tests). Almost none of it
+has been exercised by a human against a deployment, because nothing has deployed since
+`235d2ab`. That gap is the project's biggest risk, and closing it is worth more than any
+new work.
 
-Run `DEBUG_GUIDE.md` §1. In short:
+---
 
-```sql
-select to_regclass('public.nests');
-select to_regclass('public.nest_objects');
-```
+## 0. Prerequisites — the sprint cannot start without both
 
-- If either returns `NULL` → the base migration
-  (`supabase/migrations/20260702_01_nest_platform.sql`) is **not applied**. Stop and ask the
-  founder to provision. **Never apply SQL yourself.**
-- If both exist → inspect columns, constraints, RLS policies and indexes, then decide whether
-  `supabase/provision/nests_canonical_provision.sql` (the corrective ALTER migration) is still
-  needed as written.
-- Confirm **Preview and Production point at the same Supabase project** before drawing conclusions
-  from either.
+Neither is code. Both are founder actions. **Do not write code around them; ask.**
 
-## Implementation order
+1. **Vercel** returns `402 DEPLOYMENT_DISABLED`. Clear the billing/usage block, redeploy
+   `m12-nest-platform`, and confirm at `<preview-url>/api/auth/whoami`:
+   `resolvedBackend: "supabase"` · `projectRef: "srrmkdsvldlyllsxyhtq"` ·
+   `vercelEnv: "preview"` · the expected commit hash.
+2. **Apply `supabase/provision/m24b_provision.sql`** in the Supabase SQL editor
+   (`nest_views`, `nests.draft_doc`, `nests.draft_updated_at`, `nests.scene_extras`).
+   Additive and idempotent. **Never apply SQL yourself.**
 
-1. **Verify the live schema** (above). Record findings in `docs/CANONICAL_NEST_DATA_AUDIT.md`.
-2. **Have the founder provision** any missing migration. Do not proceed without it.
-3. **Fix the repo layer's fidelity.** `lib/nest/supabase-nest-repo.ts` currently writes
-   `rotation: 0` hard-coded and never reads rotation back in `toDoc()`, and has no columns for
-   `overlay` / `w` / `h` / `flipX`. Until this is fixed, **the Supabase path is lossier than
-   localStorage** — do not migrate data into it.
-4. **Make failures loud.** Replace the silent `catch { /* fall back */ }` in `lib/nest-repo.ts`
-   with a surfaced error (and, if a fallback is kept at all, a visible "saved locally only" state).
-   This is the single highest-value change for trust.
-5. **Repoint reads.** `use-discovery.ts` must query Supabase for published Nests (wire the existing
-   `listMyNests` / add a `listPublicNests`), keeping curated fixtures only as a genuine fallback.
-   Then Profile, Explore and Village inherit it.
-6. **Stable share URLs.** Publishing must return `/nest/<slug>` with no `?c=` payload; the viewer
-   resolves by slug through RLS. Keep `?c=` decoding for old links only.
-7. **Backfill** (optional, decide explicitly). `migrateLocalNestsToSupabase()` exists, is unused,
-   and currently drops `ownerId`, `createdAt`, `overlay`, `w`, `h`, `rotation` — **and regenerates
-   slugs, which would break every existing published URL.** Fix or don't call it.
+Then re-run `DEBUG_GUIDE.md` §1 to confirm the columns landed, and check the dev console for
+`[nest-repo] scene_extras available` rather than the degraded path.
 
-## Files likely involved
+## 1. Order of work
 
-`lib/nest-repo.ts` · `lib/nest/supabase-nest-repo.ts` · `lib/nest-document-store.ts` ·
-`components/nest/app-shell/use-discovery.ts` · `lib/nest-discovery.ts` ·
-`app/nest/[slug]/visitor-client.tsx` · `app/profile/profile-dashboard-client.tsx` ·
-`app/profile/[handle]/profile-client.tsx` · `supabase/provision/nests_canonical_provision.sql`
+1. **Confirm the deployment is the current commit.** (`DEBUG_GUIDE.md` §9.) If it is not,
+   nothing below means anything.
+2. **Run the two-account walkthrough** in §4, writing down every divergence *before* fixing
+   anything. Resist fixing the first thing you see — the pattern across M24/M24B/M24C is
+   that symptoms shared one upstream cause.
+3. **Fix by root cause**, in the order the walkthrough surfaced them.
+4. **Capture parity evidence**: Preview and Visitor screenshots at the *same* viewport, plus
+   the measured Editor↔Preview delta from `/dev/nest-parity`.
+5. **Only then** consider new work — see §5.
 
-## Risks
+## 2. What to watch most closely
 
-- **Data loss.** Existing test Nests live only in browser localStorage; no server migration can
-  reach them. Decide *explicitly* whether to reset or backfill.
-- **URL breakage** from slug regeneration during any backfill.
-- **Lossy write path** (step 3) — migrating before fixing it bakes the loss in.
-- **RLS mistakes** could expose drafts. Test with two real accounts, not one.
+These are implemented but have never once been run by a person:
 
-## Acceptance criteria
+| Area | The specific thing to prove |
+|---|---|
+| **Focus** | Place an object inside a focus region → save → publish → open signed-out → tap the region → **the object is there**. The "missing plant" is the fixture. |
+| **Surface** | Assign image/text content to a surface → a visitor sees it, at the right object-local geometry. |
+| **Views** | A second account dwelling ~2.5s increments once; a reload same-day does not; the owner never counts. |
+| **Drafts** | Saving a published Nest does **not** change what a visitor sees; publishing promotes it. |
+| **Social** | Like / comment / follow from B; A sees the notification; counts agree across Home, Profile and the Nest. |
+| **Legacy Nests** | A pre-M24 Nest still renders, is badged "Re-save to update layout", and re-saving fixes it. |
 
-- [ ] Live schema state recorded in the audit doc.
-- [ ] A Nest published by Account A exists as a `nests` row + `nest_objects` rows.
-- [ ] Account B (different browser/account) sees it in Home/Explore, on A's Profile, and via
-      A's House.
+## 3. Acceptance criteria
+
+- [ ] The Preview URL serves the current commit and reports `resolvedBackend: "supabase"`.
+- [ ] `m24b_provision.sql` is applied; no repository is running its degraded path.
+- [ ] A Nest published by Account A exists as a `nests` row + `nest_objects` rows and is
+      visible to Account B in Home/Explore, on A's Profile, and through A's House.
 - [ ] The share URL is `/nest/<slug>` with **no** `?c=` payload and opens logged-out.
-- [ ] Account B **cannot** see A's drafts and **cannot** edit A's Nest.
-- [ ] Rotation, flipX, overlays and z-order survive publish → reload → other account.
-- [ ] A Supabase failure produces a **visible** error, not a silent local write.
-- [ ] typecheck · lint · tests · build all green.
+- [ ] B **cannot** see A's drafts and **cannot** edit A's Nest.
+- [ ] Rotation, flipX, overlays, z-order, **focus regions and surface content** all survive
+      publish → reload → other account.
+- [ ] Preview and Visitor screenshots at matching viewports are visually identical.
+- [ ] Like / comment / follow / notification all work between two real accounts.
+- [ ] A view is counted once per viewer per day; never for the owner.
+- [ ] A Supabase failure produces a **visible** error, never a silent local write.
+- [ ] typecheck · lint · tests · build all green; the sprint is deployed and the deployment
+      verified.
 
-## Testing scenario (two normal, non-founder accounts)
+## 4. The walkthrough (two normal, non-founder accounts)
 
-**Account A** — sign up · create a Nest · place a large object, a small object, a rotated object, a
-flipped object, two overlapping objects, a text overlay and an image overlay (mirror
-`lib/fixtures/canonical-nest.ts`) · save as draft · confirm the Profile card matches the editor ·
-reopen and confirm nothing changed · publish.
+**Account A** — sign up · complete onboarding · create a Nest · place a large object, a
+small object, a rotated object, a flipped object, two overlapping objects, a text overlay,
+an image overlay (mirror `lib/fixtures/canonical-nest.ts`) · **create a focus region and
+place an object inside it** · **assign content to a surface** · save as draft · confirm the
+Profile card matches the editor · reopen and confirm nothing changed · publish.
 
-**Account B** — sign up in a different browser/profile · find A via search · open A's Profile ·
-see the published Nest · enter it · confirm the composition matches A's editor exactly · like ·
-comment · share · open the shared link logged-out.
+**Account B** — sign up in a different browser profile · find A via search · open A's
+Profile · see the published Nest · enter it · **confirm the composition matches A's editor
+exactly** · tap the focus region and confirm the child object is there · like · comment ·
+follow · share · open the shared link logged-out.
 
-**Back to A** — verify counts/notifications · confirm B never saw the draft.
+**Back to A** — verify counts and notifications · confirm B never saw the draft · save a
+change and confirm B still sees the published version until A publishes again.
 
-## Explicit non-goals
+## 5. Explicit non-goals
 
-Onboarding, Settings/delete-account, full-Nest UI simplification, z-index tokens, swipe removal,
-social persistence, AI/asset/avatar work, visual redesign, legacy-island deletion. Those come after
-persistence is truthful.
+No new AI, asset, avatar, marketplace or discovery-algorithm work. No visual redesign of
+approved Profile or Nest UI. No deletion of the legacy island. No 9:16 immersive background
+— it is a documented seam (D-33) and stays one until the room art exists.
+
+If the walkthrough passes cleanly, the *next* sprint after this one is the founder's call:
+the strongest candidates are the Asset-Factory → `nest_assets` publishing seam (the library
+holds one row) and deleting the legacy pre-pivot island.

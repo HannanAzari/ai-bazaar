@@ -152,3 +152,42 @@ shipping. **Status: in force (M24B), supersedes part of D-22.**
 **D-28 · Overlay animations carry no fill-mode.** `fill: both` holds the from-state
 (`opacity: 0`) whenever an animation is throttled, making a sheet invisible and untappable.
 **Status: in force (M24B).**
+
+**D-29 · Scene resolution is a pure module, not component state.** `lib/nest-scene.ts`
+turns a `NestDocument` into what a renderer needs — focus regions, the camera transform,
+surfaces — with no React and no Supabase in the path. *Why:* the editor and the visitor had
+two different renderers *because* scene resolution lived inside components; a visitor
+literally could not resolve a surface, because resolving one needed editor state. With it
+extracted, both modes call the same functions over the same document and cannot disagree.
+**Status: in force (M24D), `test/nest-runtime-focus-surface.test.ts`.**
+
+**D-30 · A missing column degrades a feature; it never breaks the product.** Repositories
+probe once for a newly-added column, fall back to the base column set, omit it on write,
+and tell the creator plainly when the one feature that needs it is unavailable. *Why:*
+selecting `nests.scene_extras` unconditionally produced `column ... does not exist` on
+every feed read and took the whole app down against the live database — the same shape of
+failure M23B had already fixed once for `profiles.house_style`. Migrations are
+founder-applied and therefore always lag the code. **Status: in force (M24C).**
+
+**D-31 · A focused view is the main scene under ONE camera transform.** `focusCameraTransform()`
+returns a scale + origin applied to the whole stage, so the background and every object
+move together; the smaller axis wins so nothing outside the crop leaks in. *Why:* a
+re-laid-out focused scene is a second coordinate space, and every displacement bug this
+programme has fixed came from having two. A zoom-only region with no child scene still
+resolves — dropping it would silently discard creator intent.
+**Status: in force (M24D).**
+
+**D-32 · Objects inside a focus region stay inside it.** They are serialised into the
+versioned `NestSceneExtras`, never promoted into the main placements. *Why:* the "missing
+plant" could have been compensated for by duplicating it into the root scene. That would
+render something the creator never composed. **Status: in force (M24C),
+`test/nest-scene-roundtrip.test.ts`.**
+
+**D-33 · The surround is a derived matte, not the room's own image.** One deep desaturated
+colour computed from the background id — `hsl(<hue> 14% 11%)`, deterministic so it never
+flickers and needs no pixel sampling — plus a vertical gradient, a warm radial glow and an
+edge vignette. *Why:* flat bands read as unfinished, and the enlarged blurred background
+that replaced them produced visible green/beige/dark bands on real rooms and read as an
+accident. Geometry is untouched: this paints behind the fixed 3:4 stage. The future 9:16
+`immersiveBackgroundUrl` swaps what is drawn there and needs no geometry change (typed seam
+`ImmersiveBackground`). **Status: in force (M24D), supersedes M24C §7.**

@@ -164,3 +164,68 @@ A repeat visit the same UTC day should NOT add a row — that is the unique inde
 
 **Is the notifications badge stale?** It refetches on tab focus and every 60s, not via
 Realtime (D-23). Switch away and back before concluding it is broken.
+
+---
+
+## 11. M24C/M24D — the scene runtime
+
+**FIRST: is the fix even deployed?** Nothing has shipped since `235d2ab`. Before
+investigating any "still broken" report, run §9 and §10's liveness check. Several
+already-fixed issues were re-reported three sprints running because the founder was testing
+stale code.
+
+**The room background renders as a plain beige field.**
+That was data loss, not rendering: `nestDocumentToEditable()` used to set
+`backgroundImageUrl` but not `backgroundId`, so a reopened editor carried the fixture's id
+and *saving wrote the wrong id back*. Verify the document, not the pixels:
+```js
+// in the editor, dev console
+JSON.stringify(window.__nestDoc?.backgroundId)   // must be the creator's id
+```
+or check the row: `select background_id from public.nests where slug = '<slug>';`
+Fixed at `52bd654`, asserted by `test/nest-scene-roundtrip.test.ts`.
+
+**An object placed inside a focus region disappears.**
+Focus regions live in `nests.scene_extras`. Two causes, in this order:
+```sql
+select to_regclass('public.nests');
+select scene_extras from public.nests where slug = '<slug>';
+```
+1. The column does not exist ⇒ `m24b_provision.sql` is unapplied. The repository degrades
+   deliberately (D-30) and the creator is told; this is expected, not a bug.
+2. The column exists but is NULL ⇒ the document was saved before `52bd654`. Re-save.
+
+Focus children are **never** promoted into `nest_objects` (D-32) — an empty
+`placements` list plus a populated `scene_extras.detailScenes` is correct.
+
+**A focus region opens but nothing moves / the wrong area fills the stage.**
+The camera is one transform over the whole stage (D-31), `scale = min(1/w, 1/h)` with the
+origin pinned to the crop's centre. If background and objects move by *different* amounts,
+something has reintroduced a second coordinate space — that is the bug class M24B §ee2eeee
+fixed. Check `focusCameraTransform()` is applied to the stage, not to a child.
+
+**A surface shows nothing for a visitor.**
+Surfaces resolve from the placement alone (D-29): `interaction.surfaces` on the placement
+plus geometry from `predefinedSurfacesForAsset(assetId)`. Content keyed to a surface the
+asset no longer declares is ignored by design. Check both halves:
+```js
+resolvePlacementSurfaces(placement)   // [] means one of the two is missing
+```
+
+**The surround shows colour bands.**
+It should be one deterministic `hsl(<hue> 14% 11%)` matte with a gradient, glow and
+vignette (D-33). Visible green/beige bands mean the blurred-background version has been
+reintroduced — `test/nest-runtime-focus-surface.test.ts` asserts `blur-2xl` and `scale-125`
+are absent.
+
+**The scene is stretched or cropped.**
+The stage is always 3:4 (`SCENE_ASPECT`), sized with container-query units
+(`min(100cqw, 75cqh)`). Note the trap: an explicit `height` is a *definite* size, so
+`aspect-ratio` then only derives width and `max-width` silently breaks the ratio. Measure
+rather than read the CSS:
+```js
+// the stage is the overflow-hidden box inside the flex-centred container
+const el = document.querySelector('.absolute.inset-0.flex > div');
+const r = el.getBoundingClientRect();
+r.width / r.height   // must be 0.750
+```

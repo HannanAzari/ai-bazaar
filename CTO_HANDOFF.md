@@ -1,167 +1,223 @@
 # Nestudio — CTO Handoff
 
-> **START HERE.** This is the entry point for a new session. It is grounded in the repository
-> as of the commit below, not in prior chat context.
-> Read this, then **`M24B_SPRINT_REPORT.md`** (current state, the deployment blocker, and the
-> one manual SQL action). `M23B_SPRINT_REPORT.md` is the prior sprint's record.
-> Everything else is reference.
+> **START HERE.** Entry point for a new session. Grounded in the repository, not in prior
+> chat context. Read this, then `NEXT_SPRINT.md`. Everything else is reference.
 
 | | |
 |---|---|
-| **Branch** | `m12-nest-platform` (auto-deploys to a Vercel **Preview**; never merge to `main`) |
-| **Latest verified commit** | `e1fd940` — *fix(nest): one canonical geometry so a Nest renders identically everywhere* (2026-07-28). Verified via `git log`; local `HEAD` == `origin/m12-nest-platform`. |
-| **Gates at that commit** | typecheck ✅ · eslint 0 errors ✅ · **688 tests / 77 files** ✅ · `next build` ✅ (133 pages) |
-| **Deployment** | ⛔ **BLOCKED.** The Vercel project returns `402 DEPLOYMENT_DISABLED` (account/billing disabled), so no push can deploy. Not a build failure — `next build` passes locally. See `M24_SPRINT_REPORT.md` for the exact dashboard action. |
+| **Branch** | `m12-nest-platform` (never merge to `main`) |
+| **Latest commit** | `c9bb259` — *feat(m24d): visitors replay Focus and Surface; adaptive matte replaces the blur*. Local `HEAD` == `origin/m12-nest-platform`. |
+| **Gates at that commit** | typecheck ✅ · eslint 0 errors ✅ · **900 tests / 96 files** ✅ · `next build` ✅ (132 pages) |
+| **Deployment** | ⛔ **BLOCKED — see §0.** Nothing has deployed since `235d2ab`. |
+| **Live DB** | Supabase `srrmkdsvldlyllsxyhtq`. `m23b_nest_platform_provision.sql` **is applied**. `m24b_provision.sql` is **NOT**. |
+
+---
+
+## 0. THE TWO BLOCKERS — both need the founder, neither is code
+
+Everything else in this document is secondary to these.
+
+### 0.1 Vercel is disabled
+
+```
+https://ai-bazaar.vercel.app/api/auth/whoami        → 402  DEPLOYMENT_DISABLED
+https://ai-bazaar-git-m12-nest-platform-….app/…     → 404  DEPLOYMENT_NOT_FOUND
+```
+
+`402 / DEPLOYMENT_DISABLED` is Vercel refusing to serve a suspended project — in practice a
+billing state (spend limit reached, or a failed payment method). **It is not a build
+failure:** `next build` passes locally at 132 pages and every commit pushed cleanly.
+
+**This changes how you should read bug reports.** The founder has been testing a build from
+before `235d2ab`. Several issues re-reported across M24 / M24B / M24C were already fixed in
+code they had never run. Before investigating any "still broken" report, check whether the
+fix has simply not shipped.
+
+**Fix (founder only):**
+1. Vercel dashboard → project `ai-bazaar` → **Settings → Billing / Usage** → clear the block.
+2. Redeploy `m12-nest-platform`.
+3. Verify at `<preview-url>/api/auth/whoami`: `resolvedBackend: "supabase"`,
+   `projectRef: "srrmkdsvldlyllsxyhtq"`, `vercelEnv: "preview"`, and the expected commit.
+
+There is no Vercel CLI, token or `.vercel` linkage in this repo, so an agent can neither do
+this nor read the build logs.
+
+### 0.2 `supabase/provision/m24b_provision.sql` is unapplied
+
+Additive and idempotent. Adds:
+- `nest_views` — per-Nest view counter, deduped by a unique index on
+  `(nest_slug, viewer_key, view_day)`
+- `nests.draft_doc` + `nests.draft_updated_at` — the draft workflow
+- `nests.scene_extras` — focus regions and detail scenes
+
+Until it runs: view counts read 0, drafts cannot be saved, and **focus regions do not
+persist**. The app still works — each degrades with a clear message rather than breaking
+(D-30). Apply it in the Supabase SQL editor.
+
+**Do not run** `nests_canonical_provision.sql` (superseded; ALTERs a table that does not
+exist) or `supabase/migrations/20260703_01_nest_social.sql` (aborts on the legacy
+`notifications` table).
 
 ---
 
 ## 1. Product vision
 
-Nestudio is a **digital home**, not a social network. People don't visit profiles — they arrive
-outside someone's **House** (the exterior/arrival) and step inside a **Nest** (the interior
-experience they composed). Every transition should feel like moving through a place.
+Nestudio is a **digital home**, not a social network. People arrive outside someone's
+**House** and step inside a **Nest**. Vocabulary is fixed: House = exterior/arrival,
+Nest = interior. "Room" is not used on profile/arrival surfaces.
 
-Vocabulary is fixed: **House = exterior/arrival**, **Nest = interior**. "Room" is not used on
-profile/arrival surfaces.
+## 2. Current stage
 
-## 2. Current product stage
+**Beta stabilisation, runtime-correctness phase.** The programme has run: canonical
+rendering → shared persistence → truthful publishing → *one scene runtime*. The through-line
+is that what a creator builds must be exactly what everyone else sees.
 
-**Beta stabilisation.** The product is not feature-poor — it is *untruthful*: what a creator makes
-is not reliably what other people see. The current programme is to make it truthful, in this order:
-canonical rendering (done) → shared persistence (next) → onboarding/settings/social → polish.
+## 3. What is working (and verified locally)
 
-## 3. What is working
+- **Auth.** Real Supabase auth. One server read (`getServerUser`), one client hook
+  (`useNestIdentity`), founder role-gating via `FOUNDER_EMAILS` / `FOUNDER_USER_IDS`.
+  Sign-in cannot freeze (D-11…D-13); sign-up cannot report success without creating a user
+  (D-14).
+- **Shared persistence.** Nests, profiles, houses, likes, comments, follows and
+  notifications all live in Supabase. No silent localStorage fallback (D-10).
+- **Publishing parity.** The creator's approved box is replayed verbatim; one renderer; one
+  coordinate space (D-18, D-24, D-25). Measured Editor↔Preview delta: **0.0027** (~1px).
+- **Onboarding** (identity → house → Profile), **Settings** with real sign-out and a real
+  delete-account cascade, **draft workflow**, **delete Nest**, per-Nest views,
+  notifications.
+- **Focus + Surface replay** for visitors (M24D) — logic unit-tested, not yet exercised
+  end-to-end (§5).
 
-- **Canonical Nest rendering (M23A).** One geometry function drives the editor and every preview.
-  See §7 and `docs/CANONICAL_NEST_DATA_AUDIT.md`.
-- **Auth.** One server read (`getServerUser`) + one client hook (`useNestIdentity`); role-gated
-  founder access via `FOUNDER_EMAILS`/`FOUNDER_USER_IDS`; Preview-safe PKCE callback at
-  `/auth/callback` → neutral `/auth/complete`; `private, no-store` on authenticated routes.
-- **Profile (creator + visitor)** share one structure: top controls → compact identity box →
-  grounded House → one action. Expandable bio, quiet Nests/Views/Followers row, links as an
-  anchored overlay, unlimited creator links.
-- **Founder generation studios** — Asset Factory, Nest Factory, Avatar Studio on one shared
-  `GenerationStudio`; libraries persist to Supabase (`nest_assets`, `nest_backgrounds`).
-- **`/moderation` is founder-gated** (was wide open).
+## 4. Sprint history (most recent first)
 
-## 4. What is partially working
+| Commit | What it did |
+|---|---|
+| `c9bb259` | M24D — visitors replay Focus/Surface; scene resolution extracted to `lib/nest-scene.ts`; blurred surround → adaptive matte |
+| `52bd654` | M24C — **background** and **focus-scene** data loss fixed; `scene_extras`; schema tolerance |
+| `3b515b9` | M24B — overlay `fill-mode` hazard; legacy-layout notice; docs |
+| `b3f116c` | M24B — one SceneRenderer; draft workflow; delete; per-Nest views; carousel |
+| `ee2eeee` | M24B — scene locked to one coordinate space (the last displacement source) |
+| `876581f` | M24 — views, notifications, comment-sheet keyboard; **deployment blocker found** |
+| `235d2ab` | M24 — editor/publish parity; layering; house identity; asset-library merge |
+| `f263fdc` | Hotfix — signup could not reach Supabase (backend resolved to `local`) |
+| `1e1c432` | Hotfix — sign-in froze on "Signing in…" (auth Web Lock deadlock) |
+| `88821f8` | M23B — truthful persistence, onboarding, settings, simplified Nest |
 
-- **Nest viewer** — renders canonically, but still carries feed-style overlay clutter, has
-  horizontal Nest swiping that product direction says to remove, and unaudited z-index layering.
-- **Social (Like/Comment/Share)** — UI exists and persists to **localStorage**. Supabase tables
-  `nest_likes`, `creator_follows`, `nest_comments`, `notifications` exist in migrations but **no
-  code reads or writes them**.
-- **Village** — already groups houses **one per creator** (correct model), but is fed from local
-  + curated discovery data.
+Detail: `M24CD_SPRINT_REPORT.md` (current), `M24B_SPRINT_REPORT.md`,
+`M24_SPRINT_REPORT.md`, `M23B_SPRINT_REPORT.md`.
 
-## 5. What is broken / unresolved (read before planning)
+## 5. What is NOT verified — do not claim these
 
-**M23B implemented items 3–9 below. The ONE thing standing between the product and a
-truthful beta is a single SQL file the founder must apply:**
-`supabase/provision/m23b_nest_platform_provision.sql`. See `M23B_SPRINT_REPORT.md`.
+Every item is blocked on §0.1, §0.2, or both.
 
-1. **Shared persistence unconfirmed *live*.** Live inspection on 2026-07-28 proved
-   `nests`, `nest_objects`, `nest_backgrounds`, `nest_templates` and every social table are
-   ABSENT from project `srrmkdsvldlyllsxyhtq` — `20260702_01_nest_platform.sql` was never
-   applied. The application code is now written against them and fails loudly without them.
-2. **Cross-account discovery** — implemented, untested end-to-end (needs the tables).
-3. ~~Silent fallback~~ — **fixed (M23B).** The five `catch { /* fall back */ }` blocks are gone.
-4. ~~Dual-state persistence~~ — **fixed (M23B).** One rule in `lib/nest-draft-reconcile.ts`.
-5. ~~Lossy `?c=` links~~ — **fixed (M23B).** Publishing returns `/nest/<slug>`, payload-free.
-6. ~~Onboarding~~ — **implemented (M23B).**
-7. ~~Settings~~ — **implemented (M23B).** Sign out is real; deletion cascades or refuses honestly.
-8. ~~Full-Nest UI + z-index~~ — **implemented (M23B).** `lib/nest-layers.ts` is the hierarchy.
-9. ~~Horizontal swipe~~ — **removed (M23B).**
+- **Two-account live social testing.** The shared social store is unit-tested (17 cases) but
+  never proven with two real accounts.
+- **Publish → visitor round-trip.** Parity is measured Editor↔Preview and by unit test;
+  nobody has published a Nest and compared it as a visitor.
+- **Focus/Surface end-to-end.** M24D's resolution and camera maths are unit-tested (22
+  cases). No focus region has been driven through save → publish → visitor.
+- **Notifications end-to-end** — wired, never driven by a second account.
+- **Views** — cannot record at all until §0.2.
 
-**Superseded:** `supabase/provision/nests_canonical_provision.sql` cannot run (it ALTERs a
-table that does not exist), and `supabase/migrations/20260703_01_nest_social.sql` would abort
-on the legacy `notifications` table. Do not apply either.
+## 6. Known limitations
 
-## 6. Intentionally deferred
+- **Legacy Nests** (`nest_objects.w`/`h` NULL, pre-M24) keep derived geometry. They render
+  as they always have but are not pixel-identical to the editor until the creator saves
+  once; the owner's Profile badges them "Re-save to update layout". **We never backfill** —
+  inferring the original boxes would be guessing at creator intent (D-18).
+- **`nest_assets` holds one row.** The library merges Supabase over the bundled fixture
+  (D-19). If Asset-Factory output is landing elsewhere, fix the publishing seam — do not
+  duplicate rows.
+- **Notifications use focus-refetch**, not Realtime, which is not configured here (D-23).
+- **The 9:16 immersive background** is a documented typed seam only (`ImmersiveBackground`
+  in `lib/nest-scene.ts`). Nothing generates it.
 
-- No new AI systems, asset systems, avatar work, marketplace or discovery algorithms during beta
-  stabilisation.
-- Legacy pre-pivot "AI Bazaar" island (`/bazaar`, `/discover`, `/tags`, `/collections`, `/activity`,
-  `/u/[handle]`, `/assets`, `/village-lab`) — unreachable from primary nav, still compiles; deletion
-  is its own sprint.
-- Avatar public release — gated behind `AVATAR_PUBLIC_ENABLED=1` pending a founder-run style approval.
+## 7. Architecture (detail in `docs/ARCHITECTURE.md`)
 
-## 7. Architecture (summary — full detail in `docs/ARCHITECTURE.md`)
+### The scene contract — the most important thing in the codebase
 
-### Data model (as the code expects it)
 ```
-auth.users
- └── profiles          (+ display_name, username, house_style ← migration adds these)
-      └── nests        (id, owner_id, slug, title, background_id, visibility, source_template_id)
-           └── nest_objects (nest_id, asset_id, x, y, scale, rotation, z_index)   ← composition
+Editor ──editableObjectsToPlacements + editableSceneExtras──► NestDocument
+                                                                   │
+                                  ┌────────────────────────────────┤
+                                  ▼                                ▼
+                            nest_objects                    nests.scene_extras
+                          (main placements)            (focus regions + child scenes)
+                                  │                                │
+                                  └──────────► NestPreview ◄───────┘
+                                    (Preview · visitor · feed · cards)
 ```
-`nests` and `nest_objects` **do exist in repository migrations**
-(`supabase/migrations/20260702_01_nest_platform.sql`), and social tables exist in
-`20260703_01_nest_social.sql`. **Whether any of these are applied to the live Supabase project is
-NOT confirmed** — verify first (`DEBUG_GUIDE.md` §1).
 
-### Rendering model (M23A — the one thing recently fixed)
-`lib/nest-geometry.ts` owns geometry. `placementBox()` → `{x, y, w, h, rotation, zIndex, flipX}`;
-`placementStyle()` produces the inline style; `boxTransform()` the transform; `inPaintOrder()` the
-z-sort. **Both** the editor (via `lib/nest-editor-bridge.ts`) and `NestPreview` (Profile, Home,
-Search, full view) call it, so they agree by construction.
+- `lib/nest-geometry.ts` — `placementBox()` **replays** the stored box; it only derives
+  geometry for pre-M24 rows with NULL `w`/`h`.
+- `lib/nest-scene.ts` — pure scene resolution (focus regions, camera transform, surfaces).
+  React-free and Supabase-free **on purpose**: that is what lets Preview and the visitor
+  share one implementation.
+- `components/nest/app-shell/nest-preview.tsx` — the one runtime. `interactive` and
+  `surround` are the only mode differences.
+- The stage is always `SCENE_ASPECT` (3:4), letterboxed via container-query units.
 
-### Auth model
-`getServerUser()` (server) · `useNestIdentity` (client) · `requireUser` / `requireFounder` /
-`requireAvatarAccess`. Founder = signed-in Supabase user on the server-only allowlist.
-`/api/auth/whoami` is the diagnostic.
+### Other spines
+- **Auth** — `lib/auth/*`, `components/nest/app-shell/use-nest-identity.ts`,
+  diagnostic at `/api/auth/whoami`.
+- **Persistence** — `lib/nest-repo.ts` (facade) over `lib/nest/supabase-*-repo.ts`.
+- **Social state** — `lib/nest-social-store.ts`, one optimistic cache for every surface.
+- **Layering** — `lib/nest-layers.ts`. Everything that stacks names a layer (D-16).
 
-### Storage reality today
-User Nests, profiles, and all social state live in **localStorage**. Only the founder-generated
-libraries and avatars are server-backed.
+## 8. Stop rules
 
-## 8. Deployment assumptions
-
-- `m12-nest-platform` → Vercel **Preview**. `main` is Production; **do not merge or promote**.
-- Required Preview env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-  `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `FOUNDER_EMAILS`/`FOUNDER_USER_IDS`,
-  `NEXT_PUBLIC_NEST_BACKEND=supabase`. Missing `NEXT_PUBLIC_*` **at build time** silently drops the
-  app into demo mode.
-- Supabase Auth redirect URLs must include the preview domain (a wildcard covers per-commit URLs).
-
-## 9. Exact recommended next task
-
-**Verify the live Supabase schema, then make persistence real.** Do not write persistence code
-before running the checks in `DEBUG_GUIDE.md` §1. Full plan: **`NEXT_SPRINT.md`**.
-
-## 10. Stop rules
-
-- **Never apply SQL yourself.** Migrations are shown and **founder-provisioned**.
-- Do not merge to `main` or promote to Production.
-- Do not add AI/asset/avatar/marketplace systems during beta stabilisation.
+- **Never apply SQL.** Migrations are written, shown, and founder-provisioned.
+- Never merge to `main` or promote to Production.
+- **Never let a missing column break the product** (D-30) — degrade the feature, say so.
+- No silent fallbacks that mask backend failure (D-10).
+- Never reconstruct or approximate a creator's layout.
 - Do not fake account deletion; disable the action until the cascade genuinely works.
-- Do not add fallbacks that silently mask backend failures.
-- Never reconstruct or approximate a creator's layout — preserve the real composition.
-- Do not sweep unrelated pre-existing working-tree files into commits (see §11).
+- No new AI / asset / avatar / marketplace systems during beta stabilisation.
+- Do not sweep the pre-existing dirty files into commits (§9).
 
-## 11. Working-tree note
+## 9. Working-tree note
 
-The tree contains **pre-existing uncommitted work that predates this programme** (e.g.
-`app/design/*` benches, `apps/asset-factory/*`, `components/room/*`, several docs). It is not mine
-and must not be swept into commits. Always stage explicitly.
+These tracked files are **pre-existing work that predates this programme**. They are not
+ours and must never be staged:
 
-## 12. Document map
+```
+app/creator-studio/review/review-client.tsx      docs/BETA_INTERACTION_AUDIT.md
+apps/asset-factory/lib/golden-room.ts            docs/BETA_NAVIGATION_AUDIT.md
+components/room/room-object.tsx                  docs/nestudio-cto-handoff.md
+                                                 docs/room-engine-spec.md
+```
+
+The same applies to the many untracked `app/design/*`, `apps/asset-factory/*`,
+`lib/wall-*`, `public/benchmark/*` and `docs/*` files. Always `git add` explicit paths.
+**Never `git add -A`.**
+
+## 10. Environment
+
+- Node 20 required: `export PATH=/Users/hannan/.nvm/versions/node/v20.20.2/bin:$PATH`
+  (the shell defaults to Node 16).
+- Gates: `npx tsc --noEmit` · `npx next lint` · `npx vitest run` · `npx next build`.
+- `.env.local` points at the live Supabase project — local dev writes production data.
+- Preview env must include `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+  `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `FOUNDER_EMAILS`/`FOUNDER_USER_IDS`,
+  `NEXT_PUBLIC_NEST_BACKEND=supabase`. `NEXT_PUBLIC_*` is **inlined at build time** —
+  missing values silently drop the app into demo mode. This has bitten us twice.
+
+## 11. Document map
 
 | Document | Purpose |
 |---|---|
-| **`CTO_HANDOFF.md`** | this file — orientation |
-| **`M24B_SPRINT_REPORT.md`** | CURRENT: parity, drafts, delete, views, the deployment blocker |
-| **`M24_SPRINT_REPORT.md`** | prior sprint record |
-| **`M23B_SPRINT_REPORT.md`** | what M23B changed + its manual SQL action (applied) |
-| **`NEXT_SPRINT.md`** | the shared-persistence sprint (implemented by M23B; its test scenario is still the acceptance script) |
-| **`ROADMAP.md`** | done / unverified / blocked / deferred / future |
-| **`DECISIONS.md`** | product + engineering decisions and why |
-| **`DEBUG_GUIDE.md`** | practical diagnostics (start with §1) |
-| **`docs/ARCHITECTURE.md`** | the real architecture in detail |
-| `docs/CANONICAL_NEST_DATA_AUDIT.md` | the data/rendering forensic audit + M23A record |
-| `docs/BETA_NAVIGATION_AUDIT.md` | journey/navigation findings |
-| `docs/BETA_INTERACTION_AUDIT.md` | lived interaction findings |
-| `docs/handoff/01–10` | **historical** onboarding package — superseded by this file where they disagree |
+| **`CTO_HANDOFF.md`** | this file — orientation + the blockers |
+| **`NEXT_SPRINT.md`** | what to do next, in order |
+| **`SESSION_PROMPT.md`** | paste this into a new Claude session |
+| **`M24CD_SPRINT_REPORT.md`** | CURRENT: the scene runtime, focus/surface replay, the matte |
+| `M24B_SPRINT_REPORT.md` | parity, drafts, delete, views |
+| `M24_SPRINT_REPORT.md` · `M23B_SPRINT_REPORT.md` | earlier records |
+| `ROADMAP.md` | done / unverified / blocked / deferred |
+| `DECISIONS.md` | D-01…D-33 — decisions and *why* |
+| `DEBUG_GUIDE.md` | practical diagnostics (start with §1) |
+| `docs/ARCHITECTURE.md` | the architecture in detail |
+| `docs/CANONICAL_NEST_DATA_AUDIT.md` | the data/rendering forensic audit |
+| `docs/handoff/01–10` | **historical**; superseded by this file where they disagree |
 
-> ⚠️ `docs/ARCHITECTURE.md` (not root) — the repo already has a pre-pivot `architecture.md`, and
-> this filesystem is case-insensitive, so a root `ARCHITECTURE.md` would silently overwrite it.
+> ⚠️ `docs/ARCHITECTURE.md` (not root) — a pre-pivot `architecture.md` exists at the root
+> and this filesystem is case-insensitive, so a root `ARCHITECTURE.md` would overwrite it.
