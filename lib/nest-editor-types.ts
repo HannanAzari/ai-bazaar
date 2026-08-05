@@ -104,6 +104,8 @@ export interface EditableNestObject {
    *  (nest-surface-catalog.ts). Visual personalization only (photo/text/sticker), fully
    *  independent of hotspots/bindings. Optional + backward-compatible. */
   surfaces?: import("@/lib/nest-surface-types").ObjectSurfaceContent;
+  /** M25 §P2 — the object's interaction: initial state + connected content. */
+  assetInteraction?: import("@/lib/nest-asset-interaction").AssetInteractionConfig;
 
   /** M13 (Task 4B): a generic text/image overlay carried on this instance. Present only
    *  when `assetId` is an `overlay:*` marker; absent for asset-backed objects. */

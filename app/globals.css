@@ -633,3 +633,21 @@ body::before {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* ── M25 §P4 — the Hint pulse ────────────────────────────────────────────────
+   Interactive objects shimmer briefly when the visitor asks "what can I tap?".
+   It is a TRANSIENT affordance on purpose: a permanent badge on every interactive
+   object turns a room into a control panel, which is the clutter this replaces. */
+@keyframes nest-hint-pulse {
+  0%   { filter: none; transform: scale(1); }
+  30%  { filter: drop-shadow(0 0 10px rgba(255, 226, 170, 0.95)) brightness(1.14); transform: scale(1.035); }
+  60%  { filter: drop-shadow(0 0 6px rgba(255, 226, 170, 0.6)) brightness(1.06); transform: scale(1.012); }
+  100% { filter: none; transform: scale(1); }
+}
+.nest-hint-pulse {
+  animation: nest-hint-pulse 900ms ease-in-out 2;
+  transform-origin: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nest-hint-pulse { animation: none; filter: drop-shadow(0 0 8px rgba(255, 226, 170, 0.9)); }
+}

@@ -260,10 +260,15 @@ describe("10. the YouTube action", () => {
     });
   });
 
-  it("the runtime plays it in place and opens other links in a new tab", () => {
+  it("the runtime plays it in place, and hands external links over explicitly", () => {
+    // M25 §P6 replaced the immediate `window.open` with an in-room card: an unannounced
+    // navigation away from the Nest is exactly the "destroying the room context" the
+    // sprint rules out. The visitor still gets a real anchor — just a labelled one.
     const runtime = readFileSync(join(process.cwd(), "components", "nest", "app-shell", "nest-runtime.tsx"), "utf8");
     expect(runtime).toContain("youTubeEmbedUrl");
-    expect(runtime).toContain('window.open(i.url, "_blank", "noopener,noreferrer")');
+    expect(runtime).toContain('target="_blank"');
+    expect(runtime).toContain('rel="noreferrer noopener"');
+    expect(runtime).toContain("Open in a new tab");
   });
 });
 

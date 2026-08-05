@@ -15,8 +15,8 @@ Read these first, in this order, and ground everything in the repo rather than i
 anything I say from memory:
   1. CTO_HANDOFF.md          — orientation and the two blockers
   2. NEXT_SPRINT.md          — the sprint plan (M25: verify, don't build)
-  3. M24E_SPRINT_REPORT.md   — what the last sprint changed, and the full data trace
-  4. DECISIONS.md            — D-01…D-38, decisions and why
+  3. M25_SPRINT_REPORT.md    — what the last sprint changed and what it did NOT finish
+  4. DECISIONS.md            — D-01…D-45, decisions and why
   5. DEBUG_GUIDE.md §1, §9, §10, §11 — before diagnosing anything
 
 Standing rules — these override any instruction that conflicts with them:
@@ -36,10 +36,10 @@ Standing rules — these override any instruction that conflicts with them:
 - Gates before any commit: npx tsc --noEmit · npx next lint · npx vitest run · npx next build
 - If you cannot verify a deployment, say so plainly. Never claim something deployed.
 
-Two blockers are mine to clear, not yours. Tell me if either is still outstanding:
+One blocker is mine to clear, not yours. Tell me if it is still outstanding:
   1. Vercel returns 402 DEPLOYMENT_DISABLED — nothing has shipped since 235d2ab.
-  2. supabase/provision/m24e_provision.sql is unapplied (nests.scene_extras). m24b WAS
-     applied, but before M24C appended that column to it — so the state is split.
+All migrations are applied; probe the live schema by COLUMN before believing that, since a
+provision file's current contents are not necessarily what was run.
 
 Start by confirming the repo state (branch, HEAD, clean-vs-dirty, whether HEAD is pushed)
 and re-checking both blockers, then tell me what you propose to do. Do not start
@@ -55,11 +55,10 @@ implementing until I approve.
 Add this to the end of the block above:
 
 ```
-Both blockers are cleared: Vercel is deploying again and m24e_provision.sql is applied.
-Run the M25 sprint in NEXT_SPRINT.md — verify the product end to end on the live Preview
-with two real accounts, record every divergence before fixing anything, then fix by root
-cause. Finish the whole sprint; do not hand it back partially complete, and do not write
-long architectural write-ups between fixes.
+Vercel is deploying again. Run the manual acceptance list in M25_SPRINT_REPORT.md on a real
+phone-sized browser with two accounts, record every divergence before fixing anything, then
+fix by root cause. Finish the whole run; do not hand it back partially complete, and do not
+write long architectural write-ups between fixes.
 ```
 
 ## If you are starting a different piece of work
@@ -89,8 +88,11 @@ replace the last paragraph with the actual task.
    dead-interaction bug this project has had came from having two of something — two
    renderers, two coordinate spaces, two focus rectangles, two sources of geometry.
    `/dev/nest-runtime` shows both modes side by side on one document.
-2. **The document is the contract.** If a feature does not survive
+2. **The camera is not scene data.** `lib/nest-camera.ts` is a viewport transform; it never
+   changes where an object is, and the editor's viewport is never saved as the visitor's
+   opening shot (D-39, D-45).
+3. **The document is the contract.** If a feature does not survive
    editor → `NestDocument` → Supabase → reopen, it does not exist. Both of M24C's bugs were
    data loss in that conversion, presenting as rendering bugs.
-3. **Code runs ahead of the schema.** Migrations are founder-applied, so every new column
+4. **Code runs ahead of the schema.** Migrations are founder-applied, so every new column
    needs the probe-and-degrade pattern from the start.

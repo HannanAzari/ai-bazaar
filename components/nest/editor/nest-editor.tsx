@@ -62,6 +62,7 @@ import { OverlayEditorSheet } from "@/components/nest/editor/overlay-editor-shee
 import type { NestOverlay } from "@/lib/nest-editor-types";
 import type { NestAssetHotspot } from "@/lib/nest-hotspot-types";
 import { HotspotBindingSheet } from "@/components/nest/editor/hotspot-binding-sheet";
+import { InteractionPanel } from "@/components/nest/editor/interaction-panel";
 import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor-types";
 import { canRedo, canUndo, createHistory, pushHistory, redoHistory, undoHistory, type History } from "@/lib/nest-editor-history";
 import { clearDraft, importDocumentJson, loadDraft, saveDraft } from "@/lib/nest-editor-storage";
@@ -109,7 +110,7 @@ import { Type } from "lucide-react";
 /** A default fixed-ratio (square = 3:4 on-screen) focus rectangle for new areas. */
 const DEFAULT_FOCUS_RECT = fitRectToAspectRatio({ x: 0.34, y: 0.34, width: 0.32, height: 0.32 });
 
-type Mode = "arrange" | "assets" | "connect" | "focus" | "surface" | "preview";
+type Mode = "arrange" | "assets" | "interact" | "connect" | "focus" | "surface" | "preview";
 type SaveState = "idle" | "unsaved" | "saving" | "saved";
 
 // M14 (Phase 2): the editor's default document is a clean PRODUCTION starter (featured
@@ -867,6 +868,31 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
               )
             ) : null}
 
+            {/* M25 §P3 — the object Interaction panel */}
+            {mode === "interact" ? (
+              selected ? (
+                <InteractionPanel
+                  object={selected}
+                  assetName={ASSETS[selected.assetId]?.name ?? selected.assetId}
+                  snap={connectSnap}
+                  onSnapChange={setConnectSnap}
+                  onCommit={(config) =>
+                    commitActive({
+                      ...activeDoc,
+                      objects: activeDoc.objects.map((o) =>
+                        o.instanceId === selected.instanceId ? { ...o, assetInteraction: config } : o,
+                      ),
+                    })
+                  }
+                  onClose={() => setSelectedId(undefined)}
+                />
+              ) : (
+                <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-teal/30 bg-parchment/95 px-4 py-2 text-xs font-bold text-ink/70 shadow">
+                  Tap an object to set what happens when someone taps it
+                </div>
+              )
+            ) : null}
+
             {/* Surface mode — personalise an asset's editable surfaces (M8) */}
             {mode === "surface" ? (
               selectedSurface ? (
@@ -912,12 +938,15 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
           <nav className="flex h-16 shrink-0 items-center justify-around gap-1 border-t border-ink/10 px-3 py-1.5">
             <ModeBtn active={mode === "arrange"} label="Arrange" onClick={() => setMode("arrange")}><Move className="h-5 w-5" /></ModeBtn>
             <ModeBtn active={mode === "assets"} label="Assets" onClick={() => { setSelectedId(undefined); setMode("assets"); }}><LayoutGrid className="h-5 w-5" /></ModeBtn>
-            <ModeBtn active={mode === "connect"} label="Connect" onClick={() => { setSelectedHotspotId(undefined); setMode("connect"); }}><Link2 className="h-5 w-5" /></ModeBtn>
-            {/* Focus mode is Main-scene only (one navigation level — no nested focus). */}
-            {isMainActive ? (
-              <ModeBtn active={mode === "focus"} label="Focus" onClick={() => { setSelectedId(undefined); setSelectedHotspotId(undefined); setMode("focus"); }}><Maximize2 className="h-5 w-5" /></ModeBtn>
-            ) : null}
-            <ModeBtn active={mode === "surface"} label="Surface" onClick={() => { setSelectedHotspotId(undefined); setSelectedSurfaceId(undefined); setMode("surface"); }}><ImagePlus className="h-5 w-5" /></ModeBtn>
+            {/* ── M25 §P3/§P7 — ONE Interaction button ──────────────────────────
+                Connect, Surface and Focus are retired from the toolbar. Between them they
+                exposed hotspot bindings, surface projection and child scenes — our
+                vocabulary for our problems. A creator now selects an object and says what
+                happens when someone taps it; free zoom replaces Focus for ordinary close
+                inspection. Legacy Focus data still PLAYS (see nest-runtime.tsx); it just
+                cannot be authored any more. The old modes remain reachable from Advanced
+                for founder debugging of existing Nests. */}
+            <ModeBtn active={mode === "interact"} label="Interaction" onClick={() => { setSelectedHotspotId(undefined); setMode("interact"); }}><Link2 className="h-5 w-5" /></ModeBtn>
             <ModeBtn active={false} label="Preview" onClick={onPreview}><Play className="h-5 w-5" /></ModeBtn>
           </nav>
         </>

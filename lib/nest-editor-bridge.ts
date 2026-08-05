@@ -200,6 +200,8 @@ function interactionToObject(i?: NestPlacementInteraction): Partial<EditableNest
     ...(i.hidden ? { hidden: true } : {}),
     ...(i.contactShadow != null ? { contactShadow: i.contactShadow } : {}),
     ...(i.variantId ? { variantId: i.variantId } : {}),
+    // M25 §P2 — the object interaction config travels both ways or it does not exist.
+    ...(i.asset ? { assetInteraction: i.asset } : {}),
   };
 }
 
@@ -222,6 +224,7 @@ function objectInteraction(o: EditableNestObject): NestPlacementInteraction | un
     ...(o.hidden ? { hidden: true } : {}),
     ...(o.contactShadow != null ? { contactShadow: o.contactShadow } : {}),
     ...(o.variantId ? { variantId: o.variantId } : {}),
+    ...(o.assetInteraction ? { asset: o.assetInteraction } : {}),
   };
   return Object.keys(bag).length ? bag : undefined;
 }

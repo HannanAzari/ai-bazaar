@@ -28,6 +28,12 @@ export type NestPlacementInteraction = {
   hidden?: boolean;
   contactShadow?: boolean;
   variantId?: string;
+  /**
+   * M25 §P2 — the creator's object-level interaction configuration (initial state +
+   * connected content). Rides in this EXISTING jsonb bag, so no migration is needed; the
+   * bag already round-trips losslessly (verified in M24E).
+   */
+  asset?: import("@/lib/nest-asset-interaction").AssetInteractionConfig;
 };
 
 /** One placed object inside a Nest (a Placement with a stable id for selection). */

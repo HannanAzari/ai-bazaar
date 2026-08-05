@@ -73,10 +73,12 @@ describe("one coordinate space", () => {
   });
 
   it("the background fills that stage exactly instead of being cropped", () => {
-    // `object-cover` crops, which decoupled the background from the objects. Checked as
-    // an applied CLASS, not a mention — the explanatory comment names it deliberately.
-    expect(runtime).toContain("size-full object-fill");
-    expect(runtime).not.toContain("size-full object-cover");
+    // `object-cover` crops, which decoupled the background from the objects. Asserted on
+    // the BACKGROUND <img> specifically — M25 draws creator screen content with
+    // `object-cover` on purpose, and that is object-local, not the room.
+    const bgImg = runtime.slice(runtime.indexOf("alt={background.name}"), runtime.indexOf("alt={background.name}") + 400);
+    expect(bgImg).toContain("size-full object-fill");
+    expect(bgImg).not.toContain("object-cover");
   });
 
   it("the scene aspect is a single shared constant", () => {

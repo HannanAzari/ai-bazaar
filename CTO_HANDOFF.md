@@ -6,16 +6,17 @@
 | | |
 |---|---|
 | **Branch** | `m12-nest-platform` (never merge to `main`) |
-| **Latest commit** | M24E — *the Nest is actually interactive*. See `M24E_SPRINT_REPORT.md`. |
-| **Gates at that commit** | typecheck ✅ · eslint 0 errors ✅ · **948 tests / 97 files** ✅ · `next build` ✅ (133 pages) |
+| **Latest commit** | M25 — *free zoom + object interaction*. See `M25_SPRINT_REPORT.md`. |
+| **Gates at that commit** | typecheck ✅ · eslint 0 errors ✅ · **1030 tests / 98 files** ✅ · `next build` ✅ (133 pages) |
 | **Deployment** | ⛔ **BLOCKED — see §0.** Nothing has deployed since `235d2ab`. |
-| **Live DB** | Supabase `srrmkdsvldlyllsxyhtq`. `m23b` and `m24b` are applied. **`m24e_provision.sql` is NOT** — see §0.2. |
+| **Live DB** | Supabase `srrmkdsvldlyllsxyhtq`. `m23b`, `m24b` and `m24e` all applied — `nests.scene_extras` verified present 2026-08-05. **No migration is outstanding.** |
 
 ---
 
-## 0. THE TWO BLOCKERS — both need the founder, neither is code
+## 0. THE BLOCKER — one, and it needs the founder
 
-Everything else in this document is secondary to these.
+> **The migration blocker is CLEARED.** `m24e_provision.sql` was applied; `nests.scene_extras`
+> is live. Only Vercel remains.
 
 ### 0.1 Vercel is disabled
 
@@ -42,31 +43,23 @@ fix has simply not shipped.
 There is no Vercel CLI, token or `.vercel` linkage in this repo, so an agent can neither do
 this nor read the build logs.
 
-### 0.2 `supabase/provision/m24e_provision.sql` is unapplied
+### 0.2 ~~Migrations~~ — CLEARED
 
-Live inspection on 2026-08-05 found the migration state **split**:
+`m24e_provision.sql` has been applied. Verified live on 2026-08-05:
 
 ```
-nests.draft_doc          EXISTS      nest_views          EXISTS
-nests.draft_updated_at   EXISTS      nests.scene_extras  MISSING  ←
+nests.scene_extras      EXISTS      nests.draft_doc   EXISTS
+nest_views              EXISTS      draft_updated_at  EXISTS
 ```
 
-`m24b_provision.sql` was applied **before M24C appended `scene_extras` to it**. So the
-migration genuinely was applied — just the earlier version. This one column is why every
-Focus region, and every object placed inside one, was discarded at the database boundary
-no matter how correct the editor and runtime were.
+**M25 needs no migration at all** — object interaction config rides in the existing
+`nest_objects.interaction` jsonb bag.
 
-`m24e_provision.sql` adds exactly that column. Additive and idempotent; run it in the
-Supabase SQL editor. (Re-running `m24b_provision.sql` would also work — a separate file
-just makes the outstanding action unambiguous.)
+Still **do not run** `nests_canonical_provision.sql` (superseded) or
+`supabase/migrations/20260703_01_nest_social.sql` (aborts on the legacy `notifications`).
 
-**Until it is applied**, saving or publishing a Nest that contains Focus regions is
-**refused with a clear message** rather than silently dropping them (D-37). Nests without
-Focus regions are completely unaffected.
-
-**Do not run** `nests_canonical_provision.sql` (superseded; ALTERs a table that does not
-exist) or `supabase/migrations/20260703_01_nest_social.sql` (aborts on the legacy
-`notifications` table).
+Lesson worth keeping: a provision file's *current contents* are not what was applied. Probe
+the live schema by column, never by file name.
 
 ---
 
@@ -95,15 +88,16 @@ is that what a creator builds must be exactly what everyone else sees.
 - **Onboarding** (identity → house → Profile), **Settings** with real sign-out and a real
   delete-account cascade, **draft workflow**, **delete Nest**, per-Nest views,
   notifications.
-- **A genuinely interactive Nest (M24E).** One runtime (`NestRuntime`) for the editor
-  Preview, the public Nest and every card. Focus regions open and return; hotspots run a
-  typed interaction (`open-url` / `open-youtube` / `enter-focus`) resolved only from
-  creator data. Verified in a real browser in both modes — see `M24E_SPRINT_REPORT.md` §6.
+- **Free exploration + object interaction (M25).** The whole room pinch-zooms and pans to
+  5×; objects themselves are the tap targets (no hotspot badges, no pinch icon). A typed
+  capability model drives TV / lamp / laptop / books. Legacy Focus data still plays but can
+  no longer be authored. Verified in a real browser — `M25_SPRINT_REPORT.md` §7.
 
 ## 4. Sprint history (most recent first)
 
 | Commit | What it did |
 |---|---|
+| M25 | free zoom camera; typed asset-interaction model; one creator Interaction panel; Focus retired from authoring |
 | M24E | one `NestRuntime`; typed interaction contract; Focus/hotspot execution; the split-migration discovery |
 | `c9bb259` | M24D — visitors replay Focus/Surface; scene resolution extracted to `lib/nest-scene.ts`; blurred surround → adaptive matte |
 | `52bd654` | M24C — **background** and **focus-scene** data loss fixed; `scene_extras`; schema tolerance |
@@ -116,12 +110,12 @@ is that what a creator builds must be exactly what everyone else sees.
 | `1e1c432` | Hotfix — sign-in froze on "Signing in…" (auth Web Lock deadlock) |
 | `88821f8` | M23B — truthful persistence, onboarding, settings, simplified Nest |
 
-Detail: `M24E_SPRINT_REPORT.md` (current), `M24CD_SPRINT_REPORT.md`,
+Detail: `M25_SPRINT_REPORT.md` (current), `M24E_SPRINT_REPORT.md`, `M24CD_SPRINT_REPORT.md`,
 `M24B_SPRINT_REPORT.md`, `M24_SPRINT_REPORT.md`, `M23B_SPRINT_REPORT.md`.
 
 ## 5. What is NOT verified — do not claim these
 
-Every item is blocked on §0.1, §0.2, or both.
+Every item is blocked on §0.1.
 
 - **Two-account live social testing.** The shared social store is unit-tested (17 cases) but
   never proven with two real accounts.
@@ -133,6 +127,9 @@ Every item is blocked on §0.1, §0.2, or both.
   blockers cleared.
 - **Notifications end-to-end** — wired, never driven by a second account.
 - **Views** — `nest_views` exists, but nothing has been counted by a second account.
+- **Zoom smoothness on a physical iPhone** — structurally optimised (D-43) but never
+  frame-rate measured on a device.
+- **The editor's arrange canvas has no zoom/pan yet** — the largest known M25 gap.
 
 ## 6. Known limitations
 
@@ -231,7 +228,8 @@ The same applies to the many untracked `app/design/*`, `apps/asset-factory/*`,
 | **`CTO_HANDOFF.md`** | this file — orientation + the blockers |
 | **`NEXT_SPRINT.md`** | what to do next, in order |
 | **`SESSION_PROMPT.md`** | paste this into a new Claude session |
-| **`M24E_SPRINT_REPORT.md`** | CURRENT: the interactive runtime + the full data trace |
+| **`M25_SPRINT_REPORT.md`** | CURRENT: free zoom, object interaction, legacy Focus compatibility |
+| `M24E_SPRINT_REPORT.md` | the interactive runtime + the full data trace |
 | `M24CD_SPRINT_REPORT.md` | the scene runtime, focus/surface replay, the matte |
 | `M24B_SPRINT_REPORT.md` | parity, drafts, delete, views |
 | `M24_SPRINT_REPORT.md` · `M23B_SPRINT_REPORT.md` | earlier records |

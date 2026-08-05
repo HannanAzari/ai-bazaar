@@ -232,3 +232,56 @@ renders and runs a Nest in the editor Preview, the full public Nest and every ca
 rendering. The Home feed card stays `card` deliberately: the room itself is the "visit this
 Nest" tap target there, so a hotspot inside it would steal that tap. **Status: in force
 (M24E), `test/nest-scene-renderer.test.ts`.**
+
+**D-39 · Free zoom replaces Focus for ordinary close inspection.** The whole room pinch-zooms
+and pans to ~5× (`lib/nest-camera.ts` + `use-scene-camera.ts`). A creator places a 10px book
+on a shelf and a visitor zooms in on it; neither authors a region. *Why:* Focus made "look
+closer" an authoring task, so every small detail cost a child scene, and the child scene was
+a second coordinate space — the source of three sprints of displacement and data-loss bugs.
+The camera is a viewport transform and never touches object geometry. **Legacy Focus data is
+kept and still plays** (`resolveFocusRegions` is still called); it simply cannot be authored
+any more. Nothing is dropped, no column is removed. **Status: in force (M25).**
+
+**D-40 · Session state is not authored state.** A lamp the visitor switched on is a fact
+about this visit and lives in component state; the lamp's *initial* state is a fact about the
+Nest and lives in the document. A visitor tap never produces a database write. *Why:* the
+alternative is either writing on every tap (a room that mutates for everyone who looks at
+it) or refusing state changes entirely. **Status: in force (M25),
+`test/nest-zoom-interaction.test.ts`.**
+
+**D-41 · The OBJECT is the hit target; there is no permanent affordance chrome.** No hotspot
+badge, no pinch icon, no rectangle to author. Discovery is a one-time "Tap objects and pinch
+to explore" plus an on-demand Hint that pulses interactive objects for ~1.8s. *Why:* a badge
+on every interactive object turns a room into a control panel, and the room is the product.
+Tiny objects get an invisible ~14px touch pad that must be **hittable** — a
+`pointer-events-none` pad extends nothing, which is how this shipped broken the first time.
+**Status: in force (M25).**
+
+**D-42 · Overlapping taps resolve by visual containment, then nearest centre.**
+`resolveTapTarget` in `lib/nest-camera.ts`. *Why:* two 10px books 12px apart have touch pads
+that overlap entirely, so `elementFromPoint` alone always returned whichever painted last —
+every tap aimed at the first book opened the second. No second-tap chooser: with these two
+rules the ambiguous case does not arise, and a disambiguation popup is worse than a good
+guess. **Status: in force (M25).**
+
+**D-43 · The gesture layer never re-renders the scene.** The camera is written straight to
+the stage's `style.transform` inside a rAF; React sees it only when the gesture ends, and
+only so the Reset control can appear. The listener effect depends on nothing that changes
+per render — the tap handler and the panning flag are read through refs. *Why:* a pinch
+fires ~60 events/second and `useState` would re-lay-out every object on each one. It is also
+a correctness rule: an earlier version re-ran the listener effect on every `setZoomed`, and
+its cleanup cancelled the pending frame while leaving the frame slot latched, so the camera
+silently froze after the first gesture. **Status: in force (M25).**
+
+**D-44 · One creator panel, in the creator's language.** Connect, Surface and Focus are
+retired from the editor toolbar in favour of a single object-level Interaction panel that
+shows only what the selected asset supports — a lamp offers no URL field. The words
+"hotspot", "surface projection", "child scene" and "target scene" appear nowhere a creator
+can see, asserted by test. *Why:* those are our names for our problems. **Status: in force
+(M25), supersedes the authoring half of D-35.**
+
+**D-45 · The editor's viewport is workspace state, never the visitor's opening shot.** A
+creator zooming in to place a book does not author a camera; every visitor opens at 1×,
+fitted. *Why:* an accidentally-saved viewport would be indistinguishable from a deliberate
+one, and there is no UI to correct it. An authored opening camera is a future feature that
+must be explicit. **Status: in force (M25).**
