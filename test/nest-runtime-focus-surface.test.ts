@@ -9,6 +9,7 @@ import {
   resolvePlacementSurfaces,
 } from "@/lib/nest-scene";
 import { registerAssetSurfaces } from "@/lib/nest-surface-catalog";
+import { cinematicFocusTransformCss, focusBoundsOf } from "@/lib/nest-focus-scenes";
 import type { NestDocument, NestPlacement } from "@/lib/nest-document-types";
 import type { EditableNestObject } from "@/lib/nest-editor-types";
 
@@ -99,21 +100,48 @@ describe("focus regions resolve for a visitor", () => {
   it("returns nothing for a document with no focus regions", () => {
     expect(resolveFocusRegions(doc({ scene: undefined }))).toEqual([]);
   });
+
+  it("M24E — the crop is the CANONICAL focus rectangle, not the legacy trigger box", () => {
+    // `bounds` is the pre-M7C.4 trigger box; `focusBounds` is the rectangle the creator
+    // actually drags in focus-editor-overlay.tsx. Reading `bounds` framed a different
+    // region from the one the creator drew.
+    const [focus] = resolveFocusRegions(doc());
+    expect(focus.crop).toEqual(focusBoundsOf(doc().scene!.focusAreas![0]));
+  });
+
+  it("M24E — an authored focusBounds wins over the legacy bounds", () => {
+    const d = doc();
+    d.scene!.focusAreas![0].focusBounds = { x: 0.5, y: 0.5, width: 0.25, height: 0.25 };
+    expect(resolveFocusRegions(d)[0].crop).toEqual({ x: 0.5, y: 0.5, width: 0.25, height: 0.25 });
+  });
+
+  it("M24E — matches the child scene by childSceneId (how the editor links them)", () => {
+    // `ensureFocusChildScene` writes `childSceneId` when the creator first steps inside a
+    // region to place things in it. Matching only `targetSceneId` missed exactly those.
+    const d = doc();
+    d.scene!.focusAreas![0].targetSceneId = "";
+    d.scene!.focusAreas![0].childSceneId = "scene-1";
+    d.scene!.detailScenes![0].parentFocusAreaId = "someone-else";
+    expect(resolveFocusRegions(d)[0].objects.map((o) => o.instanceId)).toContain("the-plant");
+  });
 });
 
 describe("the camera is one transform over the whole scene", () => {
-  it("scales so the crop fills the stage", () => {
+  it("scales so the crop exactly fills the stage", () => {
     const [focus] = resolveFocusRegions(doc());
     const cam = focusCameraTransform(focus.crop);
-    // The smaller axis wins so nothing outside the crop leaks in.
-    expect(cam.scale).toBeCloseTo(Math.min(1 / 0.4, 1 / 0.3), 6);
+    expect(cam.scale).toBeCloseTo(1 / focus.crop.width, 6);
   });
 
-  it("pins the origin to the crop's centre, so the region ends up centred", () => {
+  it("is the SAME transform the editor's focused view uses", () => {
+    // M24E — this used to be a second implementation (centre-origin scale) that only
+    // agreed with the editor for a perfectly centred crop. It now delegates, so the
+    // creator's focused view and the visitor's cannot drift.
     const [focus] = resolveFocusRegions(doc());
     const cam = focusCameraTransform(focus.crop);
-    expect(cam.originX).toBeCloseTo((0.25 + 0.4 / 2) * 100, 6);
-    expect(cam.originY).toBeCloseTo((0.2 + 0.3 / 2) * 100, 6);
+    const canonical = cinematicFocusTransformCss(focus.crop);
+    expect({ transform: cam.transform, transformOrigin: cam.transformOrigin }).toEqual(canonical);
+    expect(cam.transformOrigin).toBe("0 0");
   });
 
   it("never inverts or collapses on a degenerate crop", () => {
@@ -187,7 +215,7 @@ describe("focus children paint in authored order", () => {
 });
 
 describe("one runtime, and the surround is not a blurred image", () => {
-  const src = readFileSync(join(process.cwd(), "components", "nest", "app-shell", "nest-preview.tsx"), "utf8");
+  const src = readFileSync(join(process.cwd(), "components", "nest", "app-shell", "nest-runtime.tsx"), "utf8");
 
   it("Preview and visitor share the focus state machine", () => {
     expect(src).toContain("resolveFocusRegions");
@@ -217,7 +245,7 @@ describe("one runtime, and the surround is not a blurred image", () => {
 
   it("§2 — the matte is deterministic per room, so it never flickers", async () => {
     // Same id ⇒ same colour, every render.
-    const mod = readFileSync(join(process.cwd(), "components", "nest", "app-shell", "nest-preview.tsx"), "utf8");
+    const mod = readFileSync(join(process.cwd(), "components", "nest", "app-shell", "nest-runtime.tsx"), "utf8");
     expect(mod).toContain("hsl(");
     expect(mod).toContain("14% 11%"); // deep + desaturated, so it always recedes
   });

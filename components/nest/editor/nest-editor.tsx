@@ -37,7 +37,7 @@ import { useRouter } from "next/navigation";
 import { useAiLivingAssets } from "@/lib/nest-editor-ai-bridge";
 import { useMyAvatarLivingAsset } from "@/lib/avatar-factory/avatar-editor-bridge";
 import { PublishGate } from "@/components/nest/editor/publish-gate";
-import { NestPreview } from "@/components/nest/app-shell/nest-preview";
+import { NestRuntime } from "@/components/nest/app-shell/nest-runtime";
 import type { NestDocument } from "@/lib/nest-document-types";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import {
@@ -645,7 +645,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
             Exactly what visitors see
           </p>
           <div className="w-full max-w-[420px] overflow-hidden rounded-2xl border border-ink/10 shadow-lift" style={{ aspectRatio: "3 / 4" }}>
-            <NestPreview doc={previewDoc} className="size-full" interactive surround />
+            <NestRuntime document={previewDoc} mode="editor-preview" className="size-full" surround />
           </div>
         </div>
       ) : (

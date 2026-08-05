@@ -6,10 +6,10 @@
 | | |
 |---|---|
 | **Branch** | `m12-nest-platform` (never merge to `main`) |
-| **Latest commit** | `c9bb259` — *feat(m24d): visitors replay Focus and Surface; adaptive matte replaces the blur*. Local `HEAD` == `origin/m12-nest-platform`. |
-| **Gates at that commit** | typecheck ✅ · eslint 0 errors ✅ · **900 tests / 96 files** ✅ · `next build` ✅ (132 pages) |
+| **Latest commit** | M24E — *the Nest is actually interactive*. See `M24E_SPRINT_REPORT.md`. |
+| **Gates at that commit** | typecheck ✅ · eslint 0 errors ✅ · **948 tests / 97 files** ✅ · `next build` ✅ (133 pages) |
 | **Deployment** | ⛔ **BLOCKED — see §0.** Nothing has deployed since `235d2ab`. |
-| **Live DB** | Supabase `srrmkdsvldlyllsxyhtq`. `m23b_nest_platform_provision.sql` **is applied**. `m24b_provision.sql` is **NOT**. |
+| **Live DB** | Supabase `srrmkdsvldlyllsxyhtq`. `m23b` and `m24b` are applied. **`m24e_provision.sql` is NOT** — see §0.2. |
 
 ---
 
@@ -26,7 +26,7 @@ https://ai-bazaar-git-m12-nest-platform-….app/…     → 404  DEPLOYMENT_NOT_
 
 `402 / DEPLOYMENT_DISABLED` is Vercel refusing to serve a suspended project — in practice a
 billing state (spend limit reached, or a failed payment method). **It is not a build
-failure:** `next build` passes locally at 132 pages and every commit pushed cleanly.
+failure:** `next build` passes locally at 133 pages and every commit pushed cleanly.
 
 **This changes how you should read bug reports.** The founder has been testing a build from
 before `235d2ab`. Several issues re-reported across M24 / M24B / M24C were already fixed in
@@ -42,17 +42,27 @@ fix has simply not shipped.
 There is no Vercel CLI, token or `.vercel` linkage in this repo, so an agent can neither do
 this nor read the build logs.
 
-### 0.2 `supabase/provision/m24b_provision.sql` is unapplied
+### 0.2 `supabase/provision/m24e_provision.sql` is unapplied
 
-Additive and idempotent. Adds:
-- `nest_views` — per-Nest view counter, deduped by a unique index on
-  `(nest_slug, viewer_key, view_day)`
-- `nests.draft_doc` + `nests.draft_updated_at` — the draft workflow
-- `nests.scene_extras` — focus regions and detail scenes
+Live inspection on 2026-08-05 found the migration state **split**:
 
-Until it runs: view counts read 0, drafts cannot be saved, and **focus regions do not
-persist**. The app still works — each degrades with a clear message rather than breaking
-(D-30). Apply it in the Supabase SQL editor.
+```
+nests.draft_doc          EXISTS      nest_views          EXISTS
+nests.draft_updated_at   EXISTS      nests.scene_extras  MISSING  ←
+```
+
+`m24b_provision.sql` was applied **before M24C appended `scene_extras` to it**. So the
+migration genuinely was applied — just the earlier version. This one column is why every
+Focus region, and every object placed inside one, was discarded at the database boundary
+no matter how correct the editor and runtime were.
+
+`m24e_provision.sql` adds exactly that column. Additive and idempotent; run it in the
+Supabase SQL editor. (Re-running `m24b_provision.sql` would also work — a separate file
+just makes the outstanding action unambiguous.)
+
+**Until it is applied**, saving or publishing a Nest that contains Focus regions is
+**refused with a clear message** rather than silently dropping them (D-37). Nests without
+Focus regions are completely unaffected.
 
 **Do not run** `nests_canonical_provision.sql` (superseded; ALTERs a table that does not
 exist) or `supabase/migrations/20260703_01_nest_social.sql` (aborts on the legacy
@@ -85,13 +95,16 @@ is that what a creator builds must be exactly what everyone else sees.
 - **Onboarding** (identity → house → Profile), **Settings** with real sign-out and a real
   delete-account cascade, **draft workflow**, **delete Nest**, per-Nest views,
   notifications.
-- **Focus + Surface replay** for visitors (M24D) — logic unit-tested, not yet exercised
-  end-to-end (§5).
+- **A genuinely interactive Nest (M24E).** One runtime (`NestRuntime`) for the editor
+  Preview, the public Nest and every card. Focus regions open and return; hotspots run a
+  typed interaction (`open-url` / `open-youtube` / `enter-focus`) resolved only from
+  creator data. Verified in a real browser in both modes — see `M24E_SPRINT_REPORT.md` §6.
 
 ## 4. Sprint history (most recent first)
 
 | Commit | What it did |
 |---|---|
+| M24E | one `NestRuntime`; typed interaction contract; Focus/hotspot execution; the split-migration discovery |
 | `c9bb259` | M24D — visitors replay Focus/Surface; scene resolution extracted to `lib/nest-scene.ts`; blurred surround → adaptive matte |
 | `52bd654` | M24C — **background** and **focus-scene** data loss fixed; `scene_extras`; schema tolerance |
 | `3b515b9` | M24B — overlay `fill-mode` hazard; legacy-layout notice; docs |
@@ -103,8 +116,8 @@ is that what a creator builds must be exactly what everyone else sees.
 | `1e1c432` | Hotfix — sign-in froze on "Signing in…" (auth Web Lock deadlock) |
 | `88821f8` | M23B — truthful persistence, onboarding, settings, simplified Nest |
 
-Detail: `M24CD_SPRINT_REPORT.md` (current), `M24B_SPRINT_REPORT.md`,
-`M24_SPRINT_REPORT.md`, `M23B_SPRINT_REPORT.md`.
+Detail: `M24E_SPRINT_REPORT.md` (current), `M24CD_SPRINT_REPORT.md`,
+`M24B_SPRINT_REPORT.md`, `M24_SPRINT_REPORT.md`, `M23B_SPRINT_REPORT.md`.
 
 ## 5. What is NOT verified — do not claim these
 
@@ -114,10 +127,12 @@ Every item is blocked on §0.1, §0.2, or both.
   never proven with two real accounts.
 - **Publish → visitor round-trip.** Parity is measured Editor↔Preview and by unit test;
   nobody has published a Nest and compared it as a visitor.
-- **Focus/Surface end-to-end.** M24D's resolution and camera maths are unit-tested (22
-  cases). No focus region has been driven through save → publish → visitor.
+- **Focus/Surface through a real publish.** M24E proves the whole interaction loop in a
+  browser against real components and real art (`/dev/nest-runtime`), but no Focus region
+  has yet gone through save → publish → *another account*, because that needs both §0
+  blockers cleared.
 - **Notifications end-to-end** — wired, never driven by a second account.
-- **Views** — cannot record at all until §0.2.
+- **Views** — `nest_views` exists, but nothing has been counted by a second account.
 
 ## 6. Known limitations
 
@@ -150,11 +165,15 @@ Editor ──editableObjectsToPlacements + editableSceneExtras──► NestDocu
 
 - `lib/nest-geometry.ts` — `placementBox()` **replays** the stored box; it only derives
   geometry for pre-M24 rows with NULL `w`/`h`.
-- `lib/nest-scene.ts` — pure scene resolution (focus regions, camera transform, surfaces).
-  React-free and Supabase-free **on purpose**: that is what lets Preview and the visitor
-  share one implementation.
-- `components/nest/app-shell/nest-preview.tsx` — the one runtime. `interactive` and
-  `surround` are the only mode differences.
+- `lib/nest-scene.ts` — pure scene resolution (focus regions, camera transform, surfaces,
+  hotspots). React-free and Supabase-free **on purpose**: that is what lets Preview and the
+  visitor share one implementation.
+- `lib/nest-interaction.ts` — the typed interaction contract (D-34).
+- `components/nest/app-shell/nest-runtime.tsx` — **the one runtime**. `mode` decides input
+  and nothing else. `nest-preview.tsx` is a passthrough adapter for older call sites.
+- `/dev/nest-runtime` — Preview and visitor side by side on one document, with the
+  resolver output printed. The fastest way to tell "not interactive" from "data never
+  arrived".
 - The stage is always `SCENE_ASPECT` (3:4), letterboxed via container-query units.
 
 ### Other spines
@@ -169,6 +188,9 @@ Editor ──editableObjectsToPlacements + editableSceneExtras──► NestDocu
 - **Never apply SQL.** Migrations are written, shown, and founder-provisioned.
 - Never merge to `main` or promote to Production.
 - **Never let a missing column break the product** (D-30) — degrade the feature, say so.
+  But **never silently discard creator work** (D-37): if the document actually uses the
+  missing column, refuse the write and name the migration.
+- **Never infer an interaction from an asset id or name** (D-34).
 - No silent fallbacks that mask backend failure (D-10).
 - Never reconstruct or approximate a creator's layout.
 - Do not fake account deletion; disable the action until the cascade genuinely works.
@@ -209,7 +231,8 @@ The same applies to the many untracked `app/design/*`, `apps/asset-factory/*`,
 | **`CTO_HANDOFF.md`** | this file — orientation + the blockers |
 | **`NEXT_SPRINT.md`** | what to do next, in order |
 | **`SESSION_PROMPT.md`** | paste this into a new Claude session |
-| **`M24CD_SPRINT_REPORT.md`** | CURRENT: the scene runtime, focus/surface replay, the matte |
+| **`M24E_SPRINT_REPORT.md`** | CURRENT: the interactive runtime + the full data trace |
+| `M24CD_SPRINT_REPORT.md` | the scene runtime, focus/surface replay, the matte |
 | `M24B_SPRINT_REPORT.md` | parity, drafts, delete, views |
 | `M24_SPRINT_REPORT.md` · `M23B_SPRINT_REPORT.md` | earlier records |
 | `ROADMAP.md` | done / unverified / blocked / deferred |

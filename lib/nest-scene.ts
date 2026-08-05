@@ -13,6 +13,15 @@ import type { NestFocusArea, NestDetailScene } from "@/lib/nest-focus-types";
 import type { EditableNestObject } from "@/lib/nest-editor-types";
 import { predefinedSurfacesForAsset } from "@/lib/nest-surface-catalog";
 import type { EditableSurfaceDef, SurfaceContent } from "@/lib/nest-surface-types";
+import type { NestHotspotShape } from "@/lib/nest-hotspot-types";
+import {
+  interactionForHotspot,
+  interactionForPlacement,
+  interactionProblem,
+  NO_INTERACTION,
+  type NestInteraction,
+} from "@/lib/nest-interaction";
+import { childSceneIdOf, cinematicFocusTransformCss, focusBoundsOf } from "@/lib/nest-focus-scenes";
 
 /** A focus region plus the child scene it opens. Resolved once, used by both modes. */
 export type ResolvedFocus = {
@@ -33,30 +42,39 @@ export type ResolvedSurface = {
   content: SurfaceContent;
 };
 
-const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
-
 /**
  * Every focus region in a document, with its child objects attached.
  *
  * A region with no detail scene is still returned: it is a valid zoom-only region, and
  * dropping it would silently discard creator intent.
+ *
+ * ── M24E: the crop comes from `focusBoundsOf`, not from `area.bounds` ──────────
+ *
+ * `NestFocusArea` carries two rectangles. `bounds` is the LEGACY pre-M7C.4 trigger box;
+ * `focusBounds` is the V1 contract — the single rectangle the creator actually drags,
+ * which is both the tap target and the camera crop. `focus-editor-overlay.tsx` authors
+ * `focusBounds`, so reading `bounds` here meant the runtime framed a different rectangle
+ * from the one the creator drew, or (on a region authored purely through the new overlay)
+ * fell back to whatever stale `bounds` the area was created with.
+ *
+ * `focusBoundsOf` is the same function the editor overlay and `FocusedZoomStage` call, and
+ * it migrates legacy areas deterministically. Sharing it is the point: a second copy of
+ * this decision is how the editor and the visitor drifted apart in the first place.
  */
 export function resolveFocusRegions(doc: NestDocument): ResolvedFocus[] {
   const areas = doc.scene?.focusAreas ?? [];
   const scenes = doc.scene?.detailScenes ?? [];
   return areas.map((area) => {
+    // M24E — `childSceneId` is what `ensureFocusChildScene` writes when the creator first
+    // enters a region to place things inside it. Matching only `targetSceneId` missed
+    // every region authored that way, so the books resolved to no scene and no objects.
     const scene =
+      scenes.find((s) => s.id === childSceneIdOf(area)) ??
       scenes.find((s) => s.id === area.targetSceneId) ??
       scenes.find((s) => s.parentFocusAreaId === area.id);
-    const b = area.bounds;
     return {
       area,
-      crop: {
-        x: clamp01(b.x),
-        y: clamp01(b.y),
-        width: Math.min(1, Math.max(0.02, b.width)),
-        height: Math.min(1, Math.max(0.02, b.height)),
-      },
+      crop: focusBoundsOf(area),
       objects: scene?.objects ?? [],
       scene,
     };
@@ -66,23 +84,26 @@ export function resolveFocusRegions(doc: NestDocument): ResolvedFocus[] {
 /**
  * The camera transform that moves the main scene to a focus crop.
  *
- * Returned as a scale + translate in the SAME normalised space the objects live in, so
- * the background and every object move together. This is the "one transform" rule: a
- * focused view is the main scene under a transform, never a re-laid-out scene.
+ * Delegates to `cinematicFocusTransformCss` — the canonical transform the editor's focused
+ * view already uses — so the creator's focused view and the visitor's are the same move,
+ * not two implementations that agree by coincidence. `transform-origin: 0 0` with a
+ * translate is what makes the crop land exactly on the viewport; a centre-origin scale is
+ * only equivalent for a perfectly centred crop, which is why this now delegates instead of
+ * recomputing.
+ *
+ * `scale` is returned alongside the CSS because the runtime needs it to keep hit targets
+ * and control chrome at a constant on-screen size inside a focus.
  */
 export function focusCameraTransform(crop: ResolvedFocus["crop"]): {
   scale: number;
-  originX: number;
-  originY: number;
+  transform: string;
+  transformOrigin: string;
 } {
-  // Fill the stage with the crop, preserving aspect (the smaller axis wins so nothing
-  // outside the crop leaks in).
-  const scale = Math.min(1 / crop.width, 1 / crop.height);
+  const css = cinematicFocusTransformCss(crop);
   return {
-    scale,
-    // transform-origin as a percentage of the scene, so scaling pins the crop's centre.
-    originX: clamp01(crop.x + crop.width / 2) * 100,
-    originY: clamp01(crop.y + crop.height / 2) * 100,
+    scale: crop.width > 0 ? 1 / crop.width : 1,
+    transform: css.transform,
+    transformOrigin: css.transformOrigin,
   };
 }
 
@@ -107,6 +128,69 @@ export function resolvePlacementSurfaces(p: NestPlacement): ResolvedSurface[] {
 /** True when this placement carries anything a visitor can interact with. */
 export function placementIsInteractive(p: NestPlacement): boolean {
   return Boolean(p.linkUrl || p.interaction?.interactionId || p.interaction?.hotspots?.length);
+}
+
+// ── M24E — hotspots: the part the runtime never rendered ─────────────────────
+//
+// `nest_objects.interaction.hotspots` has persisted the creator's regions AND their
+// bindings since M23B — the data was verified present in the live database. The runtime
+// simply never read it: `NestPreview` looked only at `placement.linkUrl`, so a TV whose
+// screen the creator had bound to a YouTube URL rendered the assigned image and then
+// ignored every tap. "Surface content shows but nothing happens" is exactly this.
+
+/** A hotspot ready to draw and to tap: object-local geometry plus a resolved action. */
+export type ResolvedHotspot = {
+  id: string;
+  name: string;
+  /** Object-local rectangle (0..1 inside the placement's box), from the creator's shape. */
+  bounds: { x: number; y: number; width: number; height: number };
+  ellipse: boolean;
+  interaction: NestInteraction;
+  ariaLabel: string;
+  /** Set when the creator configured something the runtime cannot execute (dev-visible). */
+  problem: string | null;
+};
+
+const rectOf = (s: NestHotspotShape) => ({ x: s.x, y: s.y, width: s.width, height: s.height });
+
+/**
+ * The interactive hotspots on a placement.
+ *
+ * Only regions that actually DO something are returned — an unconfigured catalogue hotspot
+ * would otherwise cover the object with an invisible button that swallows taps and does
+ * nothing, which is worse than no hotspot at all. Malformed ones are returned WITH their
+ * problem so the runtime can surface them in development rather than dropping them
+ * silently.
+ */
+export function resolvePlacementHotspots(p: NestPlacement): ResolvedHotspot[] {
+  const hotspots = p.interaction?.hotspots ?? [];
+  const out: ResolvedHotspot[] = [];
+  for (const h of hotspots) {
+    if (!h.enabled) continue;
+    const interaction = interactionForHotspot(h);
+    const problem = interactionProblem(h);
+    if (interaction.type === "none" && !problem) continue; // never configured — not a target
+    out.push({
+      id: h.id,
+      name: h.name,
+      bounds: rectOf(h.shape),
+      ellipse: h.shape.type === "ellipse",
+      interaction,
+      ariaLabel: h.ariaLabel || h.binding?.label || h.name,
+      problem,
+    });
+  }
+  return out;
+}
+
+/**
+ * The action for the placement AS A WHOLE, used only when no hotspot claims the tap.
+ *
+ * A hotspot is the more specific thing the creator drew, so it always wins; this is the
+ * fallback for the simple "link this whole object" authoring path.
+ */
+export function placementFallbackInteraction(p: NestPlacement): NestInteraction {
+  return resolvePlacementHotspots(p).length ? NO_INTERACTION : interactionForPlacement(p);
 }
 
 /** Objects a focus scene contributes, in paint order. */

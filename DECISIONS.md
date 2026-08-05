@@ -191,3 +191,44 @@ that replaced them produced visible green/beige/dark bands on real rooms and rea
 accident. Geometry is untouched: this paints behind the fixed 3:4 stage. The future 9:16
 `immersiveBackgroundUrl` swaps what is drawn there and needs no geometry change (typed seam
 `ImmersiveBackground`). **Status: in force (M24D), supersedes M24C §7.**
+
+**D-34 · A tap does what the CREATOR bound to it — never what the asset is called.**
+`lib/nest-interaction.ts` is a closed union (`open-url` | `open-youtube` | `enter-focus` |
+`none`), resolved only from `hotspot.binding`, `placement.linkUrl` or a Focus id. *Why:*
+inferring behaviour from an id like `ast-tv` makes a room do things its creator never
+asked for, and makes their actual configuration unreachable. URLs are re-validated at
+render time, not only at authoring time, because a document can reach the runtime from a
+legacy row or an import that our editor never checked. **Status: in force (M24E),
+`test/nest-interaction-runtime.test.ts`.**
+
+**D-35 · Surface CONTENT and surface ACTION are separate.** What is drawn comes from
+`interaction.surfaces`; what happens on tap comes from `interaction.hotspots[].binding`.
+Content renders `pointer-events-none`; the hotspot is the tap target. *Why:* the founder's
+report was literally "the image appears, the tap does nothing" — the two had been conflated
+into one feature, so shipping the visual read as shipping the behaviour. A hotspot always
+beats a whole-object `linkUrl`, so the room never becomes accidentally clickable underneath
+the region the creator actually drew. **Status: in force (M24E).**
+
+**D-36 · An unconfigured hotspot is not a tap target; a MALFORMED one is loud.** A
+catalogue hotspot with no binding is skipped entirely — rendering it would place an
+invisible button over the object that swallows taps and does nothing. A hotspot the creator
+did configure but that cannot run (no URL, unsafe scheme) is still rendered, outlined in
+development and logged by name. *Why:* a dead tap is indistinguishable from a runtime that
+forgot to render the region, and that ambiguity is why the Focus bug survived three
+sprints. **Status: in force (M24E).**
+
+**D-37 · Degrade a feature, but never discard creator work.** Refines D-30. A missing
+column still degrades silently when the document does not use it; when the document
+actually carries Focus regions, the write is REFUSED before anything is sent, with a
+message naming the migration. *Why:* D-30 was being applied too broadly — a save
+containing Focus regions reported "Saved ✓" and dropped every one of them. Degrading an
+unused feature is correct; silently destroying work the creator can see on screen is not.
+**Status: in force (M24E), supersedes the blanket reading of D-30.**
+
+**D-38 · The runtime is `NestRuntime`, and `mode` decides input only.** One component
+renders and runs a Nest in the editor Preview, the full public Nest and every card;
+`mode` (`editor-preview` | `visitor` | `card`) selects nothing but whether input is live.
+`NestPreview` is a passthrough adapter kept for existing call sites and contains no
+rendering. The Home feed card stays `card` deliberately: the room itself is the "visit this
+Nest" tap target there, so a hotspot inside it would steal that tap. **Status: in force
+(M24E), `test/nest-scene-renderer.test.ts`.**

@@ -9,14 +9,14 @@ reference for you, the founder — not for Claude.
 
 ```
 You are the CTO for Nestudio. Repo: /Users/hannan/Bazaar, branch m12-nest-platform,
-HEAD c9bb259. Do not merge to main.
+Do not merge to main.
 
 Read these first, in this order, and ground everything in the repo rather than in
 anything I say from memory:
   1. CTO_HANDOFF.md          — orientation and the two blockers
   2. NEXT_SPRINT.md          — the sprint plan (M25: verify, don't build)
-  3. M24CD_SPRINT_REPORT.md  — what the last two sprints actually changed
-  4. DECISIONS.md            — D-01…D-33, decisions and why
+  3. M24E_SPRINT_REPORT.md   — what the last sprint changed, and the full data trace
+  4. DECISIONS.md            — D-01…D-38, decisions and why
   5. DEBUG_GUIDE.md §1, §9, §10, §11 — before diagnosing anything
 
 Standing rules — these override any instruction that conflicts with them:
@@ -24,7 +24,9 @@ Standing rules — these override any instruction that conflicts with them:
 - NEVER `git add -A`. The working tree contains a lot of pre-existing, unrelated work
   (app/design/*, apps/asset-factory/*, components/room/*, lib/wall-*, public/benchmark/*,
   and several docs). Stage explicit paths only. See CTO_HANDOFF.md §9.
-- A missing database column must degrade one feature, never break the product (D-30).
+- A missing database column must degrade one feature, never break the product (D-30) —
+  but never silently discard creator work: refuse the write and name the migration (D-37).
+- Never infer an interaction from an asset id or name; resolve it from creator data (D-34).
 - No silent fallbacks that hide a backend failure (D-10).
 - Never reconstruct, approximate or backfill a creator's layout (D-18, D-32).
 - Do not touch AI generation, Asset/Avatar factories, or the legacy pre-pivot island.
@@ -36,7 +38,8 @@ Standing rules — these override any instruction that conflicts with them:
 
 Two blockers are mine to clear, not yours. Tell me if either is still outstanding:
   1. Vercel returns 402 DEPLOYMENT_DISABLED — nothing has shipped since 235d2ab.
-  2. supabase/provision/m24b_provision.sql is unapplied.
+  2. supabase/provision/m24e_provision.sql is unapplied (nests.scene_extras). m24b WAS
+     applied, but before M24C appended that column to it — so the state is split.
 
 Start by confirming the repo state (branch, HEAD, clean-vs-dirty, whether HEAD is pushed)
 and re-checking both blockers, then tell me what you propose to do. Do not start
@@ -52,7 +55,7 @@ implementing until I approve.
 Add this to the end of the block above:
 
 ```
-Both blockers are cleared: Vercel is deploying again and m24b_provision.sql is applied.
+Both blockers are cleared: Vercel is deploying again and m24e_provision.sql is applied.
 Run the M25 sprint in NEXT_SPRINT.md — verify the product end to end on the live Preview
 with two real accounts, record every divergence before fixing anything, then fix by root
 cause. Finish the whole sprint; do not hand it back partially complete, and do not write
@@ -80,11 +83,12 @@ replace the last paragraph with the actual task.
 
 ## The three things worth knowing about this codebase
 
-1. **One scene, one runtime.** `lib/nest-scene.ts` (pure, no React, no Supabase) resolves a
-   `NestDocument`; `components/nest/app-shell/nest-preview.tsx` renders it for the editor
-   Preview, the visitor, the feed and Profile cards alike. Every displacement bug this
-   project has had came from having two of something — two renderers, two coordinate
-   spaces, two sources of geometry.
+1. **One scene, one runtime.** `lib/nest-scene.ts` and `lib/nest-interaction.ts` (pure, no
+   React, no Supabase) resolve a `NestDocument`; `nest-runtime.tsx` renders AND runs it for
+   the editor Preview, the visitor, the feed and Profile cards alike. Every displacement and
+   dead-interaction bug this project has had came from having two of something — two
+   renderers, two coordinate spaces, two focus rectangles, two sources of geometry.
+   `/dev/nest-runtime` shows both modes side by side on one document.
 2. **The document is the contract.** If a feature does not survive
    editor → `NestDocument` → Supabase → reopen, it does not exist. Both of M24C's bugs were
    data loss in that conversion, presenting as rendering bugs.

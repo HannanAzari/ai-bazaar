@@ -133,7 +133,32 @@ function noteSceneColumnMissing(error: unknown): void {
       `supabase/provision/m24b_provision.sql. Underlying error: ${String((error as { message?: unknown })?.message ?? error)}`,
   );
 }
-const NEST_COLS_WITH_DRAFT = `${NEST_COLS}, draft_doc, draft_updated_at`;
+// ── M24E — degrade a feature, but NEVER discard creator work ─────────────────
+//
+// D-30 says a missing column must degrade a feature rather than break the product, and
+// that stands. But it was being applied too broadly: a save whose document contained Focus
+// regions succeeded, reported "Saved ✓", and dropped every one of them, because the write
+// simply omitted the column. Degrading a feature nobody is using is correct; silently
+// destroying work the creator can see on screen is not.
+//
+// The line: no focus content ⇒ carry on exactly as before. Focus content present ⇒ refuse,
+// loudly, and leave the creator's editor state intact so nothing is lost.
+
+/** True when this scene document actually carries creator-authored focus content. */
+export function sceneHasContent(scene: NestSceneExtras | undefined): boolean {
+  return Boolean(scene && (scene.focusAreas?.length || scene.detailScenes?.length));
+}
+
+/** Refuse a write that would silently drop Focus regions. */
+function assertSceneStorable(scene: NestSceneExtras | undefined, op: string): void {
+  if (sceneExtrasAvailable !== false || !sceneHasContent(scene)) return;
+  throw new NestRepoError(
+    `${op} can't save your Focus areas yet — this deployment's database is missing the ` +
+      "`nests.scene_extras` column, so they would be lost. Nothing has been changed. " +
+      "Fix: apply supabase/provision/m24e_provision.sql.",
+  );
+}
+
 const OBJECT_COLS = "id, nest_id, asset_id, x, y, scale, rotation, z_index, w, h, flip_x, overlay, interaction, label, link_url";
 
 // ── Mapping (the lossless part) ──────────────────────────────────────────────
@@ -272,6 +297,8 @@ export async function getNest(id: string): Promise<NestDocument | undefined> {
  */
 export async function saveNest(doc: NestDocument): Promise<NestDocument> {
   const client = sb();
+  // Refuse BEFORE writing anything, so a refused save changes nothing at all.
+  assertSceneStorable(doc.scene, "Saving your Nest");
   const { error } = await client
     .from("nests")
     .update({
@@ -287,6 +314,10 @@ export async function saveNest(doc: NestDocument): Promise<NestDocument> {
   if (error) {
     if (isMissingSceneColumn(error)) {
       noteSceneColumnMissing(error);
+      // M24E — this is the FIRST time we learn the column is absent, so the pre-flight
+      // check above could not have caught it. Re-run it now: without this, the retry below
+      // is exactly the silent drop, just one branch further down.
+      assertSceneStorable(doc.scene, "Saving your Nest");
       const retry = await client
         .from("nests")
         .update({
@@ -427,6 +458,10 @@ export async function publishNestDraft(
   const draft = await getNestDraft(nestId);
   if (draft) {
     const client = sb();
+    // The draft itself is safe — `draft_doc` is one jsonb blob and holds the whole scene.
+    // Promoting it to the live row is where an absent `scene_extras` would drop the Focus
+    // regions, so publishing refuses rather than shipping a Nest that is missing them.
+    assertSceneStorable(draft.scene, "Publishing your Nest");
     const { error } = await client
       .from("nests")
       .update({
@@ -436,7 +471,21 @@ export async function publishNestDraft(
         updated_at: now(),
       })
       .eq("id", nestId);
-    if (error) fail("Publishing your draft", error);
+    if (error) {
+      // Same reasoning as saveNest: the first failure is how we discover the column is
+      // gone, so re-check before falling through to a write that would omit it.
+      if (isMissingSceneColumn(error)) {
+        noteSceneColumnMissing(error);
+        assertSceneStorable(draft.scene, "Publishing your Nest");
+        const retry = await client
+          .from("nests")
+          .update({ title: draft.title, background_id: draft.backgroundId, updated_at: now() })
+          .eq("id", nestId);
+        if (retry.error) fail("Publishing your draft", retry.error);
+      } else {
+        fail("Publishing your draft", error);
+      }
+    }
     await replaceObjects(nestId, draft.placements);
   }
   const result = await publishNest(nestId, visibility);

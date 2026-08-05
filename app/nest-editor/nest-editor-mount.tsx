@@ -32,8 +32,23 @@ export function NestEditorMount({ documentId, pickAssetId }: { documentId?: stri
         // M24B §4 — reopen the creator's unpublished work, not the live version. This is
         // what makes editing across several sessions possible: the published Nest keeps
         // serving visitors while the draft is what you come back to.
+        //
+        // M24E — `scene` MUST come back with the rest of the draft.
+        //
+        // This merged title, backgroundId and placements but not `scene`, so reopening a
+        // published Nest with pending work restored the LIVE version's focus regions (or
+        // none at all) and silently discarded every Focus region and every object the
+        // creator had placed inside one since their last publish. Saving from that editor
+        // then wrote the loss back. It is the same class of bug as the M24C background
+        // id: a partial field-by-field merge of a document that should travel whole.
         const doc = liveDoc && pendingDraft
-          ? { ...liveDoc, title: pendingDraft.title, backgroundId: pendingDraft.backgroundId, placements: pendingDraft.placements }
+          ? {
+              ...liveDoc,
+              title: pendingDraft.title,
+              backgroundId: pendingDraft.backgroundId,
+              placements: pendingDraft.placements,
+              scene: pendingDraft.scene,
+            }
           : liveDoc;
 
         // M23B §4 — the canonical document wins unless the autosave is strictly newer,

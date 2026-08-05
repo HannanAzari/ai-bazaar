@@ -17,6 +17,7 @@ import { useRecordNestView } from "@/components/nest/social/use-record-view";
 import { formatCount } from "@/lib/nest-engagement";
 import { profileLinks } from "@/lib/profile-links";
 import { CreatorAvatar, ShareButton } from "@/components/nest/app-shell/discovery";
+import { NestRuntime } from "@/components/nest/app-shell/nest-runtime";
 import { NestPreview } from "@/components/nest/app-shell/nest-preview";
 import { LikeButton } from "@/components/nest/social/like-button";
 import { CommentButton } from "@/components/nest/social/comment-button";
@@ -175,9 +176,9 @@ function VisitorView({ doc, slug }: { doc: NestDocument; slug: string }) {
       {leaving ? <DoorTransition style={style} mode="exit" onDone={afterLeave} label="Heading back out…" /> : null}
 
       {/* ── ROOM (LAYER.room / objects) — the exact canonical composition ──────
-          Same NestPreview, same lib/nest-geometry placementBox, as the editor. */}
+          The SAME NestRuntime the editor Preview mounts — one interaction engine. */}
       <div className={`absolute inset-0 ${z.room}`}>
-        <NestPreview doc={doc} className="absolute inset-0 size-full" interactive surround />
+        <NestRuntime document={doc} mode="visitor" className="absolute inset-0 size-full" surround />
       </div>
 
       <div
