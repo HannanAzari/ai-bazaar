@@ -30,6 +30,9 @@ import { computeAlignment, type AlignGuide } from "@/lib/nest-align";
 import { hitTestCandidates, nextSelection, type TapCycleState } from "@/lib/nest-editor-hit-testing";
 import { EDITOR_TOUCH_TARGETS } from "@/lib/nest-editor-touch-targets";
 import { contextToolbarPlacement, type ToolbarPlacement } from "@/lib/nest-editor-toolbar";
+import { useSceneCamera } from "@/components/nest/app-shell/use-scene-camera";
+import { z } from "@/lib/nest-layers";
+import { Maximize2 } from "lucide-react";
 import { resolveObjectSurfaces } from "@/lib/nest-surfaces";
 import { SurfaceContentLayer } from "@/components/nest/surface-content-layer";
 
@@ -53,6 +56,8 @@ type Props = {
   snap: boolean;
   advanced: boolean;
   zoom: number;
+  /** M25B §P2 — an object sheet is open: hide the floating toolbar entirely. */
+  hideChrome?: boolean;
   gridCols?: number;
   gridRows?: number;
   onDuplicate: () => void;
@@ -99,7 +104,7 @@ const transformOf = (o: EditableNestObject) =>
   `${o.rotation ? `rotate(${o.rotation}deg)` : ""}${o.flipX ? " scaleX(-1)" : ""}`.trim();
 
 export function EditorCanvas(props: Props) {
-  const { doc, assetsById, ambience, selectedId, onSelect, onCommit, showGrid, snap, advanced, zoom, gridCols = 24, gridRows = 32 } = props;
+  const { doc, assetsById, ambience, selectedId, onSelect, onCommit, showGrid, snap, advanced, zoom, hideChrome, gridCols = 24, gridRows = 32 } = props;
   const connect = props.connect ?? false;
   const sceneRef = useRef<HTMLDivElement>(null);
   const pointers = useRef<Map<number, Pt>>(new Map());
@@ -314,6 +319,12 @@ export function EditorCanvas(props: Props) {
     setPicker({ nx, ny, ids: (candidates.length ? candidates : [{ objectId: selected.instanceId }]).map((c) => c.objectId) });
   }
 
+  // M25B §P1 — the shared camera. A one-finger drag that starts ON AN ASSET moves the
+  // asset; anywhere else it pans (once zoomed). Two fingers always pinch.
+  const camera = useSceneCamera({
+    canPanFrom: (target) => !(target instanceof Element && target.closest("[data-editor-object]")),
+  });
+
   // Contextual toolbar placement (M7C.9): anchor to the VISIBLE rect and pick a side that
   // never covers the resize/rotation handles (rotation handle sits above small assets).
   const selectedVr = selected ? visibleRect(selected, selected.assetId) : undefined;
@@ -334,12 +345,39 @@ export function EditorCanvas(props: Props) {
   })();
 
   return (
-    <div className="flex h-full w-full items-center justify-center overflow-hidden p-2">
+    // ── M25B §P1 — the creator gets the SAME camera as the visitor ───────────
+    //
+    // `useSceneCamera` is reused verbatim: same 1–5× limits, same focal-point pinch, same
+    // pan clamping, same tap-vs-drag classification. There is no second zoom system.
+    //
+    // The reason this needs almost no coordinate work: `toNorm()` converts a client point
+    // with `sceneRef.getBoundingClientRect()`, and a transformed element's bounding rect is
+    // its POST-transform box. So `(clientX - r.left) / r.width` is already a canonical
+    // scene coordinate at any scale — dragging, resizing and dropping a new asset are
+    // correct at 5× for the same reason they are correct at 1×, with no scale term
+    // anywhere. Camera state therefore never reaches object geometry, and never reaches
+    // the document (D-45).
+    <div
+      ref={camera.viewportRef}
+      className="relative flex h-full w-full items-center justify-center overflow-hidden p-2"
+      style={{ touchAction: "none" }}
+    >
       <style>{CANVAS_CSS}</style>
+      {camera.zoomed && !hideChrome ? (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={camera.reset}
+          aria-label="Reset the view"
+          className={`absolute right-3 top-3 ${z.chrome} inline-flex touch-manipulation items-center gap-1.5 rounded-full bg-ink/80 px-3 py-1.5 text-xs font-bold text-parchment shadow-lg backdrop-blur transition active:scale-95`}
+        >
+          <Maximize2 className="h-3.5 w-3.5" /> Reset view
+        </button>
+      ) : null}
       {/* Aspect-locked fit: an oversized base clamped by both max-dimensions keeps the
           scene a true 3:4 (full room visible, including side walls) regardless of the
           viewport shape. Zoom scales both clamps. */}
-      <div className="relative" style={{ width: "9999px", aspectRatio: aspectRatioCss(doc.aspectRatio as "3:4"), maxWidth: `${Math.round(96 * zoom)}%`, maxHeight: `${Math.round(100 * zoom)}%` }}>
+      <div ref={camera.stageRef} className="relative will-change-transform" style={{ width: "9999px", aspectRatio: aspectRatioCss(doc.aspectRatio as "3:4"), maxWidth: `${Math.round(96 * zoom)}%`, maxHeight: `${Math.round(100 * zoom)}%` }}>
         <div
           ref={sceneRef}
           className="editor-scene absolute inset-0 isolate touch-none select-none overflow-hidden rounded-[24px] border border-ink/10 shadow-xl"
@@ -377,6 +415,7 @@ export function EditorCanvas(props: Props) {
                 key={o.instanceId}
                 type="button"
                 className="editor-piece absolute touch-none"
+                data-editor-object={o.instanceId}
                 style={{ left: pctOf(o.x), top: pctOf(o.y), width: pctOf(o.width), height: pctOf(o.height), zIndex: o.zIndex, transform: t || undefined, transformOrigin: "center" }}
                 onPointerDown={(e) => onObjectDown(e, o)}
                 aria-label={`${o.overlay ? (o.overlay.kind === "text" ? `Text: ${o.overlay.text}` : "Image sticker") : asset?.name ?? o.assetId}${o.locked ? " (locked)" : ""}`}
@@ -429,8 +468,11 @@ export function EditorCanvas(props: Props) {
           ) : null}
         </div>
 
-        {/* Contextual arrange action bar — outside the clipped scene (Arrange only) */}
-        {!connect && !props.surface && selected && !selected.hidden ? (
+        {/* Contextual arrange action bar — outside the clipped scene (Arrange only).
+            M25B §P2: `hideChrome` removes it entirely while an object sheet is open. It
+            renders OUTSIDE `.editor-scene`'s stacking context, so its old `z-[600]` sat in
+            the same context as the sheet (`z-[60]`) and painted straight over it. */}
+        {!connect && !props.surface && !hideChrome && selected && !selected.hidden ? (
           <ContextBar o={selected} vr={selectedVr!} placement={barPlacement} asset={selectedAsset} layerOpen={layerOpen} setLayerOpen={setLayerOpen} onDuplicate={props.onDuplicate} onReorder={props.onReorder} onFlip={props.onFlip} onToggleLock={props.onToggleLock} onDelete={props.onDelete} onOpenLayerPicker={openLayerPickerForSelected} />
         ) : null}
 
@@ -678,7 +720,7 @@ function ContextBar({ o, vr, placement, asset, layerOpen, setLayerOpen, onDuplic
     pos.transform = `translate(-50%, ${placement.offsetPx}px)`;
   }
   return (
-    <div className="pointer-events-none absolute z-[600] flex justify-center" style={pos}>
+    <div className={`pointer-events-none absolute ${z.chrome} flex justify-center`} style={pos}>
       <div className="pointer-events-auto relative flex items-center gap-0.5 rounded-full border border-ink/10 bg-parchment/95 p-1 shadow-lg backdrop-blur">
         <CtxBtn label="Duplicate" onClick={onDuplicate}><Copy className="h-4 w-4" /></CtxBtn>
         <CtxBtn label="Layer" onClick={() => setLayerOpen(!layerOpen)} active={layerOpen}><Layers className="h-4 w-4" /></CtxBtn>

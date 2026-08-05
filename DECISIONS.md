@@ -285,3 +285,38 @@ creator zooming in to place a book does not author a camera; every visitor opens
 fitted. *Why:* an accidentally-saved viewport would be indistinguishable from a deliberate
 one, and there is no UI to correct it. An authored opening camera is a future feature that
 must be explicit. **Status: in force (M25).**
+
+**D-46 · The editor and the visitor share ONE camera.** Arrange mode mounts the same
+`useSceneCamera` with the same 1–5× limits, focal-point pinch and pan clamping. *Why:* a
+second zoom system is a second coordinate space, and every displacement bug this project
+has had came from having two of something. The camera needed almost no coordinate work
+because the canvas converts screen→scene with `sceneRef.getBoundingClientRect()`, and a
+transformed element's bounding rect is its POST-transform box — so `(clientX - r.left) /
+r.width` is already canonical at any scale, with no scale term anywhere. **Status: in force
+(M25B), `test/nest-editor-camera.test.ts`.**
+
+**D-47 · A one-finger drag belongs to whatever it started on.** `canPanFrom` is evaluated at
+`pointerdown` and never re-evaluated: a finger that starts on an asset moves that asset for
+the whole gesture; anywhere else it pans (once zoomed). Two fingers always pinch, whatever
+they started on. *Why:* deciding per-move would let an asset start moving and the camera
+finish the job. **Status: in force (M25B).**
+
+**D-48 · Editor chrome is removed while a sheet is open, not merely restacked.** The
+floating object toolbar renders OUTSIDE `.editor-scene`'s stacking context, so its `z-[600]`
+competed directly with the sheet's `z-[60]` and painted over it. It now uses `z.chrome` and
+is unmounted entirely when an object sheet is open. *Why:* "put it behind" leaves handles
+that still steal taps; the brief asked for gone. **Status: in force (M25B).**
+
+**D-49 · Form controls are ≥16px on coarse pointers, globally.** One rule in `globals.css`.
+*Why:* iOS Safari zooms the page whenever a focused control is under 16px and does not
+reliably zoom back out. Explicitly NOT fixed with `maximum-scale=1` / `user-scalable=no`,
+which would disable pinch accessibility zoom for everyone, nor with a transform trick, which
+lies about the layout. **Status: in force (M25B).**
+
+**D-50 · A sheet re-seeds from the document only when the SELECTION changes.** The
+Interaction panel's effect keys on `object.instanceId` alone, and save reads its values from
+refs. *Why:* the old effect also depended on the committed connection, so the instant a save
+landed it reset the fields from the freshly-written document — which read to the creator as
+"Save did nothing" — and a controlled input's final `onChange` can arrive after the button's
+pointer sequence on iOS, so state alone could be one keystroke stale. **Status: in force
+(M25B).**

@@ -181,7 +181,7 @@ export function HotspotBindingSheet({
                 </label>
                 <label className="block">
                   <span className="text-[9px] font-bold uppercase tracking-wide text-ink/45">Semantic</span>
-                  <select value={selected.semantic} onChange={(e) => patch({ semantic: e.target.value as NestHotspotSemantic })} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/70 py-1.5 px-2 text-xs text-ink focus:border-teal focus:outline-none">
+                  <select value={selected.semantic} onChange={(e) => patch({ semantic: e.target.value as NestHotspotSemantic })} style={{ fontSize: 16 }} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/70 py-1.5 px-2 text-ink focus:border-teal focus:outline-none">
                     {NEST_HOTSPOT_SEMANTICS.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </label>

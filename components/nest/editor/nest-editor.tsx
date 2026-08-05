@@ -745,6 +745,9 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
               snap={caps.showDebug && snap}
               advanced={advancedOpen && caps.showPrecision}
               zoom={zoom}
+              // M25B §P2 — while any object sheet is open the floating toolbar must be
+              // gone, not merely behind: its handles sat above the sheet and stole taps.
+              hideChrome={mode === "interact" || overlaySheetOpen}
               onDuplicate={onDuplicate}
               onReorder={onReorder}
               onFlip={onFlip}
@@ -874,8 +877,10 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                 <InteractionPanel
                   object={selected}
                   assetName={ASSETS[selected.assetId]?.name ?? selected.assetId}
+                  assetThumbUrl={ASSETS[selected.assetId]?.thumbnailUrl}
                   snap={connectSnap}
                   onSnapChange={setConnectSnap}
+                  onTest={onPreview}
                   onCommit={(config) =>
                     commitActive({
                       ...activeDoc,

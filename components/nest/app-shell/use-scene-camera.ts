@@ -35,6 +35,18 @@ type Options = {
   onTap?: (point: { x: number; y: number }) => void;
   /** Disable all gesture handling (cards, thumbnails). */
   enabled?: boolean;
+  /**
+   * M25B §P1 — whether a ONE-FINGER drag starting here may pan the camera.
+   *
+   * The editor needs this and the visitor does not. In Arrange mode a one-finger drag on
+   * an asset must MOVE THAT ASSET, while the same drag on empty room must pan; two-finger
+   * pinch must zoom in both cases without disturbing the asset. Returning false here
+   * declines only the single-finger pan — the pointer is still tracked, so a second finger
+   * still starts a pinch from an accurate baseline.
+   *
+   * Default: pan anywhere (the visitor runtime, where nothing is draggable).
+   */
+  canPanFrom?: (target: EventTarget | null) => boolean;
 };
 
 export type SceneCamera = {
@@ -53,7 +65,7 @@ export type SceneCamera = {
   restore: (cam: Camera) => void;
 };
 
-export function useSceneCamera({ onTap, enabled = true }: Options = {}): SceneCamera {
+export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = {}): SceneCamera {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
 
@@ -69,6 +81,8 @@ export function useSceneCamera({ onTap, enabled = true }: Options = {}): SceneCa
   // changes at runtime — see the note on that effect for why that matters.
   const onTapRef = useRef(onTap);
   onTapRef.current = onTap;
+  const canPanFromRef = useRef(canPanFrom);
+  canPanFromRef.current = canPanFrom;
   const panningRef = useRef(false);
 
   const viewport = useCallback(() => {
@@ -132,6 +146,8 @@ export function useSceneCamera({ onTap, enabled = true }: Options = {}): SceneCa
     let lastTapAt = 0;
     let lastTapPoint = { x: 0, y: 0 };
     let moved = false;
+    /** Decided once on pointerdown: may a one-finger drag from here pan the camera? */
+    let panAllowed = true;
 
     /** Viewport coordinates relative to the viewport CENTRE (what the camera maths wants). */
     const focalOf = (p: { x: number; y: number }) => {
@@ -146,6 +162,9 @@ export function useSceneCamera({ onTap, enabled = true }: Options = {}): SceneCa
         last = { x: e.clientX, y: e.clientY };
         maxDist = 0;
         moved = false;
+        // Decided at DOWN, not at move: once a finger is on an asset the answer must not
+        // change mid-drag, or the asset would start moving and the camera finish the job.
+        panAllowed = canPanFromRef.current ? canPanFromRef.current(e.target) : true;
       } else if (points.size === 2) {
         const [a, b] = Array.from(points.values());
         pinchStart = { dist: distance(a, b), scale: cam.current.scale };
@@ -186,7 +205,7 @@ export function useSceneCamera({ onTap, enabled = true }: Options = {}): SceneCa
         maxDist = Math.max(maxDist, distance(start, { x: e.clientX, y: e.clientY }));
         // ONE-FINGER PAN ONLY WHILE ZOOMED. At 1× a drag must stay a page gesture, or the
         // feed can no longer be scrolled with a finger that starts on a room.
-        if (cam.current.scale > 1.001) {
+        if (panAllowed && cam.current.scale > 1.001) {
           apply(panBy(cam.current, dx, dy, viewport()));
           if (maxDist > 4) {
             moved = true;

@@ -135,13 +135,13 @@ export function FocusSheet({
                 <div className="grid grid-cols-2 gap-2">
                   <label className="block">
                     <span className="text-[9px] font-bold uppercase tracking-wide text-ink/45">Entry</span>
-                    <select value={selected.trigger} onChange={(e) => onPatch({ trigger: e.target.value as FocusTrigger })} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/70 py-1.5 px-2 text-xs text-ink focus:border-cobalt focus:outline-none">
+                    <select value={selected.trigger} onChange={(e) => onPatch({ trigger: e.target.value as FocusTrigger })} style={{ fontSize: 16 }} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/70 py-1.5 px-2 text-ink focus:border-cobalt focus:outline-none">
                       {FOCUS_TRIGGERS.map((t) => <option key={t} value={t}>{t === "double_tap" ? "double tap" : t}</option>)}
                     </select>
                   </label>
                   <label className="block">
                     <span className="text-[9px] font-bold uppercase tracking-wide text-ink/45">Transition</span>
-                    <select value={selected.transition} onChange={(e) => onPatch({ transition: e.target.value as FocusTransition })} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/70 py-1.5 px-2 text-xs text-ink focus:border-cobalt focus:outline-none">
+                    <select value={selected.transition} onChange={(e) => onPatch({ transition: e.target.value as FocusTransition })} style={{ fontSize: 16 }} className="mt-0.5 w-full rounded-lg border border-ink/15 bg-white/70 py-1.5 px-2 text-ink focus:border-cobalt focus:outline-none">
                       {FOCUS_TRANSITIONS.map((t) => <option key={t} value={t}>{t.replace("_", " ")}</option>)}
                     </select>
                   </label>

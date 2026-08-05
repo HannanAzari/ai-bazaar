@@ -651,3 +651,21 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   .nest-hint-pulse { animation: none; filter: drop-shadow(0 0 8px rgba(255, 226, 170, 0.9)); }
 }
+
+/* ── M25B §P3 — iOS Safari must never zoom the page on focus ─────────────────
+   Safari auto-zooms when a focused form control's computed font-size is under 16px, and
+   it does NOT reliably zoom back out when the keyboard closes — the founder's "page stays
+   enlarged". The only correct fix is the font size itself.
+
+   Explicitly NOT done: `maximum-scale=1` / `user-scalable=no`, which would also kill the
+   pinch accessibility zoom for every user; and transform-scale tricks, which lie about
+   the layout. This is a floor, not an override — anything already ≥16px is untouched.
+
+   Scoped to coarse pointers so desktop keeps its denser controls. */
+@media (pointer: coarse) {
+  input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
