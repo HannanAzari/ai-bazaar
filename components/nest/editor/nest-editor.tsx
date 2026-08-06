@@ -492,6 +492,8 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   };
   // Preview from the active editing scene: if inside a child scene, auto-enter its area so
   // the visitor preview starts there; Back-to-edit returns to the same editing scene.
+  /** Captured as a plain boolean so the switch can render in BOTH branches. */
+  const previewing: boolean = mode === "preview";
   const onPreview = () => {
     setSelectedId(undefined);
     setSelectedHotspotId(undefined);
@@ -641,9 +643,9 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
           what you approve here is literally the document that gets written. */}
       {mode === "preview" ? (
         <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-3">
-          <button type="button" onClick={exitPreview} className="absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-ink/85 px-3 py-1.5 text-xs font-bold text-parchment" style={{ marginTop: "env(safe-area-inset-top)" }}>
-            <ArrowLeft className="h-4 w-4" /> Edit
-          </button>
+          <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2" style={{ marginTop: "env(safe-area-inset-top)" }}>
+            <ModeSwitch previewing={previewing} onEdit={exitPreview} onPreview={onPreview} />
+          </div>
           <p className="absolute inset-x-0 top-3 z-10 text-center text-[11px] font-bold uppercase tracking-wider text-ink/40" style={{ marginTop: "env(safe-area-inset-top)" }}>
             Exactly what visitors see
           </p>
@@ -662,6 +664,8 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
               <ToolIcon label="Undo" onClick={() => setHistory(undoHistory(history))} disabled={!canUndo(history)}><RotateCcw className="h-5 w-5 -scale-x-100" /></ToolIcon>
               <ToolIcon label="Redo" onClick={() => setHistory(redoHistory(history))} disabled={!canRedo(history)}><Redo2 className="h-5 w-5" /></ToolIcon>
             </div>
+
+            <ModeSwitch previewing={previewing} onEdit={exitPreview} onPreview={onPreview} />
             {/* Autosave stays internal (no wide "Saved" label that shifts the bar and can
                 push Done off a narrow screen); its state only hints Done's tooltip. */}
             <div className="flex shrink-0 items-center gap-1">
@@ -955,7 +959,6 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                 cannot be authored any more. The old modes remain reachable from Advanced
                 for founder debugging of existing Nests. */}
             <ModeBtn active={mode === "interact"} label="Interaction" onClick={() => { setSelectedHotspotId(undefined); setMode("interact"); }}><Link2 className="h-5 w-5" /></ModeBtn>
-            <ModeBtn active={false} label="Preview" onClick={onPreview}><Play className="h-5 w-5" /></ModeBtn>
           </nav>
         </>
       )}
@@ -1100,5 +1103,35 @@ function MoreMenu({ onClose, role, onRole, caps, showGrid, snap, zoom, warnings,
         <Item icon={<RotateCcw className="h-4 w-4" />} label="Reset" onClick={() => { onReset(); onClose(); }} />
       </div>
     </>
+  );
+}
+
+
+/**
+ * M26A-final — the ONE top-level mode switch.
+ *
+ * Edit and Preview are the two things a creator is ever doing, and Preview mounts the real
+ * visitor runtime — there is no second renderer and no editor-only behaviour to diverge.
+ * It renders in both modes so the current state is always visible and reversible from the
+ * same control; the duplicate Preview entry in the bottom bar is gone, because two
+ * controls for one state is how a creator ends up unsure which one they are in.
+ *
+ * Switching modes changes no document data and saves no camera.
+ */
+function ModeSwitch({ previewing, onEdit, onPreview }: { previewing: boolean; onEdit: () => void; onPreview: () => void }) {
+  return (
+    <div className="flex shrink-0 items-center rounded-full bg-ink/[0.08] p-0.5 backdrop-blur" role="group" aria-label="Editor mode">
+      {([["Edit", !previewing, onEdit], ["Preview", previewing, onPreview]] as const).map(([label, active, go]) => (
+        <button
+          key={label}
+          type="button"
+          onClick={go}
+          aria-pressed={active}
+          className={`rounded-full px-3.5 py-1.5 text-[13px] font-bold transition ${active ? "bg-parchment text-ink shadow-sm" : "text-ink/55"}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }

@@ -32,7 +32,7 @@ import { EDITOR_TOUCH_TARGETS } from "@/lib/nest-editor-touch-targets";
 import { contextToolbarPlacement, type ToolbarPlacement } from "@/lib/nest-editor-toolbar";
 import { useSceneCamera } from "@/components/nest/app-shell/use-scene-camera";
 import { z } from "@/lib/nest-layers";
-import { classifyTarget, resolveGestureOwner, ownerMovesCamera } from "@/lib/nest-gesture";
+import { beginGesture, classifyTarget, gestureAllows, ownerMovesCamera, resolveGestureOwner, upgradeGesture, type ActiveGesture } from "@/lib/nest-gesture";
 import { visibleSceneCentre } from "@/lib/nest-camera";
 import { ScreenSpaceSelection } from "@/components/nest/editor/screen-space-selection";
 import { Maximize2 } from "lucide-react";
@@ -95,13 +95,11 @@ type Gesture =
   | { kind: "move"; id: string; startNX: number; startNY: number }
   | { kind: "resize"; id: string; dirX: number; startNX: number; startW: number }
   | { kind: "rotate"; id: string; cx: number; cy: number; startAngle: number; startRot: number }
-  | { kind: "pinch"; id: string; startDist: number; startW: number; startAngle: number; startRot: number };
 
 type Pt = { x: number; y: number };
 
 const pctOf = (n: number) => `${+(n * 100).toFixed(3)}%`;
 /** Constant gap (px) the rotate handle sits above the selection frame. */
-const ROTATE_GAP = EDITOR_TOUCH_TARGETS.rotateHandleGapPx;
 const snapStep = (v: number, step: number) => Math.round(v / step) * step;
 const angle = (a: Pt, b: Pt) => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
 const dist = (a: Pt, b: Pt) => Math.hypot(b.x - a.x, b.y - a.y);
@@ -114,6 +112,13 @@ export function EditorCanvas(props: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const pointers = useRef<Map<number, Pt>>(new Map());
   const gestureRef = useRef<Gesture | null>(null);
+  // ── M26A-final — ONE dispatcher ──────────────────────────────────────────
+  //
+  // The locked owner of the current pointer session. Assigned once at pointer-down and
+  // never re-decided; `gestureRef` is only ever the MECHANICS of whatever this owner does.
+  // Before this, the canvas and the camera each decided independently on every move, which
+  // is how a drag could move an object and pan the room in the same frame.
+  const ownerRef = useRef<ActiveGesture | null>(null);
   const guidesRef = useRef<AlignGuide[]>([]);
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
@@ -182,14 +187,6 @@ export function EditorCanvas(props: Props) {
       if (snap) rot = snapRotation(rot, 6);
       return rotateObject(doc, g.id, rot, assetsById);
     }
-    if (g.kind === "pinch" && pts[0] && pts[1]) {
-      const scale = g.startDist > 0 ? dist(pts[0], pts[1]) / g.startDist : 1;
-      let next = resizeObject(doc, g.id, g.startW * scale, assetsById);
-      let rot = g.startRot + (angle(pts[0], pts[1]) - g.startAngle);
-      if (snap) rot = snapRotation(rot, 6);
-      next = rotateObject(next, g.id, rot, assetsById);
-      return next;
-    }
     return doc;
   })();
 
@@ -205,6 +202,7 @@ export function EditorCanvas(props: Props) {
     }
   }
   function commit() {
+    ownerRef.current = null;
     if (gestureRef.current) {
       // A plain tap (no drag) must not pollute history — only a real gesture commits.
       if (didMove.current) onCommit(liveDoc);
@@ -258,11 +256,22 @@ export function EditorCanvas(props: Props) {
     e.preventDefault();
     capture(e);
     const pts = Array.from(pointers.current.values());
+    // M26A-final: a second finger on an object is a CAMERA PINCH, not an object resize.
+    // The old code resized and rotated the object from a two-finger gesture, so pinching
+    // to look closer silently rewrote the creator's geometry.
     if (pts.length >= 2) {
-      gestureRef.current = { kind: "pinch", id: sel.instanceId, startDist: dist(pts[0], pts[1]), startW: sel.width, startAngle: angle(pts[0], pts[1]), startRot: sel.rotation ?? 0 };
-    } else {
-      gestureRef.current = { kind: "move", id: sel.instanceId, startNX: nx, startNY: ny };
+      ownerRef.current = ownerRef.current ? upgradeGesture(ownerRef.current, pts.length) : null;
+      gestureRef.current = null;
+      rerender();
+      return;
     }
+    ownerRef.current = beginGesture(
+      { pointerCount: 1, target: sel.instanceId === selectedId ? "selected-object" : "other-object", scale: camScaleRef.current, objectId: sel.instanceId, locked: sel.locked },
+      e.pointerId,
+    );
+    // `select` still arms a move: the drag threshold in onPointerMove decides whether it
+    // ever becomes one, so a tap selects and a drag moves, from the same gesture.
+    gestureRef.current = { kind: "move", id: sel.instanceId, startNX: nx, startNY: ny };
     rerender();
   }
 
@@ -273,6 +282,10 @@ export function EditorCanvas(props: Props) {
     didMove.current = false;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     capture(e);
+    ownerRef.current = beginGesture(
+      { pointerCount: 1, target: kind === "resize" ? "resize-handle" : "rotate-handle", scale: camScaleRef.current, objectId: o.instanceId, locked: o.locked },
+      e.pointerId,
+    );
     if (kind === "resize") {
       const { nx } = toNorm(e.clientX, e.clientY);
       gestureRef.current = { kind: "resize", id: o.instanceId, dirX, startNX: nx, startW: o.width };
@@ -295,12 +308,18 @@ export function EditorCanvas(props: Props) {
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const g = gestureRef.current;
     if (!g) return;
+    // The owner decided at pointer-down is the ONLY thing allowed to act.
+    const owner = ownerRef.current;
+    const wanted = g.kind === "move" ? "object-move" : g.kind === "resize" ? "object-resize" : "object-rotate";
+    if (!gestureAllows(owner, wanted)) return;
     e.preventDefault();
     didMove.current = true;
     const pts = Array.from(pointers.current.values());
-    if (g.kind === "move" && pts.length >= 2) {
-      const o = doc.objects.find((x) => x.instanceId === g.id)!;
-      gestureRef.current = { kind: "pinch", id: g.id, startDist: dist(pts[0], pts[1]), startW: o.width, startAngle: angle(pts[0], pts[1]), startRot: o.rotation ?? 0 };
+    if (pts.length >= 2) {
+      // A second finger mid-drag is a camera pinch. The object is ABANDONED exactly where
+      // it is — not resized, not rotated, not snapped back — and the camera takes over.
+      ownerRef.current = upgradeGesture(ownerRef.current!, pts.length);
+      gestureRef.current = null;
     }
     rerender();
   }
@@ -505,7 +524,7 @@ export function EditorCanvas(props: Props) {
               scales with the room nor gets clipped by the scene's overflow. */}
 
           {/* Transient rotation degree label while rotating/pinching a rotatable object. */}
-          {!connect && selected && (gestureRef.current?.kind === "rotate" || gestureRef.current?.kind === "pinch") && selected.rotation != null ? (
+          {!connect && selected && gestureRef.current?.kind === "rotate" && selected.rotation != null ? (
             <div className="pointer-events-none absolute z-[510] -translate-x-1/2 rounded-full bg-ink/90 px-2 py-0.5 text-[11px] font-bold text-parchment" style={{ left: pctOf(selected.x + selected.width / 2), top: pctOf(Math.max(0.02, selected.y - 0.03)) }}>
               {Math.round(selected.rotation)}°
             </div>
@@ -541,18 +560,13 @@ export function EditorCanvas(props: Props) {
           baseSizeRef={baseSizeRef}
           onHandleDown={onHandleDown}
           rotatable={canRotateObject(selected, selectedAsset)}
+          toolbar={
+            <ContextBar o={selected} asset={selectedAsset} layerOpen={layerOpen} setLayerOpen={setLayerOpen} onDuplicate={props.onDuplicate} onReorder={props.onReorder} onFlip={props.onFlip} onToggleLock={props.onToggleLock} onDelete={props.onDelete} onOpenLayerPicker={openLayerPickerForSelected} />
+          }
         />
       ) : null}
 
       <div className="pointer-events-none absolute inset-0">
-        {/* Contextual arrange action bar — outside the clipped scene (Arrange only).
-            M25B §P2: `hideChrome` removes it entirely while an object sheet is open. It
-            renders OUTSIDE `.editor-scene`'s stacking context, so its old `z-[600]` sat in
-            the same context as the sheet (`z-[60]`) and painted straight over it. */}
-        {!connect && !props.surface && !hideChrome && selected && !selected.hidden ? (
-          <ContextBar o={selected} vr={selectedVr!} placement={barPlacement} asset={selectedAsset} layerOpen={layerOpen} setLayerOpen={setLayerOpen} onDuplicate={props.onDuplicate} onReorder={props.onReorder} onFlip={props.onFlip} onToggleLock={props.onToggleLock} onDelete={props.onDelete} onOpenLayerPicker={openLayerPickerForSelected} />
-        ) : null}
-
         {/* Long-press / Layer → overlap object picker (Phase 2) */}
         {picker ? (
           <LayerPicker
@@ -741,20 +755,15 @@ function SurfaceHighlightLayer({ object, selectedSurfaceId, onSelect }: { object
 }
 
 
-function ContextBar({ o, vr, placement, asset, layerOpen, setLayerOpen, onDuplicate, onReorder, onFlip, onToggleLock, onDelete, onOpenLayerPicker }: { o: EditableNestObject; vr: NormalizedRect; placement: ToolbarPlacement; asset?: LivingNestAsset; layerOpen: boolean; setLayerOpen: (v: boolean) => void; onDuplicate: () => void; onReorder: (op: ReorderOp) => void; onFlip: () => void; onToggleLock: () => void; onDelete: () => void; onOpenLayerPicker: () => void }) {
-  // Centre on the VISIBLE rect; pick the side + offset that clears the resize/rotation handles.
-  const cx = (vr.x + vr.width / 2) * 100;
+function ContextBar({ o, asset, layerOpen, setLayerOpen, onDuplicate, onReorder, onFlip, onToggleLock, onDelete, onOpenLayerPicker }: { o: EditableNestObject; asset?: LivingNestAsset; layerOpen: boolean; setLayerOpen: (v: boolean) => void; onDuplicate: () => void; onReorder: (op: ReorderOp) => void; onFlip: () => void; onToggleLock: () => void; onDelete: () => void; onOpenLayerPicker: () => void }) {
+  // M26A-final: the bar no longer positions ITSELF. It is a child of the screen-space
+  // selection frame, which is already tracked in screen pixels — so the bar inherits the
+  // right place automatically and needs no transform, no percentage of the scene and no
+  // counter-scale. (Counter-scaling it here while it sat in screen space is what shrank it
+  // 5× — a double negative that measurement caught.)
   const flippable = canFlipObject(o, asset);
-  const pos: React.CSSProperties = { left: `${Math.min(80, Math.max(20, cx))}%` };
-  if (placement.side === "above") {
-    pos.top = `${vr.y * 100}%`;
-    pos.transform = `translate(-50%, calc(-100% - ${placement.offsetPx}px)) scale(var(--nest-inv-scale, 1))`;
-  } else {
-    pos.top = `${(vr.y + vr.height) * 100}%`;
-    pos.transform = `translate(-50%, ${placement.offsetPx}px) scale(var(--nest-inv-scale, 1))`;
-  }
   return (
-    <div className={`pointer-events-none absolute ${z.chrome} flex justify-center`} style={{ ...pos, transformOrigin: "center" }}>
+    <div className={`pointer-events-none ${z.chrome} flex justify-center`}>
       <div className="pointer-events-auto relative flex items-center gap-0.5 rounded-full border border-ink/10 bg-parchment/95 p-1 shadow-lg backdrop-blur">
         <CtxBtn label="Duplicate" onClick={onDuplicate}><Copy className="h-4 w-4" /></CtxBtn>
         <CtxBtn label="Layer" onClick={() => setLayerOpen(!layerOpen)} active={layerOpen}><Layers className="h-4 w-4" /></CtxBtn>

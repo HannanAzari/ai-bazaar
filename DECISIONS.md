@@ -351,3 +351,29 @@ change; a sibling layer would need every chrome element repositioned per frame f
 centre of the visible scene rect; `addObject(doc, asset, at)` centres the object on it.
 *Why:* a creator zoomed to 5× on a shelf who adds a book got it at the centre of the whole
 unzoomed room — off-screen, which reads as "nothing happened". **Status: in force (M26A).**
+
+**D-55 · One pointer-session dispatcher owns every gesture.** The owner is assigned at
+pointer-down by `lib/nest-gesture.ts` and stored in `ownerRef`; every move is gated on it;
+the only escalation is a second finger becoming a pinch, which ABANDONS the object exactly
+where it is. *Why:* the canvas and the camera each decided independently on every move, so
+a drag could move an object and pan the room in the same frame. **Status: in force
+(M26A-final), `test/nest-editor-dispatch.test.ts`.**
+
+**D-56 · Two fingers never touch object geometry.** The object `pinch` gesture — which
+resized *and* rotated the selected object from a two-finger gesture — is deleted. *Why:*
+pinching to look closer silently rewrote the creator's geometry, which is the worst class of
+bug this project has: a destructive edit the creator never asked for and cannot see. A pinch
+is a camera move, always. **Status: in force (M26A-final).**
+
+**D-57 · The object toolbar is a CHILD of the screen-space selection frame.** It no longer
+positions itself in scene percentages, and no longer counter-scales. *Why:* once the frame
+moved to real screen space, the toolbar's counter-scale became a double negative and shrank
+it 5× at 5× zoom — measured at 40×9px where it should have been 198×46. Anchoring it inside
+the frame means it inherits correct screen-pixel positioning and needs no transform at all.
+Caught by measuring, not by reading. **Status: in force (M26A-final).**
+
+**D-58 · Edit | Preview is the one top-level mode.** A single `ModeSwitch`, rendered in both
+modes, replaces the bottom bar's duplicate Preview entry. Preview mounts the real visitor
+runtime from the same canonical document; switching saves nothing, publishes nothing and
+touches no geometry. *Why:* two controls for one state is how a creator ends up unsure which
+mode they are in. **Status: in force (M26A-final).**

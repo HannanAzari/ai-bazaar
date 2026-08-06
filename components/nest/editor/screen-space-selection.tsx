@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Lock, RotateCw } from "lucide-react";
 import { sceneToScreen, type Camera } from "@/lib/nest-camera";
 import type { EditableNestObject } from "@/lib/nest-editor-types";
@@ -41,6 +41,7 @@ export function ScreenSpaceSelection({
   onHandleDown,
   rotatable,
   hidden,
+  toolbar,
 }: {
   object: EditableNestObject;
   /** The object's VISIBLE rectangle in canonical scene coordinates (0..1). */
@@ -54,6 +55,13 @@ export function ScreenSpaceSelection({
   rotatable: boolean;
   /** A hidden or deleted object must not leave floating controls behind. */
   hidden?: boolean;
+  /**
+   * The contextual object toolbar. It rides INSIDE this frame so it inherits the frame's
+   * screen-pixel positioning — which is the only way it can track the object while zooming
+   * and keep a constant size. Anchored above the frame, flipping below when there is no
+   * room, and clamped to stay on screen.
+   */
+  toolbar?: ReactNode;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
 
@@ -127,6 +135,18 @@ export function ScreenSpaceSelection({
           </span>
         ))
       )}
+
+      {toolbar ? (
+        <div
+          data-object-toolbar=""
+          className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 justify-center"
+          // A constant pixel gap, never a percentage of the frame — a percentage collapses
+          // onto a tiny object and balloons on a big one.
+          style={{ bottom: "calc(100% + 14px)" }}
+        >
+          {toolbar}
+        </div>
+      ) : null}
 
       {rotatable && !object.locked ? (
         <>
