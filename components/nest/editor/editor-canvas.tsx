@@ -32,6 +32,8 @@ import { EDITOR_TOUCH_TARGETS } from "@/lib/nest-editor-touch-targets";
 import { contextToolbarPlacement, type ToolbarPlacement } from "@/lib/nest-editor-toolbar";
 import { useSceneCamera } from "@/components/nest/app-shell/use-scene-camera";
 import { z } from "@/lib/nest-layers";
+import { classifyTarget, resolveGestureOwner, ownerMovesCamera } from "@/lib/nest-gesture";
+import { visibleSceneCentre } from "@/lib/nest-camera";
 import { Maximize2 } from "lucide-react";
 import { resolveObjectSurfaces } from "@/lib/nest-surfaces";
 import { SurfaceContentLayer } from "@/components/nest/surface-content-layer";
@@ -58,6 +60,8 @@ type Props = {
   zoom: number;
   /** M25B §P2 — an object sheet is open: hide the floating toolbar entirely. */
   hideChrome?: boolean;
+  /** M26A §6 — hand the host a way to ask where the creator is currently looking. */
+  onVisibleCentreRef?: (get: () => { nx: number; ny: number }) => void;
   gridCols?: number;
   gridRows?: number;
   onDuplicate: () => void;
@@ -321,9 +325,56 @@ export function EditorCanvas(props: Props) {
 
   // M25B §P1 — the shared camera. A one-finger drag that starts ON AN ASSET moves the
   // asset; anywhere else it pans (once zoomed). Two fingers always pinch.
+  // ── M26A §4 — deterministic gesture ownership ────────────────────────────
+  //
+  // ROOT CAUSE of "the camera steals object drags": this used to ask only whether the
+  // pointer was inside `[data-editor-object]`. Resize and rotation handles are rendered
+  // OUTSIDE the object element (they have to be — they belong to the selection frame, not
+  // the object), so a drag that began on a handle passed the filter and panned the room
+  // instead of resizing. Ownership is now resolved once, at pointer-down, by the shared
+  // arbiter, and the camera only ever claims a gesture the arbiter gave it.
   const camera = useSceneCamera({
-    canPanFrom: (target) => !(target instanceof Element && target.closest("[data-editor-object]")),
+    canPanFrom: (target) => {
+      const el = target instanceof Element ? target : null;
+      const { target: kind, objectId, locked } = classifyTarget(
+        (sel) => {
+          const hit = el?.closest(sel) as HTMLElement | null;
+          if (!hit) return null;
+          return { id: hit.dataset.editorObject, locked: hit.dataset.locked === "1" };
+        },
+        selectedId,
+      );
+      return ownerMovesCamera(resolveGestureOwner({ pointerCount: 1, target: kind, scale: camScaleRef.current, objectId, locked }));
+    },
   });
+  // The arbiter needs the scale at pointer-down without re-rendering on every frame.
+  const camScaleRef = useRef(1);
+  useEffect(
+    () =>
+      camera.subscribe((c) => {
+        camScaleRef.current = c.scale;
+        // One CSS variable, written straight to the DOM in the camera's own frame. Every
+        // `.nest-screen-sized` element counter-scales by it, so chrome keeps its physical
+        // size at any zoom without a single React render.
+        rootRef.current?.style.setProperty("--nest-inv-scale", String(1 / c.scale));
+      }),
+    [camera],
+  );
+  const rootRef = useRef<HTMLDivElement>(null);
+  // M26A §6 — the host asks "where can the creator currently see?" before adding an asset.
+  useEffect(() => {
+    props.onVisibleCentreRef?.(() => {
+      const el = rootRef.current;
+      const scene = sceneRef.current;
+      if (!el || !scene) return { nx: 0.5, ny: 0.5 };
+      const vr = el.getBoundingClientRect();
+      const cam = camera.read();
+      // The UNTRANSFORMED stage size = the current visual size divided by the scale.
+      const sr = scene.getBoundingClientRect();
+      const base = { width: sr.width / cam.scale, height: sr.height / cam.scale };
+      return visibleSceneCentre(cam, { left: vr.left, top: vr.top, width: vr.width, height: vr.height }, base);
+    });
+  }, [camera, props]);
 
   // Contextual toolbar placement (M7C.9): anchor to the VISIBLE rect and pick a side that
   // never covers the resize/rotation handles (rotation handle sits above small assets).
@@ -358,9 +409,9 @@ export function EditorCanvas(props: Props) {
     // anywhere. Camera state therefore never reaches object geometry, and never reaches
     // the document (D-45).
     <div
-      ref={camera.viewportRef}
+      ref={(el) => { camera.viewportRef.current = el; rootRef.current = el; }}
       className="relative flex h-full w-full items-center justify-center overflow-hidden p-2"
-      style={{ touchAction: "none" }}
+      style={{ touchAction: "none", "--nest-inv-scale": 1 } as React.CSSProperties}
     >
       <style>{CANVAS_CSS}</style>
       {camera.zoomed && !hideChrome ? (
@@ -416,6 +467,7 @@ export function EditorCanvas(props: Props) {
                 type="button"
                 className="editor-piece absolute touch-none"
                 data-editor-object={o.instanceId}
+                data-locked={o.locked ? "1" : undefined}
                 style={{ left: pctOf(o.x), top: pctOf(o.y), width: pctOf(o.width), height: pctOf(o.height), zIndex: o.zIndex, transform: t || undefined, transformOrigin: "center" }}
                 onPointerDown={(e) => onObjectDown(e, o)}
                 aria-label={`${o.overlay ? (o.overlay.kind === "text" ? `Text: ${o.overlay.text}` : "Image sticker") : asset?.name ?? o.assetId}${o.locked ? " (locked)" : ""}`}
@@ -663,6 +715,19 @@ function SurfaceHighlightLayer({ object, selectedSurfaceId, onSelect }: { object
   );
 }
 
+/**
+ * M26A §3 — the selection frame's HANDLES are screen-sized, not world-sized.
+ *
+ * ROOT CAUSE of "controls scale with the room": this frame renders inside the element the
+ * camera transforms, so at 5× a 40px touch target became 200px and a 14px dot became 70px
+ * — the handles covered the very object they were resizing.
+ *
+ * Each handle now carries `--inv`, the inverse camera scale, published every frame by
+ * `useSceneCamera.subscribe` (a CSS variable, so it costs no React render). The frame's
+ * POSITION still comes from the transform — which is what keeps it locked to the object at
+ * any zoom — while each handle counter-scales about its own centre so its physical size,
+ * and its text, never change.
+ */
 function TransformFrame({ o, asset, advanced, onHandleDown }: { o: EditableNestObject; asset?: LivingNestAsset; advanced: boolean; onHandleDown: (e: React.PointerEvent, o: EditableNestObject, kind: "resize" | "rotate", dirX?: number) => void }) {
   const t = transformOf(o);
   const rotatable = canRotateObject(o, asset) && !o.locked;
@@ -683,7 +748,7 @@ function TransformFrame({ o, asset, advanced, onHandleDown }: { o: EditableNestO
           ] as const).map(([cx, cy, dirX]) => (
             // 40px invisible touch target (≥32px policy) around a small visible dot, so
             // even a tiny object's corners stay grabbable without enlarging the art.
-            <span key={`${cx}-${cy}`} className="pointer-events-auto absolute flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize touch-none items-center justify-center" style={{ left: `${cx * 100}%`, top: `${cy * 100}%` }} onPointerDown={(e) => onHandleDown(e, o, "resize", dirX)}>
+            <span key={`${cx}-${cy}`} data-resize-handle="" className="nest-screen-sized pointer-events-auto absolute flex h-10 w-10 cursor-nwse-resize touch-none items-center justify-center" style={{ left: `${cx * 100}%`, top: `${cy * 100}%` }} onPointerDown={(e) => onHandleDown(e, o, "resize", dirX)}>
               <span className="h-3.5 w-3.5 rounded-full border-2 border-cobalt bg-white shadow" />
             </span>
           ))
@@ -697,7 +762,7 @@ function TransformFrame({ o, asset, advanced, onHandleDown }: { o: EditableNestO
         // object body, so dragging the body never hits it.
         <>
           <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bg-cobalt/60" style={{ top: `-${ROTATE_GAP}px`, height: `${ROTATE_GAP}px`, width: 1 }} aria-hidden />
-          <button type="button" aria-label="Rotate" className="pointer-events-auto absolute left-1/2 flex h-11 w-11 cursor-grab touch-none items-center justify-center" style={{ top: 0, transform: `translate(-50%, calc(-100% - ${ROTATE_GAP}px))` }} onPointerDown={(e) => onHandleDown(e, o, "rotate")}>
+          <button type="button" aria-label="Rotate" data-rotate-handle="" className="nest-screen-sized pointer-events-auto absolute left-1/2 flex h-11 w-11 cursor-grab touch-none items-center justify-center" style={{ top: `-${ROTATE_GAP}px` }} onPointerDown={(e) => onHandleDown(e, o, "rotate")}>
             <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-cobalt bg-white shadow"><RotateCw className="h-3 w-3 text-cobalt" /></span>
           </button>
         </>
@@ -714,13 +779,13 @@ function ContextBar({ o, vr, placement, asset, layerOpen, setLayerOpen, onDuplic
   const pos: React.CSSProperties = { left: `${Math.min(80, Math.max(20, cx))}%` };
   if (placement.side === "above") {
     pos.top = `${vr.y * 100}%`;
-    pos.transform = `translate(-50%, calc(-100% - ${placement.offsetPx}px))`;
+    pos.transform = `translate(-50%, calc(-100% - ${placement.offsetPx}px)) scale(var(--nest-inv-scale, 1))`;
   } else {
     pos.top = `${(vr.y + vr.height) * 100}%`;
-    pos.transform = `translate(-50%, ${placement.offsetPx}px)`;
+    pos.transform = `translate(-50%, ${placement.offsetPx}px) scale(var(--nest-inv-scale, 1))`;
   }
   return (
-    <div className={`pointer-events-none absolute ${z.chrome} flex justify-center`} style={pos}>
+    <div className={`pointer-events-none absolute ${z.chrome} flex justify-center`} style={{ ...pos, transformOrigin: "center" }}>
       <div className="pointer-events-auto relative flex items-center gap-0.5 rounded-full border border-ink/10 bg-parchment/95 p-1 shadow-lg backdrop-blur">
         <CtxBtn label="Duplicate" onClick={onDuplicate}><Copy className="h-4 w-4" /></CtxBtn>
         <CtxBtn label="Layer" onClick={() => setLayerOpen(!layerOpen)} active={layerOpen}><Layers className="h-4 w-4" /></CtxBtn>

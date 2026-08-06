@@ -211,9 +211,22 @@ function defaultPlacement(g: EditorGuardrail): { x: number; y: number; width: nu
 export function addObject(
   doc: EditableNestDocument,
   asset: LivingNestAsset,
+  /**
+   * M26A §6 — where to drop it, in canonical scene coordinates.
+   *
+   * A creator zoomed to 5× on a shelf and adding a book must get the book ON THE SHELF.
+   * Without this the asset landed at the centre of the whole unzoomed room — off-screen,
+   * which reads as "nothing happened". Absent ⇒ the catalogue's default placement.
+   */
+  at?: { nx: number; ny: number },
 ): { doc: EditableNestDocument; instanceId: string } {
   const g = guardrailForAsset(asset);
-  const place = defaultPlacement(g);
+  const base = defaultPlacement(g);
+  // The drop point is the object's CENTRE, so it appears under the creator's eye rather
+  // than hanging off one corner of the visible area.
+  const place = at
+    ? { ...base, x: at.nx - base.width / 2, y: at.ny - base.height / 2 }
+    : base;
   const instanceId = nextInstanceId(doc, asset.id);
   // Prefer the id-keyed predefined catalog (restored golden assets); otherwise seed
   // from the asset's own carried connect metadata (production `hotspots`), re-scoped

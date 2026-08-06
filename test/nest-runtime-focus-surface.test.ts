@@ -237,16 +237,22 @@ describe("one runtime, and the surround is not a blurred image", () => {
     expect(src).not.toContain("scale-125");
   });
 
-  it("§2 — the matte is one derived colour with gradient, glow and vignette", () => {
-    expect(src).toContain("matteTintFor");
-    expect(src).toContain("radial-gradient");
-    expect(src).toContain("SceneSurround");
+  it("§2 — the surround is one deliberate stage with gradient, glow and vignette", () => {
+    // M26A moved this out of the runtime into the reusable <NestStage>, so the same
+    // environment can wrap the editor, Preview, the visitor and a Home card.
+    expect(src).toContain("<NestStage");
+    const stage = readFileSync(join(process.cwd(), "components", "nest", "nest-stage.tsx"), "utf8");
+    expect(stage).toContain("radial-gradient");
+    expect(stage).toContain("linear-gradient");
   });
 
-  it("§2 — the matte is deterministic per room, so it never flickers", async () => {
-    // Same id ⇒ same colour, every render.
-    const mod = readFileSync(join(process.cwd(), "components", "nest", "app-shell", "nest-runtime.tsx"), "utf8");
-    expect(mod).toContain("hsl(");
-    expect(mod).toContain("14% 11%"); // deep + desaturated, so it always recedes
+  it("§2 — the stage is ONE deliberate pair of themes, not a colour per room", () => {
+    // M26A: deriving a hue per background id gave a different colour behind every Nest —
+    // green, beige, near-black — which is what read as unrelated bands. A gallery does not
+    // repaint its walls per painting.
+    const stage = readFileSync(join(process.cwd(), "components", "nest", "nest-stage.tsx"), "utf8");
+    expect(stage).not.toContain("charCodeAt"); // no per-room hash
+    expect(stage).toContain("const DARK = {");
+    expect(stage).toContain("const LIGHT = {");
   });
 });

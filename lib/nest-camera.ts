@@ -212,3 +212,107 @@ export function resolveTapTarget(candidates: TapCandidate[], point: { x: number;
 
   return candidates.reduce((best, c) => (centreDistance(c) < centreDistance(best) ? c : best)).id;
 }
+
+// ── M26A §5 — screen ⇄ scene ─────────────────────────────────────────────────
+//
+// ONE conversion, used by object movement, resize, rotation, new-asset placement and
+// sticker/text placement. Adding a second positioning system is how the editor and the
+// visitor drifted apart in every previous sprint.
+//
+// `viewportRect` is the CLIPPING box in client coordinates (the element the camera is
+// attached to). `base` is the untransformed size of the stage inside it. Both are read
+// from the DOM by the caller, so this stays pure.
+
+export type Rect = { left: number; top: number; width: number; height: number };
+
+/**
+ * A client point → canonical scene coordinates (0..1 of the 3:4 scene).
+ *
+ * The camera scales about the viewport centre and then translates, so the inverse is:
+ * subtract the viewport centre, subtract the pan, divide by the scale, then normalise
+ * against the untransformed stage.
+ */
+export function screenToScene(
+  point: { x: number; y: number },
+  cam: Camera,
+  viewportRect: Rect,
+  base: { width: number; height: number },
+): { nx: number; ny: number } {
+  const cx = viewportRect.left + viewportRect.width / 2;
+  const cy = viewportRect.top + viewportRect.height / 2;
+  const sx = (point.x - cx - cam.x) / cam.scale;
+  const sy = (point.y - cy - cam.y) / cam.scale;
+  return {
+    nx: base.width > 0 ? sx / base.width + 0.5 : 0.5,
+    ny: base.height > 0 ? sy / base.height + 0.5 : 0.5,
+  };
+}
+
+/** The inverse: a canonical scene point → where it currently sits on screen. */
+export function sceneToScreen(
+  scene: { nx: number; ny: number },
+  cam: Camera,
+  viewportRect: Rect,
+  base: { width: number; height: number },
+): { x: number; y: number } {
+  const cx = viewportRect.left + viewportRect.width / 2;
+  const cy = viewportRect.top + viewportRect.height / 2;
+  return {
+    x: cx + cam.x + (scene.nx - 0.5) * base.width * cam.scale,
+    y: cy + cam.y + (scene.ny - 0.5) * base.height * cam.scale,
+  };
+}
+
+/**
+ * A screen DELTA → a scene delta. Drag distances shrink as you zoom in, which is exactly
+ * what makes a 10px book placeable at 5×.
+ */
+export function screenDeltaToScene(
+  dx: number,
+  dy: number,
+  cam: Camera,
+  base: { width: number; height: number },
+): { dnx: number; dny: number } {
+  return {
+    dnx: base.width > 0 ? dx / (base.width * cam.scale) : 0,
+    dny: base.height > 0 ? dy / (base.height * cam.scale) : 0,
+  };
+}
+
+/**
+ * The region of the scene the creator can currently SEE, in canonical coordinates.
+ *
+ * A new asset added while zoomed belongs at the centre of this, not at the centre of the
+ * whole room — otherwise it lands off-screen and the creator thinks nothing happened.
+ */
+export function visibleSceneRect(
+  cam: Camera,
+  viewportRect: Rect,
+  base: { width: number; height: number },
+): { x: number; y: number; width: number; height: number } {
+  const tl = screenToScene({ x: viewportRect.left, y: viewportRect.top }, cam, viewportRect, base);
+  const br = screenToScene(
+    { x: viewportRect.left + viewportRect.width, y: viewportRect.top + viewportRect.height },
+    cam,
+    viewportRect,
+    base,
+  );
+  const x = Math.max(0, Math.min(1, tl.nx));
+  const y = Math.max(0, Math.min(1, tl.ny));
+  return {
+    x,
+    y,
+    width: Math.max(0, Math.min(1, br.nx) - x),
+    height: Math.max(0, Math.min(1, br.ny) - y),
+  };
+}
+
+/** The centre of what the creator can see — where a newly added asset goes. */
+export function visibleSceneCentre(
+  cam: Camera,
+  viewportRect: Rect,
+  base: { width: number; height: number },
+): { nx: number; ny: number } {
+  const r = visibleSceneRect(cam, viewportRect, base);
+  return { nx: r.x + r.width / 2, ny: r.y + r.height / 2 };
+}

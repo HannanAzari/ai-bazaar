@@ -63,6 +63,17 @@ export type SceneCamera = {
   read: () => Camera;
   /** Restore a camera (used to put a visitor back where they were after a modal). */
   restore: (cam: Camera) => void;
+  /**
+   * M26A §3 — subscribe to EVERY camera frame.
+   *
+   * Screen-space chrome (handles, the object toolbar) lives outside the transform, so it
+   * has to be repositioned as the camera moves — but it must not cause a React render per
+   * frame either. Subscribers are called inside the same rAF that writes the transform,
+   * and are expected to write to the DOM directly.
+   *
+   * Returns an unsubscribe function.
+   */
+  subscribe: (fn: (cam: Camera) => void) => () => void;
 };
 
 export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = {}): SceneCamera {
@@ -71,6 +82,7 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = 
 
   const cam = useRef<Camera>(IDENTITY_CAMERA);
   const frame = useRef<number | null>(null);
+  const subscribers = useRef(new Set<(c: Camera) => void>());
 
   // `zoomed` is the ONLY thing that reaches React, and only on gesture end.
   const [zoomed, setZoomed] = useState(false);
@@ -97,6 +109,9 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = 
       frame.current = null;
       const el = stageRef.current;
       if (el) el.style.transform = cameraTransform(cam.current);
+      // Screen-space chrome repositions in the SAME frame as the room, so a handle never
+      // lags a pixel behind the object it belongs to.
+      subscribers.current.forEach((fn) => fn(cam.current));
     });
   }, []);
 
@@ -121,8 +136,10 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = 
       if (el) {
         // A settled camera animates; a live gesture must not, or it lags the finger.
         el.style.transition = animate ? "transform 320ms cubic-bezier(.32,.72,0,1)" : "none";
-        if (animate) el.style.transform = cameraTransform(next);
-        else paint();
+        if (animate) {
+          el.style.transform = cameraTransform(next);
+          subscribers.current.forEach((fn) => fn(next));
+        } else paint();
       }
       setZoomed(!isIdentityCamera(next));
     },
@@ -130,6 +147,13 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = 
   );
 
   const reset = useCallback(() => apply(IDENTITY_CAMERA, true), [apply]);
+  const subscribe = useCallback((fn: (c: Camera) => void) => {
+    subscribers.current.add(fn);
+    fn(cam.current); // seed immediately, so chrome is correct before the first gesture
+    return () => {
+      subscribers.current.delete(fn);
+    };
+  }, []);
   const read = useCallback(() => cam.current, []);
   const restore = useCallback((c: Camera) => apply(clampOffset(c, viewport()), false), [apply, viewport]);
 
@@ -293,7 +317,7 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = 
     // listeners are attached ONCE and a re-render can never tear down a live gesture.
   }, [enabled, apply, viewport]);
 
-  return { viewportRef, stageRef, zoomed, panning, reset, read, restore };
+  return { viewportRef, stageRef, zoomed, panning, reset, read, restore, subscribe };
 }
 
 export { CAMERA_MAX_SCALE, CAMERA_DOUBLE_TAP_SCALE };

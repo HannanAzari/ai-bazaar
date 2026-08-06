@@ -39,7 +39,9 @@ describe("P1. Arrange mode has zoom and pan, from the one camera model", () => {
   });
 
   it("a one-finger drag ON AN ASSET moves the asset, not the camera", () => {
-    expect(canvas).toContain('canPanFrom: (target) => !(target instanceof Element && target.closest("[data-editor-object]"))');
+    // M26A replaced the inline predicate with the shared gesture arbiter.
+    expect(canvas).toContain("canPanFrom:");
+    expect(canvas).toContain("resolveGestureOwner({");
     expect(canvas).toContain("data-editor-object={o.instanceId}");
   });
 

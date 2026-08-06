@@ -25,6 +25,7 @@ import {
 import { describeInteraction, youTubeEmbedUrl, type NestInteraction } from "@/lib/nest-interaction";
 import { useSceneCamera } from "@/components/nest/app-shell/use-scene-camera";
 import { CAMERA_MAX_SCALE, resolveTapTarget, type Camera, type TapCandidate } from "@/lib/nest-camera";
+import { NestStage } from "@/components/nest/nest-stage";
 import type { EditableNestObject } from "@/lib/nest-editor-types";
 import type { SurfaceContent } from "@/lib/nest-surface-types";
 import type { NestDocument, NestPlacement } from "@/lib/nest-document-types";
@@ -74,7 +75,6 @@ function NestRuntimeImpl({
   const background = resolveBackground(doc.backgroundId);
   const [loaded, setLoaded] = useState(false);
   const ordered = useMemo(() => inPaintOrder(doc.placements), [doc.placements]);
-  const matte = useMemo(() => matteTintFor(doc.backgroundId), [doc.backgroundId]);
 
   // ── Object state ───────────────────────────────────────────────────────────
   // Authored initial state comes from the document; a tap changes only this session's
@@ -208,15 +208,16 @@ function NestRuntimeImpl({
     : undefined;
 
   return (
-    <div className={`relative isolate overflow-hidden bg-[#e9e0c8] ${rounded} ${className}`}>
+    // ── M26A §1 — the room sits on a STAGE ──────────────────────────────────
+    //
+    // `NestStage` is the app environment; `NestViewport` is the clipping box the camera is
+    // attached to; the transformed stage inside it is the canonical 3:4 scene. The Stage is
+    // never part of the Nest document, so it can be redesigned without touching a single
+    // published Nest.
+    <NestStage theme="dark" rounded={rounded} className={surround ? className : `bg-[#e9e0c8] ${className}`}>
       {background && !loaded ? <div className="nest-shimmer absolute inset-0" /> : null}
-      {surround ? <SceneSurround tint={matte} /> : null}
 
       <div className="absolute inset-0 flex items-center justify-center" style={safe ? undefined : { containerType: "size" }}>
-        {/* The VIEWPORT clips; the STAGE moves. Keeping those two jobs on two elements is
-            what lets the camera be a pure transform with nothing to recompute.
-            `touch-action: none` hands every touch to us — without it Safari runs its own
-            pan/zoom underneath and the two fight. */}
         <div
           ref={camera.viewportRef}
           className={safe ? "absolute overflow-hidden" : "relative overflow-hidden"}
@@ -226,6 +227,7 @@ function NestRuntimeImpl({
               ? stageStyle
               : { width: `min(100cqw, ${SCENE_ASPECT * 100}cqh)`, aspectRatio: `${SCENE_ASPECT}` }),
             touchAction: interactive ? "none" : undefined,
+            ...(surround ? { boxShadow: "0 24px 60px -18px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04)" } : {}),
           }}
         >
           <div
@@ -315,7 +317,7 @@ function NestRuntimeImpl({
             return a ? <audio key={`a-${p.id}`} src={a.url} loop={a.loop} autoPlay /> : null;
           })
         : null}
-    </div>
+    </NestStage>
   );
 }
 
@@ -643,34 +645,6 @@ function MediaOverlay({ interaction: i, onClose }: { interaction: NestInteractio
           </button>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-// ── Surround (D-33, kept) ────────────────────────────────────────────────────
-
-function matteTintFor(backgroundId: string): string {
-  let h = 0;
-  for (let i = 0; i < backgroundId.length; i += 1) h = (h * 31 + backgroundId.charCodeAt(i)) >>> 0;
-  return `hsl(${h % 360} 14% 11%)`;
-}
-
-/**
- * M25 §P8 — the cinematic surround.
- *
- * Four treatments were compared (see the sprint report). This is option 1 + 3: a near-black
- * tint derived from the room, one soft gradient, a warm glow behind the scene and a
- * vignette. It is the only one that keeps object geometry exactly correct while reading as
- * intentional on both bright and dark backgrounds — the extended-background option needs
- * per-room art we do not have, and the full-width-crop option changes what a 1× visitor
- * sees, which would break parity with the editor.
- */
-function SceneSurround({ tint }: { tint: string }) {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden" style={{ backgroundColor: tint }}>
-      <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0.05), transparent 38%, rgba(0,0,0,0.22))" }} />
-      <div className="absolute inset-0" style={{ background: "radial-gradient(58% 42% at 50% 46%, rgba(255,214,150,0.13), transparent 70%)" }} />
-      <div className="absolute inset-0" style={{ background: "radial-gradient(120% 90% at 50% 50%, transparent 52%, rgba(0,0,0,0.42))" }} />
     </div>
   );
 }

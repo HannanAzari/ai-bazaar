@@ -148,6 +148,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   const [showGrid, setShowGrid] = useState(false);
   const [snap, setSnap] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const visibleCentre = useRef<(() => { nx: number; ny: number }) | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -410,7 +411,8 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
 
   // Object operations (operate on the ACTIVE scene)
   const onAdd = (asset: LivingNestAsset) => {
-    const { doc: next, instanceId } = addObject(activeDoc, asset);
+    // M26A §6 — drop it where the creator is LOOKING, not at the centre of the whole room.
+    const { doc: next, instanceId } = addObject(activeDoc, asset, visibleCentre.current?.());
     commitActive(next);
     pushRecent(asset.id);
     setSelectedId(instanceId);
@@ -748,6 +750,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
               // M25B §P2 — while any object sheet is open the floating toolbar must be
               // gone, not merely behind: its handles sat above the sheet and stole taps.
               hideChrome={mode === "interact" || overlaySheetOpen}
+              onVisibleCentreRef={(get) => { visibleCentre.current = get; }}
               onDuplicate={onDuplicate}
               onReorder={onReorder}
               onFlip={onFlip}

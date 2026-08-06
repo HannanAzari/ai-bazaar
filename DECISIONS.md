@@ -320,3 +320,34 @@ landed it reset the fields from the freshly-written document — which read to t
 "Save did nothing" — and a controlled input's final `onChange` can arrive after the button's
 pointer sequence on iOS, so state alone could be one keystroke stale. **Status: in force
 (M25B).**
+
+**D-51 · The Nest Stage is app environment, never Nest data.** `<NestStage><NestViewport>
+<CanonicalNestScene/></NestViewport><ScreenSpaceChrome/></NestStage>`. One deep neutral
+stage with exactly two variants (dark / light), chosen explicitly. *Why:* the previous
+surround derived a hue from the background id, so every Nest sat on a different colour —
+green behind one room, beige behind another — which read as unrelated bands rather than a
+frame. A gallery does not repaint its walls per painting. Because the stage is not in the
+document, it can be redesigned without touching a published Nest. **Status: in force
+(M26A), `test/nest-stage-gestures.test.ts`.**
+
+**D-52 · One gesture, one owner, decided at pointer-down.** `lib/nest-gesture.ts` resolves
+every gesture to exactly one owner and locks it until pointer-up; the only legal escalation
+is a second finger arriving, which is a pinch. *Why:* the editor canvas and the camera hook
+were two independent listeners racing over the same bubbling events, so a drag could move
+an object AND pan the room. The specific failure: resize and rotation handles are rendered
+outside the object's element, so a filter that only asked "is this inside
+`[data-editor-object]`?" sent every handle drag to the camera. **Status: in force (M26A).**
+
+**D-53 · Editor chrome is positioned by the camera but never SIZED by it.** Handles and the
+object toolbar counter-scale by `--nest-inv-scale`, a CSS variable written by the camera's
+own rAF. *Why:* at 5× a 40px touch target became 200px and covered the object it was
+resizing. The variable route costs no React render, so chrome tracks the room frame-for-
+frame. **Known deviation from the M26A brief:** the brief asked for chrome in a true
+screen-space sibling layer. Counter-scaling keeps positioning exact with a fraction of the
+change; a sibling layer would need every chrome element repositioned per frame from
+`sceneToScreen`. Recorded rather than glossed. **Status: in force (M26A).**
+
+**D-54 · A new asset lands where the creator is LOOKING.** `visibleSceneCentre()` gives the
+centre of the visible scene rect; `addObject(doc, asset, at)` centres the object on it.
+*Why:* a creator zoomed to 5× on a shelf who adds a book got it at the centre of the whole
+unzoomed room — off-screen, which reads as "nothing happened". **Status: in force (M26A).**
