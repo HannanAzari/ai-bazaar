@@ -34,6 +34,7 @@ import { useSceneCamera } from "@/components/nest/app-shell/use-scene-camera";
 import { z } from "@/lib/nest-layers";
 import { classifyTarget, resolveGestureOwner, ownerMovesCamera } from "@/lib/nest-gesture";
 import { visibleSceneCentre } from "@/lib/nest-camera";
+import { ScreenSpaceSelection } from "@/components/nest/editor/screen-space-selection";
 import { Maximize2 } from "lucide-react";
 import { resolveObjectSurfaces } from "@/lib/nest-surfaces";
 import { SurfaceContentLayer } from "@/components/nest/surface-content-layer";
@@ -353,14 +354,18 @@ export function EditorCanvas(props: Props) {
     () =>
       camera.subscribe((c) => {
         camScaleRef.current = c.scale;
-        // One CSS variable, written straight to the DOM in the camera's own frame. Every
-        // `.nest-screen-sized` element counter-scales by it, so chrome keeps its physical
-        // size at any zoom without a single React render.
+        const sr = sceneRef.current?.getBoundingClientRect();
+        if (sr && c.scale > 0) baseSizeRef.current = { width: sr.width / c.scale, height: sr.height / c.scale };
+        // The object toolbar still counter-scales through this variable; the selection
+        // frame and its handles no longer need it — they are real screen-space siblings.
         rootRef.current?.style.setProperty("--nest-inv-scale", String(1 / c.scale));
       }),
     [camera],
   );
   const rootRef = useRef<HTMLDivElement>(null);
+  // The UNTRANSFORMED stage size. `sceneToScreen` needs it, and the only honest source is
+  // the live element divided by the scale it is currently drawn at.
+  const baseSizeRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
   // M26A §6 — the host asks "where can the creator currently see?" before adding an asset.
   useEffect(() => {
     props.onVisibleCentreRef?.(() => {
@@ -495,8 +500,9 @@ export function EditorCanvas(props: Props) {
             <SurfaceHighlightLayer object={selected} selectedSurfaceId={props.selectedSurfaceId} onSelect={(id) => props.onSelectSurface?.(id)} />
           ) : null}
 
-          {/* Arrange chrome (hidden in Connect / Surface modes) */}
-          {!connect && !props.surface && selected && !selected.hidden ? <TransformFrame o={selected} asset={selectedAsset} advanced={advanced} onHandleDown={onHandleDown} /> : null}
+          {/* M26A-completion §2 — the selection frame is NO LONGER here. It lives in the
+              screen-space sibling layer below, outside the camera transform, so it neither
+              scales with the room nor gets clipped by the scene's overflow. */}
 
           {/* Transient rotation degree label while rotating/pinching a rotatable object. */}
           {!connect && selected && (gestureRef.current?.kind === "rotate" || gestureRef.current?.kind === "pinch") && selected.rotation != null ? (
@@ -519,7 +525,26 @@ export function EditorCanvas(props: Props) {
             />
           ) : null}
         </div>
+      </div>
 
+      {/* ── SCREEN SPACE ────────────────────────────────────────────────────────
+          A sibling of the transformed stage, never a descendant. Everything in here is
+          positioned in screen pixels and repositioned from `sceneToScreen()` inside the
+          camera's own frame. */}
+      {!connect && !props.surface && !hideChrome && selected && !selected.hidden ? (
+        <ScreenSpaceSelection
+          key={selected.instanceId}
+          object={selected}
+          rect={visibleRect(selected, selected.assetId)}
+          subscribe={camera.subscribe}
+          viewportRef={rootRef}
+          baseSizeRef={baseSizeRef}
+          onHandleDown={onHandleDown}
+          rotatable={canRotateObject(selected, selectedAsset)}
+        />
+      ) : null}
+
+      <div className="pointer-events-none absolute inset-0">
         {/* Contextual arrange action bar — outside the clipped scene (Arrange only).
             M25B §P2: `hideChrome` removes it entirely while an object sheet is open. It
             renders OUTSIDE `.editor-scene`'s stacking context, so its old `z-[600]` sat in
@@ -715,62 +740,6 @@ function SurfaceHighlightLayer({ object, selectedSurfaceId, onSelect }: { object
   );
 }
 
-/**
- * M26A §3 — the selection frame's HANDLES are screen-sized, not world-sized.
- *
- * ROOT CAUSE of "controls scale with the room": this frame renders inside the element the
- * camera transforms, so at 5× a 40px touch target became 200px and a 14px dot became 70px
- * — the handles covered the very object they were resizing.
- *
- * Each handle now carries `--inv`, the inverse camera scale, published every frame by
- * `useSceneCamera.subscribe` (a CSS variable, so it costs no React render). The frame's
- * POSITION still comes from the transform — which is what keeps it locked to the object at
- * any zoom — while each handle counter-scales about its own centre so its physical size,
- * and its text, never change.
- */
-function TransformFrame({ o, asset, advanced, onHandleDown }: { o: EditableNestObject; asset?: LivingNestAsset; advanced: boolean; onHandleDown: (e: React.PointerEvent, o: EditableNestObject, kind: "resize" | "rotate", dirX?: number) => void }) {
-  const t = transformOf(o);
-  const rotatable = canRotateObject(o, asset) && !o.locked;
-  // The selection frame wraps the VISIBLE content (not the transparent PNG padding),
-  // so padded assets (avatar, lamp) get a tight, believable selection box.
-  const vr = visibleRect(o, o.assetId);
-  const anchorLeft = vr.width > 0 ? ((o.anchor.x - vr.x) / vr.width) * 100 : 50;
-  const anchorTop = vr.height > 0 ? ((o.anchor.y - vr.y) / vr.height) * 100 : 100;
-  return (
-    <div className="pointer-events-none absolute z-[500]" style={{ left: pctOf(vr.x), top: pctOf(vr.y), width: pctOf(vr.width), height: pctOf(vr.height), transform: t || undefined, transformOrigin: "center" }}>
-      <div className={`absolute inset-0 rounded-[10px] ${o.locked ? "border-2 border-dashed border-terracotta/80" : "border-[2px] border-cobalt"}`} style={{ boxShadow: "0 0 0 1px rgba(255,255,255,.7), 0 1px 6px rgba(70,54,90,.25)" }} />
-      {!o.locked
-        ? ([
-            [0, 0, -1],
-            [1, 0, 1],
-            [0, 1, -1],
-            [1, 1, 1],
-          ] as const).map(([cx, cy, dirX]) => (
-            // 40px invisible touch target (≥32px policy) around a small visible dot, so
-            // even a tiny object's corners stay grabbable without enlarging the art.
-            <span key={`${cx}-${cy}`} data-resize-handle="" className="nest-screen-sized pointer-events-auto absolute flex h-10 w-10 cursor-nwse-resize touch-none items-center justify-center" style={{ left: `${cx * 100}%`, top: `${cy * 100}%` }} onPointerDown={(e) => onHandleDown(e, o, "resize", dirX)}>
-              <span className="h-3.5 w-3.5 rounded-full border-2 border-cobalt bg-white shadow" />
-            </span>
-          ))
-        : (
-            <span className="absolute right-1 top-1 rounded-full bg-terracotta/90 p-1 text-white"><Lock className="h-3 w-3" /></span>
-          )}
-      {rotatable ? (
-        // The rotate handle sits a CONSTANT pixel gap above the frame (never a % of the
-        // frame, so it can't collapse onto a tiny object), with a ~44px invisible touch
-        // target and a fixed-length connector. It is outside the frame and clear of the
-        // object body, so dragging the body never hits it.
-        <>
-          <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bg-cobalt/60" style={{ top: `-${ROTATE_GAP}px`, height: `${ROTATE_GAP}px`, width: 1 }} aria-hidden />
-          <button type="button" aria-label="Rotate" data-rotate-handle="" className="nest-screen-sized pointer-events-auto absolute left-1/2 flex h-11 w-11 cursor-grab touch-none items-center justify-center" style={{ top: `-${ROTATE_GAP}px` }} onPointerDown={(e) => onHandleDown(e, o, "rotate")}>
-            <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-cobalt bg-white shadow"><RotateCw className="h-3 w-3 text-cobalt" /></span>
-          </button>
-        </>
-      ) : null}
-      {advanced ? <span className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-saffron ring-2 ring-white" style={{ left: `${anchorLeft}%`, top: `${anchorTop}%` }} /> : null}
-    </div>
-  );
-}
 
 function ContextBar({ o, vr, placement, asset, layerOpen, setLayerOpen, onDuplicate, onReorder, onFlip, onToggleLock, onDelete, onOpenLayerPicker }: { o: EditableNestObject; vr: NormalizedRect; placement: ToolbarPlacement; asset?: LivingNestAsset; layerOpen: boolean; setLayerOpen: (v: boolean) => void; onDuplicate: () => void; onReorder: (op: ReorderOp) => void; onFlip: () => void; onToggleLock: () => void; onDelete: () => void; onOpenLayerPicker: () => void }) {
   // Centre on the VISIBLE rect; pick the side + offset that clears the resize/rotation handles.

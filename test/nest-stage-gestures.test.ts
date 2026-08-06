@@ -207,27 +207,42 @@ describe("9-10. the camera never changes geometry", () => {
 // ── 11–12. screen space vs world space ───────────────────────────────────────
 
 describe("11-12. editor chrome keeps its physical size while the room scales", () => {
-  it("chrome counter-scales by the inverse camera scale", () => {
-    expect(css).toContain(".nest-screen-sized");
-    expect(css).toContain("scale(var(--nest-inv-scale, 1))");
+  it("chrome is a REAL sibling layer, never inside the camera transform", () => {
+    // The first M26A pass counter-scaled chrome inside the transform. That fixed the size
+    // but left it clipped by the scene's overflow. It is now a sibling.
+    const sel = read("components", "nest", "editor", "screen-space-selection.tsx");
+    expect(sel).toContain("sceneToScreen(");
+    expect(sel).not.toContain("nest-inv-scale");
+    // No transform of any kind on the frame — size is written in screen pixels.
+    expect(sel).toContain('style={{ left: 0, top: 0, width: 0, height: 0 }}');
+    expect(canvas).not.toContain("function TransformFrame");
   });
 
-  it("the inverse is published every camera frame, with no React render", () => {
-    expect(canvas).toContain('setProperty("--nest-inv-scale"');
+  it("it repositions inside the camera's own frame, with no React render", () => {
+    const sel = read("components", "nest", "editor", "screen-space-selection.tsx");
+    expect(sel).toContain("return subscribe((cam) => {");
+    expect(sel).toContain("el.style.left");
     const gestures = read("components", "nest", "app-shell", "use-scene-camera.ts");
     expect(gestures).toContain("subscribers.current.forEach");
   });
 
-  it("resize and rotation handles are screen-sized", () => {
-    const frame = canvas.slice(canvas.indexOf("function TransformFrame"));
-    expect(frame).toContain('data-resize-handle=""');
-    expect(frame).toContain('data-rotate-handle=""');
-    expect((frame.match(/nest-screen-sized/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  it("handles carry CONSTANT pixel dimensions, not percentages of the object", () => {
+    const sel = read("components", "nest", "editor", "screen-space-selection.tsx");
+    expect(sel).toContain("const HANDLE = 40;");
+    expect(sel).toContain("width: HANDLE,");
+    expect(sel).toContain('data-resize-handle=""');
+    expect(sel).toContain('data-rotate-handle=""');
   });
 
-  it("the object toolbar is screen-sized too", () => {
-    const bar = canvas.slice(canvas.indexOf("function ContextBar"));
-    expect(bar).toContain("scale(var(--nest-inv-scale, 1))");
+  it("an object scrolled out of view leaves no floating controls", () => {
+    const sel = read("components", "nest", "editor", "screen-space-selection.tsx");
+    expect(sel).toContain('el.style.visibility = off ? "hidden" : "visible"');
+  });
+
+  it("chrome coordinates are never persisted", () => {
+    const sel = read("components", "nest", "editor", "screen-space-selection.tsx");
+    expect(sel).not.toContain("onCommit");
+    expect(sel).not.toContain("saveDraft");
   });
 
   it("at 5× a 40px handle still measures 40px", () => {

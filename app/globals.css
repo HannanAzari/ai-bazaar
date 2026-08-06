@@ -670,16 +670,10 @@ body::before {
   }
 }
 
-/* ── M26A §3 — editor chrome keeps its PHYSICAL size at any zoom ─────────────
-   Handles and the object toolbar are positioned by the camera transform (that is what
-   keeps them locked to the object) but must not be SIZED by it: at 5× a 40px touch target
-   became 200px and covered the object it was resizing.
 
-   `--nest-inv-scale` is 1/scale, written to the canvas root by the camera's own rAF, so
-   this costs no React render. `transform-box: fill-box` is not needed — each element
-   counter-scales about its own centre, and the -50%/-50% recentring is folded in here so
-   the handle stays anchored to its corner. */
-.nest-screen-sized {
-  transform: translate(-50%, -50%) scale(var(--nest-inv-scale, 1));
-  transform-origin: center;
-}
+
+/* ── M26A — the object toolbar keeps its physical size ───────────────────────
+   The selection frame and its handles are real screen-space siblings positioned from
+   `sceneToScreen()` (see screen-space-selection.tsx). The contextual toolbar is still
+   anchored in scene percentages, so it counter-scales by the inverse camera scale, which
+   the camera publishes to the canvas root every frame. */
