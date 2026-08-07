@@ -1,100 +1,89 @@
-# NEXT SPRINT — M25: Prove it, on a real deployment, with two real accounts
+# NEXT SPRINT
 
-> Read `CTO_HANDOFF.md` first. The previous sprint document (shared persistence) is fully
-> implemented; its acceptance script is preserved below in §4 because it is still the right
-> test.
-
-## Objective
-
-Stop writing features. **Verify the ones that exist**, end to end, on a live Preview, with
-two real non-founder accounts — then fix only what that walkthrough breaks.
-
-Everything in M23B → M24D is implemented and locally green (900 tests). Almost none of it
-has been exercised by a human against a deployment, because nothing has deployed since
-`235d2ab`. That gap is the project's biggest risk, and closing it is worth more than any
-new work.
+> Read `CTO_HANDOFF.md` first. Two candidates below. **The founder chooses**, but if the
+> Vercel block is still up, §A is the only one worth doing.
 
 ---
 
-## 0. Prerequisites — the sprint cannot start without both
+## §A — Finish the M26A acceptance (do this if Vercel is still blocked)
 
-Neither is code. Both are founder actions. **Do not write code around them; ask.**
+M26A's architecture is done and locally green. What is missing is *evidence that a creator
+can actually complete the loop on a phone*. This is a short sprint and it needs no deploy.
 
-1. **Vercel** returns `402 DEPLOYMENT_DISABLED`. Clear the billing/usage block, redeploy
-   `m12-nest-platform`, and confirm at `<preview-url>/api/auth/whoami`:
-   `resolvedBackend: "supabase"` · `projectRef: "srrmkdsvldlyllsxyhtq"` ·
-   `vercelEnv: "preview"` · the expected commit hash.
-2. **Apply `supabase/provision/m24b_provision.sql`** in the Supabase SQL editor
-   (`nest_views`, `nests.draft_doc`, `nests.draft_updated_at`, `nests.scene_extras`).
-   Additive and idempotent. **Never apply SQL yourself.**
+### The gap, precisely
 
-Then re-run `DEBUG_GUIDE.md` §1 to confirm the columns landed, and check the dev console for
-`[nest-repo] scene_extras available` rather than the degraded path.
+Driven and verified: selection, pinch to 5×, handle/toolbar physical size, the mode switch,
+screen→scene round-trips, the stage.
 
-## 1. Order of work
+**Not driven:** drag, resize, rotate, add-from-library at 5×, Save Draft, reopen — at any
+viewport. And 390×844 / 430×932 were never opened at all.
 
-1. **Confirm the deployment is the current commit.** (`DEBUG_GUIDE.md` §9.) If it is not,
-   nothing below means anything.
-2. **Run the two-account walkthrough** in §4, writing down every divergence *before* fixing
-   anything. Resist fixing the first thing you see — the pattern across M24/M24B/M24C is
-   that symptoms shared one upstream cause.
-3. **Fix by root cause**, in the order the walkthrough surfaced them.
-4. **Capture parity evidence**: Preview and Visitor screenshots at the *same* viewport, plus
-   the measured Editor↔Preview delta from `/dev/nest-parity`.
-5. **Only then** consider new work — see §5.
+### Why it stalled, and what to do differently
 
-## 2. What to watch most closely
+Synthetic `PointerEvent`s repeatedly triggered navigation away from the editor mid-run, and
+the dev server intermittently renders the editor blank after several HMR cycles (restart it —
+the hook-order warnings that accompany this are HMR artefacts, not real bugs).
 
-These are implemented but have never once been run by a person:
+Suggestions:
+- Drive the editor from a **fresh dev server** and a fresh tab per viewport.
+- Prefer `computer` (real clicks/drags in the browser pane) over synthetic
+  `dispatchEvent` for the manipulation steps — synthetic pointers do not reproduce the
+  editor's own selection-then-move sequence faithfully.
+- Assert with `getBoundingClientRect()` on `[data-editor-object]` before and after each
+  drag, not by eye.
 
-| Area | The specific thing to prove |
-|---|---|
-| **Focus** | Place an object inside a focus region → save → publish → open signed-out → tap the region → **the object is there**. The "missing plant" is the fixture. |
-| **Surface** | Assign image/text content to a surface → a visitor sees it, at the right object-local geometry. |
-| **Views** | A second account dwelling ~2.5s increments once; a reload same-day does not; the owner never counts. |
-| **Drafts** | Saving a published Nest does **not** change what a visitor sees; publishing promotes it. |
-| **Social** | Like / comment / follow from B; A sees the notification; counts agree across Home, Profile and the Nest. |
-| **Legacy Nests** | A pre-M24 Nest still renders, is badged "Re-save to update layout", and re-saving fixes it. |
+### The run
 
-## 3. Acceptance criteria
+At **375×667**, **390×844** and **430×932**:
 
-- [ ] The Preview URL serves the current commit and reports `resolvedBackend: "supabase"`.
-- [ ] `m24b_provision.sql` is applied; no repository is running its degraded path.
-- [ ] A Nest published by Account A exists as a `nests` row + `nest_objects` rows and is
-      visible to Account B in Home/Explore, on A's Profile, and through A's House.
-- [ ] The share URL is `/nest/<slug>` with **no** `?c=` payload and opens logged-out.
-- [ ] B **cannot** see A's drafts and **cannot** edit A's Nest.
-- [ ] Rotation, flipX, overlays, z-order, **focus regions and surface content** all survive
-      publish → reload → other account.
-- [ ] Preview and Visitor screenshots at matching viewports are visually identical.
-- [ ] Like / comment / follow / notification all work between two real accounts.
-- [ ] A view is counted once per viewer per day; never for the owner.
-- [ ] A Supabase failure produces a **visible** error, never a silent local write.
-- [ ] typecheck · lint · tests · build all green; the sprint is deployed and the deployment
-      verified.
+1. Open Edit. 2. Select a small asset. 3. Pinch to 5×. 4. Drag the selected asset —
+**only it moves**. 5. Drag empty floor — **only the camera pans**. 6. Resize it.
+7. Rotate an object. 8. Add a new asset from the library while zoomed — it appears in the
+visible area. 9. Reset view. 10. Geometry is unchanged. 11. Preview → test one interaction.
+12. Back to Edit. 13. Save Draft. 14. Leave and reopen — geometry and interactions intact.
 
-## 4. The walkthrough (two normal, non-founder accounts)
+Capture three screenshots per viewport: **1×**, **5×**, **Preview**.
 
-**Account A** — sign up · complete onboarding · create a Nest · place a large object, a
-small object, a rotated object, a flipped object, two overlapping objects, a text overlay,
-an image overlay (mirror `lib/fixtures/canonical-nest.ts`) · **create a focus region and
-place an object inside it** · **assign content to a surface** · save as draft · confirm the
-Profile card matches the editor · reopen and confirm nothing changed · publish.
+### Acceptance
 
-**Account B** — sign up in a different browser profile · find A via search · open A's
-Profile · see the published Nest · enter it · **confirm the composition matches A's editor
-exactly** · tap the focus region and confirm the child object is there · like · comment ·
-follow · share · open the shared link logged-out.
+- [ ] All three viewports complete all 14 steps.
+- [ ] Handles and toolbar measured identical at 1× and 5× at every viewport.
+- [ ] Object geometry byte-identical before zoom and after Reset.
+- [ ] Nine screenshots attached.
+- [ ] Gates green; commit; push.
 
-**Back to A** — verify counts and notifications · confirm B never saw the draft · save a
-change and confirm B still sees the published version until A publishes again.
+---
 
-## 5. Explicit non-goals
+## §B — M26B (only once §A passes AND the founder has tested on a phone)
 
-No new AI, asset, avatar, marketplace or discovery-algorithm work. No visual redesign of
-approved Profile or Nest UI. No deletion of the legacy island. No 9:16 immersive background
-— it is a documented seam (D-33) and stays one until the room art exists.
+The founder named M26B as parent-child placement: shelf slots, objects attaching to
+surfaces, the Content/Appearance/Placement/Action inspector. **Do not start it speculatively.**
+M26A deliberately left objects freely positioned so that M26B can introduce hierarchy against
+a foundation that is known-good on a real device.
 
-If the walkthrough passes cleanly, the *next* sprint after this one is the founder's call:
-the strongest candidates are the Asset-Factory → `nest_assets` publishing seam (the library
-holds one row) and deleting the legacy pre-pivot island.
+Prerequisites, all of them:
+1. The Vercel block is cleared and the founder has tested `56aa6f3` (or later) on their phone.
+2. §A passes at all three viewports.
+3. The founder explicitly asks for M26B.
+
+---
+
+## Standing verification debt (needs a deployment, not a sprint)
+
+These have been outstanding since M23B and cannot be closed locally:
+
+- Two-account social testing (like, comment, follow, notification).
+- Publish → visitor round-trip compared side by side.
+- Views counted by a second account.
+- Zoom smoothness frame-rate measured on a physical iPhone.
+
+The moment a Preview URL responds, run these first — they are cheap and they close the
+longest-standing gap in the project.
+
+---
+
+## Explicit non-goals
+
+No new AI, asset-generation, avatar, Google/Apple auth, marketplace or discovery work. No
+Village redesign. No analytics changes. No deletion of the legacy pre-pivot island (its own
+sprint). No redesign of the Interaction inspector.

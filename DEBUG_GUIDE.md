@@ -7,7 +7,10 @@ Nothing here is destructive; do not run destructive SQL.
 
 ## 1. Does the live Supabase project actually have the Nest tables?
 
-The repo *contains* these migrations. Whether they were **applied** is unknown from the repo.
+> **Status as of 2026-08-05: ALL migrations are applied** (`m23b`, `m24b`, `m24e`), verified
+> by column. Nothing is outstanding. Keep this section anyway — it is the procedure, and the
+> M24E lesson stands: a provision file's *current contents* are not what was applied, so
+> probe **by column**, never by file name.
 
 ```sql
 select to_regclass('public.nests');          -- null ⇒ not applied
@@ -48,16 +51,17 @@ select count(*) from public.nest_objects;
 source_template_id, created_at, updated_at`. `nest_objects`: `nest_id, asset_id, x, y, scale,
 rotation, z_index` (+ `overlay, w, h, flip_x` only if the corrective migration ran).
 
-**Known gap:** `nest_objects.asset_id` has an FK to `nest_assets`, which makes an overlay
-placement (`assetId = "overlay:text"`) a constraint violation. Confirm before writing overlays.
+**Resolved:** `m23b_nest_platform_provision.sql` deliberately creates `nest_objects` with
+**no FK** on `asset_id`, so overlay placements (`assetId = "overlay:text"`) are legal.
 
 **Also confirm:** Preview and Production use the **same** Supabase project (compare
 `NEXT_PUBLIC_SUPABASE_URL` in both Vercel environments), or results will be misleading.
 
 ## 2. Is the app silently falling back to localStorage?
 
-`lib/nest-repo.ts` wraps Supabase calls in `catch { /* fall back */ }` (≈46, 57, 70, 81, 96).
-Symptoms: everything "works" for you and nobody else sees it.
+> **Fixed in M23B (D-10).** The five `catch { /* fall back */ }` blocks are gone and
+> `nestBackend()` derives from `hasSupabaseEnv()`. This section is kept because the SYMPTOM
+> recurs whenever `NEXT_PUBLIC_*` is missing at build time — see §7.
 
 - Temporarily `console.error` inside those catches, or set a breakpoint, and publish.
 - Or check the result: after publishing, does a `nests` row exist (§1 count query)?
@@ -229,3 +233,70 @@ const el = document.querySelector('.absolute.inset-0.flex > div');
 const r = el.getBoundingClientRect();
 r.width / r.height   // must be 0.750
 ```
+
+---
+
+## 12. M25–M26A — the camera, gestures and the editor
+
+**FIRST, as always: which build is this?**
+```bash
+curl -s https://<preview-url>/api/build-info
+```
+Reports `commit`, `branch`, `vercelProject`, `vercelEnv`, `deploymentUrl`,
+`supabaseProjectRef` and `supabaseConfiguredAtBuild`. No secrets. If `commit` is not what you
+expect, stop — you are debugging a different build.
+
+**Vercel: do NOT guess hostnames.** Settled in M26A: one project (`ai-bazaar`, team
+`hannanazaris-projects`), disabled. `402` on the production alias, `410 GONE` on the branch
+preview. A 404 on a guessed host proves nothing — a wrong team slug hid the truth for
+several sprints.
+
+**A drag moves the room instead of the object (or both).**
+Gesture ownership is decided ONCE at pointer-down by `lib/nest-gesture.ts` and held in
+`ownerRef`. Check in this order:
+1. Does the target carry `data-editor-object`? Handles carry `data-resize-handle` /
+   `data-rotate-handle` and are deliberately OUTSIDE the object element.
+2. Is the move gated? The canvas must read `const owner = ownerRef.current` and bail with
+   `if (!gestureAllows(owner, wanted)) return`.
+3. Is the camera's `canPanFrom` routing through `resolveGestureOwner`? An ad-hoc predicate
+   here is exactly the bug M26A removed.
+
+**Two fingers resized or rotated my object.** That gesture is deleted (D-56). If it comes
+back, look for a `kind: "pinch"` in the editor canvas — object pinch must not exist.
+
+**Handles or the toolbar are the wrong size when zoomed.**
+```js
+// at 1×, then again at 5× — both must be identical
+document.querySelector('[data-resize-handle]').getBoundingClientRect()   // 40×40
+document.querySelector('[data-object-toolbar]').getBoundingClientRect()  // 198×46
+```
+If they scale, chrome has drifted back inside the transform:
+```js
+!document.querySelector('[data-screen-selection]').closest('.will-change-transform') // true
+```
+If they *shrink*, something is counter-scaling chrome that is already in screen space —
+that double negative measured 40×9px once (D-57).
+
+**An object lands in the wrong place after a zoomed drag.** There is exactly one conversion
+(`lib/nest-camera.ts`): `screenToScene`, `sceneToScreen`, `screenDeltaToScene`. A second
+positioning formula anywhere is the bug.
+
+**A new asset appears off-screen when added while zoomed.** It must be centred on
+`visibleSceneCentre(cam, viewportRect, base)`, not the room centre (D-54).
+
+**The stage shows colour bands again.** `components/nest/nest-stage.tsx` must have exactly
+two themes and no per-room hash — deriving a hue from the background id is what produced
+green behind one Nest and beige behind another (D-51).
+```js
+document.querySelector('[data-nest-stage-root]').dataset.stageTheme          // "dark"
+getComputedStyle(document.querySelector('[data-nest-stage-root]')).backgroundColor
+// identical across every background
+```
+
+**The editor renders blank in dev.** Restart the dev server. After several HMR cycles the
+editor can mount empty, and the React hook-order warnings that accompany it are HMR
+artefacts (the hook sequence in the warning matches a pre-edit module), not real bugs.
+
+**Synthetic pointer events navigate away from the editor.** Known: `dispatchEvent`-driven
+gestures do not faithfully reproduce the editor's selection-then-move sequence and can
+trigger navigation. Use real `computer` clicks/drags for manipulation checks.
