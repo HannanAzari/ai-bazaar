@@ -49,7 +49,8 @@ import {
   type PinchSample,
 } from "@/lib/nest-gesture";
 import { capabilitiesForAsset } from "@/lib/nest-asset-interaction";
-import { visibleSceneCentre } from "@/lib/nest-camera";
+import { sceneToScreen, visibleSceneCentre } from "@/lib/nest-camera";
+import { rotationReadout } from "@/lib/nest-editor-chrome";
 import { ScreenSpaceSelection } from "@/components/nest/editor/screen-space-selection";
 import { Maximize2 } from "lucide-react";
 import { resolveObjectSurfaces } from "@/lib/nest-surfaces";
@@ -88,6 +89,14 @@ type Props = {
   onDelete: () => void;
   /** M26 §P3 — Connect is contextual: it appears only on an asset that takes content. */
   onConnect?: () => void;
+  /**
+   * M26-P §1 — a TAP on the object that is ALREADY selected.
+   *
+   * This is what makes "tap again to edit this sticker" possible without conflating
+   * selection with editing. The first tap selects (and gets the same chrome as any other
+   * object); only this second tap opens a content editor.
+   */
+  onReselect?: (id: string) => void;
   /** Connect mode: select assets + their hotspots; arrange gestures are disabled. */
   connect?: boolean;
   selectedHotspotId?: string;
@@ -303,6 +312,8 @@ export function EditorCanvas(props: Props) {
    * `up()` if the gesture turned out to be a pure tap.
    */
   const pendingCycle = useRef<{ id: string; state: TapCycleState | undefined } | null>(null);
+  /** The already-selected object this gesture began on, if any (M26-P §1). */
+  const reselected = useRef<string | null>(null);
 
   function selectAtPoint(clientX: number, clientY: number, fallback: EditableNestObject): string {
     const { nx, ny } = toNorm(clientX, clientY);
@@ -314,7 +325,12 @@ export function EditorCanvas(props: Props) {
     // Is the current selection under this finger? Then it is what gets dragged.
     const keep = selectedId && candidates.some((c) => c.objectId === selectedId) ? selectedId : null;
     pendingCycle.current = keep && cycled !== keep ? { id: cycled, state: res.state } : null;
-    if (keep) return keep;
+    if (keep) {
+      // Remember that this gesture began on the current selection; `up()` decides whether
+      // it stayed a tap and therefore counts as a re-tap.
+      reselected.current = keep;
+      return keep;
+    }
 
     tapCycle.current = res.state;
     onSelect(cycled);
@@ -482,10 +498,16 @@ export function EditorCanvas(props: Props) {
       downClient.current = null;
       // A pure tap on a stack advances the overlap cycle; a drag never does.
       const pc = pendingCycle.current;
-      if (tapped && !didMove.current && pc) {
+      const wasTap = tapped && !didMove.current;
+      if (wasTap && pc) {
         tapCycle.current = pc.state;
         onSelect(pc.id);
+      } else if (wasTap && reselected.current) {
+        // M26-P §1 — a tap that landed on the object already selected, and moved nothing.
+        // Reported only at pointer-UP, so a press-and-drag can never be mistaken for it.
+        props.onReselect?.(reselected.current);
       }
+      reselected.current = null;
       pendingCycle.current = null;
       commit();
       ptsRef.current = [];
@@ -714,13 +736,6 @@ export function EditorCanvas(props: Props) {
               screen-space sibling layer below, outside the camera transform, so it neither
               scales with the room nor gets clipped by the scene's overflow. */}
 
-          {/* Transient rotation degree label while rotating/pinching a rotatable object. */}
-          {!connect && selected && gestureRef.current?.kind === "rotate" && selected.rotation != null ? (
-            <div className="pointer-events-none absolute z-[510] -translate-x-1/2 rounded-full bg-ink/90 px-2 py-0.5 text-[11px] font-bold text-parchment" style={{ left: pctOf(selected.x + selected.width / 2), top: pctOf(Math.max(0.02, selected.y - 0.03)) }}>
-              {Math.round(selected.rotation)}°
-            </div>
-          ) : null}
-
           {/* Connect-mode hotspot overlay for the selected asset */}
           {connect && selected && !selected.hidden ? (
             <HotspotLayer
@@ -756,6 +771,22 @@ export function EditorCanvas(props: Props) {
         />
       ) : null}
 
+      {/* ── M26-P §2 — the rotation readout ────────────────────────────────────
+          Shown while EITHER rotate path is live (two fingers or the rotate handle) and
+          lingering briefly after, so the creator can read the angle they landed on. It
+          lives in SCREEN space beside the frame; the old one was positioned in scene
+          percentages, so at 5× it flew off with the room. */}
+      {!connect && !props.surface && !hideChrome && selected && !selected.hidden ? (
+        <RotationReadout
+          deg={selected.rotation ?? 0}
+          active={gestureRef.current?.kind === "rotate" || gestureRef.current?.kind === "transform"}
+          rect={visibleRect(selected, selected.assetId)}
+          subscribe={camera.subscribe}
+          viewportRef={rootRef}
+          baseSizeRef={baseSizeRef}
+        />
+      ) : null}
+
       <GestureDebug owner={ownerRef.current} gesture={gestureRef.current} points={ptsRef.current} selectedId={selectedId} subscribe={camera.subscribe} />
 
       <div className="pointer-events-none absolute inset-0">
@@ -776,6 +807,82 @@ export function EditorCanvas(props: Props) {
           />
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/**
+ * M26-P §2 — a transient `18°` / `−32°` pill above the selected object.
+ *
+ * Positioned per camera frame in screen pixels (like every other piece of chrome) and held
+ * visible for a moment after the gesture ends, then faded out. It is deliberately NOT part
+ * of `ScreenSpaceSelection`: it must survive a gesture that hides nothing else, and it has
+ * its own lifetime.
+ */
+function RotationReadout({
+  deg,
+  active,
+  rect,
+  subscribe,
+  viewportRef,
+  baseSizeRef,
+}: {
+  deg: number;
+  active: boolean;
+  rect: { x: number; y: number; width: number; height: number };
+  subscribe: (fn: (cam: import("@/lib/nest-camera").Camera) => void) => () => void;
+  viewportRef: React.RefObject<HTMLElement | null>;
+  baseSizeRef: React.RefObject<{ width: number; height: number }>;
+}) {
+  const elRef = useRef<HTMLDivElement>(null);
+  const hideAt = useRef(0);
+  const shown = useRef(false);
+
+  if (active) {
+    hideAt.current = Date.now() + 900; // linger after the fingers lift
+    shown.current = true;
+  }
+
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    return subscribe((cam) => {
+      const el = elRef.current;
+      const base = baseSizeRef.current;
+      if (!el || !base) return;
+      const vr = vp.getBoundingClientRect();
+      const r = { left: vr.left, top: vr.top, width: vr.width, height: vr.height };
+      const tl = sceneToScreen({ nx: rect.x + rect.width / 2, ny: rect.y }, cam, r, base);
+      const host = el.offsetParent as HTMLElement | null;
+      const hr = host?.getBoundingClientRect() ?? { left: 0, top: 0 };
+      el.style.left = `${tl.x - hr.left}px`;
+      el.style.top = `${Math.max(vr.top + 6, tl.y - 30) - hr.top}px`;
+    });
+  }, [subscribe, viewportRef, baseSizeRef, rect.x, rect.y, rect.width]);
+
+  // Drive the fade from a timer rather than a render: the gesture does not re-render on
+  // pointer-up, so a purely reactive approach would leave the pill on screen.
+  useEffect(() => {
+    if (!active) return;
+    const el = elRef.current;
+    if (el) el.style.opacity = "1";
+    const t = window.setInterval(() => {
+      if (Date.now() < hideAt.current) return;
+      if (elRef.current) elRef.current.style.opacity = "0";
+      window.clearInterval(t);
+    }, 120);
+    return () => window.clearInterval(t);
+  }, [active]);
+
+  if (!shown.current) return null;
+  return (
+    <div
+      ref={elRef}
+      data-rotation-readout=""
+      className="pointer-events-none absolute z-[700] -translate-x-1/2 rounded-full bg-ink/85 px-2 py-0.5 font-mono text-[11px] font-bold tabular-nums text-parchment transition-opacity duration-300"
+      style={{ left: 0, top: 0, opacity: active ? 1 : 0 }}
+    >
+      {rotationReadout(deg)}
     </div>
   );
 }

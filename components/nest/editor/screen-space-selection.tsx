@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Lock, RotateCw } from "lucide-react";
 import { sceneToScreen, type Camera } from "@/lib/nest-camera";
+import { rotatedAabb, toolbarPlacement } from "@/lib/nest-editor-chrome";
 import type { EditableNestObject } from "@/lib/nest-editor-types";
 
 // ── M26A-completion §2 — chrome in REAL screen space ─────────────────────────
@@ -15,20 +16,26 @@ import type { EditableNestObject } from "@/lib/nest-editor-types";
 //   • they were CLIPPED by the scene's `overflow-hidden`, so a handle on an object near
 //     the edge simply vanished.
 //
-// M26A's first pass counter-scaled them with a CSS variable. That fixed the size but left
-// them inside the transform, so the clipping remained and the architecture still had
-// chrome living in world space.
-//
 // This is the real thing: the chrome is a SIBLING of the viewport, never a descendant of
 // the transform. Its position is recomputed from `sceneToScreen()` on every camera frame,
 // inside the camera's own rAF, and written straight to the DOM — so it tracks the object
 // pixel-for-pixel while zooming and panning without a single React render.
 //
+// ── M26-P §2/§3 — lighter chrome, and a toolbar that stays on screen ─────────
+//
+// The heavy solid rectangle with four fat handles is replaced by a thin dashed outline
+// that ROTATES with the object, plus two resize handles on opposite corners. Everything
+// still lives in screen pixels, so nothing scales with the camera.
+//
+// The toolbar is positioned from the object's ROTATED screen bounds and clamped to the
+// viewport, rather than riding inside the frame at a fixed offset — which is why it used
+// to drift far from a rotated object and run off the edge of a phone.
+//
 // Nothing here is ever persisted. These are pixels on a screen, not facts about a Nest.
 
 const HANDLE = 40; // touch target, constant at every zoom
-const DOT = 14;
-const ROTATE_GAP = 28;
+const DOT = 13;
+const ROTATE_GAP = 26;
 
 export type SelectionRect = { x: number; y: number; width: number; height: number };
 
@@ -54,14 +61,16 @@ export function ScreenSpaceSelection({
   /** A hidden or deleted object must not leave floating controls behind. */
   hidden?: boolean;
   /**
-   * The contextual object toolbar. It rides INSIDE this frame so it inherits the frame's
-   * screen-pixel positioning — which is the only way it can track the object while zooming
-   * and keep a constant size. Anchored above the frame, flipping below when there is no
-   * room, and clamped to stay on screen.
+   * The contextual object toolbar. Positioned from the object's rotated SCREEN bounds and
+   * clamped to the viewport — never from scene coordinates, and never inside the rotated
+   * outline (it would tilt with the object and become unreadable).
    */
   toolbar?: ReactNode;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const rotationRef = useRef(object.rotation ?? 0);
+  rotationRef.current = object.rotation ?? 0;
 
   useEffect(() => {
     const vp = viewportRef.current;
@@ -80,112 +89,111 @@ export function ScreenSpaceSelection({
       // Positioned relative to the STAGE, so subtract the stage's own origin.
       const host = el.offsetParent as HTMLElement | null;
       const hr = host?.getBoundingClientRect() ?? { left: 0, top: 0 };
+      const w = Math.max(0, br.x - tl.x);
+      const h = Math.max(0, br.y - tl.y);
       el.style.left = `${tl.x - hr.left}px`;
       el.style.top = `${tl.y - hr.top}px`;
-      el.style.width = `${Math.max(0, br.x - tl.x)}px`;
-      el.style.height = `${Math.max(0, br.y - tl.y)}px`;
+      el.style.width = `${w}px`;
+      el.style.height = `${h}px`;
       // An object scrolled entirely out of view must not leave its handles floating.
       const off = br.x < vr.left || tl.x > vr.right || br.y < vr.top || tl.y > vr.bottom;
       el.style.visibility = off ? "hidden" : "visible";
+
+      // ── §3 — the toolbar follows the object, and stays on the phone ────────
+      const bar = barRef.current;
+      if (!bar) return;
+      // The object's ROTATED extent in viewport coordinates. A rotated object's real
+      // bounds are wider than its box, and anchoring to the box is what let the bar
+      // overlap a tilted object.
+      const box = rotatedAabb({ left: tl.x, top: tl.y, width: w, height: h }, rotationRef.current);
+      const place = toolbarPlacement(box, { width: bar.offsetWidth, height: bar.offsetHeight }, { width: window.innerWidth, height: window.innerHeight }, rotatable && !object.locked);
+      bar.style.left = `${place.left - hr.left}px`;
+      bar.style.top = `${place.top - hr.top}px`;
+      bar.style.visibility = off ? "hidden" : "visible";
     });
-  }, [subscribe, viewportRef, baseSizeRef, rect.x, rect.y, rect.width, rect.height]);
+  }, [subscribe, viewportRef, baseSizeRef, rect.x, rect.y, rect.width, rect.height, rotatable, object.locked, object.rotation]);
 
   if (hidden) return null;
 
+  // The outline and its handles rotate WITH the object (§2). The toolbar deliberately does
+  // not — a tilted toolbar is unreadable, and its text would be upside down past 90°.
+  const spin = object.rotation ? { transform: `rotate(${object.rotation}deg)`, transformOrigin: "center" } : undefined;
+
   return (
-    <div
-      ref={frameRef}
-      data-screen-selection=""
-      // ── M26-S2 §9 — `data-editor-chrome` moved DOWN to the toolbar ────────────
-      //
-      // Sprint 1 marked this whole frame as chrome to stop the camera capturing taps on the
-      // toolbar (the Mirror bug). But the resize and rotation handles live in here too, and
-      // marking them chrome told the camera — now the only thing listening — to ignore them
-      // completely. They need the pointer pipeline; only the BUTTONS need to be exempt from
-      // it. The marker therefore sits on the toolbar wrapper, which is what Mirror is
-      // actually inside.
-      className="pointer-events-none absolute"
-      // No transform of any kind: position and size are written in screen pixels. That is
-      // what makes "handles never scale" true by construction rather than by cancellation.
-      style={{ left: 0, top: 0, width: 0, height: 0 }}
-    >
+    <>
       <div
-        className={`absolute inset-0 rounded-[10px] ${object.locked ? "border-2 border-dashed border-terracotta/80" : "border-2 border-cobalt"}`}
-        style={{ boxShadow: "0 0 0 1px rgba(255,255,255,.7), 0 1px 6px rgba(70,54,90,.25)" }}
-      />
+        ref={frameRef}
+        data-screen-selection=""
+        className="pointer-events-none absolute"
+        // No transform on THIS element: position and size are written in screen pixels,
+        // which is what makes "handles never scale" true by construction.
+        style={{ left: 0, top: 0, width: 0, height: 0 }}
+      >
+        <div className="absolute inset-0" style={spin}>
+          {/* §2 — a thin dashed outline, not a heavy solid rectangle. */}
+          <div
+            className={`absolute inset-0 rounded-[10px] border ${object.locked ? "border-dashed border-terracotta/70" : "border-dashed border-cobalt/70"}`}
+            style={{ borderWidth: 1.5, boxShadow: "0 0 0 1px rgba(255,255,255,.45)" }}
+          />
 
-      {object.locked ? (
-        <span className="absolute right-1 top-1 rounded-full bg-terracotta/90 p-1 text-white">
-          <Lock className="h-3 w-3" />
-        </span>
-      ) : (
-        ([
-          [0, 0, -1],
-          [1, 0, 1],
-          [0, 1, -1],
-          [1, 1, 1],
-        ] as const).map(([cx, cy, dirX]) => (
-          <span
-            key={`${cx}-${cy}`}
-            data-resize-handle=""
-            // M26-S2 §2 — the handle declares its corner and nothing else. No pointer
-            // handler: the arbiter reads `data-resize-handle` off the event target, so the
-            // handles use the same single pipeline as every other gesture. Their old React
-            // `onPointerDown` armed a gesture whose `pointermove` then went to the scene
-            // element — which is not an ancestor of this frame, so it never arrived.
-            data-dir-x={dirX}
-            className="pointer-events-auto absolute flex cursor-nwse-resize touch-none items-center justify-center"
-            style={{
-              width: HANDLE,
-              height: HANDLE,
-              left: `calc(${cx * 100}% - ${HANDLE / 2}px)`,
-              top: `calc(${cy * 100}% - ${HANDLE / 2}px)`,
-            }}
-          >
-            <span className="rounded-full border-2 border-cobalt bg-white shadow" style={{ width: DOT, height: DOT }} />
-          </span>
-        ))
-      )}
+          {object.locked ? (
+            <span className="absolute right-1 top-1 rounded-full bg-terracotta/90 p-1 text-white">
+              <Lock className="h-3 w-3" />
+            </span>
+          ) : (
+            // §2 — TWO handles on opposite corners, not four. Two is enough to resize from
+            // either end, and four turned a small object into a cluster of touch targets
+            // with barely any object left between them.
+            ([
+              [0, 0, -1],
+              [1, 1, 1],
+            ] as const).map(([cx, cy, dirX]) => (
+              <span
+                key={`${cx}-${cy}`}
+                data-resize-handle=""
+                data-dir-x={dirX}
+                className="pointer-events-auto absolute flex cursor-nwse-resize touch-none items-center justify-center"
+                style={{
+                  width: HANDLE,
+                  height: HANDLE,
+                  left: `calc(${cx * 100}% - ${HANDLE / 2}px)`,
+                  top: `calc(${cy * 100}% - ${HANDLE / 2}px)`,
+                }}
+              >
+                <span className="rounded-full border-[1.5px] border-cobalt bg-white shadow-sm" style={{ width: DOT, height: DOT }} />
+              </span>
+            ))
+          )}
 
+          {/* §2 — the precision rotate control stays, visually simplified: a hairline and a
+              small ring rather than a heavy button. */}
+          {rotatable && !object.locked ? (
+            <>
+              <span aria-hidden className="absolute bg-cobalt/35" style={{ left: "50%", top: -ROTATE_GAP, height: ROTATE_GAP, width: 1 }} />
+              <button
+                type="button"
+                aria-label="Rotate"
+                data-rotate-handle=""
+                className="pointer-events-auto absolute flex cursor-grab touch-none items-center justify-center"
+                style={{ width: 40, height: 40, left: "calc(50% - 20px)", top: -ROTATE_GAP - 40 }}
+              >
+                <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-cobalt/80 bg-white/95 shadow-sm">
+                  <RotateCw className="h-3 w-3 text-cobalt" />
+                </span>
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      {/* §3 — a SIBLING of the frame, positioned in viewport pixels each camera frame and
+          clamped so it can never leave the phone. It used to ride inside the frame at a
+          fixed offset above it, which is why it drifted with rotation and ran off-screen. */}
       {toolbar ? (
-        <div
-          data-object-toolbar=""
-          data-editor-chrome=""
-          className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 justify-center"
-          // A constant pixel gap, never a percentage of the frame — a percentage collapses
-          // onto a tiny object and balloons on a big one.
-          //
-          // M26-F §1 — the bar must CLEAR the rotate handle. The handle spans
-          // −(ROTATE_GAP + 44) … −ROTATE_GAP above the frame, so at the old constant 14px
-          // the two overlapped and the handle swallowed taps meant for Mirror. That went
-          // unnoticed while almost nothing was rotatable; enabling rotation on movable
-          // assets put a rotate handle on every selection and the collision became the norm.
-          style={{ bottom: `calc(100% + ${rotatable && !object.locked ? ROTATE_GAP + 44 + 10 : 14}px)` }}
-        >
+        <div ref={barRef} data-object-toolbar="" data-editor-chrome="" className="pointer-events-none absolute left-0 top-0">
           {toolbar}
         </div>
       ) : null}
-
-      {rotatable && !object.locked ? (
-        <>
-          <span
-            aria-hidden
-            className="absolute bg-cobalt/60"
-            style={{ left: "50%", top: -ROTATE_GAP, height: ROTATE_GAP, width: 1 }}
-          />
-          <button
-            type="button"
-            aria-label="Rotate"
-            data-rotate-handle=""
-            className="pointer-events-auto absolute flex cursor-grab touch-none items-center justify-center"
-            style={{ width: 44, height: 44, left: "calc(50% - 22px)", top: -ROTATE_GAP - 44 }}
-          >
-            <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-cobalt bg-white shadow">
-              <RotateCw className="h-3 w-3 text-cobalt" />
-            </span>
-          </button>
-        </>
-      ) : null}
-    </div>
+    </>
   );
 }

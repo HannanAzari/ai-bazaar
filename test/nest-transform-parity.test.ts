@@ -150,7 +150,10 @@ describe("§1 — movable objects can actually rotate", () => {
   it("the object toolbar clears the rotate handle", async () => {
     // Enabling rotation everywhere put a rotate handle on every selection, and at the old
     // constant 14px gap it landed on top of Mirror and swallowed its taps.
+    // M26-P replaced the hard-coded offset with `toolbarPlacement(…, hasRotateControl)`,
+    // which reserves the clearance AND clamps to the viewport. Same guarantee, computed.
     const selection = read("components", "nest", "editor", "screen-space-selection.tsx");
-    expect(selection).toContain("rotatable && !object.locked ? ROTATE_GAP + 44 + 10 : 14");
+    expect(selection).toContain("rotatable && !object.locked");
+    expect(selection).toContain("toolbarPlacement(");
   });
 });

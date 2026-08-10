@@ -183,11 +183,15 @@ describe("§9 — resize and rotate handles use the same pipeline", () => {
 describe("§7 — a drag never advances the overlap cycle", () => {
   it("the gesture arms on the object that is ALREADY selected", () => {
     expect(canvas).toContain("const keep = selectedId && candidates.some((c) => c.objectId === selectedId) ? selectedId : null;");
-    expect(canvas).toContain("if (keep) return keep;");
+    // M26-P widened this into a block so a re-tap can also be recorded; the invariant is
+    // unchanged — a gesture that begins on the current selection drags THAT object.
+    expect(canvas).toContain("reselected.current = keep;");
+    expect(canvas).toContain("return keep;");
   });
 
   it("the cycled candidate is only applied when the gesture was a pure tap", () => {
-    expect(canvas).toContain("if (tapped && !didMove.current && pc) {");
+    expect(canvas).toContain("const wasTap = tapped && !didMove.current;");
+    expect(canvas).toContain("if (wasTap && pc) {");
     expect(canvas).toContain("onSelect(pc.id);");
   });
 

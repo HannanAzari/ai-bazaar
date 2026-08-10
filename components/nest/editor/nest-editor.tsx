@@ -16,6 +16,7 @@ import {
   Move,
   Play,
   Redo2,
+  Lightbulb,
   RotateCcw,
   Undo2,
   Save,
@@ -233,6 +234,8 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   const visibleCentre = useRef<(() => { nx: number; ny: number }) | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  /** §4 — hints are opt-in after the first showing; they never cover the room. */
+  const [hintOpen, setHintOpen] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [toast, setToast] = useState<string | null>(null);
   const [selectedHotspotId, setSelectedHotspotId] = useState<string | undefined>(undefined);
@@ -401,17 +404,21 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
       return next;
     });
   // The current contextual hint (arrange mode only; overlay editing is guided by its sheet).
+  // ── M26-P §4 — the hint is a STATE OF THE EDITOR, not a one-shot banner ────
+  //
+  // The relevant one-liner is computed unconditionally; `seenHints` now decides only
+  // whether it appears BY ITSELF the first time. Previously the two were fused, so
+  // dismissing a hint destroyed it forever — and a Hint button that can only ever turn
+  // things off is not a button, it is a fuse.
   const hint: { k: string; text: string } | undefined = (() => {
     if (mode !== "arrange") return undefined;
-    if (selected?.overlay && !overlaySheetOpen && !seenHints.sticker)
+    if (selected?.overlay && !overlaySheetOpen)
       return { k: "sticker", text: "Tap the sticker again to edit its text or image." };
-    if (selectedId && !selected?.overlay && !seenHints.move)
-      return { k: "move", text: "Drag to move · pinch or use the corner handles to resize." };
-    if (!selectedId && !seenHints.open)
-      return activeDoc.objects.length
-        ? { k: "open", text: "Tap a piece to edit it — or Publish when you're ready." }
-        : { k: "open", text: "Tap Assets to add your first piece, then Publish when ready." };
-    return undefined;
+    if (selectedId && !selected?.overlay)
+      return { k: "move", text: "Drag to move · pinch to resize and rotate." };
+    return activeDoc.objects.length
+      ? { k: "open", text: "Tap a piece to select it." }
+      : { k: "open", text: "Tap Assets to add your first piece, then Publish when ready." };
   })();
 
   // M8: the surface currently open in the editor (on the selected object).
@@ -837,6 +844,12 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
+              {/* §4 — a quiet lightbulb. Tapping it shows the currently relevant one-liner
+                  in the strip above the room; tapping again hides it. Guidance is now
+                  something the creator asks for, not something laid across their artwork. */}
+              <UndoIcon label={hintOpen ? "Hide hint" : "Show hint"} onClick={() => { if (!hintOpen && hint) dismissHint(hint.k); setHintOpen((v) => !v); }}>
+                <Lightbulb className={`h-[18px] w-[18px] ${hintOpen && hint ? "text-saffron" : ""}`} />
+              </UndoIcon>
               <div className="relative">
                 <ToolIcon label="More" onClick={() => setMoreOpen((v) => !v)} active={moreOpen}>
                   <MoreHorizontal className="h-5 w-5" />
@@ -871,30 +884,28 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
             <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onImportFile(f); e.target.value = ""; }} />
           </header>
 
+          {/* ── M26-P §4/§5 — the guidance strip ──────────────────────────────
+              Scene context and hints used to be absolutely positioned OVER the room
+              (`top-2` and `top-11`), so they covered the artwork the creator was trying to
+              judge — and the hint sat exactly where the object toolbar wants to be.
+              They now live in real layout, in the whitespace between the header and the
+              canvas, where they cannot overlap the toolbar, the selection chrome or the
+              room. Nothing floats over the artwork any more. */}
+          <div className="flex min-h-[30px] shrink-0 items-center gap-2 px-3 pb-1">
+            {isMainActive ? (
+              <span className="shrink-0 text-[10px] font-black uppercase tracking-[.14em] text-ink/35">Main Nest</span>
+            ) : (
+              <button type="button" onClick={backToMain} className="inline-flex shrink-0 items-center gap-1 rounded-full text-[11px] font-bold text-cobalt">
+                <ArrowLeft className="h-3.5 w-3.5" /> Main Nest <span className="text-ink/30">/</span> {activeScene?.name ?? "Detail"}
+              </button>
+            )}
+            {hint && (hintOpen || !seenHints[hint.k as keyof typeof seenHints]) ? (
+              <p className="min-w-0 flex-1 truncate text-right text-[11px] font-semibold leading-tight text-ink/45">{hint.text}</p>
+            ) : null}
+          </div>
+
           {/* Canvas area (hero) */}
           <div className="relative min-h-0 flex-1">
-            {/* Scene context — which scene the creator is editing (Main vs a Detail Scene). */}
-            <div className="pointer-events-none absolute left-1/2 top-2 z-30 -translate-x-1/2">
-              {isMainActive ? (
-                <span className="rounded-full border border-ink/10 bg-parchment/90 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-ink/55 shadow-sm backdrop-blur">Main Nest</span>
-              ) : (
-                <button type="button" onClick={backToMain} className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-cobalt/30 bg-parchment/95 px-3 py-1 text-[11px] font-bold text-cobalt shadow-sm backdrop-blur">
-                  <ArrowLeft className="h-3.5 w-3.5" /> Main Nest <span className="text-ink/40">/</span> {activeScene?.name ?? "Detail"}
-                </button>
-              )}
-            </div>
-
-            {/* First-time hint (Phase 3) — small, dismissible, one at a time. */}
-            {hint ? (
-              <div className="pointer-events-none absolute left-1/2 top-11 z-30 flex w-[min(92%,26rem)] -translate-x-1/2 justify-center">
-                <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-cobalt/25 bg-parchment/95 px-3 py-1.5 text-[11px] font-bold text-ink/75 shadow-md backdrop-blur">
-                  <span className="text-cobalt">💡</span>
-                  <span className="min-w-0">{hint.text}</span>
-                  <button type="button" onClick={() => dismissHint(hint.k)} aria-label="Dismiss hint" className="ml-0.5 shrink-0 rounded-full p-0.5 text-ink/45 hover:bg-ink/5"><X className="h-3.5 w-3.5" /></button>
-                </div>
-              </div>
-            ) : null}
-
             <EditorCanvas
               doc={activeDoc}
               assetsById={ASSETS}
@@ -906,10 +917,26 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                 if (id !== connectFor) setConnectFor(null);
                 setSelectedId(id);
                 setSelectedSurfaceId(undefined);
-                // Open the sticker editor when a generic overlay is selected; close otherwise.
-                const obj = id ? activeDoc.objects.find((o) => o.instanceId === id) : undefined;
-                setOverlaySheetOpen(Boolean(obj?.overlay));
+                // ── M26-P §1 — THE TEXT DIVERGENCE ────────────────────────────
+                //
+                // This used to be `setOverlaySheetOpen(Boolean(obj?.overlay))`: merely
+                // SELECTING a Text or Sticker threw open its content editor. And since
+                // `hideChrome` is true whenever that sheet is open, an overlay never got a
+                // selection frame, resize handles, a rotate control or a toolbar — no
+                // Duplicate, Layer, Mirror, Lock or Delete. It was the one object type whose
+                // selection was indistinguishable from editing, and the sheet then covered
+                // the room the creator needed to tap to get out of it.
+                //
+                // Selection and content editing are now separate, exactly as the hint copy
+                // already promised: first tap selects, second tap edits (`onReselect`).
+                setOverlaySheetOpen(false);
                 if (id) { setSelectedInheritedId(undefined); setSelectedInheritedHotspotId(undefined); }
+              }}
+              onReselect={(id) => {
+                // M26-P §1 — the SECOND tap on an overlay opens its content editor. Any
+                // other object ignores this entirely.
+                const obj = activeDoc.objects.find((o) => o.instanceId === id);
+                if (obj?.overlay) setOverlaySheetOpen(true);
               }}
               onCommit={commitActive}
               surface={mode === "surface"}
