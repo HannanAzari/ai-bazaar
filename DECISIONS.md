@@ -377,3 +377,37 @@ modes, replaces the bottom bar's duplicate Preview entry. Preview mounts the rea
 runtime from the same canonical document; switching saves nothing, publishes nothing and
 touches no geometry. *Why:* two controls for one state is how a creator ends up unsure which
 mode they are in. **Status: in force (M26A-final).**
+
+**D-59 · One finger on an object moves that object — selected or not.** `selected-object`
+and `other-object` resolve to the same owner. *Why:* M26A-final split them, giving an
+unselected object `select` while the canvas armed `kind: "move"` and the move gate demanded
+`object-move` — so press-and-drag on anything not already selected did nothing at all, and
+only tap-release-then-drag worked. The split also compared against `selectedId` from the
+previous render, so even a re-tap could evaluate stale. Selection already happens at
+pointer-down, so the distinction bought nothing and cost the core interaction. Behaviour
+over elegance. **Status: in force (M26-R), `test/nest-stage-gestures.test.ts`.**
+
+**D-60 · Interaction belongs to the ASSET; content belongs to the CREATOR.** If the
+catalogue gives an asset a behaviour, that behaviour is always live: a lamp toggles the
+moment it is placed, with no configuration and no off switch. Creators never see "enable
+interaction", "starts on", "interaction type" or "action type". *Why:* a TV already behaves
+like a TV — asking a creator to describe that is asking them to learn our model. Legacy
+`initialState` / `disabled` are still parsed without error but are deliberately IGNORED, so
+old documents load and two Nests with the same lamp cannot behave differently for a reason
+the visitor cannot see. **Status: in force (M26-R), `lib/nest-asset-interaction.ts`.**
+
+**D-61 · Objects open in their natural idle state.** TV off, lamp off, curtain closed, book
+closed — from the catalogue's `defaultState`, always. **Status: in force (M26-R).**
+
+**D-62 · Connect is one field: paste a link.** `lib/nest-content-source.ts` detects the
+source by URL shape (provider before file extension, extension before the website fallback)
+and never fetches the page — that would leak an unpublished link to us. A rejection names
+the object and the content in plain words ("Speaker can't show a video. Try music."), never
+a kind or a capability. *Why:* the old sheet asked for five decisions to hang one video on a
+screen. **Status: in force (M26-R).**
+
+**D-63 · Connect has no explicit Save.** Adding content commits to the editor document
+immediately; `Done` only closes the sheet; the Nest's own draft/publish persists. *Why:* it
+removes the entire class of a save that reports success and drops the link — the M25B bug —
+by removing the step that could lie. **Status: in force (M26-R), supersedes D-50's save
+mechanics.**

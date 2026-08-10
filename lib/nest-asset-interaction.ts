@@ -76,13 +76,29 @@ export type AssetInteractionCapabilityDef = {
   allowsSound?: boolean;
 };
 
-/** The creator's configuration, stored on the placement. */
+/**
+ * The creator's configuration, stored on the placement.
+ *
+ * ── M26-R: CONTENT ONLY. ─────────────────────────────────────────────────────
+ *
+ * Interaction belongs to the ASSET; content belongs to the CREATOR. A TV already behaves
+ * like a TV — the creator only decides what is on it. So this carries no behaviour: no
+ * enable/disable, no "starts on", no interaction type.
+ *
+ * `initialState` and `disabled` remain in the TYPE, and are still read off legacy
+ * documents without error, but they are no longer written and no longer honoured (see
+ * `initialStateOf` / `isInteractiveObject`). Deleting the fields would break the parse of
+ * every Nest published before M26-R; ignoring them is enough and loses nothing, because a
+ * visitor always starts an object from its natural idle state anyway.
+ */
 export type AssetInteractionConfig = {
-  /** Which state the Nest OPENS in. Authored — persists. */
-  initialState?: string;
   /** The connected content, if any. Authored — persists. */
   connection?: ConnectedContent;
-  /** Creator opted out of interaction for this instance even though the asset supports it. */
+  /** Optional creator label for the connected content. */
+  title?: string;
+  /** @deprecated M26-R — legacy documents may carry these; they are read but never honoured. */
+  initialState?: string;
+  /** @deprecated M26-R — a creator can no longer disable an asset's built-in behaviour. */
   disabled?: boolean;
 };
 
@@ -231,20 +247,29 @@ export function configForPlacement(p: NestPlacement): AssetInteractionConfig | u
   return p.interaction?.asset;
 }
 
-/** The state a Nest OPENS this object in. Authored, never a visitor's session state. */
+/**
+ * The state an object OPENS in — always the asset's natural idle state.
+ *
+ * M26-R: a TV starts off, a lamp starts off, a curtain starts closed, a book starts closed.
+ * That is a fact about the object, not a creator decision, so the catalogue's `defaultState`
+ * is the only answer. A legacy `initialState` is deliberately ignored rather than honoured:
+ * "this lamp starts on" was a setting nobody asked for and it made two Nests with the same
+ * lamp behave differently for no visible reason.
+ */
 export function initialStateOf(p: NestPlacement): string | null {
-  const def = capabilitiesForAsset(p.assetId);
-  if (!def) return null;
-  const cfg = configForPlacement(p);
-  if (cfg?.disabled) return null;
-  const wanted = cfg?.initialState;
-  return wanted && def.states[wanted] ? wanted : def.defaultState;
+  return capabilitiesForAsset(p.assetId)?.defaultState ?? null;
 }
 
-/** Whether a visitor can do anything with this object at all. */
+/**
+ * Whether a visitor can do anything with this object at all.
+ *
+ * M26-R: if the CATALOGUE gives the asset a behaviour, that behaviour is always live. A
+ * creator cannot disable it, and does not have to enable it — a lamp toggles the moment it
+ * is placed, with no configuration at all. `disabled` on a legacy document is ignored.
+ */
 export function isInteractiveObject(p: NestPlacement): boolean {
   const def = capabilitiesForAsset(p.assetId);
-  if (!def || configForPlacement(p)?.disabled) return false;
+  if (!def) return false;
   // A stateful object is interactive on its own; a content-only one needs a connection.
   if (def.toggleTo) return true;
   return Boolean(resolveConnection(p));
@@ -294,7 +319,8 @@ export type ObjectTapResult = {
 
 export function tapObject(p: NestPlacement, currentState: string | null): ObjectTapResult {
   const def = capabilitiesForAsset(p.assetId);
-  if (!def || configForPlacement(p)?.disabled) return { state: null, open: null };
+  // No `disabled` check: built-in behaviour is not the creator's to switch off (M26-R).
+  if (!def) return { state: null, open: null };
 
   const from = currentState ?? initialStateOf(p) ?? def.defaultState;
   const to = def.toggleTo?.[from] ?? null;

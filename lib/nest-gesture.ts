@@ -45,13 +45,26 @@ export function resolveGestureOwner(ctx: GestureContext): GestureOwner {
     case "rotate-handle":
       return ctx.locked ? "none" : "object-rotate";
     case "selected-object":
-      // A locked object may still be selected and inspected; it just does not move.
-      return ctx.locked ? "select" : "object-move";
     case "other-object":
-      // Selecting is its own owner: the first tap selects, and only a drag on the
-      // ALREADY-selected object moves it. That is what stops a stray touch while panning
-      // from dragging whatever it landed on.
-      return "select";
+      // ── M26-R P0 — ONE FINGER ON AN OBJECT MOVES THAT OBJECT. ──────────────
+      //
+      // These two cases are deliberately identical. M26A-final split them: an
+      // already-selected object owned `object-move`, an unselected one owned `select`.
+      // But the canvas arms `kind: "move"` for BOTH, and the move gate demands
+      // `object-move` — so a drag on anything not already selected was gated out and the
+      // object simply never moved. Tap-then-release-then-drag worked; the natural
+      // press-and-drag did nothing. That is the founder-reported regression.
+      //
+      // The split also compared against `selectedId` from the PREVIOUS render, so even a
+      // re-tap could evaluate stale. Two ways to get one decision wrong.
+      //
+      // Selection already happens at pointer-down (`selectAtPoint`), so by the time a move
+      // is possible the object IS selected — the distinction bought nothing and cost the
+      // core interaction. Behaviour over elegance.
+      //
+      // A locked object still selects, so it can be inspected and unlocked; it just never
+      // moves.
+      return ctx.locked ? "select" : "object-move";
     case "empty":
       // At 1× the room exactly fills the viewport, so there is nothing to pan to; the
       // gesture belongs to the page (scrolling a feed) or to deselection.

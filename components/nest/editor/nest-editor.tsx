@@ -887,7 +887,6 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                   assetThumbUrl={ASSETS[selected.assetId]?.thumbnailUrl}
                   snap={connectSnap}
                   onSnapChange={setConnectSnap}
-                  onTest={onPreview}
                   onCommit={(config) =>
                     commitActive({
                       ...activeDoc,
@@ -958,7 +957,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                 inspection. Legacy Focus data still PLAYS (see nest-runtime.tsx); it just
                 cannot be authored any more. The old modes remain reachable from Advanced
                 for founder debugging of existing Nests. */}
-            <ModeBtn active={mode === "interact"} label="Interaction" onClick={() => { setSelectedHotspotId(undefined); setMode("interact"); }}><Link2 className="h-5 w-5" /></ModeBtn>
+            <ModeBtn active={mode === "interact"} label="Connect" onClick={() => { setSelectedHotspotId(undefined); setMode("interact"); }}><Link2 className="h-5 w-5" /></ModeBtn>
           </nav>
         </>
       )}

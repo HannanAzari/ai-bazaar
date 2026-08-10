@@ -451,7 +451,10 @@ describe("19. a new Nest needs no Focus at all", () => {
   it("Focus is gone from the editor toolbar", () => {
     expect(editor).not.toContain('label="Focus"');
     expect(editor).not.toContain('label="Surface"');
-    expect(editor).toContain('label="Interaction"');
+    // M26-R renamed the dock entry: "Connect" is what a creator is doing; "Interaction"
+    // was our word for our model.
+    expect(editor).toContain('label="Connect"');
+    expect(editor).not.toContain('label="Interaction"');
   });
 });
 
@@ -542,10 +545,20 @@ describe("capability comes from the catalogue, configuration from the creator", 
     expect(resolveConnection(wrongKind)).toBeNull(); // a lamp accepts nothing
   });
 
-  it("a creator can opt an instance out entirely", () => {
-    const off: NestPlacement = { id: "t", assetId: "ast-tv", x: 0, y: 0, interaction: { asset: { disabled: true } } };
-    expect(isInteractiveObject(off)).toBe(false);
-    expect(tapObject(off, null)).toEqual({ state: null, open: null });
+  it("M26-R — a creator CANNOT disable an asset's built-in behaviour", () => {
+    // Reversed deliberately. Interaction belongs to the asset: a TV behaves like a TV the
+    // moment it is placed, with no configuration and no off switch. A legacy `disabled`
+    // flag is read without error and then ignored.
+    const legacy: NestPlacement = { id: "t", assetId: "ast-tv", x: 0, y: 0, interaction: { asset: { disabled: true } } };
+    expect(isInteractiveObject(legacy)).toBe(true);
+    expect(tapObject(legacy, null).state).toBe("on");
+  });
+
+  it("M26-R — an object always opens in its natural idle state", () => {
+    // A legacy "starts on" is ignored too: two Nests with the same lamp must not behave
+    // differently for a reason the visitor cannot see.
+    const legacy: NestPlacement = { id: "l", assetId: "ast-floor-lamp", x: 0, y: 0, interaction: { asset: { initialState: "on" } } };
+    expect(initialStateOf(legacy)).toBe("off");
   });
 });
 

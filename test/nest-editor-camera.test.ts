@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CAMERA_MAX_SCALE, IDENTITY_CAMERA, panBy, zoomAround, type Camera } from "@/lib/nest-camera";
 import { editableObjectsToPlacements, nestDocumentToEditable } from "@/lib/nest-editor-bridge";
-import { safeUrl, youTubeVideoId } from "@/lib/nest-interaction";
 import { resolveConnection, tapObject } from "@/lib/nest-asset-interaction";
+import { contentRejection, detectContentSource } from "@/lib/nest-content-source";
 import { INTERACTIVE_TEST_NEST } from "@/lib/fixtures/interactive-nest";
 import { LAYER } from "@/lib/nest-layers";
 import type { NestDocument, NestPlacement } from "@/lib/nest-document-types";
@@ -179,10 +179,9 @@ describe("P3. form controls never trigger iOS page zoom", () => {
     expect(readFileSync(join(process.cwd(), "app", "layout.tsx"), "utf8")).not.toContain("maximumScale");
   });
 
-  it("the Interaction panel's own inputs are 16px explicitly", () => {
-    const inputs = panel.split("<input\n").slice(1); // real JSX elements, not prose
-    expect(inputs.length).toBe(2);
-    for (const i of inputs) expect(i.slice(0, 900)).toContain("text-base");
+  it("the Connect panel's link input is 16px explicitly", () => {
+    const urlInput = panel.slice(panel.indexOf("<input\n"), panel.indexOf("<input\n") + 1400);
+    expect(urlInput).toContain("text-base");
   });
 
   it("the sticky action stays above the keyboard without a viewport hack", () => {
@@ -193,95 +192,83 @@ describe("P3. form controls never trigger iOS page zoom", () => {
 
 // ── P4. Save interaction actually saves ──────────────────────────────────────
 
-describe("P4. Save interaction", () => {
+describe("P4/M26-R. Connect — paste a link, nothing else", () => {
   const tv: NestPlacement = { id: "tv", assetId: "ast-tv", x: 0.3, y: 0.3, w: 0.3, h: 0.2 };
-  const withConn = (kind: "youtube" | "website" | "image", url: string): NestPlacement => ({
+  const withConn = (kind: "youtube" | "website" | "image" | "audio", url: string): NestPlacement => ({
     ...tv,
-    interaction: { asset: { initialState: "off", connection: { kind, url } } },
+    interaction: { asset: { connection: { kind, url } } },
   });
 
-  it("accepts a standard YouTube URL", () => {
-    expect(youTubeVideoId("https://www.youtube.com/watch?v=aqz-KE-bpKQ")).toBe("aqz-KE-bpKQ");
-    expect(resolveConnection(withConn("youtube", "https://www.youtube.com/watch?v=aqz-KE-bpKQ"))?.kind).toBe("youtube");
+  it("detects YouTube in all three link shapes", () => {
+    for (const u of [
+      "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      "https://youtu.be/aqz-KE-bpKQ",
+      "https://www.youtube.com/shorts/aqz-KE-bpKQ",
+    ]) {
+      expect(detectContentSource(u)).toMatchObject({ kind: "youtube", provider: "youtube", label: "YouTube" });
+    }
   });
 
-  it("accepts a youtu.be short URL", () => {
-    expect(youTubeVideoId("https://youtu.be/aqz-KE-bpKQ")).toBe("aqz-KE-bpKQ");
-    expect(resolveConnection(withConn("youtube", "https://youtu.be/aqz-KE-bpKQ"))).toBeTruthy();
+  it("detects audio providers and plain media files", () => {
+    expect(detectContentSource("https://open.spotify.com/track/x")).toMatchObject({ kind: "audio", provider: "spotify" });
+    expect(detectContentSource("https://example.com/a.mp3")).toMatchObject({ kind: "audio" });
+    expect(detectContentSource("https://example.com/p.jpg")).toMatchObject({ kind: "image" });
+    expect(detectContentSource("https://example.com/clip.mp4")).toMatchObject({ kind: "video" });
   });
 
-  it("accepts a YouTube Shorts URL", () => {
-    // The founder's list names Shorts explicitly.
-    expect(youTubeVideoId("https://www.youtube.com/shorts/aqz-KE-bpKQ")).toBe("aqz-KE-bpKQ");
-    expect(resolveConnection(withConn("youtube", "https://www.youtube.com/shorts/aqz-KE-bpKQ"))).toBeTruthy();
+  it("falls back to a plain website", () => {
+    expect(detectContentSource("https://example.com/about")).toMatchObject({ kind: "website", label: "Website" });
   });
 
-  it("accepts website and image links", () => {
-    expect(resolveConnection(withConn("website", "https://example.com/about"))?.kind).toBe("website");
-    expect(resolveConnection(withConn("image", "https://example.com/p.jpg"))?.kind).toBe("image");
+  it("a provider beats a file extension in the URL", () => {
+    // youtube.com/watch?v=…&thumb=x.jpg is a video, not an image.
+    expect(detectContentSource("https://www.youtube.com/watch?v=aqz-KE-bpKQ&t=x.jpg")).toMatchObject({ kind: "youtube" });
   });
 
-  it("refuses an invalid or unsafe link rather than silently doing nothing", () => {
-    expect(safeUrl("not a url")).toBeNull();
-    expect(safeUrl("javascript:alert(1)")).toBeNull();
-    expect(resolveConnection(withConn("website", "javascript:alert(1)"))).toBeNull();
-    // …and the panel surfaces it.
+  it("refuses an unsafe or malformed link rather than silently doing nothing", () => {
+    expect(detectContentSource("javascript:alert(1)")).toBeNull();
+    expect(detectContentSource("not a url")).toBeNull();
     expect(panel).toContain('role="alert"');
-    expect(panel).toContain("That link doesn’t look right");
+    expect(panel).toContain("That doesn’t look like a link");
   });
 
-  it("commits the WHOLE config in one object, never two interleaving patches", () => {
-    expect(panel).toContain("const next: AssetInteractionConfig | undefined =");
-    expect(panel).toContain("commit(next);");
+  it("explains in plain words when the object can't show that content", () => {
+    const msg = contentRejection({ kind: "video", url: "https://x/y.mp4", label: "Video" }, ["audio"], "Speaker");
+    expect(msg).toContain("Speaker");
+    expect(msg).toContain("a video");
+    expect(msg).toContain("music"); // says what WOULD work
+    expect(msg).not.toContain("kind");
+    expect(msg).not.toContain("capability");
   });
 
-  it("reads its values from refs, so a late iOS onChange cannot be missed", () => {
-    expect(panel).toContain("const k = kindRef.current;");
-    expect(panel).toContain("const raw = urlRef.current.trim();");
-  });
-
-  it("does not re-seed from the document on every commit — that read as 'Save did nothing'", () => {
-    // The effect depends ONLY on which object is selected.
-    expect(panel).toContain("}, [object.instanceId]);");
-    expect(panel).not.toContain("cfg?.connection?.url,");
-  });
-
-  it("prevents a duplicate save and confirms visibly", () => {
-    expect(panel).toContain("if (saving) return;");
-    expect(panel).toContain("disabled={saving}");
-    expect(panel).toContain("Saved");
-  });
-
-  it("is called Save interaction, not Save connection", () => {
-    expect(panel).toContain('"Save interaction"');
+  it("there is NO explicit save — content commits on add, Done just closes", () => {
+    // Removes the whole class of a save that reported success and dropped the link (P18).
+    expect(panel).toContain("onCommit({ ...cfg, connection: next })");
     const copy = panel.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
     expect(copy).not.toContain("Save connection");
+    expect(copy).not.toContain("Save interaction");
+    expect(panel).toContain('"Done"');
   });
 
-  it("a connection can be replaced, and removed", () => {
-    const replaced = withConn("website", "https://example.com/new");
-    expect(resolveConnection(replaced)?.url).toContain("/new");
-    const removed: NestPlacement = { ...tv, interaction: { asset: { initialState: "off" } } };
-    expect(resolveConnection(removed)).toBeNull();
-    expect(panel).toContain("Remove interaction");
+  it("the sheet asks for no behaviour at all", () => {
+    for (const gone of ["How it starts", "Starts off", "Starts on", "Turn it on and off", "Nothing"]) {
+      expect(panel).not.toContain(gone);
+    }
   });
 
-  it("switching to Nothing clears the connection but keeps the toggle", () => {
-    const only: NestPlacement = { ...tv, interaction: { asset: { initialState: "on" } } };
-    expect(resolveConnection(only)).toBeNull();
-    expect(tapObject(only, "on").state).toBe("off");
+  it("connections still round-trip through the document", () => {
+    expect(resolveConnection(withConn("youtube", "https://youtu.be/aqz-KE-bpKQ"))?.kind).toBe("youtube");
+    const reopened = nestDocumentToEditable(roundTrip({ ...INTERACTIVE_TEST_NEST, placements: [withConn("website", "https://example.com/a")] }));
+    expect(reopened.objects[0].assetInteraction?.connection?.url).toBe("https://example.com/a");
+    expect(resolveConnection(editableObjectsToPlacements(reopened.objects)[0])?.kind).toBe("website");
   });
 
-  it("survives save → publish → reopen", () => {
-    const doc: NestDocument = { ...INTERACTIVE_TEST_NEST, placements: [withConn("youtube", "https://youtu.be/aqz-KE-bpKQ")] };
-    const reopened = nestDocumentToEditable(roundTrip(doc));
-    expect(reopened.objects[0].assetInteraction?.connection?.url).toBe("https://youtu.be/aqz-KE-bpKQ");
-    const republished = editableObjectsToPlacements(reopened.objects);
-    expect(resolveConnection(republished[0])?.kind).toBe("youtube");
+  it("removing a connection leaves the object's built-in behaviour intact", () => {
+    const bare: NestPlacement = { ...tv };
+    expect(resolveConnection(bare)).toBeNull();
+    expect(tapObject(bare, "off").state).toBe("on"); // a TV is still a TV
   });
 });
-
-// ── P5/P6. the redesign, and parity ──────────────────────────────────────────
 
 describe("P5. the sheet reads as a creator flow, not a settings form", () => {
   it("no implementation vocabulary is visible to a creator", () => {
@@ -291,14 +278,14 @@ describe("P5. the sheet reads as a creator flow, not a settings form", () => {
     }
   });
 
-  it("behaviour comes first and content is a second step", () => {
-    expect(panel).toContain('type Step = "behaviour" | "content"');
-    expect(panel).toContain('setStep("content")');
+  it("M26-R — there are no steps at all: one field, one Done", () => {
+    expect(panel).not.toContain('type Step =');
+    expect(panel).toContain('placeholder="Paste a link"');
   });
 
-  it("the starting state is a compact toggle, not the dominant section", () => {
-    expect(panel).toContain("How it starts");
-    expect(panel).toContain("Starts ");
+  it("M26-R — pasting acts immediately, without a second tap", () => {
+    expect(panel).toContain("onPaste={(e) => {");
+    expect(panel).toContain("connect(detectContentSource(text));");
   });
 
   it("drops the uppercase micro-label styling the old panel leaned on", () => {
@@ -306,9 +293,9 @@ describe("P5. the sheet reads as a creator flow, not a settings form", () => {
     expect(panel).not.toContain("uppercase tracking-[.18em]");
   });
 
-  it("offers Test interaction, wired to the real Preview runtime", () => {
-    expect(panel).toContain("Test");
-    expect(editor).toContain("onTest={onPreview}");
+  it("M26-R — no per-object Test button; Preview is the one top-level mode", () => {
+    expect(editor).toContain("function ModeSwitch(");
+    expect(panel).not.toContain("onTest");
   });
 });
 

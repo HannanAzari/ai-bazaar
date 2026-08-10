@@ -76,8 +76,16 @@ describe("2. a drag on the selected object owns the object", () => {
     expect(resolveGestureOwner({ pointerCount: 1, target: "resize-handle", scale: 2, locked: true })).toBe("none");
   });
 
-  it("a drag on ANOTHER object selects it rather than flinging it", () => {
-    expect(resolveGestureOwner({ pointerCount: 1, target: "other-object", scale: 2 })).toBe("select");
+  it("M26-R P0 — a drag on an UNSELECTED object moves it too", () => {
+    // Regression: M26A-final gave this `select`, while the canvas armed `kind: "move"` and
+    // the move gate demanded `object-move` — so press-and-drag on anything not already
+    // selected did nothing at all. Selection happens at pointer-down anyway.
+    expect(resolveGestureOwner({ pointerCount: 1, target: "other-object", scale: 2 })).toBe("object-move");
+    expect(resolveGestureOwner({ pointerCount: 1, target: "other-object", scale: 1 })).toBe("object-move");
+  });
+
+  it("…but a LOCKED object still only selects", () => {
+    expect(resolveGestureOwner({ pointerCount: 1, target: "other-object", scale: 2, locked: true })).toBe("select");
   });
 
   it("classifyTarget checks handles BEFORE the object element", () => {
