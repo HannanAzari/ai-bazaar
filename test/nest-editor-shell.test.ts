@@ -168,7 +168,9 @@ describe("§7 — one dirty-state source of truth", () => {
 
   it("a successful save and a publish both clear it", () => {
     expect(editor).toContain("persistedRef.current = dirtyKey(doc); // §7");
-    expect(editor).toContain("onClose={() => { persistedRef.current = dirtyKey(doc); setShowPublish(false); }}");
+    // M26-S2 §0 also records the persisted DOCUMENT here, so "Close without saving" has
+    // something to roll back to (a debounced autosave has already written the change).
+    expect(editor).toContain("onClose={() => { persistedRef.current = dirtyKey(doc); persistedDocRef.current = doc; setShowPublish(false); }}");
   });
 });
 

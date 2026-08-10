@@ -181,7 +181,49 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   // without editing, or selecting objects — none of those change the Nest.
   const persistedRef = useRef<string | null>(null);
   const isDirty = () => persistedRef.current !== null && persistedRef.current !== dirtyKey(doc);
+  /**
+   * M26-S2 §0 — the last EXPLICITLY persisted document, kept so discard has something to
+   * roll back to.
+   *
+   * `dirtyKey` alone cannot do this: it is a comparison string, not a document. And a
+   * debounced autosave (below) writes every edit to the draft ~900ms after it happens, so
+   * by the time the creator reaches "Close without saving" their change is already on disk.
+   * Sprint 1 added the explicit Save-draft / Discard choice on top of that autosave without
+   * anything to restore, which is why the discarded change kept coming back.
+   */
+  const persistedDocRef = useRef<EditableNestDocument | null>(null);
   const [history, setHistory] = useState<History<EditableNestDocument>>(() => createHistory(seed ?? freshDocument(), 50));
+
+  // ── M26-S2 §0 — Save draft had no matching LOAD ────────────────────────────
+  //
+  // Found by walking the pre-flight the sprint brief asks for, and it is the more serious
+  // half of this sprint: edit → Close → Save draft → reopen showed the STARTER Nest again.
+  // The draft was written correctly every time (verified in localStorage); nothing ever
+  // read it back. `loadDraft` existed but was reachable only from a manual "Load draft"
+  // item in the Advanced menu, so the primary lifecycle Sprint 1 introduced — saving on the
+  // way out — silently discarded the creator's work on every reopen.
+  //
+  // Scoped to the scratch session (`!documentId`). A saved Nest's canonical version is the
+  // server document, and `saveNow` clears its draft after a successful save, so restoring a
+  // local draft over it could resurrect stale geometry.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current || documentId) return;
+    restored.current = true;
+    const r = loadDraft(seed?.id ?? freshDocument().id);
+    if (r.ok && r.doc) {
+      setHistory(createHistory(r.doc, 50));
+      // The restored draft — not the seed — is the persisted baseline. Both refs must be
+      // set HERE: the baseline effect below runs in the same commit and closes over the
+      // seed document from this render, so leaving it to that effect made "Close without
+      // saving" roll all the way back to the starter Nest and throw away work that had
+      // already been saved.
+      persistedRef.current = dirtyKey(r.doc);
+      persistedDocRef.current = r.doc;
+    }
+    // Runs after mount, never during render: localStorage does not exist on the server, and
+    // seeding state from it directly would be a hydration mismatch.
+  }, [documentId, seed?.id]);
   const [mode, setMode] = useState<Mode>("arrange");
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [showGrid, setShowGrid] = useState(false);
@@ -588,6 +630,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
     if (!documentId) {
       // No document id ⇒ a scratch session (direct /nest-editor). Autosave is all there is.
       const r = saveDraft({ ...doc, updatedAt: new Date().toISOString() });
+      if (r.ok) { persistedRef.current = dirtyKey(doc); persistedDocRef.current = doc; }
       setSaveState(r.ok ? "saved" : "unsaved");
       flash(r.ok ? "Saved ✓" : `Save failed: ${r.error}`);
       return;
@@ -613,6 +656,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
       );
       clearDraft(documentId); // the canonical version is now the only version
       persistedRef.current = dirtyKey(doc); // §7 — a successful save clears dirty
+      persistedDocRef.current = doc;
       setSaveState("saved");
       flash(target === "draft" ? "Draft saved — your live Nest is unchanged" : "Saved ✓");
     } catch (e) {
@@ -633,6 +677,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   // been loaded is never reported as unsaved.
   useEffect(() => {
     if (persistedRef.current === null) persistedRef.current = dirtyKey(doc);
+    if (persistedDocRef.current === null) persistedDocRef.current = doc;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- baseline is seeded ONCE
   }, [doc.id]);
 
@@ -652,8 +697,21 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
     }
   };
   const closeDiscarding = () => {
-    // Only changes since the last persisted state are dropped; the persisted draft stands.
+    // ── M26-S2 §0 — the other half of the same hole ──────────────────────────
+    //
+    // This cleared the draft only when there was a server `documentId`. In a scratch
+    // session the draft IS the only store, so "Close without saving" left it untouched and
+    // the discarded change came straight back on reopen — invisible until the load above
+    // started working, which is why it surfaced with it.
+    //
+    // With a server document the draft is only the unsaved delta, so dropping it is enough
+    // — the canonical version stands. In a scratch session the draft IS the store, and
+    // autosave has already written the unwanted change into it, so discarding means writing
+    // the last explicitly-saved document back over it. Only when nothing was ever saved is
+    // there genuinely nothing to keep.
     if (documentId) clearDraft(documentId);
+    else if (persistedDocRef.current) saveDraft(persistedDocRef.current);
+    else clearDraft(doc.id);
     window.location.href = "/profile";
   };
 
@@ -719,7 +777,10 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
           what you approve here is literally the document that gets written. */}
       {mode === "preview" ? (
         <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-3">
-          <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2" style={{ marginTop: "env(safe-area-inset-top)" }}>
+          {/* M26-S2 §0 pre-flight C — `top-3` here against the Edit header's own padding
+              put the switch 2px lower in Preview, so it twitched on every mode change.
+              Measured at 375×812: Edit y=10, Preview y=12. */}
+          <div className="absolute left-1/2 top-2.5 z-10 -translate-x-1/2" style={{ marginTop: "env(safe-area-inset-top)" }}>
             <ModeSwitch previewing={previewing} onEdit={exitPreview} onPreview={onPreview} />
           </div>
           {/* §3 — the "exactly what visitors see" caption is gone. It was absolutely
@@ -1128,7 +1189,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
           documentId={documentId}
           objects={doc.objects}
           scene={editableSceneExtras(doc)}
-          onClose={() => { persistedRef.current = dirtyKey(doc); setShowPublish(false); }}
+          onClose={() => { persistedRef.current = dirtyKey(doc); persistedDocRef.current = doc; setShowPublish(false); }}
         />
       ) : null}
 

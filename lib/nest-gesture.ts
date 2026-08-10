@@ -119,13 +119,62 @@ export function beginGesture(ctx: GestureContext, pointerId: number): ActiveGest
  * The owner after another pointer goes down. Only ever escalates to a pinch; it never
  * re-decides between object and camera, because that is the bug this module prevents.
  */
-export function upgradeGesture(active: ActiveGesture, pointerCount: number, onSelectedTransformRegion = false): ActiveGesture {
+export function upgradeGesture(active: ActiveGesture, pointerCount: number, _onSelectedTransformRegion = false): ActiveGesture {
   if (pointerCount < 2) return active;
-  // A second finger arriving on the object the creator is already holding is a transform,
-  // not a camera pinch — that is the sticker gesture. Anywhere else, the camera takes it
-  // and the object is abandoned exactly where it is.
-  const movingSelected = active.owner === "object-move" || active.owner === "object-transform";
-  return { ...active, owner: movingSelected && onSelectedTransformRegion ? "object-transform" : "camera-pinch" };
+  // ── M26-S2 §2 — a family NEVER changes mid-gesture ──────────────────────────
+  //
+  //     OBJECT must never become CAMERA midway.
+  //     CAMERA must never become OBJECT midway.
+  //
+  // Only the SUBTYPE may change, and only within the family:
+  //
+  //     object-move → object-transform      camera-pan → camera-pinch
+  //
+  // This used to hand the gesture to the camera whenever the second finger landed outside
+  // the object's transform region. That is the forbidden transition, and it was also
+  // unpredictable in the hand: whether a second finger zoomed the room or resized the
+  // sticker depended on a 90px box the creator cannot see. Now the first finger decides.
+  // If it was on the object, a second finger transforms that object — full stop. To pinch
+  // the room, start the pinch on the room.
+  //
+  // `_onSelectedTransformRegion` is retained so callers need not change; the region still
+  // decides ownership when two fingers land together (see `twoFingerOwner`), which is the
+  // case it was actually built for.
+  if (ownerMovesObject(active.owner)) return { ...active, owner: "object-transform" };
+  return { ...active, owner: "camera-pinch" };
+}
+
+/**
+ * Where the object's centre must be, given the two-finger geometry.
+ *
+ * The object stays anchored under the fingers — spread them and it grows away from the
+ * midpoint, twist them and it swings around the midpoint. That is what makes it feel like
+ * holding the thing rather than operating a control.
+ *
+ *     c₁ = m₁ + R(θ)·s·(c₀ − m₀)
+ *
+ * Computed from the gesture's START state every frame, never accumulated (§4). A dropped
+ * frame, a re-render or a slow paint therefore cannot make the object drift away from the
+ * fingers — replaying the same two pointer positions always yields the same answer.
+ *
+ * Screen pixels in, screen pixels out. Scene coordinates are normalised against a 3:4 room,
+ * so they are anisotropic — rotating in that space would shear the object.
+ */
+export function transformedCentre(
+  centreStart: { x: number; y: number },
+  start: PinchSample,
+  now: PinchSample,
+): { x: number; y: number } {
+  const { scale, rotationDeg } = objectTransformFromPinch(start, now);
+  const rad = (rotationDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const vx = (centreStart.x - start.midpoint.x) * scale;
+  const vy = (centreStart.y - start.midpoint.y) * scale;
+  return {
+    x: now.midpoint.x + vx * cos - vy * sin,
+    y: now.midpoint.y + vx * sin + vy * cos,
+  };
 }
 
 /**

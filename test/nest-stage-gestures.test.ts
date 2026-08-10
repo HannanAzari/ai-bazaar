@@ -130,8 +130,13 @@ describe("4. ownership is locked until pointer-up", () => {
     expect(ownerMovesCamera(g.owner)).toBe(false);
   });
 
-  it("the ONE legal escalation is a second finger arriving — that is a pinch", () => {
-    expect(upgradeGesture(beginGesture(ctx, 1), 2).owner).toBe("camera-pinch");
+  it("the ONE legal escalation keeps the gesture in its own family", () => {
+    // CHANGED BY M26-S2 §2: an object drag escalates to an object TRANSFORM, never to a
+    // camera pinch. `ctx` here is an object gesture, and OBJECT must never become CAMERA.
+    expect(upgradeGesture(beginGesture(ctx, 1), 2).owner).toBe("object-transform");
+    // A camera gesture escalates the same way, within ITS family.
+    const pan = beginGesture({ pointerCount: 1, target: "empty", scale: 4 }, 1);
+    expect(upgradeGesture(pan, 2).owner).toBe("camera-pinch");
   });
 
   it("the editor's pan filter routes through the arbiter, not an ad-hoc predicate", () => {

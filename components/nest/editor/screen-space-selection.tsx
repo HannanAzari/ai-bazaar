@@ -38,7 +38,6 @@ export function ScreenSpaceSelection({
   subscribe,
   viewportRef,
   baseSizeRef,
-  onHandleDown,
   rotatable,
   hidden,
   toolbar,
@@ -51,7 +50,6 @@ export function ScreenSpaceSelection({
   viewportRef: React.RefObject<HTMLElement | null>;
   /** The UNTRANSFORMED stage size, needed by sceneToScreen. */
   baseSizeRef: React.RefObject<{ width: number; height: number }>;
-  onHandleDown: (e: React.PointerEvent, o: EditableNestObject, kind: "resize" | "rotate", dirX?: number) => void;
   rotatable: boolean;
   /** A hidden or deleted object must not leave floating controls behind. */
   hidden?: boolean;
@@ -98,7 +96,14 @@ export function ScreenSpaceSelection({
     <div
       ref={frameRef}
       data-screen-selection=""
-      data-editor-chrome=""
+      // ── M26-S2 §9 — `data-editor-chrome` moved DOWN to the toolbar ────────────
+      //
+      // Sprint 1 marked this whole frame as chrome to stop the camera capturing taps on the
+      // toolbar (the Mirror bug). But the resize and rotation handles live in here too, and
+      // marking them chrome told the camera — now the only thing listening — to ignore them
+      // completely. They need the pointer pipeline; only the BUTTONS need to be exempt from
+      // it. The marker therefore sits on the toolbar wrapper, which is what Mirror is
+      // actually inside.
       className="pointer-events-none absolute"
       // No transform of any kind: position and size are written in screen pixels. That is
       // what makes "handles never scale" true by construction rather than by cancellation.
@@ -123,7 +128,12 @@ export function ScreenSpaceSelection({
           <span
             key={`${cx}-${cy}`}
             data-resize-handle=""
-            onPointerDown={(e) => onHandleDown(e, object, "resize", dirX)}
+            // M26-S2 §2 — the handle declares its corner and nothing else. No pointer
+            // handler: the arbiter reads `data-resize-handle` off the event target, so the
+            // handles use the same single pipeline as every other gesture. Their old React
+            // `onPointerDown` armed a gesture whose `pointermove` then went to the scene
+            // element — which is not an ancestor of this frame, so it never arrived.
+            data-dir-x={dirX}
             className="pointer-events-auto absolute flex cursor-nwse-resize touch-none items-center justify-center"
             style={{
               width: HANDLE,
@@ -140,6 +150,7 @@ export function ScreenSpaceSelection({
       {toolbar ? (
         <div
           data-object-toolbar=""
+          data-editor-chrome=""
           className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 justify-center"
           // A constant pixel gap, never a percentage of the frame — a percentage collapses
           // onto a tiny object and balloons on a big one.
@@ -160,7 +171,6 @@ export function ScreenSpaceSelection({
             type="button"
             aria-label="Rotate"
             data-rotate-handle=""
-            onPointerDown={(e) => onHandleDown(e, object, "rotate")}
             className="pointer-events-auto absolute flex cursor-grab touch-none items-center justify-center"
             style={{ width: 44, height: 44, left: "calc(50% - 22px)", top: -ROTATE_GAP - 44 }}
           >

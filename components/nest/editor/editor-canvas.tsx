@@ -33,7 +33,20 @@ import { EDITOR_TOUCH_TARGETS } from "@/lib/nest-editor-touch-targets";
 import { contextToolbarPlacement, type ToolbarPlacement } from "@/lib/nest-editor-toolbar";
 import { useSceneCamera } from "@/components/nest/app-shell/use-scene-camera";
 import { z } from "@/lib/nest-layers";
-import { beginGesture, classifyTarget, gestureAllows, ownerMovesCamera, resolveGestureOwner, upgradeGesture, type ActiveGesture } from "@/lib/nest-gesture";
+import {
+  beginGesture,
+  classifyTarget,
+  objectTransformFromPinch,
+  ownerMovesCamera,
+  ownerMovesObject,
+  pinchSample,
+  resolveGestureOwner,
+  transformedCentre,
+  transformRegionFor,
+  upgradeGesture,
+  type ActiveGesture,
+  type PinchSample,
+} from "@/lib/nest-gesture";
 import { capabilitiesForAsset } from "@/lib/nest-asset-interaction";
 import { visibleSceneCentre } from "@/lib/nest-camera";
 import { ScreenSpaceSelection } from "@/components/nest/editor/screen-space-selection";
@@ -99,8 +112,24 @@ type Gesture =
   | { kind: "move"; id: string; startNX: number; startNY: number }
   | { kind: "resize"; id: string; dirX: number; startNX: number; startW: number }
   | { kind: "rotate"; id: string; cx: number; cy: number; startAngle: number; startRot: number }
+  /**
+   * M26-S2 §4 — the sticker gesture. Everything it needs is captured ONCE, here, at the
+   * moment the second finger lands: the two-pointer geometry, the object's centre in screen
+   * pixels, and its width and rotation. Every frame is then a pure function of this and the
+   * current pointer positions — nothing accumulates, so nothing drifts.
+   */
+  | { kind: "transform"; id: string; start: PinchSample; centrePx: Pt; startW: number; startRot: number };
 
 type Pt = { x: number; y: number };
+
+/**
+ * M26-S2 §7 — how far a finger travels before a tap becomes a drag.
+ *
+ * Smaller than the camera's 10px tap slop on purpose: by the time the camera would call it
+ * a drag, an object should already be following the finger, or the first few millimetres of
+ * every move feel stuck.
+ */
+const DRAG_SLOP_PX = 5;
 
 const pctOf = (n: number) => `${+(n * 100).toFixed(3)}%`;
 /** Constant gap (px) the rotate handle sits above the selection frame. */
@@ -114,7 +143,8 @@ export function EditorCanvas(props: Props) {
   const { doc, assetsById, ambience, selectedId, onSelect, onCommit, showGrid, snap, advanced, zoom, hideChrome, gridCols = 24, gridRows = 32 } = props;
   const connect = props.connect ?? false;
   const sceneRef = useRef<HTMLDivElement>(null);
-  const pointers = useRef<Map<number, Pt>>(new Map());
+  /** Live pointer positions for the current session, in viewport-client coordinates. */
+  const ptsRef = useRef<Pt[]>([]);
   const gestureRef = useRef<Gesture | null>(null);
   // ── M26A-final — ONE dispatcher ──────────────────────────────────────────
   //
@@ -154,7 +184,7 @@ export function EditorCanvas(props: Props) {
   const liveDoc: EditableNestDocument = (() => {
     const g = gestureRef.current;
     if (!g) return doc;
-    const pts = Array.from(pointers.current.values());
+    const pts = ptsRef.current;
     if (g.kind === "move" && pts[0]) {
       const { nx, ny } = toNorm(pts[0].x, pts[0].y);
       const o0 = doc.objects.find((o) => o.instanceId === g.id)!;
@@ -185,6 +215,41 @@ export function EditorCanvas(props: Props) {
       if (snap) w = snapStep(w, 1 / gridCols);
       return resizeObject(doc, g.id, w, assetsById);
     }
+    // ── M26-S2 §4 — two fingers: move + scale + rotate, as ONE gesture ─────────
+    //
+    // Derived entirely from `g` (the start state) and the two live pointers. The object is
+    // anchored under the fingers via `transformedCentre`, so spreading grows it away from
+    // the midpoint and twisting swings it around the midpoint — the Instagram feel.
+    //
+    // No snapping and no alignment guides here: a free transform that quantises fights the
+    // hand. Snapping stays on the one-finger move, where it helps.
+    if (g.kind === "transform" && pts.length >= 2) {
+      const o0 = doc.objects.find((o) => o.instanceId === g.id);
+      const r = sceneRef.current?.getBoundingClientRect();
+      if (!o0 || !r || r.width === 0) return doc;
+      const now = pinchSample(pts[0], pts[1]);
+      const t = objectTransformFromPinch(g.start, now);
+
+      // Scale first: `resizeObject` preserves the source aspect and applies the asset's own
+      // min/max guardrail, so a sticker cannot be pinched into a distorted sliver.
+      let next = resizeObject(doc, g.id, g.startW * t.scale, assetsById);
+
+      // Then place the centre. Done AFTER the resize and as an absolute target rather than
+      // a delta, so the guardrail clamping above cannot leak into the position.
+      const c = transformedCentre(g.centrePx, g.start, now);
+      const cur = next.objects.find((o) => o.instanceId === g.id)!;
+      next = moveObject(
+        next,
+        g.id,
+        (c.x - r.left) / r.width - (cur.x + cur.width / 2),
+        (c.y - r.top) / r.height - (cur.y + cur.height / 2),
+        assetsById,
+      );
+
+      // Rotation is policy-gated (a rug does not rotate); `rotateObject` no-ops when the
+      // asset disallows it, so scale and move still work on those.
+      return rotateObject(next, g.id, g.startRot + t.rotationDeg, assetsById);
+    }
     if (g.kind === "rotate" && pts[0]) {
       const { nx, ny } = toNorm(pts[0].x, pts[0].y);
       let rot = g.startRot + (angle({ x: g.cx, y: g.cy }, { x: nx, y: ny }) - g.startAngle);
@@ -198,13 +263,6 @@ export function EditorCanvas(props: Props) {
   const selected = selectedId ? liveDoc.objects.find((o) => o.instanceId === selectedId) : undefined;
   const selectedAsset = selected ? assetsById[selected.assetId] : undefined;
 
-  function capture(e: React.PointerEvent) {
-    try {
-      (e.target as Element).setPointerCapture?.(e.pointerId);
-    } catch {
-      /* capture unavailable — gesture still works */
-    }
-  }
   function commit() {
     ownerRef.current = null;
     if (gestureRef.current) {
@@ -218,15 +276,42 @@ export function EditorCanvas(props: Props) {
 
   // Overlap-aware selection: pick from ALL objects under the pointer (visible bounds +
   // min tap target), cycling on repeated taps near the same point. Returns the chosen id.
-  function selectAtPoint(e: React.PointerEvent, fallback: EditableNestObject): string {
-    const { nx, ny } = toNorm(e.clientX, e.clientY);
+  /**
+   * ── M26-S2 §1/§7 — selection at pointer-DOWN, cycling at pointer-UP ─────────
+   *
+   * Overlap cycling and dragging both begin with the same pointer-down, and they wanted
+   * opposite things:
+   *
+   *   • tapping a stack repeatedly should walk DOWN through it (`TAP_CYCLE_TIMEOUT_MS` is
+   *     1.6s, so "repeatedly" is generous);
+   *   • pressing the thing you just selected and dragging must move THAT thing.
+   *
+   * Because cycling ran on pointer-down, the second one lost: tap a table to select it,
+   * press it a moment later to drag, and the cycle advanced to the sofa underneath — so the
+   * creator dragged an object they had not touched. Measured, not reasoned about.
+   *
+   * The fix is to split the two. At pointer-down the gesture is armed on the object that is
+   * ALREADY selected whenever it lies under the finger, so a drag always moves what the
+   * creator can see is selected. The cycled candidate is only remembered, and applied in
+   * `up()` if the gesture turned out to be a pure tap.
+   */
+  const pendingCycle = useRef<{ id: string; state: TapCycleState | undefined } | null>(null);
+
+  function selectAtPoint(clientX: number, clientY: number, fallback: EditableNestObject): string {
+    const { nx, ny } = toNorm(clientX, clientY);
     const point = { x: nx, y: ny };
     const candidates = hitTestCandidates(liveDoc.objects, assetsById, point, { scene: sceneSize() });
     const res = nextSelection(tapCycle.current, candidates, point, nowMs());
+    const cycled = res.selectedId ?? fallback.instanceId;
+
+    // Is the current selection under this finger? Then it is what gets dragged.
+    const keep = selectedId && candidates.some((c) => c.objectId === selectedId) ? selectedId : null;
+    pendingCycle.current = keep && cycled !== keep ? { id: cycled, state: res.state } : null;
+    if (keep) return keep;
+
     tapCycle.current = res.state;
-    const id = res.selectedId ?? fallback.instanceId;
-    onSelect(id);
-    return id;
+    onSelect(cycled);
+    return cycled;
   }
 
   // Long-press → open the layer picker when ≥2 objects overlap the point.
@@ -236,7 +321,7 @@ export function EditorCanvas(props: Props) {
       const candidates = hitTestCandidates(liveDoc.objects, assetsById, { x: nx, y: ny }, { scene: sceneSize() });
       if (candidates.length >= 2) {
         gestureRef.current = null; // cancel any pending move so the picker takes over
-        pointers.current.clear();
+        ptsRef.current = [];
         didMove.current = false;
         setPicker({ nx, ny, ids: candidates.map((c) => c.objectId) });
         rerender();
@@ -244,96 +329,180 @@ export function EditorCanvas(props: Props) {
     }, 450);
   }
 
-  function onObjectDown(e: React.PointerEvent, o: EditableNestObject) {
-    const id = selectAtPoint(e, o);
-    setLayerOpen(false);
-    setPicker(null);
+  // ── M26-S2 §2 — THE ARBITER ────────────────────────────────────────────────
+  //
+  // The single place a gesture's owner is decided, and the only object-manipulation code
+  // left in this file. It is handed to `useSceneCamera`, which is now the one and only
+  // thing listening to pointers anywhere in the editor.
+  //
+  // WHAT WAS HERE BEFORE: React `onPointerDown` on every object, plus `onPointerMove` and
+  // `onPointerUp` on the scene element — a second, independent pointer pipeline running
+  // alongside the camera's native listeners on the viewport ancestor. Both saw every event.
+  // The camera pinched on two fingers regardless of what this file had decided, so
+  // `object-transform` was unreachable no matter what the arbiter returned. And because the
+  // scene element is NOT an ancestor of the screen-space selection frame, `pointermove`
+  // from a resize or rotate handle never reached those React handlers at all — which is why
+  // the corner handles have been inert since the frame moved into screen space.
+  //
+  // One listener set, one owner, one code path for all four gestures.
+
+  function armObject(clientX: number, clientY: number, o: EditableNestObject) {
+    const id = selectAtPoint(clientX, clientY, o);
     const sel = liveDoc.objects.find((x) => x.instanceId === id) ?? o;
-    const { nx, ny } = toNorm(e.clientX, e.clientY);
-    downClient.current = { x: e.clientX, y: e.clientY };
-    didMove.current = false;
+    const { nx, ny } = toNorm(clientX, clientY);
     armLongPress(nx, ny);
-    // Connect / Surface mode: tapping an asset only selects it — never moves it.
-    if (connect || props.surface) return;
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (sel.locked) return;
-    e.preventDefault();
-    capture(e);
-    const pts = Array.from(pointers.current.values());
-    // M26A-final: a second finger on an object is a CAMERA PINCH, not an object resize.
-    // The old code resized and rotated the object from a two-finger gesture, so pinching
-    // to look closer silently rewrote the creator's geometry.
-    if (pts.length >= 2) {
-      ownerRef.current = ownerRef.current ? upgradeGesture(ownerRef.current, pts.length) : null;
-      gestureRef.current = null;
-      rerender();
-      return;
-    }
     ownerRef.current = beginGesture(
       { pointerCount: 1, target: sel.instanceId === selectedId ? "selected-object" : "other-object", scale: camScaleRef.current, objectId: sel.instanceId, locked: sel.locked },
-      e.pointerId,
+      0,
     );
-    // `select` still arms a move: the drag threshold in onPointerMove decides whether it
-    // ever becomes one, so a tap selects and a drag moves, from the same gesture.
+    // A locked object selects but never moves (§10) — and Connect/Surface modes select only.
+    if (sel.locked || connect || props.surface) return;
+    // `move` is armed even for a tap: DRAG_SLOP_PX decides whether it ever becomes one, so
+    // "tap selects" and "drag moves" come from the same gesture with no mode in between.
     gestureRef.current = { kind: "move", id: sel.instanceId, startNX: nx, startNY: ny };
-    rerender();
   }
 
-  function onHandleDown(e: React.PointerEvent, o: EditableNestObject, kind: "resize" | "rotate", dirX = 1) {
-    e.preventDefault();
-    e.stopPropagation();
+  /** A second finger arrived while the object owned the session — become a transform (§4). */
+  function armTransform(pts: Pt[]) {
+    const g = ownerRef.current;
+    const r = sceneRef.current?.getBoundingClientRect();
+    const id = g?.objectId;
+    const o = id ? liveDoc.objects.find((x) => x.instanceId === id) : undefined;
+    if (!o || !r || o.locked) return;
+    ownerRef.current = upgradeGesture(g!, pts.length);
     clearTimeout(longPress.current);
-    didMove.current = false;
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    capture(e);
+    gestureRef.current = {
+      kind: "transform",
+      id: o.instanceId,
+      start: pinchSample(pts[0], pts[1]),
+      // The object's centre in SCREEN pixels. The camera is frozen for the whole session
+      // (§2), so this stays valid for every frame of the gesture.
+      centrePx: { x: r.left + (o.x + o.width / 2) * r.width, y: r.top + (o.y + o.height / 2) * r.height },
+      startW: o.width,
+      startRot: o.rotation ?? 0,
+    };
+  }
+
+  const arbiter = {
+    down(e: PointerEvent, pts: Pt[]): boolean {
+      ptsRef.current = pts;
+      const el = e.target instanceof Element ? e.target : null;
+      const cls = classifyTarget(
+        (selector) => {
+          const hit = el?.closest(selector) as HTMLElement | null;
+          if (!hit) return null;
+          return { id: hit.dataset.editorObject ?? "handle", locked: hit.dataset.locked === "1" };
+        },
+        selectedId,
+      );
+
+      // A SECOND finger. The family is already locked; all this can do is upgrade the
+      // object's own subtype. If the camera owns the session, it stays the camera (§2).
+      if (pts.length >= 2) {
+        if (!ownerRef.current || !ownerMovesObject(ownerRef.current.owner)) {
+          // The camera keeps it. Recorded so the §14 diagnostic reports CAMERA/camera-pinch
+          // rather than the single-finger owner it started with.
+          ownerRef.current = { owner: "camera-pinch", pointerId: 0 };
+          rerender();
+          return false;
+        }
+        armTransform(pts);
+        rerender();
+        return true;
+      }
+
+      // FIRST finger — this is the only moment ownership is decided.
+      setLayerOpen(false);
+      setPicker(null);
+      didMove.current = false;
+      downClient.current = { x: e.clientX, y: e.clientY };
+
+      if (cls.target === "resize-handle" || cls.target === "rotate-handle") {
+        if (!selected || selected.locked) return false;
+        e.preventDefault();
+        armHandle(e.clientX, e.clientY, selected, cls.target === "resize-handle" ? "resize" : "rotate", el);
+        rerender();
+        return true;
+      }
+
+      if (cls.target === "empty" || !cls.objectId) {
+        // The camera takes it: a pan while zoomed, or a tap that deselects (§11). Nothing
+        // is deselected HERE — that happens on the camera's tap, so starting a pan does not
+        // throw away the creator's selection.
+        ownerRef.current = beginGesture({ pointerCount: 1, target: "empty", scale: camScaleRef.current }, 0);
+        tapCycle.current = undefined;
+        rerender(); // so the §14 readout says CAMERA, not the previous session's owner
+        return false;
+      }
+
+      const o = liveDoc.objects.find((x) => x.instanceId === cls.objectId);
+      if (!o) return false;
+      e.preventDefault();
+      armObject(e.clientX, e.clientY, o);
+      rerender();
+      return true;
+    },
+
+    move(pts: Pt[]) {
+      ptsRef.current = pts;
+      const g = gestureRef.current;
+      if (!g) return;
+
+      if (g.kind === "transform") {
+        // A pinch is a move the instant it changes anything; there is no such thing as a
+        // two-finger tap that should land in history.
+        const t = objectTransformFromPinch(g.start, pinchSample(pts[0], pts[1]));
+        if (Math.abs(t.scale - 1) > 0.01 || Math.abs(t.rotationDeg) > 0.5 || Math.hypot(t.dx, t.dy) > DRAG_SLOP_PX) {
+          didMove.current = true;
+        }
+        rerender();
+        return;
+      }
+
+      // §7 — nothing moves until the finger has actually travelled, so a tap that wobbles a
+      // pixel selects instead of nudging the object a pixel out of place.
+      if (!didMove.current) {
+        const d = downClient.current;
+        if (d && Math.hypot(pts[0].x - d.x, pts[0].y - d.y) < DRAG_SLOP_PX) return;
+        clearTimeout(longPress.current);
+        didMove.current = true;
+      }
+      rerender();
+    },
+
+    up(tapped: boolean) {
+      clearTimeout(longPress.current);
+      downClient.current = null;
+      // A pure tap on a stack advances the overlap cycle; a drag never does.
+      const pc = pendingCycle.current;
+      if (tapped && !didMove.current && pc) {
+        tapCycle.current = pc.state;
+        onSelect(pc.id);
+      }
+      pendingCycle.current = null;
+      commit();
+      ptsRef.current = [];
+      rerender();
+    },
+  };
+
+  function armHandle(clientX: number, clientY: number, o: EditableNestObject, kind: "resize" | "rotate", el: Element | null) {
+    clearTimeout(longPress.current);
     ownerRef.current = beginGesture(
       { pointerCount: 1, target: kind === "resize" ? "resize-handle" : "rotate-handle", scale: camScaleRef.current, objectId: o.instanceId, locked: o.locked },
-      e.pointerId,
+      0,
     );
     if (kind === "resize") {
-      const { nx } = toNorm(e.clientX, e.clientY);
+      const { nx } = toNorm(clientX, clientY);
+      // Which corner: read the direction the handle itself declares.
+      const dirX = Number((el?.closest("[data-resize-handle]") as HTMLElement | null)?.dataset.dirX ?? 1) || 1;
       gestureRef.current = { kind: "resize", id: o.instanceId, dirX, startNX: nx, startW: o.width };
     } else {
       const cx = o.x + o.width / 2;
       const cy = o.y + o.height / 2;
-      const { nx, ny } = toNorm(e.clientX, e.clientY);
+      const { nx, ny } = toNorm(clientX, clientY);
       gestureRef.current = { kind: "rotate", id: o.instanceId, cx, cy, startAngle: angle({ x: cx, y: cy }, { x: nx, y: ny }), startRot: o.rotation ?? 0 };
     }
-    rerender();
-  }
-
-  function onPointerMove(e: React.PointerEvent) {
-    // Cancel a pending long-press once the pointer travels (it's a drag, not a press).
-    if (downClient.current) {
-      const moved = Math.hypot(e.clientX - downClient.current.x, e.clientY - downClient.current.y);
-      if (moved > 8) clearTimeout(longPress.current);
-    }
-    if (!pointers.current.has(e.pointerId)) return;
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    const g = gestureRef.current;
-    if (!g) return;
-    // The owner decided at pointer-down is the ONLY thing allowed to act.
-    const owner = ownerRef.current;
-    const wanted = g.kind === "move" ? "object-move" : g.kind === "resize" ? "object-resize" : "object-rotate";
-    if (!gestureAllows(owner, wanted)) return;
-    e.preventDefault();
-    didMove.current = true;
-    const pts = Array.from(pointers.current.values());
-    if (pts.length >= 2) {
-      // A second finger mid-drag is a camera pinch. The object is ABANDONED exactly where
-      // it is — not resized, not rotated, not snapped back — and the camera takes over.
-      ownerRef.current = upgradeGesture(ownerRef.current!, pts.length);
-      gestureRef.current = null;
-    }
-    rerender();
-  }
-
-  function onPointerUp(e: React.PointerEvent) {
-    clearTimeout(longPress.current);
-    downClient.current = null;
-    pointers.current.delete(e.pointerId);
-    if (gestureRef.current && pointers.current.size === 0) commit();
-    else rerender();
   }
 
   // Open the overlap picker from the contextual "Layer → Select object" action,
@@ -358,6 +527,15 @@ export function EditorCanvas(props: Props) {
   // instead of resizing. Ownership is now resolved once, at pointer-down, by the shared
   // arbiter, and the camera only ever claims a gesture the arbiter gave it.
   const camera = useSceneCamera({
+    arbiter,
+    // §11 — a tap on empty room deselects. It rides the camera's tap classification rather
+    // than firing on pointer-down, so BEGINNING a pan does not throw the selection away.
+    onTap: () => {
+      onSelect(undefined);
+      setLayerOpen(false);
+      setPicker(null);
+      tapCycle.current = undefined;
+    },
     canPanFrom: (target) => {
       const el = target instanceof Element ? target : null;
       const { target: kind, objectId, locked } = classifyTarget(
@@ -460,18 +638,9 @@ export function EditorCanvas(props: Props) {
       <div ref={camera.stageRef} className="relative will-change-transform" style={{ width: "9999px", aspectRatio: aspectRatioCss(doc.aspectRatio as "3:4"), maxWidth: `${Math.round(96 * zoom)}%`, maxHeight: `${Math.round(100 * zoom)}%` }}>
         <div
           ref={sceneRef}
+          // No pointer handlers. Every gesture in this editor enters through the camera's
+          // single listener set and is routed by the arbiter above (§2).
           className="editor-scene absolute inset-0 isolate touch-none select-none overflow-hidden rounded-[24px] border border-ink/10 shadow-xl"
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          onPointerDown={(e) => {
-            if (e.target === e.currentTarget || (e.target as HTMLElement).dataset.bg === "1") {
-              onSelect(undefined);
-              setLayerOpen(false);
-              setPicker(null);
-              tapCycle.current = undefined;
-            }
-          }}
         >
           {props.backgroundNode ? (
             // Transformed parent-crop base (child Focus Scene). pointer-events-none so taps on
@@ -498,7 +667,6 @@ export function EditorCanvas(props: Props) {
                 data-editor-object={o.instanceId}
                 data-locked={o.locked ? "1" : undefined}
                 style={{ left: pctOf(o.x), top: pctOf(o.y), width: pctOf(o.width), height: pctOf(o.height), zIndex: o.zIndex, transform: t || undefined, transformOrigin: "center" }}
-                onPointerDown={(e) => onObjectDown(e, o)}
                 aria-label={`${o.overlay ? (o.overlay.kind === "text" ? `Text: ${o.overlay.text}` : "Image sticker") : asset?.name ?? o.assetId}${o.locked ? " (locked)" : ""}`}
               >
                 {o.contactShadow ? <div className="editor-contact-shadow" aria-hidden /> : null}
@@ -563,13 +731,14 @@ export function EditorCanvas(props: Props) {
           subscribe={camera.subscribe}
           viewportRef={rootRef}
           baseSizeRef={baseSizeRef}
-          onHandleDown={onHandleDown}
           rotatable={canRotateObject(selected, selectedAsset)}
           toolbar={
             <ContextBar o={selected} asset={selectedAsset} layerOpen={layerOpen} setLayerOpen={setLayerOpen} onDuplicate={props.onDuplicate} onReorder={props.onReorder} onFlip={props.onFlip} onToggleLock={props.onToggleLock} onDelete={props.onDelete} onConnect={props.onConnect} onOpenLayerPicker={openLayerPickerForSelected} />
           }
         />
       ) : null}
+
+      <GestureDebug owner={ownerRef.current} gesture={gestureRef.current} points={ptsRef.current} selectedId={selectedId} subscribe={camera.subscribe} />
 
       <div className="pointer-events-none absolute inset-0">
         {/* Long-press / Layer → overlap object picker (Phase 2) */}
@@ -589,6 +758,65 @@ export function EditorCanvas(props: Props) {
           />
         ) : null}
       </div>
+    </div>
+  );
+}
+
+// ── M26-S2 §14 — the gesture diagnostic ──────────────────────────────────────
+//
+// Development only. `process.env.NODE_ENV` is statically replaced at build time, so the
+// whole component — overlay, listener and all — is dead code the bundler drops from
+// production. It cannot ship visibly because it cannot ship.
+//
+// It exists because the ownership invariant is not observable any other way: "the camera
+// never moved during that transform" is a claim about something that DIDN'T happen, and
+// screenshots cannot show it. `window.__nestGesture` makes it a value that can be read
+// while a gesture is live, which is how §15 was actually walked rather than assumed.
+function GestureDebug({
+  owner,
+  gesture,
+  points,
+  selectedId,
+  subscribe,
+}: {
+  owner: ActiveGesture | null;
+  gesture: Gesture | null;
+  points: Pt[];
+  selectedId?: string;
+  subscribe: (fn: (cam: { scale: number }) => void) => () => void;
+}) {
+  const elRef = useRef<HTMLDivElement>(null);
+  const scaleRef = useRef(1);
+  const state = {
+    owner: !owner ? "NONE" : ownerMovesObject(owner.owner) ? "OBJECT" : ownerMovesCamera(owner.owner) ? "CAMERA" : "NONE",
+    subtype: gesture?.kind ? ({ move: "object-drag", transform: "object-transform", resize: "object-resize", rotate: "object-rotate" } as const)[gesture.kind] : owner?.owner ?? "tap",
+    pointers: points.length,
+    selectedId: selectedId ?? null,
+  };
+  const isDev = process.env.NODE_ENV !== "production";
+
+  // The camera never re-renders React during a gesture (that is the whole point), so the
+  // scale has to come from the per-frame subscription or the readout lies about it.
+  useEffect(() => {
+    if (!isDev) return;
+    return subscribe((cam) => {
+      scaleRef.current = cam.scale;
+      const w = window as unknown as { __nestGesture?: Record<string, unknown> };
+      if (w.__nestGesture) w.__nestGesture.scale = Math.round(cam.scale * 100) / 100;
+      const el = elRef.current;
+      if (el) el.textContent = `${state.owner} · ${state.subtype} · ${state.pointers}p · ${Math.round(cam.scale * 100) / 100}×`;
+    });
+  });
+
+  useEffect(() => {
+    if (!isDev) return;
+    (window as unknown as { __nestGesture?: unknown }).__nestGesture = { ...state, scale: Math.round(scaleRef.current * 100) / 100 };
+  });
+
+  if (!isDev) return null;
+  return (
+    <div ref={elRef} data-gesture-debug="" className="pointer-events-none absolute bottom-2 left-2 z-[900] rounded-lg bg-ink/80 px-2 py-1 font-mono text-[9px] leading-tight text-parchment">
+      {state.owner} · {state.subtype} · {state.pointers}p · {Math.round(scaleRef.current * 100) / 100}×
     </div>
   );
 }

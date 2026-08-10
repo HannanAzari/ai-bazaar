@@ -139,8 +139,13 @@ describe("6. a second finger on the object being dragged becomes a transform", (
     expect(upgradeGesture(drag, 2, true).owner).toBe("object-transform");
   });
 
-  it("…and becomes a camera pinch when it lands anywhere else", () => {
-    expect(upgradeGesture(drag, 2, false).owner).toBe("camera-pinch");
+  it("…and ALSO when it lands anywhere else — §2 forbids OBJECT becoming CAMERA", () => {
+    // CHANGED BY M26-S2 §2. This used to expect "camera-pinch", which is the exact
+    // family switch the one-owner rule forbids. It was also unpredictable in the hand:
+    // whether a second finger zoomed the room or resized the sticker depended on a 90px
+    // region the creator cannot see. Now the FIRST finger decides — if it was on the
+    // object, a second finger transforms that object. To pinch the room, start on the room.
+    expect(upgradeGesture(drag, 2, false).owner).toBe("object-transform");
   });
 
   it("a camera pan is never upgraded into an object transform", () => {

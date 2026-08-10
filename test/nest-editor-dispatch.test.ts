@@ -24,6 +24,7 @@ import type { LivingNestAsset } from "@/lib/nest-visual-types";
 
 const read = (...p: string[]) => readFileSync(join(process.cwd(), ...p), "utf8");
 const canvas = read("components", "nest", "editor", "editor-canvas.tsx");
+const camera = read("components", "nest", "app-shell", "use-scene-camera.ts");
 const editor = read("components", "nest", "editor", "nest-editor.tsx");
 const selection = read("components", "nest", "editor", "screen-space-selection.tsx");
 
@@ -56,9 +57,14 @@ describe("1. the gesture owner locks until pointer-up", () => {
   });
 
   it("the canvas gates every move on the owner decided at pointer-down", () => {
-    expect(canvas).toContain("const owner = ownerRef.current;");
-    expect(canvas).toContain("if (!gestureAllows(owner, wanted)) return;");
+    // REWRITTEN BY M26-S2 §2. The gate used to be a per-move check inside the canvas's own
+    // React `onPointerMove`. That handler is gone: the canvas no longer listens to pointers
+    // at all. Ownership is now enforced one level up — the camera is the single listener and
+    // simply does not call the arbiter unless the host owns the session, and does no camera
+    // work when it does. The invariant is stronger, so the assertion moved with it.
+    expect(canvas).toContain("const arbiter = {");
     expect(canvas).toContain("ownerRef.current = null;");
+    expect(camera).toContain("if (hostOwns) {");
   });
 
   it("Safari pointer-capture failures cannot swallow the gesture", () => {
@@ -102,15 +108,21 @@ describe("4. a pinch over a selected object zooms — it does not resize or move
     expect(canvas).not.toContain('g.kind === "pinch"');
   });
 
-  it("a second finger abandons the object exactly where it is", () => {
-    expect(canvas).toContain("ownerRef.current = upgradeGesture(ownerRef.current!, pts.length);");
-    expect(canvas).toContain("gestureRef.current = null;");
+  it("a second finger on the held object TRANSFORMS it — it is not abandoned", () => {
+    // REWRITTEN BY M26-S2 §2/§4. M26A deleted the old two-finger object gesture because it
+    // fired on ANY object under two fingers and silently rewrote geometry. The gesture is
+    // back, but gated on the FIRST finger: it transforms only the object the creator is
+    // already holding. Handing the gesture to the camera here was the forbidden
+    // OBJECT → CAMERA switch, and it made the sticker gesture unreachable.
+    expect(canvas).toContain("armTransform(pts);");
+    expect(canvas).toContain('kind: "transform"');
   });
 
-  it("and the owner becomes the camera", () => {
+  it("and the owner stays with the object", () => {
     const g = upgradeGesture(beginGesture({ pointerCount: 1, target: "selected-object", scale: 2 }, 1), 2);
-    expect(g.owner).toBe("camera-pinch");
-    expect(ownerMovesObject(g.owner)).toBe(false);
+    expect(g.owner).toBe("object-transform");
+    expect(ownerMovesObject(g.owner)).toBe(true);
+    expect(ownerMovesCamera(g.owner)).toBe(false);
   });
 
   it("zooming changes only the camera", () => {

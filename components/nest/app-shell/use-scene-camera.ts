@@ -47,6 +47,39 @@ type Options = {
    * Default: pan anywhere (the visitor runtime, where nothing is draggable).
    */
   canPanFrom?: (target: EventTarget | null) => boolean;
+  /**
+   * M26-S2 §2 — the host's gesture arbiter, and the reason there is now ONE owner.
+   *
+   * Before this the editor ran a second, independent set of React pointer handlers on the
+   * scene while this hook ran native ones on the viewport ancestor. Both saw every event
+   * and each decided for itself, every frame, so nothing could actually guarantee a single
+   * owner — the camera pinched on two fingers no matter what the canvas had decided, which
+   * is precisely why the two-finger object transform could never work.
+   *
+   * Now this hook is the only thing listening. It asks the arbiter once, at the first
+   * pointer-down, who owns the session; if the host claims it, the camera stands completely
+   * down until the last finger lifts, and vice versa. Neither can change family mid-gesture
+   * because nobody is left to re-decide.
+   */
+  arbiter?: GestureArbiter;
+};
+
+/**
+ * The host's side of the one-owner contract. All three are called with the live pointer
+ * set in viewport-client coordinates.
+ */
+export type GestureArbiter = {
+  /**
+   * A pointer went down. Return true to claim the whole session for the host.
+   *
+   * Called for EVERY pointer-down, so the host can upgrade its own subtype (a second finger
+   * on an object it is already dragging becomes a transform). The return value is only ever
+   * honoured for the FIRST pointer — after that the family is locked.
+   */
+  down: (e: PointerEvent, points: { x: number; y: number }[]) => boolean;
+  move: (points: { x: number; y: number }[]) => void;
+  /** The last pointer lifted. `tapped` is true when the session never passed the drag slop. */
+  up: (tapped: boolean) => void;
 };
 
 export type SceneCamera = {
@@ -76,7 +109,7 @@ export type SceneCamera = {
   subscribe: (fn: (cam: Camera) => void) => () => void;
 };
 
-export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = {}): SceneCamera {
+export function useSceneCamera({ onTap, enabled = true, canPanFrom, arbiter }: Options = {}): SceneCamera {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
 
@@ -95,6 +128,8 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = 
   onTapRef.current = onTap;
   const canPanFromRef = useRef(canPanFrom);
   canPanFromRef.current = canPanFrom;
+  const arbiterRef = useRef(arbiter);
+  arbiterRef.current = arbiter;
   const panningRef = useRef(false);
 
   const viewport = useCallback(() => {
@@ -172,6 +207,14 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = 
     let moved = false;
     /** Decided once on pointerdown: may a one-finger drag from here pan the camera? */
     let panAllowed = true;
+    /**
+     * M26-S2 §2 — THE one-owner latch.
+     *
+     * Set by the arbiter at the FIRST pointer-down and never reconsidered until every
+     * finger has lifted. While true the camera does nothing at all: no pan, no pinch, no
+     * tap, no double-tap. While false the arbiter is never driven.
+     */
+    let hostOwns = false;
 
     /** Viewport coordinates relative to the viewport CENTRE (what the camera maths wants). */
     const focalOf = (p: { x: number; y: number }) => {
@@ -202,7 +245,13 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = 
       if (e.target instanceof Element && e.target.closest("[data-editor-chrome]")) return;
 
       points.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const pts = Array.from(points.values());
+
+      // Ask the arbiter on every down so the host can upgrade its OWN subtype — but only
+      // the first pointer's answer decides the family (§2).
+      const claimed = arbiterRef.current?.down(e, pts) ?? false;
       if (points.size === 1) {
+        hostOwns = claimed;
         start = { x: e.clientX, y: e.clientY, t: e.timeStamp };
         last = { x: e.clientX, y: e.clientY };
         maxDist = 0;
@@ -210,8 +259,11 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = 
         // Decided at DOWN, not at move: once a finger is on an asset the answer must not
         // change mid-drag, or the asset would start moving and the camera finish the job.
         panAllowed = canPanFromRef.current ? canPanFromRef.current(e.target) : true;
-      } else if (points.size === 2) {
-        const [a, b] = Array.from(points.values());
+      } else if (points.size === 2 && !hostOwns) {
+        // A second finger only ever starts a pinch when the CAMERA already owns the
+        // session. If the host owns it, this finger belongs to the object transform and
+        // the camera must not take a baseline from it.
+        const [a, b] = pts;
         pinchStart = { dist: distance(a, b), scale: cam.current.scale };
       }
       // Capture so a finger that leaves the element still delivers move/up.
@@ -231,6 +283,17 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = 
       if (!points.has(e.pointerId)) return;
       points.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
+      if (start) maxDist = Math.max(maxDist, distance(start, { x: e.clientX, y: e.clientY }));
+
+      // §2 — the host owns this session. The camera contributes nothing, so an object drag
+      // or transform can never move the room by a single pixel.
+      if (hostOwns) {
+        arbiterRef.current?.move(Array.from(points.values()));
+        if (maxDist > 4) moved = true;
+        e.preventDefault();
+        return;
+      }
+
       if (points.size >= 2 && pinchStart) {
         const [a, b] = Array.from(points.values());
         const d = distance(a, b);
@@ -247,7 +310,6 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = 
       if (points.size === 1 && start && last) {
         const dx = e.clientX - last.x;
         const dy = e.clientY - last.y;
-        maxDist = Math.max(maxDist, distance(start, { x: e.clientX, y: e.clientY }));
         // ONE-FINGER PAN ONLY WHILE ZOOMED. At 1× a drag must stay a page gesture, or the
         // feed can no longer be scrolled with a finger that starts on a room.
         if (panAllowed && cam.current.scale > 1.001) {
@@ -280,6 +342,23 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = 
       if (panningRef.current) {
         panningRef.current = false;
         setPanning(false);
+      }
+
+      // Every session ends at the arbiter, whoever owned it — the host has bookkeeping to
+      // clear either way, and `up` is a no-op when it armed nothing.
+      const wasTap = !moved && start != null && isTap(start, { x: e.clientX, y: e.clientY, t: e.timeStamp }, maxDist);
+      arbiterRef.current?.up(wasTap);
+
+      // §2 — the host had the whole session, so the camera's own tap and double-tap paths
+      // are skipped entirely: a tap that began on an object is the object's business, and
+      // double-tap-to-zoom must never fire on top of an edit.
+      if (hostOwns) {
+        hostOwns = false;
+        start = null;
+        last = null;
+        maxDist = 0;
+        moved = false;
+        return;
       }
 
       if (start && isTap(start, { x: e.clientX, y: e.clientY, t: e.timeStamp }, maxDist) && !wasPanning) {
