@@ -293,23 +293,23 @@ describe("17. a draft reopen preserves zoom-authored placement", () => {
 // ── 14–16. Edit / Preview, and nothing else regressed ────────────────────────
 
 describe("14-15. Edit and Preview share one document and one renderer", () => {
-  it("M26-S — the header carries NO Edit/Preview switch", () => {
-    // It lived in the header and, at 375px, helped push Publish off the right edge.
-    // Preview is a destination in the bottom dock; ModeSwitch survives only inside
-    // Preview itself, as the one way back.
-    // Asserted on the header's RENDERED content, not its comments — the comment there
-    // deliberately names what was removed and why.
+  it("M26 — the header carries Edit|Preview, in ONE fixed position", () => {
+    // M26-S removed it from the header and left the copy inside the Preview branch, so
+    // the toggle vanished in Edit and appeared in Preview — exactly what the founder
+    // reported. It is back, rendered by the same component in both modes.
+    // Asserted on RENDERED content, not comments.
     const header = editor
       .slice(editor.indexOf("<header"), editor.indexOf("</header>"))
       .replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
-    expect(header).not.toContain("ModeSwitch");
-    expect(header).not.toContain("Publish");
+    expect(header).toContain("<ModeSwitch");
+    // Workflow stays out of the header — that is what keeps it inside 375px.
     expect(header).not.toContain("setShowPublish");
   });
 
-  it("M26-S — Preview and Publish are bottom-dock workflow", () => {
-    expect(editor).toContain('label="Preview"');
-    expect(editor).toContain("setShowPublish(true)");
+  it("M26 — Save and Publish are bottom-dock workflow", () => {
+    const dock = editor.slice(editor.indexOf("<nav"), editor.indexOf("</nav>"));
+    expect(dock).toContain('label="Save"');
+    expect(dock).toContain("setShowPublish(true)");
   });
 
   it("Preview mounts the real visitor runtime, from the same canonical document", () => {

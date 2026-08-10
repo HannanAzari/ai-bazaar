@@ -668,12 +668,15 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
               <ToolIcon label="Redo" onClick={() => setHistory(redoHistory(history))} disabled={!canRedo(history)}><Redo2 className="h-5 w-5" /></ToolIcon>
             </div>
 
-            {/* ── M26-S §6 — the header carries FOUR controls, and no more ──────
-                Back, Undo, Redo, •••. The Edit|Preview switch, Publish and Done all lived
-                here and, at 375px, pushed Publish off the right edge — reported twice.
-                Preview and Publish are workflow, so they belong in the bottom dock (§7);
-                Save/Done are secondary, so they live under •••. A header that overflows is
-                not a styling problem, it is too many things competing for one row. */}
+            {/* ── M26 §P1 — Edit | Preview lives HERE, in both modes ────────────
+                M26-S removed it from the header and left the copy inside the Preview
+                branch, so the toggle vanished in Edit and appeared in Preview — the exact
+                thing the founder reported. It is back, in one fixed position, rendered by
+                the same component in both modes so it cannot drift again.
+                Publish and Save are workflow and live in the bottom dock; that is what
+                keeps this row inside 375px. */}
+            <ModeSwitch previewing={previewing} onEdit={exitPreview} onPreview={onPreview} />
+
             <div className="flex shrink-0 items-center gap-1">
               <div className="relative">
                 <ToolIcon label="More" onClick={() => setMoreOpen((v) => !v)} active={moreOpen}>
@@ -758,6 +761,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
               // gone, not merely behind: its handles sat above the sheet and stole taps.
               hideChrome={mode === "interact" || overlaySheetOpen}
               onVisibleCentreRef={(get) => { visibleCentre.current = get; }}
+              onConnect={() => setMode("interact")}
               onDuplicate={onDuplicate}
               onReorder={onReorder}
               onFlip={onFlip}
@@ -959,7 +963,10 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                 contextual — it appears beside Text/Sticker when a connectable object is
                 selected, never as a permanent global tab. */}
             <ModeBtn active={mode === "assets"} label="Assets" onClick={() => { setSelectedId(undefined); setMode("assets"); }}><LayoutGrid className="h-5 w-5" /></ModeBtn>
-            <ModeBtn active={false} label="Preview" onClick={onPreview}><Play className="h-5 w-5" /></ModeBtn>
+            {/* P2 — Save IS Save Draft. M26-S buried it in the ••• menu, which the
+                founder read as "Save disappeared" — a primary action two taps deep and
+                invisible is a removed action. Preview moved to the header switch. */}
+            <ModeBtn active={false} label="Save" onClick={() => void saveNow()}><Save className="h-5 w-5" /></ModeBtn>
             <button
               type="button"
               onClick={() => setShowPublish(true)}

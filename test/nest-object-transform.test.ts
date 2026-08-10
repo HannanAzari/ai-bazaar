@@ -152,11 +152,15 @@ describe("6. a second finger on the object being dragged becomes a transform", (
 // ── §6/§7 — the editor shell ─────────────────────────────────────────────────
 
 describe("the editor shell fits at 375px", () => {
-  it("the header renders exactly four controls", () => {
+  it("the header carries Edit|Preview and no workflow buttons", () => {
     const header = editor
       .slice(editor.indexOf("<header"), editor.indexOf("</header>"))
       .replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
-    for (const gone of ["ModeSwitch", "Publish", "setShowPublish"]) {
+    // M26 §P1 — the switch is BACK, in one fixed position. M26-S removed it from the
+    // header and left the copy inside Preview, so it vanished in Edit and appeared in
+    // Preview — exactly what the founder reported.
+    expect(header).toContain("<ModeSwitch");
+    for (const gone of ["Publish", "setShowPublish"]) {
       expect(header).not.toContain(gone);
     }
     // `onDone` IS in the header — as a prop handed to the More menu, which is exactly
@@ -170,23 +174,35 @@ describe("the editor shell fits at 375px", () => {
     expect(header).toContain('label="More"');
   });
 
-  it("Publish lives in the bottom dock, with the accent colour", () => {
+  it("the dock is Assets · Save · Publish", () => {
     const dock = editor.slice(editor.indexOf("<nav"), editor.indexOf("</nav>"));
+    expect(dock).toContain('label="Assets"');
+    // Save Draft is a PRIMARY action. M26-S buried it in the ••• menu, which the founder
+    // read as "Save disappeared" — two taps deep and invisible is removed.
+    expect(dock).toContain('label="Save"');
+    expect(dock).toContain("saveNow()");
     expect(dock).toContain("setShowPublish(true)");
     expect(dock).toContain("#d9913c");
-    expect(dock).toContain('label="Assets"');
-    expect(dock).toContain('label="Preview"');
+  });
+
+  it("Connect is contextual on the selection, never a global tab", () => {
+    const canvas = read("components", "nest", "editor", "editor-canvas.tsx");
+    const dock = editor.slice(editor.indexOf("<nav"), editor.indexOf("</nav>"));
+    expect(dock).not.toContain('label="Connect"');
+    // M26-S removed it from the dock and never added the replacement, leaving NO route
+    // to Connect at all.
+    expect(canvas).toContain('<CtxBtn label="Connect"');
+    expect(canvas).toContain("capabilitiesForAsset(o.assetId)?.accepts.length");
   });
 
   it("no mode asks the creator how their fingers should behave (§24)", () => {
     const dock = editor.slice(editor.indexOf("<nav"), editor.indexOf("</nav>"));
-    for (const mode of ['label="Arrange"', 'label="Interaction"', 'label="Connect"', 'label="Focus"', 'label="Surface"']) {
+    for (const mode of ['label="Arrange"', 'label="Interaction"', 'label="Focus"', 'label="Surface"']) {
       expect(dock).not.toContain(mode);
     }
   });
 
-  it("Save and Save & finish moved under the More menu", () => {
-    expect(editor).toContain('label="Save draft"');
+  it("Save & finish remains available under the More menu", () => {
     expect(editor).toContain("onDone();");
   });
 });

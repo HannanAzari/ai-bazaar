@@ -9,6 +9,7 @@ import {
   ChevronUp,
   Copy,
   FlipHorizontal2,
+  Link2,
   Layers,
   Lock,
   RotateCw,
@@ -33,6 +34,7 @@ import { contextToolbarPlacement, type ToolbarPlacement } from "@/lib/nest-edito
 import { useSceneCamera } from "@/components/nest/app-shell/use-scene-camera";
 import { z } from "@/lib/nest-layers";
 import { beginGesture, classifyTarget, gestureAllows, ownerMovesCamera, resolveGestureOwner, upgradeGesture, type ActiveGesture } from "@/lib/nest-gesture";
+import { capabilitiesForAsset } from "@/lib/nest-asset-interaction";
 import { visibleSceneCentre } from "@/lib/nest-camera";
 import { ScreenSpaceSelection } from "@/components/nest/editor/screen-space-selection";
 import { Maximize2 } from "lucide-react";
@@ -70,6 +72,8 @@ type Props = {
   onFlip: () => void;
   onToggleLock: () => void;
   onDelete: () => void;
+  /** M26 §P3 — Connect is contextual: it appears only on an asset that takes content. */
+  onConnect?: () => void;
   /** Connect mode: select assets + their hotspots; arrange gestures are disabled. */
   connect?: boolean;
   selectedHotspotId?: string;
@@ -561,7 +565,7 @@ export function EditorCanvas(props: Props) {
           onHandleDown={onHandleDown}
           rotatable={canRotateObject(selected, selectedAsset)}
           toolbar={
-            <ContextBar o={selected} asset={selectedAsset} layerOpen={layerOpen} setLayerOpen={setLayerOpen} onDuplicate={props.onDuplicate} onReorder={props.onReorder} onFlip={props.onFlip} onToggleLock={props.onToggleLock} onDelete={props.onDelete} onOpenLayerPicker={openLayerPickerForSelected} />
+            <ContextBar o={selected} asset={selectedAsset} layerOpen={layerOpen} setLayerOpen={setLayerOpen} onDuplicate={props.onDuplicate} onReorder={props.onReorder} onFlip={props.onFlip} onToggleLock={props.onToggleLock} onDelete={props.onDelete} onConnect={props.onConnect} onOpenLayerPicker={openLayerPickerForSelected} />
           }
         />
       ) : null}
@@ -755,7 +759,7 @@ function SurfaceHighlightLayer({ object, selectedSurfaceId, onSelect }: { object
 }
 
 
-function ContextBar({ o, asset, layerOpen, setLayerOpen, onDuplicate, onReorder, onFlip, onToggleLock, onDelete, onOpenLayerPicker }: { o: EditableNestObject; asset?: LivingNestAsset; layerOpen: boolean; setLayerOpen: (v: boolean) => void; onDuplicate: () => void; onReorder: (op: ReorderOp) => void; onFlip: () => void; onToggleLock: () => void; onDelete: () => void; onOpenLayerPicker: () => void }) {
+function ContextBar({ o, asset, layerOpen, setLayerOpen, onDuplicate, onReorder, onFlip, onToggleLock, onDelete, onConnect, onOpenLayerPicker }: { o: EditableNestObject; asset?: LivingNestAsset; layerOpen: boolean; setLayerOpen: (v: boolean) => void; onDuplicate: () => void; onReorder: (op: ReorderOp) => void; onFlip: () => void; onToggleLock: () => void; onDelete: () => void; onConnect?: () => void; onOpenLayerPicker: () => void }) {
   // M26A-final: the bar no longer positions ITSELF. It is a child of the screen-space
   // selection frame, which is already tracked in screen pixels — so the bar inherits the
   // right place automatically and needs no transform, no percentage of the scene and no
@@ -767,7 +771,16 @@ function ContextBar({ o, asset, layerOpen, setLayerOpen, onDuplicate, onReorder,
       <div className="pointer-events-auto relative flex items-center gap-0.5 rounded-full border border-ink/10 bg-parchment/95 p-1 shadow-lg backdrop-blur">
         <CtxBtn label="Duplicate" onClick={onDuplicate}><Copy className="h-4 w-4" /></CtxBtn>
         <CtxBtn label="Layer" onClick={() => setLayerOpen(!layerOpen)} active={layerOpen}><Layers className="h-4 w-4" /></CtxBtn>
-        {flippable ? <CtxBtn label="Flip" onClick={onFlip}><FlipHorizontal2 className="h-4 w-4" /></CtxBtn> : null}
+        {flippable ? <CtxBtn label="Mirror" onClick={onFlip}><FlipHorizontal2 className="h-4 w-4" /></CtxBtn> : null}
+        {/* ── M26 §P3 — Connect, only where the asset takes content ──────────────
+            M26-S removed Connect from the dock and never added the contextual
+            replacement, so there was NO route to it at all. It belongs here: a TV, a
+            laptop, a frame and a speaker take content; a plant, a sofa and a table do
+            not, and offering them a link field is the confusion this replaced. The
+            asset's own behaviour is never configured — only its content. */}
+        {onConnect && (capabilitiesForAsset(o.assetId)?.accepts.length ?? 0) > 0 ? (
+          <CtxBtn label="Connect" onClick={onConnect}><Link2 className="h-4 w-4" /></CtxBtn>
+        ) : null}
         <CtxBtn label={o.locked ? "Unlock" : "Lock"} onClick={onToggleLock} active={o.locked}>{o.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}</CtxBtn>
         <CtxBtn label="Delete" danger onClick={onDelete}><Trash2 className="h-4 w-4" /></CtxBtn>
         {layerOpen ? (
