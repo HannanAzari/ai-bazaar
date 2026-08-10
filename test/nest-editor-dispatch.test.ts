@@ -306,10 +306,10 @@ describe("14-15. Edit and Preview share one document and one renderer", () => {
     expect(header).not.toContain("setShowPublish");
   });
 
-  it("M26 — Save and Publish are bottom-dock workflow", () => {
+  it("M26-S1 — Publish is the dock's one strong action; Save moved to Close", () => {
     const dock = editor.slice(editor.indexOf("<nav"), editor.indexOf("</nav>"));
-    expect(dock).toContain('label="Save"');
     expect(dock).toContain("setShowPublish(true)");
+    expect(dock).not.toContain('label="Save"');
   });
 
   it("Preview mounts the real visitor runtime, from the same canonical document", () => {

@@ -448,6 +448,7 @@ export function EditorCanvas(props: Props) {
           onPointerDown={(e) => e.stopPropagation()}
           onClick={camera.reset}
           aria-label="Reset the view"
+          data-editor-chrome=""
           className={`absolute right-3 top-3 ${z.chrome} inline-flex touch-manipulation items-center gap-1.5 rounded-full bg-ink/80 px-3 py-1.5 text-xs font-bold text-parchment shadow-lg backdrop-blur transition active:scale-95`}
         >
           <Maximize2 className="h-3.5 w-3.5" /> Reset view

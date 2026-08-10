@@ -456,7 +456,7 @@ describe("19. a new Nest needs no Focus at all", () => {
     // "Interaction" as a mode is gone for good.
     expect(editor).not.toContain('label="Interaction"');
     expect(editor).toContain('label="Assets"');
-    expect(editor).toContain('label="Save"');
+    expect(editor).toContain("requestClose");
   });
 });
 

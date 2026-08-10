@@ -145,7 +145,8 @@ describe("P1. the camera never touches object geometry or the document", () => {
 describe("P2. the floating toolbar cannot cover the Interaction sheet", () => {
   it("the toolbar is removed entirely while a sheet is open", () => {
     expect(canvas).toContain("!hideChrome && selected && !selected.hidden");
-    expect(editor).toContain('hideChrome={mode === "interact" || overlaySheetOpen}');
+    // §4 — Connect is a sheet keyed to one object now, not a mode.
+    expect(editor).toContain("hideChrome={connectFor !== null || overlaySheetOpen}");
   });
 
   it("it uses the shared layer token, not an arbitrary z-[600]", () => {

@@ -38,6 +38,7 @@ import { useAiLivingAssets } from "@/lib/nest-editor-ai-bridge";
 import { useMyAvatarLivingAsset } from "@/lib/avatar-factory/avatar-editor-bridge";
 import { PublishGate } from "@/components/nest/editor/publish-gate";
 import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
+import { z } from "@/lib/nest-layers";
 import { NestRuntime } from "@/components/nest/app-shell/nest-runtime";
 import type { NestDocument } from "@/lib/nest-document-types";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
@@ -111,13 +112,32 @@ import { Type } from "lucide-react";
 /** A default fixed-ratio (square = 3:4 on-screen) focus rectangle for new areas. */
 const DEFAULT_FOCUS_RECT = fitRectToAspectRatio({ x: 0.34, y: 0.34, width: 0.32, height: 0.32 });
 
-type Mode = "arrange" | "assets" | "interact" | "connect" | "focus" | "surface" | "preview";
+type Mode = "arrange" | "assets" | "connect" | "focus" | "surface" | "preview";
+
+// ── M26-S1 §4 — Connect is NOT a mode ────────────────────────────────────────
+//
+// It used to be a dedicated editor mode, and nothing ever reset it: selecting a different
+// object left the mode set, so the sheet simply re-rendered for the new object, and
+// closing it cleared the SELECTION while leaving the mode — stranding the editor in an
+// empty "tap an object to connect" state with no way back. That is the trap.
+//
+// It is now a sheet keyed to ONE object id. Every exit path clears it, and it is derived
+// against the live document, so a deleted object cannot leave its sheet open.
 type SaveState = "idle" | "unsaved" | "saving" | "saved";
 
 // M14 (Phase 2): the editor's default document is a clean PRODUCTION starter (featured
 // template on a production background) — never the old Golden Living fixture, which
 // referenced non-production ids and rendered fallback boxes.
 const freshDocument = (): EditableNestDocument => productionStarterDocument();
+
+/**
+ * The comparable shape of a document for dirty-checking: everything a creator can change,
+ * and nothing else. Camera, selection and sheet state are excluded by construction because
+ * they are not in the document at all (D-45).
+ */
+function dirtyKey(d: EditableNestDocument): string {
+  return JSON.stringify({ name: d.name, backgroundId: d.backgroundId, objects: d.objects, focusAreas: d.focusAreas, detailScenes: d.detailScenes });
+}
 
 export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableNestDocument; documentId?: string; pickAssetId?: string } = {}) {
   // `seed` (M12.x bridge): open on a document created by onboarding (production
@@ -145,6 +165,22 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   const [showPublish, setShowPublish] = useState(false);
   // M26-S §9 — Storage keys are `<ownerId>/<nestId>/…`; the bucket policies depend on it.
   const { ownerId } = useNestIdentity();
+  /** The object whose Connect sheet is open, or null. Never a mode. */
+  const [connectFor, setConnectFor] = useState<string | null>(null);
+  const [closeAsk, setCloseAsk] = useState(false);
+  const [closing, setClosing] = useState<null | "saving">(null);
+
+  // ── M26-S1 §7 — ONE dirty-state source of truth ─────────────────────────
+  //
+  // The document as last PERSISTED. Everything that edits the Nest goes through
+  // `commit()`, so comparing the live document against this snapshot catches move, resize,
+  // rotate, mirror, add/delete, layer, text/sticker, interaction and background changes
+  // without each of them having to remember to set a flag.
+  //
+  // Deliberately NOT touched by: switching Edit ↔ Preview, opening or closing Connect
+  // without editing, or selecting objects — none of those change the Nest.
+  const persistedRef = useRef<string | null>(null);
+  const isDirty = () => persistedRef.current !== null && persistedRef.current !== dirtyKey(doc);
   const [history, setHistory] = useState<History<EditableNestDocument>>(() => createHistory(seed ?? freshDocument(), 50));
   const [mode, setMode] = useState<Mode>("arrange");
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
@@ -498,6 +534,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   /** Captured as a plain boolean so the switch can render in BOTH branches. */
   const previewing: boolean = mode === "preview";
   const onPreview = () => {
+    setConnectFor(null); // §4 — a sheet must never survive into Preview
     setSelectedId(undefined);
     setSelectedHotspotId(undefined);
     const childArea = !isMainActive && activeScene ? activeScene.parentFocusAreaId : undefined;
@@ -575,6 +612,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
         isPublished,
       );
       clearDraft(documentId); // the canonical version is now the only version
+      persistedRef.current = dirtyKey(doc); // §7 — a successful save clears dirty
       setSaveState("saved");
       flash(target === "draft" ? "Draft saved — your live Nest is unchanged" : "Saved ✓");
     } catch (e) {
@@ -584,6 +622,41 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
       flash(`Save failed: ${e instanceof Error ? e.message : "unknown error"}`);
     }
   };
+  /**
+   * §2 — the only way out of the editor.
+   *
+   * No unsaved work ⇒ leave at once. Otherwise ask, and never decide for them: Save Draft
+   * waits for persistence to actually succeed before navigating, so a failed save cannot
+   * silently discard the session.
+   */
+  // Seed the dirty baseline from whatever the editor opened with, so a Nest that has just
+  // been loaded is never reported as unsaved.
+  useEffect(() => {
+    if (persistedRef.current === null) persistedRef.current = dirtyKey(doc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- baseline is seeded ONCE
+  }, [doc.id]);
+
+  const requestClose = () => {
+    if (!isDirty()) { window.location.href = "/profile"; return; }
+    setCloseAsk(true);
+  };
+  const closeSavingDraft = async () => {
+    setClosing("saving");
+    try {
+      await saveNow();
+      window.location.href = "/profile";
+    } catch {
+      // saveNow already surfaced the failure; stay put rather than lose the work.
+      setClosing(null);
+      setCloseAsk(false);
+    }
+  };
+  const closeDiscarding = () => {
+    // Only changes since the last persisted state are dropped; the persisted draft stands.
+    if (documentId) clearDraft(documentId);
+    window.location.href = "/profile";
+  };
+
   const resetSceneContext = () => {
     setSelectedId(undefined);
     setSelectedFocusId(undefined);
@@ -649,9 +722,10 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
           <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2" style={{ marginTop: "env(safe-area-inset-top)" }}>
             <ModeSwitch previewing={previewing} onEdit={exitPreview} onPreview={onPreview} />
           </div>
-          <p className="absolute inset-x-0 top-3 z-10 text-center text-[11px] font-bold uppercase tracking-wider text-ink/40" style={{ marginTop: "env(safe-area-inset-top)" }}>
-            Exactly what visitors see
-          </p>
+          {/* §3 — the "exactly what visitors see" caption is gone. It was absolutely
+              positioned at the SAME top-3 as the mode switch, so the two overlapped. The
+              runtime itself communicates that Preview is accurate; the copy was secondary
+              and it was colliding with the one control that matters. */}
           <div className="w-full max-w-[420px] overflow-hidden rounded-2xl border border-ink/10 shadow-lift" style={{ aspectRatio: "3 / 4" }}>
             <NestRuntime document={previewDoc} mode="editor-preview" className="size-full" surround />
           </div>
@@ -659,11 +733,20 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
       ) : (
         <>
           {/* Top toolbar (~56px) */}
-          <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-ink/10 px-2">
+          <header className="relative flex h-14 shrink-0 items-center justify-between gap-2 border-b border-ink/10 px-2">
             <div className="flex items-center gap-1">
               {/* Hard navigation out of the editor (full unmount), not client-side Link. */}
               {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-              <a href="/profile" aria-label="Back to Profile" className="flex h-10 w-10 items-center justify-center rounded-full text-ink/70 hover:bg-ink/5"><ArrowLeft className="h-5 w-5" /></a>
+              {/* §2 — Close, not Back. Leaving is the moment persistence matters, so the
+                  decision belongs here and nowhere else. */}
+              <button
+                type="button"
+                aria-label="Close editor"
+                onClick={requestClose}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-ink/70 hover:bg-ink/5"
+              >
+                <X className="h-5 w-5" />
+              </button>
               <ToolIcon label="Undo" onClick={() => setHistory(undoHistory(history))} disabled={!canUndo(history)}><RotateCcw className="h-5 w-5 -scale-x-100" /></ToolIcon>
               <ToolIcon label="Redo" onClick={() => setHistory(redoHistory(history))} disabled={!canRedo(history)}><Redo2 className="h-5 w-5" /></ToolIcon>
             </div>
@@ -675,7 +758,14 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                 the same component in both modes so it cannot drift again.
                 Publish and Save are workflow and live in the bottom dock; that is what
                 keeps this row inside 375px. */}
-            <ModeSwitch previewing={previewing} onEdit={exitPreview} onPreview={onPreview} />
+            {/* Absolutely centred, so it sits in the SAME place regardless of how wide the
+                left and right groups happen to be — `justify-between` put it wherever the
+                leftovers fell, which is how it appeared to move between modes. */}
+            <div className="pointer-events-none absolute inset-x-0 flex justify-center">
+              <div className="pointer-events-auto">
+                <ModeSwitch previewing={previewing} onEdit={exitPreview} onPreview={onPreview} />
+              </div>
+            </div>
 
             <div className="flex shrink-0 items-center gap-1">
               <div className="relative">
@@ -742,6 +832,9 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
               ambience={ambience}
               selectedId={mode === "focus" ? undefined : selectedId}
               onSelect={(id) => {
+                // §4 — selecting anything else (or empty canvas) closes the sheet. The
+                // creator taps Connect again on the new object if they want it.
+                if (id !== connectFor) setConnectFor(null);
                 setSelectedId(id);
                 setSelectedSurfaceId(undefined);
                 // Open the sticker editor when a generic overlay is selected; close otherwise.
@@ -759,9 +852,9 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
               zoom={zoom}
               // M25B §P2 — while any object sheet is open the floating toolbar must be
               // gone, not merely behind: its handles sat above the sheet and stole taps.
-              hideChrome={mode === "interact" || overlaySheetOpen}
+              hideChrome={connectFor !== null || overlaySheetOpen}
               onVisibleCentreRef={(get) => { visibleCentre.current = get; }}
-              onConnect={() => setMode("interact")}
+              onConnect={() => selectedId && setConnectFor(selectedId)}
               onDuplicate={onDuplicate}
               onReorder={onReorder}
               onFlip={onFlip}
@@ -885,13 +978,20 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
               )
             ) : null}
 
-            {/* M25 §P3 — the object Interaction panel */}
-            {mode === "interact" ? (
-              selected ? (
+            {/* ── M26-S1 §4 — the Connect sheet, keyed to ONE object ────────────
+                Derived against the LIVE document, so a deleted object cannot leave its
+                sheet open. There is no "no object selected" fallback any more — that
+                empty state only existed because Connect was a mode you could be stuck in
+                with nothing selected. */}
+            {(() => {
+              const target = connectFor ? activeDoc.objects.find((o) => o.instanceId === connectFor) : undefined;
+              if (!target) return null;
+              return (
                 <InteractionPanel
-                  object={selected}
-                  assetName={ASSETS[selected.assetId]?.name ?? selected.assetId}
-                  assetThumbUrl={ASSETS[selected.assetId]?.thumbnailUrl}
+                  key={target.instanceId}
+                  object={target}
+                  assetName={ASSETS[target.assetId]?.name ?? target.assetId}
+                  assetThumbUrl={ASSETS[target.assetId]?.thumbnailUrl}
                   ownerId={ownerId}
                   nestId={documentId ?? doc.id}
                   snap={connectSnap}
@@ -900,18 +1000,16 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                     commitActive({
                       ...activeDoc,
                       objects: activeDoc.objects.map((o) =>
-                        o.instanceId === selected.instanceId ? { ...o, assetInteraction: config } : o,
+                        o.instanceId === target.instanceId ? { ...o, assetInteraction: config } : o,
                       ),
                     })
                   }
-                  onClose={() => setSelectedId(undefined)}
+                  // Closing returns to normal Edit; it must NOT clear the selection, or the
+                  // creator loses the object they were working on.
+                  onClose={() => setConnectFor(null)}
                 />
-              ) : (
-                <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-teal/30 bg-parchment/95 px-4 py-2 text-xs font-bold text-ink/70 shadow">
-                  Tap an object to set what happens when someone taps it
-                </div>
-              )
-            ) : null}
+              );
+            })()}
 
             {/* Surface mode — personalise an asset's editable surfaces (M8) */}
             {mode === "surface" ? (
@@ -963,10 +1061,10 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                 contextual — it appears beside Text/Sticker when a connectable object is
                 selected, never as a permanent global tab. */}
             <ModeBtn active={mode === "assets"} label="Assets" onClick={() => { setSelectedId(undefined); setMode("assets"); }}><LayoutGrid className="h-5 w-5" /></ModeBtn>
-            {/* P2 — Save IS Save Draft. M26-S buried it in the ••• menu, which the
-                founder read as "Save disappeared" — a primary action two taps deep and
-                invisible is a removed action. Preview moved to the header switch. */}
-            <ModeBtn active={false} label="Save" onClick={() => void saveNow()}><Save className="h-5 w-5" /></ModeBtn>
+            {/* ── M26-S1 §1 — no Save button ────────────────────────────────────
+                Saving happens when the creator tries to LEAVE (see the Close sheet). A
+                standalone Save asks them to think about persistence, which is our concern,
+                not theirs. Publish stays as the one strong action here. */}
             <button
               type="button"
               onClick={() => setShowPublish(true)}
@@ -1025,7 +1123,38 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
 
       {toast ? <div className="pointer-events-none absolute bottom-20 left-1/2 z-[70] -translate-x-1/2 rounded-full bg-ink/90 px-4 py-2 text-xs font-bold text-parchment shadow-lg">{toast}</div> : null}
 
-      {showPublish ? <PublishGate documentId={documentId} objects={doc.objects} scene={editableSceneExtras(doc)} onClose={() => setShowPublish(false)} /> : null}
+      {showPublish ? (
+        <PublishGate
+          documentId={documentId}
+          objects={doc.objects}
+          scene={editableSceneExtras(doc)}
+          onClose={() => { persistedRef.current = dirtyKey(doc); setShowPublish(false); }}
+        />
+      ) : null}
+
+      {/* ── §2 — leaving with unsaved work ────────────────────────────────────
+          Three plain choices, and never a fourth: we do not publish on the way out, and we
+          do not decide for the creator. Save Draft waits for persistence to succeed before
+          navigating, so a failed save cannot silently throw the session away. */}
+      {closeAsk ? (
+        <div className={`fixed inset-0 ${z.modal} flex items-end bg-ink/40`} onClick={() => setCloseAsk(false)}>
+          <div className="w-full rounded-t-3xl bg-parchment p-4 shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}>
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-ink/15" />
+            <p className="display px-1 text-[17px] leading-tight text-ink">You have unsaved changes</p>
+            <div className="mt-3 space-y-2">
+              <button type="button" disabled={closing === "saving"} onClick={() => void closeSavingDraft()} className="w-full rounded-xl bg-terracotta px-4 py-3 text-[15px] font-bold text-parchment disabled:opacity-60">
+                {closing === "saving" ? "Saving…" : "Save draft"}
+              </button>
+              <button type="button" onClick={closeDiscarding} className="w-full rounded-xl border border-ink/15 px-4 py-3 text-[15px] font-bold text-ink/70">
+                Close without saving
+              </button>
+              <button type="button" onClick={() => setCloseAsk(false)} className="w-full rounded-xl px-4 py-3 text-[15px] font-bold text-ink/50">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <CreateAssetSheet
         open={createOpen}

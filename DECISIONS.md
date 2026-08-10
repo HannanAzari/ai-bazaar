@@ -453,3 +453,39 @@ because a silent fallback would quietly turn their Nest back into a file contain
 (`youtube.com`) or a file name is all a creator needs to recognise what they connected.
 *Why:* the sheet was showing `data:image/jpeg;base64,/9j/4AAQ…` filling the panel.
 **Status: in force (M26-S).**
+
+**D-70 · The camera never claims a pointer that begins on editor chrome.** One guard at the
+top of `onPointerDown`: `if (e.target.closest("[data-editor-chrome]")) return;`. *Why — this
+was the Mirror bug:* screen-space chrome renders inside the viewport, so a tap on Mirror
+bubbled to the camera, which called `viewport.setPointerCapture(pointerId)`. Pointer capture
+RETARGETS every later event for that pointer — including `pointerup` — to the viewport, so
+the browser never synthesised `click` and `onClick` never ran. Mirror, Duplicate, Layer,
+Connect, Lock and Delete were all dead to a finger. The Reset button and the runtime's
+controls each carried their own `stopPropagation`; the object toolbar never did, so fixing
+it centrally means a new control cannot forget. **Status: in force (M26-S1).**
+
+**D-71 · A programmatic `.click()` is not evidence that a button works.** A real tap is
+pointerdown → pointerup → click; `.click()` dispatches only the last, so pointer capture is
+irrelevant and the button always appears to work. That is exactly why D-70 passed every test
+and failed on the founder's phone. Verify interactive controls with real input.
+**Status: in force (M26-S1).**
+
+**D-72 · Connect is a sheet keyed to one object id, never a mode.** *Why:* as
+`mode === "interact"` nothing ever reset it — selecting another object left the mode set so
+the sheet re-rendered for the new object, and closing it cleared the SELECTION while leaving
+the mode, stranding the editor in an empty "tap an object to connect" state with no way out.
+It is now derived against the live document (a deleted object cannot leave its sheet open),
+closes on selection change / empty canvas / mode change / close, and keeps the selection.
+**Status: in force (M26-S1), `test/nest-editor-shell.test.ts`.**
+
+**D-73 · Saving happens when the creator leaves.** No standalone Save button: Close asks
+Save draft / Close without saving / Cancel, Save draft awaits persistence before navigating,
+and nothing on that path publishes. *Why:* a Save button asks the creator to think about
+persistence, which is our concern. **Status: in force (M26-S1).**
+
+**D-74 · Dirty state is the live document against the last persisted snapshot.** One
+`dirtyKey()` over name/background/objects/focusAreas/detailScenes. Every edit already flows
+through `commit()`, so this catches move, resize, rotate, mirror, add/delete, layer,
+text/sticker, interaction and background without each remembering a flag — and camera,
+selection and sheet state cannot make a Nest dirty, because none of them are in the
+document. **Status: in force (M26-S1).**

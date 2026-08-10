@@ -180,6 +180,27 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom }: Options = 
     };
 
     const onPointerDown = (e: PointerEvent) => {
+      // ── M26-S1 §6 — THE MIRROR BUG ────────────────────────────────────────
+      //
+      // Never claim a pointer that begins on editor chrome.
+      //
+      // Screen-space chrome (the object toolbar, Reset view) renders INSIDE the viewport,
+      // so a tap on Mirror bubbles here. This handler then called
+      // `viewport.setPointerCapture(pointerId)` — and pointer capture RETARGETS every
+      // later event for that pointer, including `pointerup`, to the viewport. With no
+      // pointerup on the button, the browser never synthesises `click`, so `onClick`
+      // never ran. Mirror, Duplicate, Layer, Connect, Lock and Delete were all dead to a
+      // finger.
+      //
+      // It looked fine in tests because a programmatic `.click()` bypasses the pointer
+      // pipeline entirely. Only a real tap reproduces it — which is why the founder saw it
+      // on a phone and the suite did not.
+      //
+      // The Reset button and the runtime's controls each carried their own
+      // `stopPropagation`; the object toolbar never did. Fixing it centrally means a new
+      // control cannot forget.
+      if (e.target instanceof Element && e.target.closest("[data-editor-chrome]")) return;
+
       points.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (points.size === 1) {
         start = { x: e.clientX, y: e.clientY, t: e.timeStamp };

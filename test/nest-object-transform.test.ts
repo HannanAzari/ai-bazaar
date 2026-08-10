@@ -168,21 +168,22 @@ describe("the editor shell fits at 375px", () => {
     // row.
     expect(header).not.toContain("> Done</button>");
     expect(header).not.toContain("/> Done<");
-    expect(header).toContain('aria-label="Back to Profile"');
+    // §2 — Back became Close: leaving is where persistence matters.
+    expect(header).toContain('aria-label="Close editor"');
     expect(header).toContain('label="Undo"');
     expect(header).toContain('label="Redo"');
     expect(header).toContain('label="More"');
   });
 
-  it("the dock is Assets · Save · Publish", () => {
+  it("the dock is Assets · Publish — saving happens on the way out", () => {
     const dock = editor.slice(editor.indexOf("<nav"), editor.indexOf("</nav>"));
     expect(dock).toContain('label="Assets"');
-    // Save Draft is a PRIMARY action. M26-S buried it in the ••• menu, which the founder
-    // read as "Save disappeared" — two taps deep and invisible is removed.
-    expect(dock).toContain('label="Save"');
-    expect(dock).toContain("saveNow()");
     expect(dock).toContain("setShowPublish(true)");
     expect(dock).toContain("#d9913c");
+    // §1 — a standalone Save asks the creator to think about persistence, which is our
+    // concern. It moved to the Close decision.
+    expect(dock).not.toContain('label="Save"');
+    expect(editor).toContain("closeSavingDraft");
   });
 
   it("Connect is contextual on the selection, never a global tab", () => {

@@ -98,6 +98,7 @@ export function ScreenSpaceSelection({
     <div
       ref={frameRef}
       data-screen-selection=""
+      data-editor-chrome=""
       className="pointer-events-none absolute"
       // No transform of any kind: position and size are written in screen pixels. That is
       // what makes "handles never scale" true by construction rather than by cancellation.
