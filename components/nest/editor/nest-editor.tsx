@@ -17,6 +17,7 @@ import {
   Play,
   Redo2,
   RotateCcw,
+  Undo2,
   Save,
   Settings2,
   TriangleAlert,
@@ -804,12 +805,19 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                 type="button"
                 aria-label="Close editor"
                 onClick={requestClose}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-ink/70 hover:bg-ink/5"
+                className="-ml-1 flex h-10 w-10 items-center justify-center rounded-full text-ink/70 hover:bg-ink/5"
               >
                 <X className="h-5 w-5" />
               </button>
-              <ToolIcon label="Undo" onClick={() => setHistory(undoHistory(history))} disabled={!canUndo(history)}><RotateCcw className="h-5 w-5 -scale-x-100" /></ToolIcon>
-              <ToolIcon label="Redo" onClick={() => setHistory(redoHistory(history))} disabled={!canRedo(history)}><Redo2 className="h-5 w-5" /></ToolIcon>
+              {/* ── M26-F §4 — undo/redo are secondary ────────────────────────────
+                  Conventional curved arrows (Undo2/Redo2 are the mirrored pair, so they
+                  read as one control), smaller and quieter than Close and the More menu,
+                  with real breathing room before the centred toggle. `mr-1` on the group
+                  plus the switch's own clearance keeps them from crowding it at 375px. */}
+              <div className="flex items-center">
+                <UndoIcon label="Undo" onClick={() => setHistory(undoHistory(history))} disabled={!canUndo(history)}><Undo2 className="h-[18px] w-[18px]" /></UndoIcon>
+                <UndoIcon label="Redo" onClick={() => setHistory(redoHistory(history))} disabled={!canRedo(history)}><Redo2 className="h-[18px] w-[18px]" /></UndoIcon>
+              </div>
             </div>
 
             {/* ── M26 §P1 — Edit | Preview lives HERE, in both modes ────────────
@@ -1244,6 +1252,21 @@ function ToolIcon({ label, onClick, disabled, active, small, children }: { label
   );
 }
 
+/**
+ * M26-F §4 — the quieter sibling of ToolIcon, for undo/redo.
+ *
+ * A 36px target with a lighter ink so the pair reads as secondary next to Close and More,
+ * while still clearing the 36px minimum for a thumb. The centred toggle is the loud thing
+ * in this row; undo/redo should recede until wanted.
+ */
+function UndoIcon({ label, onClick, disabled, children }: { label: string; onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} aria-label={label} title={label} className="relative flex h-9 w-9 items-center justify-center rounded-full text-ink/45 transition hover:bg-ink/5 hover:text-ink/70 disabled:cursor-not-allowed disabled:opacity-25">
+      {children}
+    </button>
+  );
+}
+
 function ModeBtn({ active, label, onClick, children }: { active: boolean; label: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={active} className={`flex min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-1 text-[10px] font-bold transition ${active ? "bg-ink/5 text-cobalt" : "text-ink/55 hover:text-ink/80"}`}>
@@ -1343,7 +1366,7 @@ function ModeSwitch({ previewing, onEdit, onPreview }: { previewing: boolean; on
           type="button"
           onClick={go}
           aria-pressed={active}
-          className={`rounded-full px-3.5 py-1.5 text-[13px] font-bold transition ${active ? "bg-parchment text-ink shadow-sm" : "text-ink/55"}`}
+          className={`rounded-full px-3 py-1.5 text-[13px] font-bold transition ${active ? "bg-parchment text-ink shadow-sm" : "text-ink/55"}`}
         >
           {label}
         </button>

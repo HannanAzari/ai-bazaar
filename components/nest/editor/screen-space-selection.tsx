@@ -154,7 +154,13 @@ export function ScreenSpaceSelection({
           className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 justify-center"
           // A constant pixel gap, never a percentage of the frame — a percentage collapses
           // onto a tiny object and balloons on a big one.
-          style={{ bottom: "calc(100% + 14px)" }}
+          //
+          // M26-F §1 — the bar must CLEAR the rotate handle. The handle spans
+          // −(ROTATE_GAP + 44) … −ROTATE_GAP above the frame, so at the old constant 14px
+          // the two overlapped and the handle swallowed taps meant for Mirror. That went
+          // unnoticed while almost nothing was rotatable; enabling rotation on movable
+          // assets put a rotate handle on every selection and the collision became the norm.
+          style={{ bottom: `calc(100% + ${rotatable && !object.locked ? ROTATE_GAP + 44 + 10 : 14}px)` }}
         >
           {toolbar}
         </div>

@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Maximize2, Sparkles, X } from "lucide-react";
 import { resolveAsset, resolveBackground } from "@/lib/nest-production-library";
 import { OverlayContent } from "@/components/nest/overlay-content";
-import { inPaintOrder, placementStyle, SCENE_ASPECT } from "@/lib/nest-geometry";
+import { boxTransform, inPaintOrder, placementStyle, SCENE_ASPECT } from "@/lib/nest-geometry";
 import {
   focusCameraTransform,
   focusObjectsInPaintOrder,
@@ -463,7 +463,7 @@ function FocusChild({ object: o }: { object: EditableNestObject }) {
         width: `${o.width * 100}%`,
         height: `${o.height * 100}%`,
         zIndex: o.zIndex ?? 1,
-        transform: [o.rotation ? `rotate(${o.rotation}deg)` : "", o.flipX ? "scaleX(-1)" : ""].filter(Boolean).join(" ") || undefined,
+        transform: boxTransform(o), // M26-F §2 — the one transform contract
         transformOrigin: "center",
       }}
     >

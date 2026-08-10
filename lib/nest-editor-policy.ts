@@ -39,24 +39,33 @@ const FLOOR: EditorPlane[] = ["floor"];
 const FLOOR_SIDES: EditorPlane[] = ["floor", "left_sliver", "right_sliver"];
 const WALL: EditorPlane[] = ["front_wall"];
 
+// ── M26-F §1 — rotation is part of the free transform ────────────────────────
+//
+// Rotation was `false` for almost every movable object, so `rotateObject()` silently
+// no-opped and the two-finger gesture appeared dead on a real device — only `frame`, `rug`
+// and `books` ever turned. The founder tests with furniture, so the gesture looked broken
+// on everything they touched.
+//
+// Movable objects now rotate freely; architectural wall fixtures (`window`, `pinboard`) do
+// not, because a tilted window reads as a rendering fault rather than a choice.
 /** Guardrails keyed by living-room slot type. */
 export const EDITOR_GUARDRAILS: Partial<Record<LivingNestSlotType, EditorGuardrail>> = {
-  media: { allowedPlanes: FLOOR, minWidth: 0.3, maxWidth: 0.62, recommendedWidth: 0.482, boxAspect: 2.069, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 2, contactShadow: true, allowFlipX: true, allowRotation: false },
+  media: { allowedPlanes: FLOOR, minWidth: 0.3, maxWidth: 0.62, recommendedWidth: 0.482, boxAspect: 2.069, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 2, contactShadow: true, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
   frame: { allowedPlanes: WALL, minWidth: 0.08, maxWidth: 0.28, recommendedWidth: 0.157, boxAspect: 1.383, defaultAnchor: { x: 0.5, y: 0.5 }, defaultZ: 1, contactShadow: false, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
-  sofa: { allowedPlanes: FLOOR, minWidth: 0.4, maxWidth: 0.85, recommendedWidth: 0.678, boxAspect: 3.513, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 4, contactShadow: true, allowFlipX: true, allowRotation: false },
-  table: { allowedPlanes: FLOOR, minWidth: 0.15, maxWidth: 0.4, recommendedWidth: 0.275, boxAspect: 2.523, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: false },
+  sofa: { allowedPlanes: FLOOR, minWidth: 0.4, maxWidth: 0.85, recommendedWidth: 0.678, boxAspect: 3.513, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 4, contactShadow: true, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
+  table: { allowedPlanes: FLOOR, minWidth: 0.15, maxWidth: 0.4, recommendedWidth: 0.275, boxAspect: 2.523, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
   rug: { allowedPlanes: FLOOR, minWidth: 0.35, maxWidth: 0.85, recommendedWidth: 0.62, boxAspect: 3.543, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 0, contactShadow: false, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
-  lamp: { allowedPlanes: FLOOR_SIDES, minWidth: 0.08, maxWidth: 0.22, recommendedWidth: 0.155, boxAspect: 0.385, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
-  plant: { allowedPlanes: FLOOR_SIDES, minWidth: 0.12, maxWidth: 0.34, recommendedWidth: 0.241, boxAspect: 0.956, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
-  avatar: { allowedPlanes: ["floor", "foreground"], minWidth: 0.15, maxWidth: 0.34, recommendedWidth: 0.23, boxAspect: 0.548, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 6, contactShadow: true, allowFlipX: false, flipWarning: "Flipping mirrors clothing text, asymmetry and the light direction.", allowRotation: false },
-  side_table: { allowedPlanes: FLOOR, minWidth: 0.1, maxWidth: 0.25, recommendedWidth: 0.17, boxAspect: 1.6, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: false },
-  speaker: { allowedPlanes: FLOOR_SIDES, minWidth: 0.06, maxWidth: 0.16, recommendedWidth: 0.1, boxAspect: 0.7, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
+  lamp: { allowedPlanes: FLOOR_SIDES, minWidth: 0.08, maxWidth: 0.22, recommendedWidth: 0.155, boxAspect: 0.385, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
+  plant: { allowedPlanes: FLOOR_SIDES, minWidth: 0.12, maxWidth: 0.34, recommendedWidth: 0.241, boxAspect: 0.956, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
+  avatar: { allowedPlanes: ["floor", "foreground"], minWidth: 0.15, maxWidth: 0.34, recommendedWidth: 0.23, boxAspect: 0.548, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 6, contactShadow: true, allowFlipX: false, flipWarning: "Flipping mirrors clothing text, asymmetry and the light direction.", allowRotation: true, rotationRange: { min: -180, max: 180 } },
+  side_table: { allowedPlanes: FLOOR, minWidth: 0.1, maxWidth: 0.25, recommendedWidth: 0.17, boxAspect: 1.6, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
+  speaker: { allowedPlanes: FLOOR_SIDES, minWidth: 0.06, maxWidth: 0.16, recommendedWidth: 0.1, boxAspect: 0.7, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
   // Bookshelf — upright furniture, no rotation; loose books / small decor rotate freely.
   // boxAspect is scene-normalized (nw/nh) so the box's PIXEL aspect on the 3:4 stage matches
   // the art: pixelAspect = boxAspect·(3/4). The bookshelf cut-out is 535×1499 (pixel aspect
   // 0.357), so boxAspect = 0.357·(4/3) ≈ 0.476. (M7C.9: was 0.357 — the raw art aspect —
   // which over-tallened the box, letterboxing the art and floating the shelf hotspots.)
-  shelf: { allowedPlanes: FLOOR, minWidth: 0.12, maxWidth: 0.3, recommendedWidth: 0.18, boxAspect: 0.476, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: false },
+  shelf: { allowedPlanes: FLOOR, minWidth: 0.12, maxWidth: 0.3, recommendedWidth: 0.18, boxAspect: 0.476, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 3, contactShadow: true, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
   books: { allowedPlanes: ["floor", "foreground"], minWidth: 0.06, maxWidth: 0.18, recommendedWidth: 0.1, boxAspect: 1.748, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: false, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
   // ── Production Pack V1 slot types (M13) ──────────────────────────────────────
   // The production library tags furniture with the locked NestSlotType taxonomy
@@ -64,11 +73,11 @@ export const EDITOR_GUARDRAILS: Partial<Record<LivingNestSlotType, EditorGuardra
   // these fell back to DEFAULT_GUARDRAIL, whose first allowed plane is `front_wall` —
   // so floor furniture (sofas, desks, chairs) was born in the upper wall band. These
   // entries keep floor furniture on the floor and wall fixtures on the wall.
-  seat: { allowedPlanes: FLOOR, minWidth: 0.2, maxWidth: 0.85, recommendedWidth: 0.6, boxAspect: 2.4, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 4, contactShadow: true, allowFlipX: true, allowRotation: false },
-  desk: { allowedPlanes: FLOOR, minWidth: 0.25, maxWidth: 0.6, recommendedWidth: 0.42, boxAspect: 2.0, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: false },
+  seat: { allowedPlanes: FLOOR, minWidth: 0.2, maxWidth: 0.85, recommendedWidth: 0.6, boxAspect: 2.4, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 4, contactShadow: true, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
+  desk: { allowedPlanes: FLOOR, minWidth: 0.25, maxWidth: 0.6, recommendedWidth: 0.42, boxAspect: 2.0, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
   window: { allowedPlanes: WALL, minWidth: 0.15, maxWidth: 0.5, recommendedWidth: 0.3, boxAspect: 0.8, defaultAnchor: { x: 0.5, y: 0.5 }, defaultZ: 0, contactShadow: false, allowFlipX: true, allowRotation: false },
   pinboard: { allowedPlanes: WALL, minWidth: 0.12, maxWidth: 0.4, recommendedWidth: 0.24, boxAspect: 1.2, defaultAnchor: { x: 0.5, y: 0.5 }, defaultZ: 1, contactShadow: false, allowFlipX: true, allowRotation: false },
-  product: { allowedPlanes: FLOOR_SIDES, minWidth: 0.05, maxWidth: 0.22, recommendedWidth: 0.1, boxAspect: 1.0, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: false },
+  product: { allowedPlanes: FLOOR_SIDES, minWidth: 0.05, maxWidth: 0.22, recommendedWidth: 0.1, boxAspect: 1.0, defaultAnchor: { x: 0.5, y: 1 }, defaultZ: 5, contactShadow: true, allowFlipX: true, allowRotation: true, rotationRange: { min: -180, max: 180 } },
 };
 
 /** Fallback guardrail for any unlisted slot type. */

@@ -1,5 +1,6 @@
 "use client";
 
+import { boxTransform } from "@/lib/nest-geometry";
 import { useMemo } from "react";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import type { EditableNestDocument } from "@/lib/nest-editor-types";
@@ -65,7 +66,7 @@ export function ProjectedFocusChildren({
             .map((o) => {
               const asset = assetsById[o.assetId];
               const floor = o.plane === "floor" || o.plane === "foreground";
-              const t = `${o.rotation ? `rotate(${o.rotation}deg)` : ""}${o.flipX ? " scaleX(-1)" : ""}`.trim();
+              const t = boxTransform(o) ?? ""; // M26-F §2 — the one transform contract
               return (
                 <div
                   key={o.instanceId}

@@ -118,8 +118,16 @@ export function hasExplicitBox(p: NestPlacement): boolean {
   return p.w != null && p.h != null;
 }
 
-/** The CSS transform for a box. Identical string in the editor and every preview. */
-export function boxTransform(box: Pick<PlacementBox, "rotation" | "flipX">): string | undefined {
+/**
+ * The CSS transform for a box. THE one transform contract — identical string in the editor
+ * and every preview.
+ *
+ * M26-F §2 widened the parameter so an `EditableNestObject` (whose `rotation`/`flipX` are
+ * optional) satisfies it directly. It did not before, which is the small friction that let
+ * four separate hand-built copies of this string grow in the first place — and they drifted:
+ * the editor's copy was being overwritten by a CSS animation while the preview's was not.
+ */
+export function boxTransform(box: { rotation?: number; flipX?: boolean }): string | undefined {
   const parts: string[] = [];
   if (box.rotation) parts.push(`rotate(${box.rotation}deg)`);
   if (box.flipX) parts.push("scaleX(-1)");

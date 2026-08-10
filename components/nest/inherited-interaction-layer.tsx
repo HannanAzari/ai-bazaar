@@ -1,5 +1,6 @@
 "use client";
 
+import { boxTransform } from "@/lib/nest-geometry";
 import { useState } from "react";
 import { X } from "lucide-react";
 import type { NestAssetHotspot } from "@/lib/nest-hotspot-types";
@@ -49,7 +50,7 @@ export function InheritedInteractionLayer({
     // child objects below stay tappable everywhere else (M7C.8 layering rule).
     <div className="pointer-events-none absolute inset-0" style={{ zIndex: 45 }}>
       {objects.map((o) => {
-        const t = `${o.rotation ? `rotate(${o.rotation}deg)` : ""}${o.flipX ? " scaleX(-1)" : ""}`.trim();
+        const t = boxTransform(o) ?? ""; // M26-F §2 — the one transform contract
         const isSel = mode === "connect" && selectedObjectId === o.derivedId;
         return (
           <div

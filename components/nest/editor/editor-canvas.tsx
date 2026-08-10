@@ -19,6 +19,7 @@ import {
 import type { NestAmbiencePreset, NormalizedRect } from "@/lib/nest-types";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import { aspectRatioCss } from "@/lib/nest-render";
+import { boxTransform } from "@/lib/nest-geometry";
 import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor-types";
 import { moveObject, resizeObject, rotateObject, type ReorderOp } from "@/lib/nest-editor";
 import { canFlipObject, canRotateObject, snapRotation } from "@/lib/nest-editor-policy";
@@ -136,8 +137,14 @@ const pctOf = (n: number) => `${+(n * 100).toFixed(3)}%`;
 const snapStep = (v: number, step: number) => Math.round(v / step) * step;
 const angle = (a: Pt, b: Pt) => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
 const dist = (a: Pt, b: Pt) => Math.hypot(b.x - a.x, b.y - a.y);
-const transformOf = (o: EditableNestObject) =>
-  `${o.rotation ? `rotate(${o.rotation}deg)` : ""}${o.flipX ? " scaleX(-1)" : ""}`.trim();
+// ── M26-F §2 — ONE transform contract ────────────────────────────────────────
+//
+// `boxTransform` already carried the comment "Identical string in the editor and every
+// preview" — and yet the editor, the runtime's FocusChild, the inherited-interaction layer
+// and the projected-focus layer each rebuilt the string by hand. Four copies of a contract
+// is not a contract. They now all call the one function, so rotation, mirror and their
+// ORDER cannot drift apart again.
+const transformOf = (o: EditableNestObject) => boxTransform(o) ?? "";
 
 export function EditorCanvas(props: Props) {
   const { doc, assetsById, ambience, selectedId, onSelect, onCommit, showGrid, snap, advanced, zoom, hideChrome, gridCols = 24, gridRows = 32 } = props;
@@ -669,17 +676,28 @@ export function EditorCanvas(props: Props) {
                 style={{ left: pctOf(o.x), top: pctOf(o.y), width: pctOf(o.width), height: pctOf(o.height), zIndex: o.zIndex, transform: t || undefined, transformOrigin: "center" }}
                 aria-label={`${o.overlay ? (o.overlay.kind === "text" ? `Text: ${o.overlay.text}` : "Image sticker") : asset?.name ?? o.assetId}${o.locked ? " (locked)" : ""}`}
               >
-                {o.contactShadow ? <div className="editor-contact-shadow" aria-hidden /> : null}
-                {o.overlay ? (
-                  <OverlayContent overlay={o.overlay} />
-                ) : asset?.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={asset.imageUrl} alt="" draggable={false} className={`pointer-events-none h-full w-full object-contain ${floor ? "object-bottom" : "object-center"}`} />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center rounded border border-terracotta/50 bg-terracotta/10 text-[9px] font-bold text-ink/60">{o.assetId}</div>
-                )}
-                {/* M8: editable-surface content (photo/text/sticker), clipped to the region. */}
-                <SurfaceContentLayer surfaces={resolveObjectSurfaces(o)} />
+                {/* ── M26-F §2 — THE PLACEMENT ANIMATION LIVES IN HERE ──────────────
+                    The pop-in used to run on the button itself, which is the element that
+                    carries the object's rotation and mirror. A CSS animation beats an
+                    inline style in the cascade, and `animation-fill-mode: both` keeps the
+                    final keyframe applied forever — so `to { transform: scale(1) }`
+                    permanently overwrote every rotation and flip in Edit. Preview has no
+                    such animation, which is exactly why the two disagreed.
+                    Nesting it means the wrapper owns the pop-in scale and the button owns
+                    the object transform; neither can overwrite the other. */}
+                <span className="editor-piece-in absolute inset-0 block">
+                  {o.contactShadow ? <div className="editor-contact-shadow" aria-hidden /> : null}
+                  {o.overlay ? (
+                    <OverlayContent overlay={o.overlay} />
+                  ) : asset?.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={asset.imageUrl} alt="" draggable={false} className={`pointer-events-none h-full w-full object-contain ${floor ? "object-bottom" : "object-center"}`} />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center rounded border border-terracotta/50 bg-terracotta/10 text-[9px] font-bold text-ink/60">{o.assetId}</div>
+                  )}
+                  {/* M8: editable-surface content (photo/text/sticker), clipped to the region. */}
+                  <SurfaceContentLayer surfaces={resolveObjectSurfaces(o)} />
+                </span>
               </button>
             );
           })}
@@ -1156,8 +1174,12 @@ const CANVAS_CSS = `
 /* M14 delight: newly-mounted pieces gently pop in (a placement animation). Only new
    elements animate — React keys existing pieces by instanceId, so moves never re-trigger it. */
 @keyframes piece-in { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: scale(1); } }
-.editor-piece { cursor: grab; animation: piece-in .26s cubic-bezier(.22,.61,.36,1) both; }
+/* The button carries the OBJECT transform (rotation + mirror) and must never be animated:
+   a CSS animation outranks an inline style, so animating it here silently discarded every
+   rotation and flip in Edit mode. The pop-in belongs to the inner wrapper. */
+.editor-piece { cursor: grab; }
+.editor-piece-in { animation: piece-in .26s cubic-bezier(.22,.61,.36,1) both; }
 .editor-piece:active { cursor: grabbing; }
-@media (prefers-reduced-motion: reduce) { .editor-piece { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .editor-piece-in { animation: none; } }
 .editor-contact-shadow { position:absolute; left:50%; bottom:0; width:72%; aspect-ratio:6 / 1; transform:translate(-50%,34%); background:radial-gradient(50% 50% at 50% 50%, rgba(70,54,90,.30) 0%, rgba(70,54,90,.12) 55%, rgba(70,54,90,0) 75%); filter:blur(2px); pointer-events:none; }
 `;
