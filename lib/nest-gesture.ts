@@ -13,7 +13,16 @@
 // Pure: no React, no DOM types beyond a target predicate. Fully unit-testable.
 
 /** Who owns a gesture. `none` means the gesture does nothing at all. */
-export type GestureOwner = "camera-pinch" | "camera-pan" | "object-move" | "object-resize" | "object-rotate" | "select" | "none";
+export type GestureOwner =
+  | "camera-pinch"
+  | "camera-pan"
+  | "object-move"
+  /** M26-S §2 — two fingers on the SELECTED object: scale + rotate + translate together. */
+  | "object-transform"
+  | "object-resize"
+  | "object-rotate"
+  | "select"
+  | "none";
 
 /** What the pointer landed on, in priority order of specificity. */
 export type GestureTargetKind = "resize-handle" | "rotate-handle" | "selected-object" | "other-object" | "empty";
@@ -28,6 +37,11 @@ export type GestureContext = {
   objectId?: string;
   /** A locked object rejects manipulation but can still be selected. */
   locked?: boolean;
+  /**
+   * M26-S §2 — at least one pointer is inside the SELECTED object's transform region
+   * (`transformRegionFor`). Only meaningful when `pointerCount >= 2`.
+   */
+  onSelectedTransformRegion?: boolean;
 };
 
 /**
@@ -37,7 +51,13 @@ export type GestureContext = {
  * sofa is still a pinch, and must never drag the sofa across the room.
  */
 export function resolveGestureOwner(ctx: GestureContext): GestureOwner {
-  if (ctx.pointerCount >= 2) return "camera-pinch";
+  if (ctx.pointerCount >= 2) {
+    // M26-S §2 — two fingers on the SELECTED object transform it (Instagram-style);
+    // two fingers anywhere else are always a camera pinch. Selection is what makes this
+    // safe: M26A had to delete the old two-finger object gesture precisely because it
+    // fired on any object under two fingers and silently rewrote geometry.
+    return ctx.onSelectedTransformRegion && !ctx.locked ? "object-transform" : "camera-pinch";
+  }
 
   switch (ctx.target) {
     case "resize-handle":
@@ -74,7 +94,7 @@ export function resolveGestureOwner(ctx: GestureContext): GestureOwner {
 
 /** True when this owner manipulates object geometry (and must block the camera). */
 export function ownerMovesObject(o: GestureOwner): boolean {
-  return o === "object-move" || o === "object-resize" || o === "object-rotate";
+  return o === "object-move" || o === "object-transform" || o === "object-resize" || o === "object-rotate";
 }
 
 /** True when this owner moves the camera (and must not touch geometry). */
@@ -99,9 +119,13 @@ export function beginGesture(ctx: GestureContext, pointerId: number): ActiveGest
  * The owner after another pointer goes down. Only ever escalates to a pinch; it never
  * re-decides between object and camera, because that is the bug this module prevents.
  */
-export function upgradeGesture(active: ActiveGesture, pointerCount: number): ActiveGesture {
-  if (pointerCount >= 2) return { ...active, owner: "camera-pinch" };
-  return active;
+export function upgradeGesture(active: ActiveGesture, pointerCount: number, onSelectedTransformRegion = false): ActiveGesture {
+  if (pointerCount < 2) return active;
+  // A second finger arriving on the object the creator is already holding is a transform,
+  // not a camera pinch — that is the sticker gesture. Anywhere else, the camera takes it
+  // and the object is abandoned exactly where it is.
+  const movingSelected = active.owner === "object-move" || active.owner === "object-transform";
+  return { ...active, owner: movingSelected && onSelectedTransformRegion ? "object-transform" : "camera-pinch" };
 }
 
 /**
@@ -136,4 +160,104 @@ export function classifyTarget(
     objectId: obj.id,
     ...(obj.locked ? { locked: true } : {}),
   };
+}
+
+// ── M26-S §2 — the two-finger object transform ───────────────────────────────
+//
+// The natural sticker gesture from Instagram/Telegram: put two fingers on the selected
+// object and it scales and rotates together, following the fingers directly. Resize handles
+// remain as a precision/accessibility alternative, not the primary mobile interaction.
+//
+// M26A deleted the old two-finger object gesture because it fired on ANY object under two
+// fingers — so pinching to look closer silently rewrote geometry. The distinction that
+// makes it safe now is SELECTION: two fingers transform only the object the creator has
+// explicitly selected. Two fingers anywhere else are still, always, a camera pinch.
+
+/** A two-finger sample. Distances are in screen px; the angle is in degrees. */
+export type PinchSample = { distance: number; angleDeg: number; midpoint: { x: number; y: number } };
+
+export function pinchSample(a: { x: number; y: number }, b: { x: number; y: number }): PinchSample {
+  return {
+    distance: Math.hypot(a.x - b.x, a.y - b.y),
+    angleDeg: (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI,
+    midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+  };
+}
+
+/**
+ * The object transform implied by moving from `start` to `now`.
+ *
+ * Returned as RATIOS and DELTAS, never absolutes: the caller multiplies the object's
+ * width-at-gesture-start by `scale` and adds `rotationDeg` to its rotation-at-start. That
+ * keeps the whole gesture a pure function of its own beginning, so a dropped frame or a
+ * re-render cannot make it drift.
+ */
+export function objectTransformFromPinch(
+  start: PinchSample,
+  now: PinchSample,
+): { scale: number; rotationDeg: number; dx: number; dy: number } {
+  return {
+    // A degenerate start (both fingers on the same pixel) must not produce Infinity.
+    scale: start.distance > 4 ? now.distance / start.distance : 1,
+    rotationDeg: shortestAngleDelta(start.angleDeg, now.angleDeg),
+    // Midpoint travel translates the object too, so a two-finger gesture can reposition as
+    // well as resize — which is what makes it feel like holding the object rather than
+    // operating a control.
+    dx: now.midpoint.x - start.midpoint.x,
+    dy: now.midpoint.y - start.midpoint.y,
+  };
+}
+
+/** Degrees from `a` to `b`, wrapped to (-180, 180] so crossing ±180° never spins. */
+export function shortestAngleDelta(a: number, b: number): number {
+  let d = (b - a) % 360;
+  if (d > 180) d -= 360;
+  if (d <= -180) d += 360;
+  return d;
+}
+
+/**
+ * The touch region a SELECTED object claims for a two-finger transform.
+ *
+ * A 10px book on a phone cannot receive two fingers inside its own bounds — asking for that
+ * would make the gesture unusable on exactly the objects that need it most. The selected
+ * object therefore claims a generous region around itself: at least `minPx` across, grown
+ * from its visible box.
+ *
+ * Only the SELECTED object gets this. Unselected objects keep their real bounds, so the
+ * region cannot swallow a pinch the creator meant for the room.
+ */
+export function transformRegionFor(
+  rect: { left: number; top: number; width: number; height: number },
+  minPx = 90,
+): { left: number; top: number; width: number; height: number } {
+  const w = Math.max(rect.width, minPx);
+  const h = Math.max(rect.height, minPx);
+  return {
+    left: rect.left + rect.width / 2 - w / 2,
+    top: rect.top + rect.height / 2 - h / 2,
+    width: w,
+    height: h,
+  };
+}
+
+/** Whether a point falls inside a region. */
+export function regionContains(r: { left: number; top: number; width: number; height: number }, p: { x: number; y: number }): boolean {
+  return p.x >= r.left && p.x <= r.left + r.width && p.y >= r.top && p.y <= r.top + r.height;
+}
+
+/**
+ * Two fingers are down. Do they belong to the selected object, or to the camera?
+ *
+ * The rule: if EITHER finger is inside the selected object's transform region, the object
+ * owns it. Requiring both would fail the small-object case the region exists to solve —
+ * one finger anchors on the book, the other spreads into open room.
+ */
+export function twoFingerOwner(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  selectedRegion: { left: number; top: number; width: number; height: number } | null,
+): "object-transform" | "camera-pinch" {
+  if (!selectedRegion) return "camera-pinch";
+  return regionContains(selectedRegion, a) || regionContains(selectedRegion, b) ? "object-transform" : "camera-pinch";
 }

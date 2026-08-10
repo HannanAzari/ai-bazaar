@@ -37,6 +37,7 @@ import { useRouter } from "next/navigation";
 import { useAiLivingAssets } from "@/lib/nest-editor-ai-bridge";
 import { useMyAvatarLivingAsset } from "@/lib/avatar-factory/avatar-editor-bridge";
 import { PublishGate } from "@/components/nest/editor/publish-gate";
+import { useNestIdentity } from "@/components/nest/app-shell/use-nest-identity";
 import { NestRuntime } from "@/components/nest/app-shell/nest-runtime";
 import type { NestDocument } from "@/lib/nest-document-types";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
@@ -142,6 +143,8 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   const ASSETS = editorCatalog.assetsById;
   const trayAssets = editorCatalog.assets;
   const [showPublish, setShowPublish] = useState(false);
+  // M26-S §9 — Storage keys are `<ownerId>/<nestId>/…`; the bucket policies depend on it.
+  const { ownerId } = useNestIdentity();
   const [history, setHistory] = useState<History<EditableNestDocument>>(() => createHistory(seed ?? freshDocument(), 50));
   const [mode, setMode] = useState<Mode>("arrange");
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
@@ -665,9 +668,12 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
               <ToolIcon label="Redo" onClick={() => setHistory(redoHistory(history))} disabled={!canRedo(history)}><Redo2 className="h-5 w-5" /></ToolIcon>
             </div>
 
-            <ModeSwitch previewing={previewing} onEdit={exitPreview} onPreview={onPreview} />
-            {/* Autosave stays internal (no wide "Saved" label that shifts the bar and can
-                push Done off a narrow screen); its state only hints Done's tooltip. */}
+            {/* ── M26-S §6 — the header carries FOUR controls, and no more ──────
+                Back, Undo, Redo, •••. The Edit|Preview switch, Publish and Done all lived
+                here and, at 375px, pushed Publish off the right edge — reported twice.
+                Preview and Publish are workflow, so they belong in the bottom dock (§7);
+                Save/Done are secondary, so they live under •••. A header that overflows is
+                not a styling problem, it is too many things competing for one row. */}
             <div className="flex shrink-0 items-center gap-1">
               <div className="relative">
                 <ToolIcon label="More" onClick={() => setMoreOpen((v) => !v)} active={moreOpen}>
@@ -690,6 +696,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                     onZoomIn={zoomIn}
                     onZoomOut={zoomOut}
                     onSave={() => void saveNow()}
+                    onDone={() => { void saveNow().then(() => { window.location.href = "/profile"; }); }}
                     onLoad={load}
                     onImport={() => fileRef.current?.click()}
                     onExport={exportJson}
@@ -698,10 +705,6 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                   />
                 ) : null}
               </div>
-              <button type="button" onClick={() => setShowPublish(true)} className="ml-1 inline-flex h-9 items-center gap-1 rounded-full bg-[#d9913c] px-3 text-xs font-bold text-white hover:brightness-95"><Upload className="h-4 w-4" /> Publish</button>
-              {/* Done saves + returns the creator to their Profile (M15.1). Always fully
-                  visible — the top bar no longer carries a width-shifting save label. */}
-              <button type="button" title={saveState === "saved" ? "All changes saved" : "Save & finish"} onClick={() => { void saveNow().then(() => { window.location.href = "/profile"; }); }} className="ml-1.5 inline-flex h-9 shrink-0 items-center gap-1 rounded-full bg-ink px-3 text-xs font-bold text-parchment hover:bg-ink/85"><Check className="h-4 w-4" /> Done</button>
             </div>
             <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onImportFile(f); e.target.value = ""; }} />
           </header>
@@ -885,6 +888,8 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                   object={selected}
                   assetName={ASSETS[selected.assetId]?.name ?? selected.assetId}
                   assetThumbUrl={ASSETS[selected.assetId]?.thumbnailUrl}
+                  ownerId={ownerId}
+                  nestId={documentId ?? doc.id}
                   snap={connectSnap}
                   onSnapChange={setConnectSnap}
                   onCommit={(config) =>
@@ -947,8 +952,21 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
 
           {/* Bottom command bar (~60px) */}
           <nav className="flex h-16 shrink-0 items-center justify-around gap-1 border-t border-ink/10 px-3 py-1.5">
-            <ModeBtn active={mode === "arrange"} label="Arrange" onClick={() => setMode("arrange")}><Move className="h-5 w-5" /></ModeBtn>
+            {/* ── M26-S §7 — global workflow only ───────────────────────────────
+                Assets · Preview · Publish. "Arrange" is gone: arranging is what the canvas
+                DOES, not a mode a creator enters, and every mode we offer is a decision
+                about their own fingers that they should not have to make (§24). Connect is
+                contextual — it appears beside Text/Sticker when a connectable object is
+                selected, never as a permanent global tab. */}
             <ModeBtn active={mode === "assets"} label="Assets" onClick={() => { setSelectedId(undefined); setMode("assets"); }}><LayoutGrid className="h-5 w-5" /></ModeBtn>
+            <ModeBtn active={false} label="Preview" onClick={onPreview}><Play className="h-5 w-5" /></ModeBtn>
+            <button
+              type="button"
+              onClick={() => setShowPublish(true)}
+              className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-[#d9913c] px-3 text-[13px] font-bold text-white transition active:scale-95"
+            >
+              <Upload className="h-4 w-4" /> Publish
+            </button>
             {/* ── M25 §P3/§P7 — ONE Interaction button ──────────────────────────
                 Connect, Surface and Focus are retired from the toolbar. Between them they
                 exposed hotspot bindings, surface projection and child scenes — our
@@ -957,7 +975,6 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
                 inspection. Legacy Focus data still PLAYS (see nest-runtime.tsx); it just
                 cannot be authored any more. The old modes remain reachable from Advanced
                 for founder debugging of existing Nests. */}
-            <ModeBtn active={mode === "interact"} label="Connect" onClick={() => { setSelectedHotspotId(undefined); setMode("interact"); }}><Link2 className="h-5 w-5" /></ModeBtn>
           </nav>
         </>
       )}
@@ -1039,7 +1056,9 @@ function ModeBtn({ active, label, onClick, children }: { active: boolean; label:
   );
 }
 
-function MoreMenu({ onClose, role, onRole, caps, showGrid, snap, zoom, warnings, onToggleGrid, onToggleSnap, onFit, onZoomIn, onZoomOut, onSave, onLoad, onImport, onExport, onReset, onAdvanced }: {
+function MoreMenu({ onClose, role, onRole, caps, showGrid, snap, zoom, warnings, onToggleGrid, onToggleSnap, onFit, onZoomIn, onZoomOut, onSave, onDone, onLoad, onImport, onExport, onReset, onAdvanced }: {
+  /** M26-S §6 — Save & finish moved out of the header, which could not fit it at 375px. */
+  onDone: () => void;
   onClose: () => void;
   role: EditorRole;
   onRole: (r: EditorRole) => void;
@@ -1095,7 +1114,8 @@ function MoreMenu({ onClose, role, onRole, caps, showGrid, snap, zoom, warnings,
         {caps.showDebug ? <Item icon={<Grid3x3 className="h-4 w-4" />} label="Grid" onClick={onToggleGrid} active={showGrid} /> : null}
         {caps.showDebug ? <Item icon={<Magnet className="h-4 w-4" />} label="Snap to grid" onClick={onToggleSnap} active={snap} /> : null}
         <div className="my-1 h-px bg-ink/10" />
-        <Item icon={<Save className="h-4 w-4" />} label="Save now" onClick={() => { onSave(); onClose(); }} />
+        <Item icon={<Save className="h-4 w-4" />} label="Save draft" onClick={() => { onSave(); onClose(); }} />
+        <Item icon={<Check className="h-4 w-4" />} label="Save &amp; finish" onClick={() => { onDone(); onClose(); }} />
         <Item icon={<FolderOpen className="h-4 w-4" />} label="Load draft" onClick={() => { onLoad(); onClose(); }} />
         <Item icon={<Upload className="h-4 w-4" />} label="Import JSON" onClick={() => { onImport(); onClose(); }} />
         <Item icon={<Download className="h-4 w-4" />} label="Export JSON" onClick={() => { onExport(); onClose(); }} />

@@ -451,10 +451,12 @@ describe("19. a new Nest needs no Focus at all", () => {
   it("Focus is gone from the editor toolbar", () => {
     expect(editor).not.toContain('label="Focus"');
     expect(editor).not.toContain('label="Surface"');
-    // M26-R renamed the dock entry: "Connect" is what a creator is doing; "Interaction"
-    // was our word for our model.
-    expect(editor).toContain('label="Connect"');
+    // M26-S: the dock is global workflow only — Assets · Preview · Publish. Connect is
+    // contextual (beside Text/Sticker on a connectable selection), never a global tab, and
+    // "Interaction" as a mode is gone for good.
     expect(editor).not.toContain('label="Interaction"');
+    expect(editor).toContain('label="Assets"');
+    expect(editor).toContain('label="Preview"');
   });
 });
 

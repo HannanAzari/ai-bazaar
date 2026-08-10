@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Link2, Trash2, Upload, X } from "lucide-react";
 import { MobileBottomSheet, type BottomSheetSnapPoint } from "@/components/nest/editor/mobile-bottom-sheet";
 import { capabilitiesForAsset, type AssetInteractionConfig, type ConnectedContent } from "@/lib/nest-asset-interaction";
-import { contentRejection, describeConnected, detectContentSource, detectUploadedFile } from "@/lib/nest-content-source";
+import { contentRejection, describeConnected, detectContentSource } from "@/lib/nest-content-source";
+import { shortSourceLabel, uploadNestMedia } from "@/lib/nest-media";
 import type { EditableNestObject } from "@/lib/nest-editor-types";
 
 // ── M26-R §P5/§P6 — Connect ──────────────────────────────────────────────────
@@ -32,10 +33,15 @@ export function InteractionPanel({
   onSnapChange,
   onCommit,
   onClose,
+  ownerId,
+  nestId,
 }: {
   object: EditableNestObject;
   assetName: string;
   assetThumbUrl?: string;
+  /** M26-S §9 — Storage keys are `<ownerId>/<nestId>/…`; the policies depend on it. */
+  ownerId?: string;
+  nestId?: string;
   snap: BottomSheetSnapPoint;
   onSnapChange: (s: BottomSheetSnapPoint) => void;
   onCommit: (config: AssetInteractionConfig | undefined) => void;
@@ -48,6 +54,7 @@ export function InteractionPanel({
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Re-seed only when a DIFFERENT object is selected. Keying on the committed value is what
@@ -106,20 +113,34 @@ export function InteractionPanel({
     window.setTimeout(() => setJustSaved(false), 1600);
   }
 
+  /**
+   * M26-S §9 — an upload goes to Storage, and the document keeps a reference.
+   *
+   * It used to be read as a base64 `data:` URL and written straight into the Nest, so a
+   * single phone photo became a multi-megabyte string re-sent on every feed read. There is
+   * deliberately NO base64 fallback: if the upload fails the creator is told, because a
+   * silent fallback would quietly turn their Nest back into a file container.
+   */
   async function onPickFile(file: File | undefined) {
-    if (!file) return;
-    const dataUrl = await new Promise<string>((res, rej) => {
-      const fr = new FileReader();
-      fr.onload = () => res(String(fr.result));
-      fr.onerror = () => rej(fr.error);
-      fr.readAsDataURL(file);
-    });
-    const detected = detectUploadedFile(file, dataUrl);
-    if (!detected) {
-      setError("That file type isn't supported yet. Try a photo or a video.");
+    if (!file || !ownerId || !nestId) {
+      if (file) setError("Uploads need you to be signed in with a saved Nest.");
       return;
     }
-    connect(detected);
+    setUploading(true);
+    setError(null);
+    try {
+      const ref = await uploadNestMedia(file, { ownerId, nestId });
+      const kind = ref.kind === "audio" ? "audio" : ref.kind;
+      const reject = contentRejection({ kind, url: ref.url, label: ref.kind }, def!.accepts, assetName);
+      if (reject) { setError(reject); return; }
+      onCommit({ ...cfg, connection: { kind, url: ref.url, label: ref.title ?? ref.kind } });
+      setJustSaved(true);
+      window.setTimeout(() => setJustSaved(false), 1600);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That upload didn't work. Your Nest is unchanged.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   const current = connection ? detectContentSource(connection.url ?? "") : null;
@@ -137,8 +158,11 @@ export function InteractionPanel({
                 <p className="text-[15px] font-bold leading-tight text-ink">
                   {current ? current.label : connection.label ?? "Connected"}
                 </p>
-                <p className="mt-1 break-all text-[13px] leading-snug text-ink/45">
-                  {current ? describeConnected(current) : connection.url}
+                {/* §11/§20 — never a raw URL at length. The founder's screenshot showed a
+                    base64 blob filling the sheet; a host name or a file name is all a
+                    creator needs to recognise what they connected. */}
+                <p className="mt-1 truncate text-[13px] leading-snug text-ink/45">
+                  {current ? describeConnected(current) : shortSourceLabel(connection.url ?? "")}
                 </p>
               </div>
               <div className="mt-2.5 flex gap-2">
@@ -203,9 +227,10 @@ export function InteractionPanel({
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-ink/15 px-3.5 py-3 text-[15px] font-bold text-ink/70"
+                disabled={uploading}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-ink/15 px-3.5 py-3 text-[15px] font-bold text-ink/70 disabled:opacity-50"
               >
-                <Upload className="size-4" /> Upload
+                <Upload className="size-4" /> {uploading ? "Uploading…" : "Upload"}
               </button>
               <input
                 ref={fileRef}

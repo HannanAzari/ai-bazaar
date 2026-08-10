@@ -411,3 +411,45 @@ immediately; `Done` only closes the sheet; the Nest's own draft/publish persists
 removes the entire class of a save that reports success and drops the link — the M25B bug —
 by removing the step that could lie. **Status: in force (M26-R), supersedes D-50's save
 mechanics.**
+
+**D-64 · Two fingers on the SELECTED object transform it; two fingers anywhere else are the
+camera.** Scale from the finger-distance ratio, rotation from the angle delta, translation
+from the midpoint — one gesture, the Instagram/Telegram sticker behaviour. *Why selection is
+the safeguard:* M26A had to delete the previous two-finger object gesture because it fired
+on ANY object under two fingers, so pinching to look closer silently rewrote geometry.
+Requiring an explicit selection makes the creator's intent unambiguous. Resize handles
+remain as a precision alternative, not the primary mobile interaction. **Status: in force
+(M26-S), `test/nest-object-transform.test.ts`.**
+
+**D-65 · A selected object claims a ~90px transform region.** Two fingers cannot land inside
+a 10px book, so requiring that would make the gesture unusable on exactly the objects that
+need it. EITHER finger inside the region gives the object the gesture — requiring both fails
+the same case, since one finger anchors on the book while the other spreads into open room.
+Only the selected object gets a region. **Status: in force (M26-S).**
+
+**D-66 · The editor header carries four controls: back, undo, redo, •••.** Publish and
+Preview are workflow and live in the bottom dock; Save and Save & finish live under •••.
+*Why:* the header previously also held Edit|Preview, Publish and Done, and at 375px pushed
+Publish off the right edge — reported twice. A header that overflows is not a styling
+problem, it is too many things competing for one row. Measured at 375/390/430: no overflow,
+Publish fully visible. **Status: in force (M26-S).**
+
+**D-67 · The dock is global workflow only: Assets · Preview · Publish.** "Arrange" is gone —
+arranging is what the canvas does, not a mode to enter, and every mode we offer is a decision
+about the creator's own fingers that they should not have to make. Connect is contextual on a
+connectable selection, never a permanent tab. **Status: in force (M26-S).**
+
+**D-68 · Creator media lives in Supabase Storage; the document holds a reference.** Uploads
+go to the `nest-media` bucket keyed `<ownerId>/<nestId>/<file>` (the policies key ownership
+off the first path segment). *Why:* uploads were persisted as base64 `data:` URLs inside
+`nest_objects.interaction` — a phone photo is 2–5MB, base64 adds ~33%, and that blob was
+re-sent on every feed read, every card and every visitor load. It is already in the live
+database. **There is deliberately no base64 fallback:** a failed upload tells the creator,
+because a silent fallback would quietly turn their Nest back into a file container.
+`assertNoInlineMedia` is the guard. Legacy documents carrying `data:` URLs still render.
+**Status: in force (M26-S), needs `supabase/provision/m26s_media_storage.sql`.**
+
+**D-69 · No creator-facing UI ever renders a raw URL at length.** A host name
+(`youtube.com`) or a file name is all a creator needs to recognise what they connected.
+*Why:* the sheet was showing `data:image/jpeg;base64,/9j/4AAQ…` filling the panel.
+**Status: in force (M26-S).**

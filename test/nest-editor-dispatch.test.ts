@@ -293,13 +293,23 @@ describe("17. a draft reopen preserves zoom-authored placement", () => {
 // ── 14–16. Edit / Preview, and nothing else regressed ────────────────────────
 
 describe("14-15. Edit and Preview share one document and one renderer", () => {
-  it("there is ONE top-level mode switch, rendered in both modes", () => {
-    expect(editor).toContain("function ModeSwitch(");
-    expect((editor.match(/<ModeSwitch /g) ?? []).length).toBe(2);
+  it("M26-S — the header carries NO Edit/Preview switch", () => {
+    // It lived in the header and, at 375px, helped push Publish off the right edge.
+    // Preview is a destination in the bottom dock; ModeSwitch survives only inside
+    // Preview itself, as the one way back.
+    // Asserted on the header's RENDERED content, not its comments — the comment there
+    // deliberately names what was removed and why.
+    const header = editor
+      .slice(editor.indexOf("<header"), editor.indexOf("</header>"))
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
+    expect(header).not.toContain("ModeSwitch");
+    expect(header).not.toContain("Publish");
+    expect(header).not.toContain("setShowPublish");
   });
 
-  it("the duplicate Preview entry is gone from the bottom bar", () => {
-    expect(editor).not.toContain('label="Preview"');
+  it("M26-S — Preview and Publish are bottom-dock workflow", () => {
+    expect(editor).toContain('label="Preview"');
+    expect(editor).toContain("setShowPublish(true)");
   });
 
   it("Preview mounts the real visitor runtime, from the same canonical document", () => {
