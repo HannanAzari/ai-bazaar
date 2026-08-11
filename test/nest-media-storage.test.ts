@@ -77,7 +77,13 @@ describe("§3 — supported files", () => {
 
   it("names the formats that DO work when a format is rejected", () => {
     expect(uploadRejection({ type: "image/heic", size: 10, name: "p.heic" })).toMatch(/JPEG, PNG or WebP/);
-    expect(uploadRejection({ type: "video/avi", size: 10, name: "v.avi" })).toMatch(/MP4 or WebM/);
+    // M27C §P3 — the video sentence changed on purpose. It used to name the two container
+    // formats ("MP4 or WebM"); it now names MP4 and offers the route that always works for a
+    // phone recording nobody can transcode — connecting a YouTube link. Same intent, better
+    // next step, and the same sentence is reused for the codec probe so a creator never sees
+    // two different explanations of one problem.
+    expect(uploadRejection({ type: "video/avi", size: 10, name: "v.avi" })).toMatch(/MP4/);
+    expect(uploadRejection({ type: "video/avi", size: 10, name: "v.avi" })).toMatch(/YouTube/);
   });
 
   it("rejects an oversized file BEFORE uploading it over a phone connection", () => {

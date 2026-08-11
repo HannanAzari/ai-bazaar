@@ -90,6 +90,71 @@ export const ALLOWED_UPLOAD_MIME: Record<string, string> = {
 /** 25 MB, matching the bucket's own `file_size_limit`. */
 export const MAX_UPLOAD_BYTES = 26214400;
 
+// ── M27C §P3 — the iPhone video problem, answered without transcoding ────────
+//
+// The picker offers `video/*`, so an iPhone will happily hand over what it has. Two things
+// arrive, and only one of them is caught by a MIME check:
+//
+//   1. A camera-roll .MOV arrives as `video/quicktime`. Not in `ALLOWED_UPLOAD_MIME`, so it
+//      is already rejected before any bytes leave the phone.
+//
+//   2. A "compatible-format" iPhone recording arrives as `video/mp4` — and may still be
+//      HEVC/H.265 inside that container. The MIME check PASSES it. It uploads (up to 25 MB
+//      over a phone connection), is stored, is referenced by the document, and then fails to
+//      decode in Chrome and Firefox on most platforms. The creator's Nest is broken for
+//      everyone but them, and nothing ever told them.
+//
+// The container does not name the codec, so no amount of string checking finds case 2. The
+// browser already knows, though: give it the file and it either produces metadata or errors.
+// That is this probe — one <video> element, no library, no server, no conversion. It runs
+// BEFORE the upload, so a file we cannot play is never stored.
+//
+// Transcoding is explicitly post-beta. This is the guard that makes not having it honest.
+export const UNSUPPORTED_VIDEO = "This video format isn't supported yet. Use MP4 or connect a YouTube video.";
+
+/** How long to wait for the browser to decide. A phone decoding a large file needs a moment. */
+const PROBE_TIMEOUT_MS = 8000;
+
+/**
+ * Whether the browser can actually decode this video — the reason string, or null if fine.
+ *
+ * Deliberately fails OPEN (returns null) when there is no DOM to probe with, so server-side
+ * callers and tests are unaffected. The MIME check above is the guarantee; this is the
+ * second, sharper net.
+ */
+export async function videoPlaybackRejection(file: Blob & { type: string }): Promise<string | null> {
+  if (!file.type.startsWith("video/")) return null;
+  if (typeof document === "undefined" || typeof URL?.createObjectURL !== "function") return null;
+
+  const url = URL.createObjectURL(file);
+  const el = document.createElement("video");
+  el.preload = "metadata";
+  el.muted = true;
+  try {
+    return await new Promise<string | null>((resolve) => {
+      const done = (v: string | null) => {
+        el.removeAttribute("src");
+        el.load();
+        resolve(v);
+      };
+      const timer = setTimeout(() => done(null), PROBE_TIMEOUT_MS); // slow ≠ broken
+      // Metadata means a decoder claimed it. A dimensionless track is an audio-only or
+      // undecodable stream wearing a video container.
+      el.onloadedmetadata = () => {
+        clearTimeout(timer);
+        done(el.videoWidth > 0 && el.videoHeight > 0 ? null : UNSUPPORTED_VIDEO);
+      };
+      el.onerror = () => {
+        clearTimeout(timer);
+        done(UNSUPPORTED_VIDEO);
+      };
+      el.src = url;
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 /**
  * Why this file cannot be uploaded, in words a creator can act on — or null when it can.
  *
@@ -100,7 +165,7 @@ export function uploadRejection(file: { type: string; size: number; name: string
   if (!ALLOWED_UPLOAD_MIME[file.type]) {
     if (file.type.startsWith("audio/")) return "Audio isn't supported yet — photos and videos work.";
     if (file.type.startsWith("image/")) return "That image format isn't supported. Try JPEG, PNG or WebP.";
-    if (file.type.startsWith("video/")) return "That video format isn't supported. Try MP4 or WebM.";
+    if (file.type.startsWith("video/")) return UNSUPPORTED_VIDEO;
     return "That file type isn't supported. Try a photo (JPEG, PNG, WebP) or a video (MP4, WebM).";
   }
   if (file.size > MAX_UPLOAD_BYTES) {
@@ -130,6 +195,10 @@ export async function uploadNestMedia(
 ): Promise<MediaRef> {
   const reject = uploadRejection(file);
   if (reject) throw new Error(reject);
+  // §P3 — ask the browser whether it can play it, before spending the upload. A container
+  // that passes the MIME check can still hold a codec nobody else can decode.
+  const unplayable = await videoPlaybackRejection(file);
+  if (unplayable) throw new Error(unplayable);
   const kind = mediaKindOf(file.type);
   if (!kind) throw new Error("That file type isn't supported yet. Try a photo or a video.");
 
