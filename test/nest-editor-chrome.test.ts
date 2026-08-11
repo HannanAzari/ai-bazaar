@@ -149,7 +149,11 @@ describe("§1 — selecting an overlay no longer opens its editor", () => {
   });
 
   it("chrome is still suppressed while the sheet IS open", () => {
-    expect(editor).toContain("hideChrome={connectFor !== null || overlaySheetOpen}");
+    // M27 P0-B — replaced by ONE foreground contract. `hideChrome` no longer enumerates
+    // sheets; it asks `sheetOpen`, which every canvas control now consults. That is what
+    // stopped Text and Sticker floating above the open Connect sheet.
+    expect(editor).toContain("hideChrome={sheetOpen}");
+    expect(editor).toContain("const sheetOpen = connectFor !== null || overlaySheetOpen || showPublish || closeAsk || createOpen;");
   });
 });
 

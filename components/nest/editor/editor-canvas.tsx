@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowUpToLine,
@@ -593,6 +593,26 @@ export function EditorCanvas(props: Props) {
     [camera],
   );
   const rootRef = useRef<HTMLDivElement>(null);
+  // ── M27 P0-A — the ACTUAL cause of the far-left degree pill ─────────────────
+  //
+  // `baseSizeRef` (the untransformed stage size) was only ever written inside the camera's
+  // per-frame subscriber. But the camera is frozen for the whole of an object gesture by
+  // design — so on a freshly-loaded editor, where no pinch or pan has happened yet, it was
+  // still {0,0}. Every consumer of `sceneToScreen()` then collapsed to x≈0, which is
+  // exactly the pill pinned to the far-left edge.
+  //
+  // It was intermittent for precisely that reason: once the creator had pinched or panned
+  // even once, the value was populated and the pill behaved. Both rotation paths shared the
+  // same broken input; the one-finger handle just tended to be used earlier in a session.
+  //
+  // Measuring here — a single getBoundingClientRect per render, outside any gesture frame —
+  // means chrome is never asked to position itself against a zero-sized stage. Nothing in
+  // the gesture or camera architecture changes.
+  useLayoutEffect(() => {
+    const sr = sceneRef.current?.getBoundingClientRect();
+    const sc = camScaleRef.current || 1;
+    if (sr && sr.width > 0) baseSizeRef.current = { width: sr.width / sc, height: sr.height / sc };
+  });
   // The UNTRANSFORMED stage size. `sceneToScreen` needs it, and the only honest source is
   // the live element divided by the scale it is currently drawn at.
   const baseSizeRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });

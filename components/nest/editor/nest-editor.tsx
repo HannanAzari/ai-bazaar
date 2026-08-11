@@ -236,6 +236,20 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   const [moreOpen, setMoreOpen] = useState(false);
   /** §4 — hints are opt-in after the first showing; they never cover the room. */
   const [hintOpen, setHintOpen] = useState(true);
+
+  // ── M27 P0-B — THE FOREGROUND CONTRACT ──────────────────────────────────────
+  //
+  //     A sheet or modal owns the ENTIRE foreground. Nothing over the canvas outranks it.
+  //
+  // This exists because every canvas control used to decide for itself which sheets it
+  // should hide for. `hideChrome` knew about Connect and the sticker sheet; the Text and
+  // Sticker quick-add buttons only knew about the sticker sheet — so they floated on top of
+  // the open Connect sheet, exactly as the founder's screenshot shows, and were tappable
+  // through it. Adding a `z-[70]` somewhere would have fixed that screenshot and left the
+  // next sheet to rediscover the same bug.
+  //
+  // One boolean, asked by everything. A new sheet joins this list and every control obeys
+  // it without being touched.
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [toast, setToast] = useState<string | null>(null);
   const [selectedHotspotId, setSelectedHotspotId] = useState<string | undefined>(undefined);
@@ -260,6 +274,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   const [overlaySheetOpen, setOverlaySheetOpen] = useState(false);
   // M32: the editor-first Create Asset flow (upload → cutout → generate → choose).
   const [createOpen, setCreateOpen] = useState(false);
+  const sheetOpen = connectFor !== null || overlaySheetOpen || showPublish || closeAsk || createOpen;
   // M31 polish: the asset just created, to reveal + pulse in the library.
   const [justCreatedId, setJustCreatedId] = useState<string | undefined>(undefined);
   // M7C.5: Preview uses the real NestSceneNavigator. `previewFocusId` (set by the Focus
@@ -948,7 +963,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
               zoom={zoom}
               // M25B §P2 — while any object sheet is open the floating toolbar must be
               // gone, not merely behind: its handles sat above the sheet and stole taps.
-              hideChrome={connectFor !== null || overlaySheetOpen}
+              hideChrome={sheetOpen}
               onVisibleCentreRef={(get) => { visibleCentre.current = get; }}
               onConnect={() => selectedId && setConnectFor(selectedId)}
               onDuplicate={onDuplicate}
@@ -1000,7 +1015,7 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
 
             {/* Sticker (overlay) quick-add — Arrange mode (Task 4B). Text + image stickers
                 that move/resize/rotate like any object and are stored in the document. */}
-            {mode === "arrange" && !overlaySheetOpen ? (
+            {mode === "arrange" && !sheetOpen ? (
               <div className="absolute bottom-2 left-2 z-20 flex gap-1.5">
                 <button type="button" onClick={onAddText} className="inline-flex items-center gap-1 rounded-full border border-ink/15 bg-parchment/95 px-3 py-1.5 text-[11px] font-bold text-ink/70 shadow hover:bg-ink/5"><Type className="h-3.5 w-3.5" /> Text</button>
                 <button type="button" onClick={() => overlayFileRef.current?.click()} className="inline-flex items-center gap-1 rounded-full border border-ink/15 bg-parchment/95 px-3 py-1.5 text-[11px] font-bold text-ink/70 shadow hover:bg-ink/5"><ImagePlus className="h-3.5 w-3.5" /> Sticker</button>

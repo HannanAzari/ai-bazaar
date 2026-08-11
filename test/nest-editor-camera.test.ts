@@ -146,7 +146,11 @@ describe("P2. the floating toolbar cannot cover the Interaction sheet", () => {
   it("the toolbar is removed entirely while a sheet is open", () => {
     expect(canvas).toContain("!hideChrome && selected && !selected.hidden");
     // §4 — Connect is a sheet keyed to one object now, not a mode.
-    expect(editor).toContain("hideChrome={connectFor !== null || overlaySheetOpen}");
+    // M27 P0-B — replaced by ONE foreground contract. `hideChrome` no longer enumerates
+    // sheets; it asks `sheetOpen`, which every canvas control now consults. That is what
+    // stopped Text and Sticker floating above the open Connect sheet.
+    expect(editor).toContain("hideChrome={sheetOpen}");
+    expect(editor).toContain("const sheetOpen = connectFor !== null || overlaySheetOpen || showPublish || closeAsk || createOpen;");
   });
 
   it("it uses the shared layer token, not an arbitrary z-[600]", () => {

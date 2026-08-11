@@ -74,6 +74,26 @@ export function toolbarPlacement(
   return { left, top, side };
 }
 
+/**
+ * M27 P0-A — where the rotation degree pill goes.
+ *
+ * The SAME derivation as the toolbar: the object's rotated screen bounds in, a clamped
+ * viewport position out. There is deliberately no second implementation — the pill drifting
+ * to the far-left edge came from it being positioned by different code with no clamp, so
+ * "both rotation methods use the same positioning function" is enforced by there only being
+ * one function to use.
+ *
+ * Sits just above the object, flipping below when that would clip the top of the screen.
+ */
+export function pillPlacement(bounds: Rect, pill: Size, viewport: Size): { left: number; top: number } {
+  const above = bounds.top - TOOLBAR_GAP_PX - pill.height;
+  const top = above >= VIEWPORT_MARGIN_PX ? above : bounds.top + bounds.height + TOOLBAR_GAP_PX;
+  return {
+    left: clamp(bounds.left + bounds.width / 2 - pill.width / 2, VIEWPORT_MARGIN_PX, Math.max(VIEWPORT_MARGIN_PX, viewport.width - pill.width - VIEWPORT_MARGIN_PX)),
+    top: clamp(top, VIEWPORT_MARGIN_PX, Math.max(VIEWPORT_MARGIN_PX, viewport.height - pill.height - VIEWPORT_MARGIN_PX)),
+  };
+}
+
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
