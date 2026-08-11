@@ -21,6 +21,7 @@ import {
   configForPlacement,
   initialStateOf,
   isInteractiveObject,
+  nextState,
   placementContents,
   resolveConnection,
   tapObject,
@@ -102,7 +103,16 @@ function NestRuntimeImpl({
   // frame stays `shown` throughout, which is the bug the abandoned attempt would have
   // shipped (see lib/nest-media-session.ts).
   const [contentIndex, setContentIndex] = useState<Record<string, number>>({});
-  useEffect(() => setContentIndex({}), [doc.id]);
+  /**
+   * M27B-3A2 §2 — a deliberate request to play what is on screen.
+   *
+   * Deliberately a STATE, not a player. The TV aperture is ~87x45px on a phone, which is
+   * below the size a YouTube embed reliably plays in, so building a player into it now
+   * would be the half-finished thing the brief rules out. This records the intent — which
+   * object, which item — and M27B-3B renders it properly.
+   */
+  const [playRequest, setPlayRequest] = useState<{ objectId: string; index: number } | null>(null);
+  useEffect(() => { setContentIndex({}); setPlayRequest(null); }, [doc.id]);
 
   const [media, setMedia] = useState<NestInteraction | null>(null);
   const [hinting, setHinting] = useState(false);
@@ -138,6 +148,38 @@ function NestRuntimeImpl({
   const onObjectTap = useCallback(
     (p: NestPlacement) => {
       const current = session[p.id] ?? initialStateOf(p);
+
+      // ── M27B-3A2 §1/§6 — a screen that switches on, then plays ──────────────
+      //
+      //     OFF  --tap-->  ON (thumbnail)  --tap-->  playback requested
+      //
+      // Two things were wrong before, and they compounded:
+      //
+      //   • `tapObject` returned the connected content's `open` action on the SAME tap that
+      //     changed the state, so the very first touch of a television turned it on AND
+      //     threw a full-screen card over the room. Turning something on and starting it
+      //     are different intentions.
+      //   • the catalogue's `toggleTo` is a 2-cycle (off↔on), so the second tap turned the
+      //     TV back OFF — which makes "second tap plays" impossible to express at all.
+      //
+      // So the runtime owns this progression rather than `toggleTo`, and the rule is the
+      // single low-friction one the brief asked for: tap OFF → ON, tap ON → play. Nothing
+      // here turns the screen back off; powering down belongs to the player UI in M27B-3B.
+      //
+      // Gated on `toggleTo` so it applies ONLY to stateful screens. A Framed Photo has no
+      // `toggleTo` — it is always `shown` — and falls through untouched, which is what
+      // keeps M27B-3A1 exactly as it was.
+      const def = capabilitiesForAsset(p.assetId);
+      if (def?.screenSurfaceId && def.toggleTo && placementContents(p).length) {
+        if (!visualStateOf(p.assetId, current)?.showsScreen) {
+          setSession((st) => ({ ...st, [p.id]: nextState(p.assetId, current ?? "") }));
+          return; // the screen wakes up. No modal, no navigation.
+        }
+        // Already on ⇒ this is a deliberate request to play the item on screen.
+        setPlayRequest({ objectId: p.id, index: contentIndex[p.id] ?? activeContentIndex(configForPlacement(p), placementContents(p).length) });
+        return;
+      }
+
       const result = tapObject(p, current);
       if (result.state) setSession((s) => ({ ...s, [p.id]: result.state as string }));
       if (result.open) {
@@ -151,7 +193,7 @@ function NestRuntimeImpl({
         run(legacy);
       }
     },
-    [session, run],
+    [session, run, contentIndex],
   );
 
   // The camera owns the tap: it only calls back when the gesture was a TAP, not a pan.
@@ -339,6 +381,7 @@ function NestRuntimeImpl({
                   interactive={interactive}
                   state={session[p.id] ?? null}
                   contentIndex={contentIndex[p.id]}
+                  playRequested={playRequest?.objectId === p.id}
                   hinting={hinting && interactiveIds.has(p.id)}
                 />
               ))}
@@ -423,6 +466,7 @@ function PlacedObject({
   interactive,
   state,
   contentIndex,
+  playRequested,
   hinting,
 }: {
   placement: NestPlacement;
@@ -431,6 +475,8 @@ function PlacedObject({
   state: string | null;
   /** M27B-3A1 — the item THIS VISITOR is on. Undefined ⇒ the creator's stored choice. */
   contentIndex?: number;
+  /** M27B-3A2 — the visitor asked to play what is on screen. The player itself is 3B. */
+  playRequested?: boolean;
   hinting: boolean;
 }) {
   const style = placementStyle(p, index);
@@ -482,6 +528,7 @@ function PlacedObject({
       // The OBJECT is the hit target — `data-object-id` is what the camera's tap
       // classifier hit-tests against. No rectangle to author, no icon to render.
       {...(tappable ? { "data-object-id": p.id, role: "button", tabIndex: 0, "aria-label": p.label || asset.name } : {})}
+      {...(playRequested ? { "data-play-requested": "" } : {})}
     >
       {/* An invisible minimum touch target for tiny objects. It grows the HIT area without
           changing the object's visual size — a 10px book on a shelf measures 10px on a
