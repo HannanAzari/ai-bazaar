@@ -218,7 +218,7 @@ describe("the editor shell fits at 375px", () => {
 describe("uploaded media is a reference, never base64", () => {
   const panel = read("components", "nest", "editor", "interaction-panel.tsx");
   const media = read("lib", "nest-media.ts");
-  const sql = read("supabase", "provision", "m26s_media_storage.sql");
+  const sql = read("supabase", "provision", "m27a_media_storage.sql");
 
   it("the upload path goes to Storage, with NO base64 fallback", () => {
     expect(panel).toContain("uploadNestMedia(file,");
@@ -237,8 +237,11 @@ describe("uploaded media is a reference, never base64", () => {
   });
 
   it("the storage key starts with the owner id — the policies depend on it", () => {
-    const key = mediaKey("user-123", "nest-abc", "My Photo (1).JPG");
-    expect(key.startsWith("user-123/nest-abc/")).toBe(true);
+    // M27A — the canonical key is <ownerId>/<nestId>/<objectId>/<mediaId>.<ext>, so a
+    // media item is addressable per object and a delete can target exactly one file.
+    const key = mediaKey("user-123", "nest-abc", "ast-tv-0", "My Photo (1)", "JPG");
+    expect(key.startsWith("user-123/nest-abc/ast-tv-0/")).toBe(true);
+    expect(key.endsWith(".jpg")).toBe(true);
     expect(key).not.toMatch(/[()\s]/); // sanitised
     expect(sql).toContain("(storage.foldername(name))[1] = auth.uid()::text");
   });

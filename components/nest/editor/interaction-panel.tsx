@@ -5,7 +5,7 @@ import { Check, Link2, Trash2, Upload, X } from "lucide-react";
 import { MobileBottomSheet, type BottomSheetSnapPoint } from "@/components/nest/editor/mobile-bottom-sheet";
 import { capabilitiesForAsset, type AssetInteractionConfig, type ConnectedContent } from "@/lib/nest-asset-interaction";
 import { contentRejection, describeConnected, detectContentSource } from "@/lib/nest-content-source";
-import { shortSourceLabel, uploadNestMedia } from "@/lib/nest-media";
+import { removeNestMedia, shortSourceLabel, uploadNestMedia } from "@/lib/nest-media";
 import type { EditableNestObject } from "@/lib/nest-editor-types";
 
 // ── M26-R §P5/§P6 — Connect ──────────────────────────────────────────────────
@@ -129,11 +129,12 @@ export function InteractionPanel({
     setUploading(true);
     setError(null);
     try {
-      const ref = await uploadNestMedia(file, { ownerId, nestId });
+      const ref = await uploadNestMedia(file, { ownerId, nestId, objectId: object.instanceId });
       const kind = ref.kind === "audio" ? "audio" : ref.kind;
       const reject = contentRejection({ kind, url: ref.url, label: ref.kind }, def!.accepts, assetName);
       if (reject) { setError(reject); return; }
-      onCommit({ ...cfg, connection: { kind, url: ref.url, label: ref.title ?? ref.kind } });
+      // §5 — the storage path travels with the reference, so removal can clean up.
+      onCommit({ ...cfg, connection: { kind, url: ref.url, storagePath: ref.storagePath, label: ref.title ?? ref.kind } });
       setJustSaved(true);
       window.setTimeout(() => setJustSaved(false), 1600);
     } catch (e) {
@@ -154,7 +155,18 @@ export function InteractionPanel({
               <p className="text-[13px] font-bold text-ink/50">
                 {def.screenSurfaceId ? "On the screen" : "Connected"}
               </p>
-              <div className="mt-1.5 rounded-2xl border border-ink/12 bg-white/60 p-3.5">
+              <div className="mt-1.5 flex items-start gap-3 rounded-2xl border border-ink/12 bg-white/60 p-3.5">
+                {/* M27A §6 — the only new UI this sprint: a small thumbnail that PROVES the
+                    upload resolved. If the object did not really land in Storage, or the
+                    policies reject the read, this box stays empty and the creator can see
+                    that for themselves rather than trusting a success message. */}
+                {connection.storagePath && connection.kind === "image" && connection.url ? (
+                  /* eslint-disable-next-line @next/next/no-img-element -- creator media, already a public URL */
+                  <img src={connection.url} alt="" className="size-11 shrink-0 rounded-lg border border-ink/10 object-cover" />
+                ) : connection.storagePath && connection.kind === "video" && connection.url ? (
+                  <video src={connection.url} muted playsInline preload="metadata" className="size-11 shrink-0 rounded-lg border border-ink/10 object-cover" />
+                ) : null}
+                <div className="min-w-0 flex-1">
                 <p className="text-[15px] font-bold leading-tight text-ink">
                   {current ? current.label : connection.label ?? "Connected"}
                 </p>
@@ -164,11 +176,20 @@ export function InteractionPanel({
                 <p className="mt-1 truncate text-[13px] leading-snug text-ink/45">
                   {current ? describeConnected(current) : shortSourceLabel(connection.url ?? "")}
                 </p>
+                </div>
               </div>
               <div className="mt-2.5 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => { onCommit({ ...cfg, connection: undefined }); setError(null); }}
+                  onClick={() => {
+                    // §5 — remove the storage object too, so uploads are never orphaned.
+                    // Fire-and-forget: a failed delete leaves wasted bytes, never a broken
+                    // Nest, and must not block the edit.
+                    const path = connection?.storagePath;
+                    onCommit({ ...cfg, connection: undefined });
+                    setError(null);
+                    if (path) void removeNestMedia(path);
+                  }}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-ink/15 px-3.5 py-2.5 text-[14px] font-bold text-ink/65"
                 >
                   <Trash2 className="size-4" /> Remove

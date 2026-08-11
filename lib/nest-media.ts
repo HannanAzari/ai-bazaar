@@ -68,12 +68,53 @@ export function mediaKindOf(mime: string): MediaRef["kind"] | null {
  * because the Storage policies key ownership off `storage.foldername(name)[1]` — that is
  * what lets a creator manage only their own media with no extra table.
  */
-export function mediaKey(ownerId: string, nestId: string, fileName: string): string {
-  const safe = fileName
-    .replace(/[^\w.\-]+/g, "-")
-    .replace(/-+/g, "-")
-    .slice(-64);
-  return `${ownerId}/${nestId}/${Date.now()}-${safe}`;
+export function mediaKey(ownerId: string, nestId: string, objectId: string, mediaId: string, ext: string): string {
+  const seg = (v: string) => v.replace(/[^\w.\-]+/g, "-").replace(/-+/g, "-").slice(0, 64) || "x";
+  const e = ext.replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 8) || "bin";
+  return `${seg(ownerId)}/${seg(nestId)}/${seg(objectId)}/${seg(mediaId)}.${e}`;
+}
+
+// ── M27A §3 — what may be uploaded ───────────────────────────────────────────
+//
+// Kept in lockstep with `allowed_mime_types` on the bucket. Storage enforces it server-side
+// too; this list exists so the creator gets a sentence they can act on instead of a 400.
+// Audio is deliberately absent this sprint.
+export const ALLOWED_UPLOAD_MIME: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+};
+
+/** 25 MB, matching the bucket's own `file_size_limit`. */
+export const MAX_UPLOAD_BYTES = 26214400;
+
+/**
+ * Why this file cannot be uploaded, in words a creator can act on — or null when it can.
+ *
+ * Checked BEFORE the network call: a 25 MB video that is going to be rejected should not be
+ * uploaded over a phone connection first.
+ */
+export function uploadRejection(file: { type: string; size: number; name: string }): string | null {
+  if (!ALLOWED_UPLOAD_MIME[file.type]) {
+    if (file.type.startsWith("audio/")) return "Audio isn't supported yet — photos and videos work.";
+    if (file.type.startsWith("image/")) return "That image format isn't supported. Try JPEG, PNG or WebP.";
+    if (file.type.startsWith("video/")) return "That video format isn't supported. Try MP4 or WebM.";
+    return "That file type isn't supported. Try a photo (JPEG, PNG, WebP) or a video (MP4, WebM).";
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return `That file is ${(file.size / 1048576).toFixed(1)} MB — the limit is ${Math.round(MAX_UPLOAD_BYTES / 1048576)} MB.`;
+  }
+  if (file.size === 0) return "That file is empty.";
+  return null;
+}
+
+/** A short, opaque id for one media item. */
+function newMediaId(): string {
+  const c = globalThis.crypto;
+  if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  return `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
 /**
@@ -85,8 +126,10 @@ export function mediaKey(ownerId: string, nestId: string, fileName: string): str
  */
 export async function uploadNestMedia(
   file: File,
-  opts: { ownerId: string; nestId: string },
+  opts: { ownerId: string; nestId: string; objectId: string },
 ): Promise<MediaRef> {
+  const reject = uploadRejection(file);
+  if (reject) throw new Error(reject);
   const kind = mediaKindOf(file.type);
   if (!kind) throw new Error("That file type isn't supported yet. Try a photo or a video.");
 
@@ -98,17 +141,13 @@ export async function uploadNestMedia(
     );
   }
 
-  const storagePath = mediaKey(opts.ownerId, opts.nestId, file.name);
+  const storagePath = mediaKey(opts.ownerId, opts.nestId, opts.objectId, newMediaId(), ALLOWED_UPLOAD_MIME[file.type]);
   const { error } = await db.storage.from(NEST_MEDIA_BUCKET).upload(storagePath, file, {
     cacheControl: "31536000", // creator media is immutable — the key carries a timestamp
     upsert: false,
     contentType: file.type || undefined,
   });
-  if (error) {
-    // Name the bucket, because "not found" here almost always means the provision SQL has
-    // not been applied yet.
-    throw new Error(`Upload failed (${error.message}). If this persists, the "${NEST_MEDIA_BUCKET}" bucket may not exist yet.`);
-  }
+  if (error) throw new Error(uploadErrorMessage(error.message));
 
   const { data } = db.storage.from(NEST_MEDIA_BUCKET).getPublicUrl(storagePath);
   return {
@@ -120,11 +159,45 @@ export async function uploadNestMedia(
   };
 }
 
-/** Remove a creator's media. Best-effort: a failed delete must never block an edit. */
-export async function removeNestMedia(storagePath: string): Promise<void> {
+/**
+ * Turn a Storage error into something a creator can act on.
+ *
+ * "Bucket not found" was the founder's phone error for the whole of M26-S and M27 — the
+ * provision SQL had never been applied — and the old message buried that behind
+ * "If this persists…". Say the actual thing.
+ */
+export function uploadErrorMessage(raw: string): string {
+  const m = raw.toLowerCase();
+  if (m.includes("bucket not found") || m.includes("nosuchbucket")) {
+    return `Media storage isn't set up on this project yet (the "${NEST_MEDIA_BUCKET}" bucket is missing). Run supabase/provision/m27a_media_storage.sql. Your Nest is unchanged.`;
+  }
+  if (m.includes("row-level security") || m.includes("unauthorized") || m.includes("jwt")) {
+    return "You need to be signed in to upload media. Your Nest is unchanged.";
+  }
+  if (m.includes("payload too large") || m.includes("exceeded the maximum")) {
+    return `That file is too large — the limit is ${Math.round(MAX_UPLOAD_BYTES / 1048576)} MB.`;
+  }
+  if (m.includes("mime")) return "That file type isn't supported. Try a photo (JPEG, PNG, WebP) or a video (MP4, WebM).";
+  return `Upload failed (${raw}). Your Nest is unchanged.`;
+}
+
+/**
+ * Remove a creator's media from Storage.
+ *
+ * Best-effort by design: a failed delete must never block the edit. The document is the
+ * source of truth for what a Nest SHOWS; a leftover object is wasted bytes, not a broken
+ * Nest. Returns whether the object actually went, so callers can report honestly.
+ */
+export async function removeNestMedia(storagePath: string): Promise<boolean> {
+  if (!storagePath) return false;
   const db = createSupabaseBrowserClient();
-  if (!db) return;
-  await db.storage.from(NEST_MEDIA_BUCKET).remove([storagePath]).catch(() => undefined);
+  if (!db) return false;
+  try {
+    const { error } = await db.storage.from(NEST_MEDIA_BUCKET).remove([storagePath]);
+    return !error;
+  } catch {
+    return false;
+  }
 }
 
 /**

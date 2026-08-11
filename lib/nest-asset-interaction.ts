@@ -105,6 +105,15 @@ export type AssetInteractionConfig = {
 export type ConnectedContent = {
   kind: ConnectedContentKind;
   url?: string;
+  /**
+   * M27A §5 — the object key inside `nest-media`, for creator uploads only.
+   *
+   * Without this the document kept ONLY the public URL, so removing a media item could
+   * never delete the underlying object and every upload leaked. A URL is a rendering
+   * detail (it changes if the CDN domain does); the path is the durable identity.
+   * Absent for pasted links, which own nothing in our storage.
+   */
+  storagePath?: string;
   /** A still shown on the screen before/instead of playback. */
   thumbnailUrl?: string;
   label?: string;
