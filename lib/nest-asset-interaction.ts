@@ -92,7 +92,24 @@ export type AssetInteractionCapabilityDef = {
  * visitor always starts an object from its natural idle state anyway.
  */
 export type AssetInteractionConfig = {
-  /** The connected content, if any. Authored — persists. */
+  /**
+   * ── M27B-2 — THE CANONICAL LIST ───────────────────────────────────────────
+   *
+   * A compatible object holds an ordered list of content, not one link. Order is the
+   * creator's; `contents[0]` is what the object shows unless `activeIndex` says otherwise.
+   *
+   * `connection` below is the legacy single-item shape and is still READ — every Nest
+   * published before this sprint carries one. It is normalised to `contents[0]` at the
+   * boundary (`resolveContents`), so nothing downstream has to know which shape a document
+   * happens to use, and no destructive migration is needed: jsonb carries both safely.
+   */
+  contents?: ConnectedContent[];
+  /**
+   * Which item the object currently shows. Authored (a creator may choose a cover), and
+   * clamped on read — a stale index from a deleted item must never blank an object.
+   */
+  activeIndex?: number;
+  /** @deprecated M27B-2 — the legacy single connection. Read for compatibility, never written. */
   connection?: ConnectedContent;
   /** Optional creator label for the connected content. */
   title?: string;
@@ -285,10 +302,54 @@ export function isInteractiveObject(p: NestPlacement): boolean {
 }
 
 /** The creator's connected content, validated. Unsafe or malformed URLs resolve to null. */
+/**
+ * M27B-2 — every content item an object holds, normalised, in the creator's order.
+ *
+ * THE ONE BOUNDARY where the legacy single `connection` becomes `contents[0]`. Callers ask
+ * for the list; none of them ever learns which shape the stored document used.
+ *
+ * Unusable items are dropped rather than kept as holes: a malformed YouTube URL or a kind
+ * the asset does not accept would otherwise leave a gap that every consumer has to
+ * special-case, and an index pointing at nothing.
+ */
+export function resolveContents(config: AssetInteractionConfig | undefined, assetId: string): ConnectedContent[] {
+  const def = capabilitiesForAsset(assetId);
+  if (!def || !config) return [];
+  const raw = config.contents?.length ? config.contents : config.connection ? [config.connection] : [];
+  return raw.map((c) => normaliseContent(c, def)).filter((c): c is ConnectedContent => c !== null);
+}
+
+/** Every content item on a published placement, normalised and in order. */
+export function placementContents(p: NestPlacement): ConnectedContent[] {
+  return resolveContents(configForPlacement(p), p.assetId);
+}
+
+/**
+ * The index the object is currently showing. Always valid for a non-empty list — a stale
+ * `activeIndex` left behind by a deleted item clamps rather than blanking the object.
+ */
+export function activeContentIndex(config: AssetInteractionConfig | undefined, count: number): number {
+  if (count <= 0) return 0;
+  const i = Math.trunc(config?.activeIndex ?? 0);
+  return Number.isFinite(i) ? Math.min(Math.max(i, 0), count - 1) : 0;
+}
+
+/**
+ * The CURRENT content item for a placement.
+ *
+ * Signature unchanged from M27B-1 on purpose: the display resolver, the tap handler and the
+ * feed all keep working, and they now get item `activeIndex` of the list instead of the one
+ * and only connection. That is what makes "editor, Preview and visitor resolve the same
+ * current item" true without touching any of them.
+ */
 export function resolveConnection(p: NestPlacement): ConnectedContent | null {
-  const def = capabilitiesForAsset(p.assetId);
-  const c = configForPlacement(p)?.connection;
-  if (!def || !c) return null;
+  const list = placementContents(p);
+  if (!list.length) return null;
+  return list[activeContentIndex(configForPlacement(p), list.length)] ?? null;
+}
+
+/** One item, validated and enriched. Null when the asset cannot use it. */
+function normaliseContent(c: ConnectedContent, def: AssetInteractionCapabilityDef): ConnectedContent | null {
   if (!def.accepts.includes(c.kind)) return null; // asset does not accept this kind
   if (c.kind === "image") return c.thumbnailUrl || c.url ? c : null;
   const url = safeUrl(c.url);

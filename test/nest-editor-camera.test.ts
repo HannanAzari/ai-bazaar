@@ -248,7 +248,10 @@ describe("P4/M26-R. Connect — paste a link, nothing else", () => {
 
   it("there is NO explicit save — content commits on add, Done just closes", () => {
     // Removes the whole class of a save that reported success and dropped the link (P18).
-    expect(panel).toContain("onCommit({ ...cfg, connection: next })");
+    // M27B-2 — an object holds a LIST now, so adding appends rather than replacing. The
+    // property under test is unchanged: content commits the moment it is added, and `Done`
+    // only closes the sheet.
+    expect(panel).toContain("onCommit(addContent(cfg, next));");
     const copy = panel.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
     expect(copy).not.toContain("Save connection");
     expect(copy).not.toContain("Save interaction");

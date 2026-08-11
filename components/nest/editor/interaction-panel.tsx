@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Link2, Trash2, Upload, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Link2, Upload, X } from "lucide-react";
 import { MobileBottomSheet, type BottomSheetSnapPoint } from "@/components/nest/editor/mobile-bottom-sheet";
 import { capabilitiesForAsset, type AssetInteractionConfig, type ConnectedContent } from "@/lib/nest-asset-interaction";
-import { contentRejection, describeConnected, detectContentSource } from "@/lib/nest-content-source";
+import { contentRejection, detectContentSource } from "@/lib/nest-content-source";
 import { removeNestMedia, shortSourceLabel, uploadNestMedia } from "@/lib/nest-media";
+import { addContent, contentThumbnail, moveContent, removeContentAt, storedContents } from "@/lib/nest-contents";
 import type { EditableNestObject } from "@/lib/nest-editor-types";
 
 // ── M26-R §P5/§P6 — Connect ──────────────────────────────────────────────────
@@ -49,7 +50,6 @@ export function InteractionPanel({
 }) {
   const def = capabilitiesForAsset(object.assetId);
   const cfg = object.assetInteraction;
-  const connection = cfg?.connection;
 
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -106,8 +106,9 @@ export function InteractionPanel({
       return;
     }
     setError(null);
+    // §2 — ADD to the list, never replace it.
     const next: ConnectedContent = { kind: detected.kind, url: detected.url, ...(detected.label ? { label: detected.label } : {}) };
-    onCommit({ ...cfg, connection: next });
+    onCommit(addContent(cfg, next));
     setDraft("");
     setJustSaved(true);
     window.setTimeout(() => setJustSaved(false), 1600);
@@ -134,7 +135,7 @@ export function InteractionPanel({
       const reject = contentRejection({ kind, url: ref.url, label: ref.kind }, def!.accepts, assetName);
       if (reject) { setError(reject); return; }
       // §5 — the storage path travels with the reference, so removal can clean up.
-      onCommit({ ...cfg, connection: { kind, url: ref.url, storagePath: ref.storagePath, label: ref.title ?? ref.kind } });
+      onCommit(addContent(cfg, { kind, url: ref.url, storagePath: ref.storagePath, label: ref.title ?? ref.kind }));
       setJustSaved(true);
       window.setTimeout(() => setJustSaved(false), 1600);
     } catch (e) {
@@ -144,58 +145,45 @@ export function InteractionPanel({
     }
   }
 
-  const current = connection ? detectContentSource(connection.url ?? "") : null;
+  // ── M27B-2 — the content manager ────────────────────────────────────────────
+  //
+  // A compatible object holds a LIST. `storedContents` is the editing view — it shows the
+  // creator exactly what they have, including an item the asset would reject, so they can
+  // see it and delete it rather than wonder why nothing appears.
+  const items = storedContents(cfg);
+
+  const put = (next: AssetInteractionConfig) => onCommit(Object.keys(next).length ? next : undefined);
+
+  const removeAt = (i: number) => {
+    // Remove the storage object too, so uploads are never orphaned. Fire-and-forget: a
+    // failed delete leaves wasted bytes, never a broken Nest, and must not block the edit.
+    const path = items[i]?.storagePath;
+    put(removeContentAt(cfg, i));
+    setError(null);
+    if (path) void removeNestMedia(path);
+  };
 
   return (
     <MobileBottomSheet open label="Connect" header={header} snap={snap} onSnapChange={onSnapChange} onClose={onClose}>
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
-          {connection ? (
+          {items.length ? (
             <section>
               <p className="text-[13px] font-bold text-ink/50">
-                {def.screenSurfaceId ? "On the screen" : "Connected"}
+                {def.screenSurfaceId ? (def.accepts.includes("youtube") ? "Playlist" : "Photos") : "Connected"}
               </p>
-              <div className="mt-1.5 flex items-start gap-3 rounded-2xl border border-ink/12 bg-white/60 p-3.5">
-                {/* M27A §6 — the only new UI this sprint: a small thumbnail that PROVES the
-                    upload resolved. If the object did not really land in Storage, or the
-                    policies reject the read, this box stays empty and the creator can see
-                    that for themselves rather than trusting a success message. */}
-                {connection.storagePath && connection.kind === "image" && connection.url ? (
-                  /* eslint-disable-next-line @next/next/no-img-element -- creator media, already a public URL */
-                  <img src={connection.url} alt="" className="size-11 shrink-0 rounded-lg border border-ink/10 object-cover" />
-                ) : connection.storagePath && connection.kind === "video" && connection.url ? (
-                  <video src={connection.url} muted playsInline preload="metadata" className="size-11 shrink-0 rounded-lg border border-ink/10 object-cover" />
-                ) : null}
-                <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-bold leading-tight text-ink">
-                  {current ? current.label : connection.label ?? "Connected"}
-                </p>
-                {/* §11/§20 — never a raw URL at length. The founder's screenshot showed a
-                    base64 blob filling the sheet; a host name or a file name is all a
-                    creator needs to recognise what they connected. */}
-                <p className="mt-1 truncate text-[13px] leading-snug text-ink/45">
-                  {current ? describeConnected(current) : shortSourceLabel(connection.url ?? "")}
-                </p>
-                </div>
-              </div>
-              <div className="mt-2.5 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    // §5 — remove the storage object too, so uploads are never orphaned.
-                    // Fire-and-forget: a failed delete leaves wasted bytes, never a broken
-                    // Nest, and must not block the edit.
-                    const path = connection?.storagePath;
-                    onCommit({ ...cfg, connection: undefined });
-                    setError(null);
-                    if (path) void removeNestMedia(path);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-ink/15 px-3.5 py-2.5 text-[14px] font-bold text-ink/65"
-                >
-                  <Trash2 className="size-4" /> Remove
-                </button>
-              </div>
-              <p className="mt-5 text-[13px] font-bold text-ink/50">Replace it</p>
+              <ul className="mt-1.5 space-y-1.5">
+                {items.map((item, i) => (
+                  <ContentRow
+                    key={`${item.url ?? item.storagePath ?? "item"}-${i}`}
+                    item={item}
+                    index={i}
+                    count={items.length}
+                    onRemove={() => removeAt(i)}
+                    onMove={(d: number) => put(moveContent(cfg, i, i + d))}
+                  />
+                ))}
+              </ul>
             </section>
           ) : (
             <p className="text-[15px] leading-relaxed text-ink/65">
@@ -285,5 +273,66 @@ export function InteractionPanel({
         </div>
       </div>
     </MobileBottomSheet>
+  );
+}
+
+/**
+ * M27B-2 — one item in the content list.
+ *
+ * The THUMBNAIL is the item's identity. Everything the founder asked never to see again —
+ * base64, storage paths, giant filenames, full signed URLs — is deliberately impossible
+ * here: the title falls back to a short kind label and the subtitle to a host name, both
+ * truncated, and neither ever prints `item.url` in full.
+ */
+function ContentRow({
+  item,
+  index,
+  count,
+  onRemove,
+  onMove,
+}: {
+  item: ConnectedContent;
+  index: number;
+  count: number;
+  onRemove: () => void;
+  onMove: (delta: number) => void;
+}) {
+  const thumb = contentThumbnail(item);
+  const source = item.url ? detectContentSource(item.url) : null;
+  const KIND_LABEL: Record<string, string> = { youtube: "YouTube video", image: "Photo", video: "Video", audio: "Audio", website: "Link" };
+  const title = item.label?.trim() || source?.label || KIND_LABEL[item.kind] || "Content";
+  return (
+    <li className="flex items-center gap-2.5 rounded-2xl border border-ink/12 bg-white/60 p-2">
+      <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-ink/10 bg-ink/[0.04]">
+        {thumb ? (
+          /* eslint-disable-next-line @next/next/no-img-element -- creator media, already a URL */
+          <img src={thumb} alt="" className="size-full object-cover" />
+        ) : (
+          <Link2 className="size-4 text-ink/35" />
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[14px] font-bold leading-tight text-ink">{title}</span>
+        {/* Never a raw URL at length — a host name or a file name is all a creator needs. */}
+        <span className="mt-0.5 block truncate text-[12px] leading-snug text-ink/45">
+          {item.storagePath ? "Uploaded" : shortSourceLabel(item.url ?? "")}
+          {index === 0 && count > 1 ? " · showing" : ""}
+        </span>
+      </span>
+      <span className="flex shrink-0 items-center">
+        <button type="button" aria-label="Move up" disabled={index === 0} onClick={() => onMove(-1)}
+          className="grid size-8 place-items-center rounded-lg text-ink/45 disabled:opacity-25">
+          <ChevronUp className="size-4" />
+        </button>
+        <button type="button" aria-label="Move down" disabled={index === count - 1} onClick={() => onMove(1)}
+          className="grid size-8 place-items-center rounded-lg text-ink/45 disabled:opacity-25">
+          <ChevronDown className="size-4" />
+        </button>
+        <button type="button" aria-label="Remove" onClick={onRemove}
+          className="grid size-8 place-items-center rounded-lg text-ink/40 hover:text-terracotta">
+          <X className="size-4" />
+        </button>
+      </span>
+    </li>
   );
 }

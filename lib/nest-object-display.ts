@@ -20,7 +20,7 @@
 //
 // Pure: no React, no DOM, no Supabase.
 
-import { capabilitiesForAsset, resolveConnection, visualStateOf, type ConnectedContent, type ConnectedContentKind } from "@/lib/nest-asset-interaction";
+import { capabilitiesForAsset, resolveConnection, visualStateOf, type AssetInteractionConfig, type ConnectedContent, type ConnectedContentKind } from "@/lib/nest-asset-interaction";
 import { predefinedSurfacesForAsset } from "@/lib/nest-surface-catalog";
 import type { NestPlacement } from "@/lib/nest-document-types";
 import type { NormalizedRect } from "@/lib/nest-types";
@@ -129,7 +129,7 @@ export function placementDisplayContent(p: NestPlacement, state: string | null, 
  * same normalisation, which is what keeps Edit and Preview showing the identical picture.
  */
 export function editableObjectDisplayContent(
-  o: { assetId: string; assetInteraction?: { connection?: ConnectedContent } },
+  o: { assetId: string; assetInteraction?: AssetInteractionConfig },
   mode: DisplayMode = "authoring",
 ): ObjectDisplayContent | null {
   return resolveObjectDisplayContent({ assetId: o.assetId, connection: connectionForEditableObject(o), mode });
@@ -145,10 +145,12 @@ export function editableObjectDisplayContent(
  */
 export function connectionForEditableObject(o: {
   assetId: string;
-  assetInteraction?: { connection?: ConnectedContent };
+  assetInteraction?: AssetInteractionConfig;
 }): ConnectedContent | null {
-  const c = o.assetInteraction?.connection;
-  if (!c) return null;
+  const cfg = o.assetInteraction;
+  if (!cfg) return null;
+  // M27B-2 — the WHOLE config travels, not just the legacy `connection`, so an object
+  // holding a `contents` list resolves its current item exactly as the runtime does.
   // A minimal placement carrying the same interaction bag the publish conversion writes.
   const asPlacement = {
     id: "display-probe",
@@ -158,7 +160,7 @@ export function connectionForEditableObject(o: {
     w: 1,
     h: 1,
     zIndex: 1,
-    interaction: { asset: { connection: c } },
+    interaction: { asset: cfg },
   } as unknown as NestPlacement;
   return resolveConnection(asPlacement);
 }

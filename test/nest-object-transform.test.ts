@@ -263,7 +263,10 @@ describe("uploaded media is a reference, never base64", () => {
     expect(shortSourceLabel("https://www.youtube.com/watch?v=abcdefghijk")).toBe("youtube.com");
     expect(shortSourceLabel("data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ")).toBe("Uploaded file");
     // …and the sheet truncates rather than wrapping a raw value across the panel.
-    expect(panel).toContain("truncate text-[13px]");
+    // M27B-2 — the single-item card became a list row; the subtitle is still truncated and
+    // still never prints a raw URL at length.
+    expect(panel).toContain("truncate text-[12px]");
+    expect(panel).toContain('shortSourceLabel(item.url ?? "")');
     expect(panel).not.toContain("break-all");
   });
 });
