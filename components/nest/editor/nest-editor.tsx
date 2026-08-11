@@ -799,7 +799,18 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
           (`editableObjectsToPlacements`) means Preview and Publish cannot disagree —
           what you approve here is literally the document that gets written. */}
       {mode === "preview" ? (
-        <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-3">
+        // ── M27A.1 — Preview and Edit occupy the SAME box ────────────────────
+        //
+        // Horizontal: `p-3` made Preview 351px against Edit's 344.6px, so switching modes
+        // moved the room sideways and took every object with it. Both are now full-bleed.
+        //
+        // Vertical: this branch replaces the ENTIRE editor shell — header, guidance strip
+        // and dock — so it centred its stage in the whole 812px viewport while Edit centred
+        // in the 86…748 band left between that chrome. Same stage, 11px apart.
+        // Reserving the same bands (56px header + 30px strip, 64px dock) lands both at
+        // exactly the same top. These are the heights the Edit column actually uses:
+        // `h-14` on the header and `min-h-[30px]` on the strip.
+        <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-0 pb-16 pt-[86px]">
           {/* M26-S2 §0 pre-flight C — `top-3` here against the Edit header's own padding
               put the switch 2px lower in Preview, so it twitched on every mode change.
               Measured at 375×812: Edit y=10, Preview y=12. */}

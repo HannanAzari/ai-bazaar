@@ -41,7 +41,11 @@ describe("there is only one renderer", () => {
   it("Preview no longer uses a separate scene navigator", () => {
     // The editor's preview branch used NestSceneNavigator — a third renderer that showed
     // a scene no visitor would ever get.
-    const previewBranch = editor.slice(editor.indexOf('{mode === "preview"'), editor.indexOf('{mode === "preview"') + 1800);
+    // Sliced to the END of the branch, not a fixed character count. The old `+ 1800`
+    // window silently depended on how much comment lived above `<NestRuntime`, so
+    // documenting the branch broke the assertion without changing the code it tests.
+    const start = editor.indexOf('{mode === "preview"');
+    const previewBranch = editor.slice(start, editor.indexOf(") : (", start));
     expect(previewBranch).not.toContain("NestSceneNavigator");
     expect(previewBranch).toContain("<NestRuntime");
   });

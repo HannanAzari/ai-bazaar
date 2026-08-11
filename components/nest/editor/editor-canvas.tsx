@@ -665,7 +665,17 @@ export function EditorCanvas(props: Props) {
     // the document (D-45).
     <div
       ref={(el) => { camera.viewportRef.current = el; rootRef.current = el; }}
-      className="relative flex h-full w-full items-center justify-center overflow-hidden p-2"
+      // ── M27A.1 — the room fills the phone, as it does in the feed ──────────
+      //
+      // This carried `p-2`, and the stage below carried `max-width: 96%`. The two stacked:
+      // (375 − 16) × 0.96 = 344.6px, against 375px full-bleed in the Home feed. Purely
+      // decorative inset, and it made the editor read as a smaller room than the one the
+      // creator is actually building.
+      //
+      // Nothing about the SCENE changes — this is the viewport that clips it. The 3:4 box,
+      // `sceneToScreen`, the camera and every object coordinate are untouched; the same
+      // canonical scene is simply drawn larger.
+      className="relative flex h-full w-full items-center justify-center overflow-hidden"
       style={{ touchAction: "none", "--nest-inv-scale": 1 } as React.CSSProperties}
     >
       <style>{CANVAS_CSS}</style>
@@ -684,7 +694,7 @@ export function EditorCanvas(props: Props) {
       {/* Aspect-locked fit: an oversized base clamped by both max-dimensions keeps the
           scene a true 3:4 (full room visible, including side walls) regardless of the
           viewport shape. Zoom scales both clamps. */}
-      <div ref={camera.stageRef} className="relative will-change-transform" style={{ width: "9999px", aspectRatio: aspectRatioCss(doc.aspectRatio as "3:4"), maxWidth: `${Math.round(96 * zoom)}%`, maxHeight: `${Math.round(100 * zoom)}%` }}>
+      <div ref={camera.stageRef} className="relative will-change-transform" style={{ width: "9999px", aspectRatio: aspectRatioCss(doc.aspectRatio as "3:4"), maxWidth: `${Math.round(100 * zoom)}%`, maxHeight: `${Math.round(100 * zoom)}%` }}>
         <div
           ref={sceneRef}
           // No pointer handlers. Every gesture in this editor enters through the camera's
