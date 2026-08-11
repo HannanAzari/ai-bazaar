@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Maximize2, Sparkles, X } from "lucide-react";
 import { resolveAsset, resolveBackground } from "@/lib/nest-production-library";
 import { OverlayContent } from "@/components/nest/overlay-content";
+import { placementDisplayContent } from "@/lib/nest-object-display";
 import { boxTransform, inPaintOrder, placementStyle, SCENE_ASPECT } from "@/lib/nest-geometry";
 import {
   focusCameraTransform,
@@ -363,11 +364,19 @@ function PlacedObject({
   const surfaces = resolvePlacementSurfaces(p);
   const tappable = interactive && (isInteractiveObject(p) || resolvePlacementHotspots(p).length > 0);
 
-  // The screen picture: the creator's connected thumbnail, drawn into the asset's screen
-  // rectangle, but ONLY in a state that shows it (a TV that is off shows nothing).
-  const screenSurfaceId = capabilitiesForAsset(p.assetId)?.screenSurfaceId;
-  const screenSrc = visual?.showsScreen ? connection?.thumbnailUrl ?? (connection?.kind === "image" ? connection.url : undefined) : undefined;
-  const screenBounds = screenSurfaceId ? surfaces.find((s) => s.id === screenSurfaceId)?.bounds : undefined;
+  // ── M27B-1 §P1 — the ONE display resolver ─────────────────────────────────
+  //
+  // This used to inline the whole decision here:
+  //
+  //     visual?.showsScreen ? connection?.thumbnailUrl ?? (kind === "image" ? url : …)
+  //
+  // which is why a YouTube connection drew nothing — it has no `thumbnailUrl` and is not an
+  // image, so the expression fell through to `undefined` even with the screen on. The
+  // editor meanwhile had no equivalent expression at all. Both now ask the same function.
+  const display = placementDisplayContent(p, state, "runtime");
+  const screenSurfaceId = display?.surfaceId ?? capabilitiesForAsset(p.assetId)?.screenSurfaceId;
+  const screenSrc = display?.src;
+  const screenBounds = display?.bounds;
 
   return (
     <div
@@ -426,7 +435,7 @@ function PlacedObject({
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- creator content */}
-          <img src={screenSrc} alt="" className="size-full object-cover" loading="lazy" />
+          <img src={screenSrc} alt="" className={`size-full ${display?.fit === "contain" ? "object-contain" : "object-cover"}`} loading="lazy" />
         </span>
       ) : null}
 

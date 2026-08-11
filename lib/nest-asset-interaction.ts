@@ -19,7 +19,7 @@
 // Pure: no React, no DOM, no Supabase.
 
 import type { NestPlacement } from "@/lib/nest-document-types";
-import { safeUrl, youTubeVideoId, type NestInteraction } from "@/lib/nest-interaction";
+import { safeUrl, youTubeThumbnailUrl, youTubeVideoId, type NestInteraction } from "@/lib/nest-interaction";
 
 // ── Capabilities ─────────────────────────────────────────────────────────────
 
@@ -293,7 +293,20 @@ export function resolveConnection(p: NestPlacement): ConnectedContent | null {
   if (c.kind === "image") return c.thumbnailUrl || c.url ? c : null;
   const url = safeUrl(c.url);
   if (!url) return null;
-  if (c.kind === "youtube" && !youTubeVideoId(url)) return null;
+  if (c.kind === "youtube") {
+    // ── M27B-1 §P3 — the parsed id becomes a PICTURE, not just a validity check ──
+    //
+    // This already called `youTubeVideoId()` to decide whether the connection was usable
+    // and then discarded the result, so a TV with a valid YouTube link had nothing to draw
+    // on its screen. Deriving the thumbnail HERE means every consumer — the runtime, the
+    // editor, the feed — gets it from the one place a connection is resolved, and none of
+    // them has to know what a YouTube URL looks like.
+    //
+    // A thumbnail the creator supplied explicitly always wins.
+    const videoId = youTubeVideoId(url);
+    if (!videoId) return null;
+    return { ...c, url, thumbnailUrl: c.thumbnailUrl ?? youTubeThumbnailUrl(videoId) };
+  }
   return { ...c, url };
 }
 

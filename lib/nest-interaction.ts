@@ -84,6 +84,26 @@ export function youTubeEmbedUrl(videoId: string): string {
 }
 
 /**
+ * M27B-1 §P3 — the still image for a YouTube video, from its id alone.
+ *
+ * `youTubeVideoId()` has always parsed and VALIDATED the id — `resolveConnection` calls it
+ * to decide whether a connection is usable — and then threw it away. Nothing anywhere
+ * derived a picture from it, so a TV with a perfectly good YouTube link had nothing to show
+ * on its screen. That is the whole of the second P0 finding.
+ *
+ * `i.ytimg.com` serves these deterministically with no API key and no quota, which is why
+ * this needs no credentials and cannot fail at runtime in a way we have to handle.
+ *
+ * `hqdefault` over `maxresdefault` deliberately: maxres does not exist for every video and
+ * 404s when it does not, which would put a broken image inside the television. hqdefault is
+ * generated for every video, and at the size of a TV screen inside a phone-sized room it is
+ * already more resolution than the aperture can show.
+ */
+export function youTubeThumbnailUrl(videoId: string): string {
+  return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+}
+
+/**
  * A creator's content binding → the action it performs.
  *
  * `semantic` decides the *shape* of the action, never the destination: a `video` binding

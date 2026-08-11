@@ -20,6 +20,7 @@ import type { NestAmbiencePreset, NormalizedRect } from "@/lib/nest-types";
 import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import { aspectRatioCss } from "@/lib/nest-render";
 import { boxTransform } from "@/lib/nest-geometry";
+import { editableObjectDisplayContent } from "@/lib/nest-object-display";
 import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor-types";
 import { moveObject, resizeObject, rotateObject, type ReorderOp } from "@/lib/nest-editor";
 import { canFlipObject, canRotateObject, snapRotation } from "@/lib/nest-editor-policy";
@@ -747,8 +748,18 @@ export function EditorCanvas(props: Props) {
                   ) : (
                     <div className="flex h-full w-full items-center justify-center rounded border border-terracotta/50 bg-terracotta/10 text-[9px] font-bold text-ink/60">{o.assetId}</div>
                   )}
-                  {/* M8: editable-surface content (photo/text/sticker), clipped to the region. */}
-                  <SurfaceContentLayer surfaces={resolveObjectSurfaces(o)} />
+                  {/* ── M27B-1 §P1/§P2 — the creator's connected media, IN the object ──
+                      The editor previously had no reference to `connection` anywhere, so a
+                      photo the creator had just uploaded showed in Preview and not in Edit.
+                      Same resolver the runtime uses, in `authoring` mode: content shows
+                      regardless of visual state, because an "off" TV would otherwise give
+                      no feedback that the video attached at all. A frame reads identically
+                      in both modes, which is what makes Edit/Preview parity hold for it. */}
+                  <ObjectDisplayLayer object={o} />
+                  {/* M8: editable-surface content (photo/text/sticker), clipped to the
+                      region. Legacy only — the display layer above owns Connect media, and
+                      the surface it claims is skipped here so nothing draws twice. */}
+                  <SurfaceContentLayer surfaces={resolveObjectSurfaces(o).filter((sf) => sf.id !== editableObjectDisplayContent(o)?.surfaceId)} />
                 </span>
               </button>
             );
@@ -914,6 +925,36 @@ function RotationReadout({
     >
       {rotationReadout(deg)}
     </div>
+  );
+}
+
+/**
+ * M27B-1 §P2 — the creator's connected picture, drawn into the asset's own aperture.
+ *
+ * Deliberately `pointer-events-none`: this is decoration on the object, and the OBJECT is
+ * the gesture target. If this element could take a pointer it would break the editor's
+ * one-owner rule — a tap on the photo inside a frame must still select and drag the frame
+ * (§P10 of the parent brief, and the reason media interaction is gated at runtime mode
+ * rather than inside the dispatcher).
+ */
+function ObjectDisplayLayer({ object }: { object: EditableNestObject }) {
+  const display = editableObjectDisplayContent(object);
+  if (!display) return null;
+  return (
+    <span
+      data-object-display=""
+      className="pointer-events-none absolute overflow-hidden"
+      style={{
+        left: `${display.bounds.x * 100}%`,
+        top: `${display.bounds.y * 100}%`,
+        width: `${display.bounds.width * 100}%`,
+        height: `${display.bounds.height * 100}%`,
+        ...(display.cornerRadiusPx != null ? { borderRadius: display.cornerRadiusPx } : {}),
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- creator media, already a URL */}
+      <img src={display.src} alt="" className={`size-full ${display.fit === "contain" ? "object-contain" : "object-cover"}`} />
+    </span>
   );
 }
 
