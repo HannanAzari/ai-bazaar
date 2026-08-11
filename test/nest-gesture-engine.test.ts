@@ -143,10 +143,23 @@ describe("§2 — the canvas no longer runs a second pointer pipeline", () => {
     expect(move).toContain("arbiterRef.current?.move(Array.from(points.values()));");
   });
 
-  it("ownership is latched at the FIRST pointer and never re-decided", () => {
+  it("ownership is latched at the FIRST pointer, with ONE narrow release", () => {
     expect(camera).toContain("if (points.size === 1) {\n        hostOwns = claimed;");
-    // A second finger can only start a camera pinch when the camera already owns.
-    expect(camera).toContain("} else if (points.size === 2 && !hostOwns) {");
+    // M27B-3A1 — a host may HAND BACK the session when a second finger lands, and only
+    // then. This exists because a two-finger pinch beginning inside a small media aperture
+    // was being swallowed: media claimed at the first finger, so the camera never took a
+    // pinch baseline and the room would not zoom.
+    expect(camera).toContain("if (hostOwns && !claimed) hostOwns = false;");
+    // The camera still cannot STEAL a gesture: it only proceeds once the host has declined.
+    expect(camera).toContain("if (!hostOwns) {");
+  });
+
+  it("a host that still wants the gesture keeps it — object transform is untouched", () => {
+    // The editor's arbiter returns true for its own object on the second pointer, so
+    // `hostOwns` stays true and drag → two-finger transform behaves exactly as before.
+    const objectDrag = beginGesture({ pointerCount: 1, target: "selected-object", scale: 1, objectId: "a" }, 1);
+    expect(ownerMovesObject(upgradeGesture(objectDrag, 2, false).owner)).toBe(true);
+    expect(canvas).toContain("armTransform(pts);");
   });
 });
 

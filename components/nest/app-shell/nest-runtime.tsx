@@ -15,16 +15,20 @@ import {
   resolvePlacementSurfaces,
 } from "@/lib/nest-scene";
 import {
+  activeContentIndex,
   audioFor,
   capabilitiesForAsset,
+  configForPlacement,
   initialStateOf,
   isInteractiveObject,
+  placementContents,
   resolveConnection,
   tapObject,
   visualStateOf,
 } from "@/lib/nest-asset-interaction";
 import { describeInteraction, youTubeEmbedUrl, type NestInteraction } from "@/lib/nest-interaction";
 import { useSceneCamera } from "@/components/nest/app-shell/use-scene-camera";
+import { nextContentIndex, swipeIntent } from "@/lib/nest-media-session";
 import { CAMERA_MAX_SCALE, resolveTapTarget, type Camera, type TapCandidate } from "@/lib/nest-camera";
 import { NestStage } from "@/components/nest/nest-stage";
 import type { EditableNestObject } from "@/lib/nest-editor-types";
@@ -90,6 +94,15 @@ function NestRuntimeImpl({
   }, [doc.placements]);
   const [session, setSession] = useState<SessionStates>(authored);
   useEffect(() => setSession(authored), [authored]);
+
+  // ── M27B-3A1 — which item each object is showing, for THIS VISIT ───────────
+  //
+  // Session only: never written to the document, and reset when the Nest changes so state
+  // cannot leak between Nests. Deliberately NOT paired with any visual-state change — the
+  // frame stays `shown` throughout, which is the bug the abandoned attempt would have
+  // shipped (see lib/nest-media-session.ts).
+  const [contentIndex, setContentIndex] = useState<Record<string, number>>({});
+  useEffect(() => setContentIndex({}), [doc.id]);
 
   const [media, setMedia] = useState<NestInteraction | null>(null);
   const [hinting, setHinting] = useState(false);
@@ -180,7 +193,69 @@ function NestRuntimeImpl({
     [interactive, doc.placements, onObjectTap, run],
   );
 
-  const camera = useSceneCamera({ onTap: onSceneTap, enabled: interactive });
+  // ── M27B-3A1 §3 — media swipe rides the EXISTING arbiter ───────────────────
+  //
+  // `useSceneCamera` has been the one and only pointer listener since M26-S2, and it already
+  // takes a host arbiter. A media swipe is just another host claim: no second pointer
+  // system, and the one-owner rule still holds — if media takes the session the camera does
+  // nothing, and if the camera takes it media does nothing.
+  //
+  // The claim is deliberately narrow, so the blast radius is exactly multi-item media:
+  //
+  //   • `interactive` only — Edit mode never reaches here, so the frame stays a normal
+  //     editable object for the creator (§3);
+  //   • one finger — two fingers are always the camera's pinch;
+  //   • the pointer starts INSIDE the aperture of an object with MORE THAN ONE item.
+  //
+  // Everything else — a single-photo frame, a TV, empty room, the walls — is untouched and
+  // behaves exactly as it did.
+  const swipe = useRef<{ id: string; x: number; y: number; fired: boolean } | null>(null);
+  const mediaArbiter = useMemo(
+    () => ({
+      down: (e: PointerEvent, pts: { x: number; y: number }[]) => {
+        if (!interactive || pts.length !== 1) return false;
+        const holder = (e.target instanceof Element ? e.target : null)?.closest("[data-object-id]") as HTMLElement | null;
+        // The aperture is `pointer-events-none` (it must be — the OBJECT is the hit target),
+        // so it is found by POSITION rather than by hit-testing an element that cannot be hit.
+        const ap = holder?.querySelector("[data-media-aperture]") as HTMLElement | null;
+        if (!ap || Number(ap.dataset.contentCount ?? 0) < 2) return false;
+        const r = ap.getBoundingClientRect();
+        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return false;
+        swipe.current = { id: ap.dataset.mediaAperture ?? "", x: e.clientX, y: e.clientY, fired: false };
+        return true;
+      },
+      move: (pts: { x: number; y: number }[]) => {
+        const sw = swipe.current;
+        // Two fingers are never a swipe. The camera reclaims the session on the second
+        // pointer (see `use-scene-camera`), and without this guard the pinch's opening
+        // spread would also be read as a horizontal drag and flip the photo.
+        if (!sw || sw.fired || pts.length > 1 || !pts[0]) return;
+        // One photo per gesture: `fired` stops a long drag racing through the whole list.
+        const dir = swipeIntent(pts[0].x - sw.x, pts[0].y - sw.y);
+        if (!dir) return; // too short, or not dominantly horizontal — leave it alone
+        sw.fired = true;
+        const p = doc.placements.find((q) => q.id === sw.id);
+        if (!p) return;
+        const list = placementContents(p);
+        const from = contentIndex[sw.id] ?? activeContentIndex(configForPlacement(p), list.length);
+        setContentIndex((m) => ({ ...m, [sw.id]: nextContentIndex(from, list.length, dir) }));
+      },
+      up: (tapped: boolean) => {
+        const sw = swipe.current;
+        swipe.current = null;
+        // A claim that never became a swipe is still a TAP on the object. Without this,
+        // claiming the session would silently eat taps on any multi-photo frame — the
+        // camera's own tap classification is skipped once a host owns the gesture.
+        if (sw && !sw.fired && tapped) {
+          const p = doc.placements.find((q) => q.id === sw.id);
+          if (p) onObjectTap(p);
+        }
+      },
+    }),
+    [interactive, doc.placements, contentIndex, onObjectTap],
+  );
+
+  const camera = useSceneCamera({ onTap: onSceneTap, enabled: interactive, arbiter: mediaArbiter });
 
   // Opening media remembers where the visitor was standing; closing puts them back, so
   // watching a video never costs them the spot they zoomed into.
@@ -216,6 +291,7 @@ function NestRuntimeImpl({
     // never part of the Nest document, so it can be redesigned without touching a single
     // published Nest.
     <NestStage theme="dark" rounded={rounded} className={surround ? className : `bg-[#e9e0c8] ${className}`}>
+      <style>{RUNTIME_CSS}</style>
       {background && !loaded ? <div className="nest-shimmer absolute inset-0" /> : null}
 
       <div className="absolute inset-0 flex items-center justify-center" style={safe ? undefined : { containerType: "size" }}>
@@ -262,6 +338,7 @@ function NestRuntimeImpl({
                   index={i}
                   interactive={interactive}
                   state={session[p.id] ?? null}
+                  contentIndex={contentIndex[p.id]}
                   hinting={hinting && interactiveIds.has(p.id)}
                 />
               ))}
@@ -324,17 +401,36 @@ function NestRuntimeImpl({
 
 // ── One placed object ────────────────────────────────────────────────────────
 
+// ── M27B-3A1 §5 — the photo change ───────────────────────────────────────────
+//
+// OPACITY ONLY, and deliberately so. M26-F cost a sprint to a CSS animation that also set
+// `transform`: an animation outranks an inline style in the cascade, and
+// `animation-fill-mode: both` made its final keyframe permanent — which silently discarded
+// every object's rotation and mirror. Touching only opacity here means this animation can
+// never overwrite geometry, whatever else the element carries.
+//
+// No fill mode for the same reason: the element must return to its own styles when the
+// animation ends.
+const RUNTIME_CSS = `
+@keyframes nest-media-fade { from { opacity: 0 } to { opacity: 1 } }
+.nest-media-fade { animation: nest-media-fade 200ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .nest-media-fade { animation: none; } }
+`;
+
 function PlacedObject({
   placement: p,
   index,
   interactive,
   state,
+  contentIndex,
   hinting,
 }: {
   placement: NestPlacement;
   index: number;
   interactive: boolean;
   state: string | null;
+  /** M27B-3A1 — the item THIS VISITOR is on. Undefined ⇒ the creator's stored choice. */
+  contentIndex?: number;
   hinting: boolean;
 }) {
   const style = placementStyle(p, index);
@@ -373,7 +469,7 @@ function PlacedObject({
   // which is why a YouTube connection drew nothing — it has no `thumbnailUrl` and is not an
   // image, so the expression fell through to `undefined` even with the screen on. The
   // editor meanwhile had no equivalent expression at all. Both now ask the same function.
-  const display = placementDisplayContent(p, state, "runtime");
+  const display = placementDisplayContent(p, state, "runtime", contentIndex);
   const screenSurfaceId = display?.surfaceId ?? capabilitiesForAsset(p.assetId)?.screenSurfaceId;
   const screenSrc = display?.src;
   const screenBounds = display?.bounds;
@@ -426,6 +522,12 @@ function PlacedObject({
           the tap target, so this is always pointer-events-none. */}
       {screenSrc && screenBounds ? (
         <span
+          // ── M27B-3A1 §3 — the aperture is what a swipe must start inside ───
+          // Marked so the camera's arbiter can recognise a gesture beginning on media. Still
+          // `pointer-events-none`: the OBJECT stays the hit target, and the arbiter reads
+          // this by POSITION rather than by adding a listener of its own. One pipeline.
+          data-media-aperture={p.id}
+          data-content-count={placementContents(p).length}
           className="pointer-events-none absolute overflow-hidden"
           style={{
             left: `${screenBounds.x * 100}%`,
@@ -434,8 +536,17 @@ function PlacedObject({
             height: `${screenBounds.height * 100}%`,
           }}
         >
+          {/* M27B-3A1 §5 — a 200ms crossfade, and nothing else. Keying on the source
+              remounts the element so the fade-in runs on every change; the photograph stays
+              dominant, with no carousel chrome and no permanent arrows. */}
           {/* eslint-disable-next-line @next/next/no-img-element -- creator content */}
-          <img src={screenSrc} alt="" className={`size-full ${display?.fit === "contain" ? "object-contain" : "object-cover"}`} loading="lazy" />
+          <img
+            key={screenSrc}
+            src={screenSrc}
+            alt=""
+            className={`nest-media-fade size-full ${display?.fit === "contain" ? "object-contain" : "object-cover"}`}
+            loading="lazy"
+          />
         </span>
       ) : null}
 

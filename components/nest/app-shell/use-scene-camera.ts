@@ -259,12 +259,23 @@ export function useSceneCamera({ onTap, enabled = true, canPanFrom, arbiter }: O
         // Decided at DOWN, not at move: once a finger is on an asset the answer must not
         // change mid-drag, or the asset would start moving and the camera finish the job.
         panAllowed = canPanFromRef.current ? canPanFromRef.current(e.target) : true;
-      } else if (points.size === 2 && !hostOwns) {
-        // A second finger only ever starts a pinch when the CAMERA already owns the
-        // session. If the host owns it, this finger belongs to the object transform and
-        // the camera must not take a baseline from it.
-        const [a, b] = pts;
-        pinchStart = { dist: distance(a, b), scale: cam.current.scale };
+      } else if (points.size === 2) {
+        // ── M27B-3A1 — a host may HAND BACK the session when a second finger lands ──
+        //
+        // The family is still decided by the first pointer; this is the one narrow case
+        // where the host can decline to continue. It exists because a two-finger pinch
+        // beginning inside a small media aperture used to be swallowed: media had claimed
+        // the session at the first finger, so the camera never took a pinch baseline and
+        // the room would not zoom.
+        //
+        // A host that still wants the gesture (the editor's object transform) returns true
+        // here exactly as before and keeps it — so object drag → two-finger transform is
+        // untouched, and the camera still cannot steal an object mid-drag.
+        if (hostOwns && !claimed) hostOwns = false;
+        if (!hostOwns) {
+          const [a, b] = pts;
+          pinchStart = { dist: distance(a, b), scale: cam.current.scale };
+        }
       }
       // Capture so a finger that leaves the element still delivers move/up.
       //

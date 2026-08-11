@@ -117,9 +117,24 @@ describe("the current item survives editing", () => {
     expect(c.contents?.[activeContentIndex(c, c.contents!.length)].url).toBe(img(3).url);
   });
 
-  it("reordering carries the current item with it", () => {
-    const c = moveContent(setActiveContent({ contents: [img(1), img(2), img(3)] }, 0), 0, 2);
-    expect(c.contents?.[activeContentIndex(c, c.contents!.length)].url).toBe(img(1).url);
+  it("reordering carries a CHOSEN cover with it", () => {
+    // A non-zero cover, because index 0 is not a distinguishable choice: `commit` omits
+    // `activeIndex` when it is 0, so "cover = the first item" and "no cover chosen" are the
+    // same stored document — which is correct, since they mean the same thing.
+    const chosen = setActiveContent({ contents: [img(1), img(2), img(3)] }, 2);
+    expect(chosen.activeIndex).toBe(2);
+    const c = moveContent(chosen, 2, 0); // move the cover itself to the front
+    expect(c.contents?.[activeContentIndex(c, c.contents!.length)].url).toBe(img(3).url);
+  });
+
+  it("…but with no cover chosen, position 0 stays authoritative", () => {
+    // CHANGED BY M27B-3A1. This used to default the active index to 0 and then preserve
+    // that ITEM, which pinned `activeIndex` on the first reorder — so dragging a photo to
+    // the top left the frame still opening on the old one, the opposite of what a creator
+    // means by "put this first".
+    const c = moveContent({ contents: [img(1), img(2), img(3)] }, 2, 0);
+    expect(c.activeIndex).toBeUndefined();
+    expect(c.contents?.[activeContentIndex(c, 3)].url).toBe(img(3).url);
   });
 });
 

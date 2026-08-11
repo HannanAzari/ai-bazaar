@@ -20,8 +20,9 @@
 //
 // Pure: no React, no DOM, no Supabase.
 
-import { capabilitiesForAsset, resolveConnection, visualStateOf, type AssetInteractionConfig, type ConnectedContent, type ConnectedContentKind } from "@/lib/nest-asset-interaction";
+import { capabilitiesForAsset, placementContents, resolveConnection, visualStateOf, type AssetInteractionConfig, type ConnectedContent, type ConnectedContentKind } from "@/lib/nest-asset-interaction";
 import { predefinedSurfacesForAsset } from "@/lib/nest-surface-catalog";
+import { clampContentIndex } from "@/lib/nest-media-session";
 import type { NestPlacement } from "@/lib/nest-document-types";
 import type { NormalizedRect } from "@/lib/nest-types";
 
@@ -117,8 +118,24 @@ function displaySrc(c: ConnectedContent): string | null {
 // know that, and so there is exactly one place that maps each shape onto the resolver.
 
 /** The published/visitor/feed shape. */
-export function placementDisplayContent(p: NestPlacement, state: string | null, mode: DisplayMode = "runtime"): ObjectDisplayContent | null {
-  return resolveObjectDisplayContent({ assetId: p.assetId, connection: resolveConnection(p), state, mode });
+export function placementDisplayContent(
+  p: NestPlacement,
+  state: string | null,
+  mode: DisplayMode = "runtime",
+  contentIndex?: number,
+): ObjectDisplayContent | null {
+  // ── M27B-3A1 — the SESSION index, when a visitor has swiped ────────────────
+  //
+  // Absent, the creator's stored order decides — so Home, a cold Preview and a first page
+  // load all show the item the creator put first. Only a visitor who has actually swiped
+  // sees anything else, and that choice is never written back.
+  //
+  // `state` is untouched by any of this: which photo is showing and what the object LOOKS
+  // like are separate questions, and conflating them is what would have blanked the frame.
+  const list = placementContents(p);
+  const connection =
+    contentIndex == null ? resolveConnection(p) : list[clampContentIndex(contentIndex, list.length)] ?? null;
+  return resolveObjectDisplayContent({ assetId: p.assetId, connection, state, mode });
 }
 
 /**

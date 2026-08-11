@@ -70,15 +70,24 @@ export function removeContentAt(config: AssetInteractionConfig | undefined, inde
 /** Move an item to a new position, carrying the current selection with it. */
 export function moveContent(config: AssetInteractionConfig | undefined, from: number, to: number): AssetInteractionConfig {
   const list = storedContents(config);
-  const active = config?.activeIndex ?? 0;
-  if (from === to || from < 0 || from >= list.length || to < 0 || to >= list.length) return commit(config, list, active);
+  const chosen = config?.activeIndex; // undefined ⇒ the creator never picked a cover
+  if (from === to || from < 0 || from >= list.length || to < 0 || to >= list.length) return commit(config, list, chosen ?? 0);
   const next = [...list];
   const [moved] = next.splice(from, 1);
   next.splice(to, 0, moved);
-  // The active item is identified by WHICH item it is, not by its old slot.
-  const activeItem = list[active];
-  const nextActive = next.indexOf(activeItem);
-  return commit(config, next, nextActive >= 0 ? nextActive : active);
+  // ── M27B-3A1 — reordering must change what the object OPENS on ──────────────
+  //
+  // When the creator has chosen a cover, it follows its ITEM rather than its slot: moving
+  // other things around must not silently change what they picked.
+  //
+  // When they have NOT (the normal case), position 0 stays authoritative and nothing is
+  // written. M27B-2 defaulted the active index to 0 and then preserved that item, which
+  // pinned `activeIndex` on the first reorder — so dragging a photo to the top left the
+  // frame still opening on the old one. That is the opposite of what a creator means by
+  // "put this first".
+  if (chosen == null) return commit(config, next, 0);
+  const nextActive = next.indexOf(list[chosen]);
+  return commit(config, next, nextActive >= 0 ? nextActive : chosen);
 }
 
 /** Which item the object shows. */
@@ -97,9 +106,13 @@ export function setActiveContent(config: AssetInteractionConfig | undefined, ind
 function commit(config: AssetInteractionConfig | undefined, list: ConnectedContent[], active: number): AssetInteractionConfig {
   const rest = { ...config };
   delete rest.connection;
+  // The OLD index must go before the new one is considered. `activeIndex` is omitted
+  // entirely when it is 0 (that is the same document as "no cover chosen"), so without this
+  // a stale non-zero index survived the spread and won — an item moved to the front would
+  // still not be the one shown.
+  delete rest.activeIndex;
   if (!list.length) {
     delete rest.contents;
-    delete rest.activeIndex;
     return rest;
   }
   const clamped = Math.min(Math.max(Math.trunc(active) || 0, 0), list.length - 1);
