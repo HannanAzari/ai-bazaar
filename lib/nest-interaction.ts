@@ -78,9 +78,21 @@ export function youTubeVideoId(raw: string): string | null {
   return id && /^[\w-]{11}$/.test(id) ? id : null;
 }
 
-/** The embed URL for a video id. `nocookie` so a visitor is not tracked for looking. */
-export function youTubeEmbedUrl(videoId: string): string {
-  return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
+/**
+ * The embed URL for a video id. `nocookie` so a visitor is not tracked for looking.
+ *
+ * M27B-3B §4 — `inline` adds the two parameters the Nest player needs and the legacy modal
+ * does not, as an OPTION rather than a behaviour change, so no existing caller moves:
+ *
+ *   playsinline=1  — without it iOS Safari hijacks the video into its own fullscreen player
+ *                    the instant it starts, which is precisely the "a website appeared"
+ *                    feeling this sprint exists to remove;
+ *   enablejsapi=1  — lets `playerCommand` drive play/pause by postMessage without loading
+ *                    YouTube's IFrame API script into the room.
+ */
+export function youTubeEmbedUrl(videoId: string, opts?: { inline?: boolean }): string {
+  const base = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
+  return opts?.inline ? `${base}&playsinline=1&enablejsapi=1` : base;
 }
 
 /**

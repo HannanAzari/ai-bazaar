@@ -29,7 +29,9 @@ import {
 } from "@/lib/nest-asset-interaction";
 import { describeInteraction, youTubeEmbedUrl, type NestInteraction } from "@/lib/nest-interaction";
 import { useSceneCamera } from "@/components/nest/app-shell/use-scene-camera";
-import { nextContentIndex, swipeIntent } from "@/lib/nest-media-session";
+import { clampContentIndex, nextContentIndex, swipeIntent } from "@/lib/nest-media-session";
+import { NestMediaPlayer } from "@/components/nest/app-shell/nest-media-player";
+import { playerAfterAction, playerTrack } from "@/lib/nest-player";
 import { CAMERA_MAX_SCALE, resolveTapTarget, type Camera, type TapCandidate } from "@/lib/nest-camera";
 import { NestStage } from "@/components/nest/nest-stage";
 import type { EditableNestObject } from "@/lib/nest-editor-types";
@@ -106,12 +108,15 @@ function NestRuntimeImpl({
   /**
    * M27B-3A2 §2 — a deliberate request to play what is on screen.
    *
-   * Deliberately a STATE, not a player. The TV aperture is ~87x45px on a phone, which is
-   * below the size a YouTube embed reliably plays in, so building a player into it now
-   * would be the half-finished thing the brief rules out. This records the intent — which
-   * object, which item — and M27B-3B renders it properly.
+   * M27B-3B consumes it: non-null ⇔ the media player is open on that object. `index` is only
+   * the SEED — the item the visitor was looking at when they asked — because from the moment
+   * the player opens the live cursor is `contentIndex`, which the television reads too. The
+   * player owning an index of its own is exactly the "second playlist state" §5 forbids.
+   *
+   * `expanded` is pure presentation and lives beside it rather than inside it, so collapsing
+   * the player cannot be confused with stopping it (see `lib/nest-player.ts` for the rule).
    */
-  const [playRequest, setPlayRequest] = useState<{ objectId: string; index: number } | null>(null);
+  const [playRequest, setPlayRequest] = useState<{ objectId: string; index: number; expanded: boolean } | null>(null);
   useEffect(() => { setContentIndex({}); setPlayRequest(null); }, [doc.id]);
 
   const [media, setMedia] = useState<NestInteraction | null>(null);
@@ -176,7 +181,13 @@ function NestRuntimeImpl({
           return; // the screen wakes up. No modal, no navigation.
         }
         // Already on ⇒ this is a deliberate request to play the item on screen.
-        setPlayRequest({ objectId: p.id, index: contentIndex[p.id] ?? activeContentIndex(configForPlacement(p), placementContents(p).length) });
+        // M27B-3B §5 — it opens on WHAT THE TELEVISION IS SHOWING, which is the visitor's
+        // swiped position when they have one and the creator's chosen item when they do not.
+        setPlayRequest({
+          objectId: p.id,
+          index: contentIndex[p.id] ?? activeContentIndex(configForPlacement(p), placementContents(p).length),
+          expanded: false, // §2 — the mini bar first. Expanding is the visitor's next choice.
+        });
         return;
       }
 
@@ -299,6 +310,46 @@ function NestRuntimeImpl({
 
   const camera = useSceneCamera({ onTap: onSceneTap, enabled: interactive, arbiter: mediaArbiter });
 
+  // ── M27B-3B — the media player, driven entirely by state already here ──────
+  //
+  // §5 THE ONE INDEX. The player does not hold a cursor. It renders `contentIndex` — the
+  // same map the television's thumbnail resolves through and the same map an aperture swipe
+  // writes — so Next in the player and a swipe on the TV are literally the same write. The
+  // TV underneath cannot fall out of step with the player above it, because there is nothing
+  // to keep in step.
+  //
+  // §6 THE ROOM IS NOT TOUCHED. Nothing in this block reads, writes, saves or restores the
+  // camera, and nothing writes `session`. Opening and closing the player therefore preserve
+  // zoom, pan, the TV's ON state and its current item by construction — there is no code
+  // here with the power to reset them. (Contrast `closeMedia` below, which restores a camera
+  // it deliberately moved for the legacy modal.)
+  const playerPlacement = playRequest ? doc.placements.find((p) => p.id === playRequest.objectId) ?? null : null;
+  const playerContents = playerPlacement ? placementContents(playerPlacement) : [];
+  const playerIndex = playRequest && playerPlacement
+    ? clampContentIndex(contentIndex[playRequest.objectId] ?? playRequest.index, playerContents.length)
+    : 0;
+  const track = playerContents.length ? playerTrack(playerContents, playerIndex) : null;
+
+  const stepPlayer = useCallback(
+    (direction: 1 | -1) => {
+      if (!playRequest) return;
+      const p = doc.placements.find((q) => q.id === playRequest.objectId);
+      const count = p ? placementContents(p).length : 0;
+      if (!count) return;
+      // The ONLY write. `playRequest` is untouched, so Next moves the television and the
+      // player together and cannot move one without the other.
+      const from = clampContentIndex(contentIndex[playRequest.objectId] ?? playRequest.index, count);
+      setContentIndex((m) => ({ ...m, [playRequest.objectId]: nextContentIndex(from, count, direction) }));
+    },
+    [playRequest, doc.placements, contentIndex],
+  );
+  const setExpanded = useCallback((expanded: boolean) => setPlayRequest((r) => (r ? { ...r, expanded } : r)), []);
+  const collapsePlayer = useCallback(() => setPlayRequest((r) => playerAfterAction(r, "collapse")), []);
+  const stopPlayer = useCallback(() => setPlayRequest((r) => playerAfterAction(r, "stop")), []);
+  // A player left open on an object whose content disappeared (an edit in Preview) closes
+  // rather than lingering over a television with nothing on it.
+  useEffect(() => { if (playRequest && !track) setPlayRequest(null); }, [playRequest, track]);
+
   // Opening media remembers where the visitor was standing; closing puts them back, so
   // watching a video never costs them the spot they zoomed into.
   useEffect(() => {
@@ -420,15 +471,32 @@ function NestRuntimeImpl({
               onHint={pulse}
               inLegacyFocus={!!activeFocus}
               onExitFocus={() => setFocusId(null)}
-              hidden={!!media}
+              // §7 — the foreground contract. An expanded player OWNS the foreground, so the
+              // room's own controls stand down rather than being out-stacked by a number.
+              // Room controls stay live under the MINI bar: the Nest is still explorable.
+              hidden={!!media || !!playRequest?.expanded}
             />
           ) : null}
 
-          {interactive && !media ? <FirstVisitHint /> : null}
+          {interactive && !media && !playRequest ? <FirstVisitHint /> : null}
 
           {media ? <MediaOverlay interaction={media} onClose={closeMedia} /> : null}
         </div>
       </div>
+
+      {/* ── M27B-3B — the media player ────────────────────────────────────────
+          Outside the viewport and portalled to <body>, so it neither scales with the camera
+          nor resizes the canonical 3:4 scene (§2). One implementation for every surface. */}
+      {interactive && track && playRequest ? (
+        <NestMediaPlayer
+          track={track}
+          expanded={playRequest.expanded}
+          onExpand={() => setExpanded(true)}
+          onCollapse={collapsePlayer}
+          onStop={stopPlayer}
+          onStep={stepPlayer}
+        />
+      ) : null}
 
       {/* Session audio: one element per speaker that is currently playing. Browsers only
           allow this after a real user gesture, which a tap is. */}

@@ -785,7 +785,10 @@ export function NestEditor({ seed, documentId, pickAssetId }: { seed?: EditableN
   const zoomOut = () => setZoom((z) => clampZoom(z - 0.15));
 
   const ui = (
-    <div className="fixed inset-0 z-[110] flex flex-col overflow-hidden overscroll-none bg-parchment" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)", touchAction: "none" }}>
+    // M27B-3B — `z.editor` rather than the bare `z-[110]` this carried, so the app's one
+    // layer file actually knows this surface exists. It did not, and the media player was
+    // painted underneath it in Preview while hit-testing correctly. Same number, now named.
+    <div className={`fixed inset-0 ${z.editor} flex flex-col overflow-hidden overscroll-none bg-parchment`} style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)", touchAction: "none" }}>
       {/* ── PREVIEW ────────────────────────────────────────────────────────────
           M24 — Preview now renders the CANONICAL DOCUMENT through NestPreview: the
           same component, fed the same data, that a visitor gets on /nest/<slug>.

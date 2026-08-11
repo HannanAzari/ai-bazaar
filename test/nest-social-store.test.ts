@@ -122,8 +122,9 @@ describe("every subscriber is notified — this is what 'update everywhere' mean
 
   it("survives a listener unsubscribing during its own notification", () => {
     const other = vi.fn();
-    let unsubSelf!: () => void;
-    unsubSelf = store.subscribe(() => unsubSelf());
+    // `const` is safe despite the self-reference: the callback only runs on a later
+    // `setNestCounts`, long after the binding is initialised.
+    const unsubSelf: () => void = store.subscribe(() => unsubSelf());
     store.subscribe(other);
     expect(() => store.setNestCounts("x", { likeCount: 0, liked: false, commentCount: 0 })).not.toThrow();
     expect(other).toHaveBeenCalled();

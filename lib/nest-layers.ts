@@ -18,9 +18,28 @@
 //   drawer           creator drawer / bottom sheets
 //   modal            centred modals and their backdrop
 //   toast            transient confirmations — always the last word
+//   editor           the editor's own full-screen shell (see below)
+//   player           the Nest media player (see below)
 //
 // Usage: `className={z.chrome}` for Tailwind, or `style={{ zIndex: LAYER.chrome }}`
 // where a numeric value is needed (inline transforms, portals).
+//
+// ── M27B-3B — the last two layers, and why they are not 80 ───────────────────
+//
+// `toast` was described above as "always the last word", and for everything INSIDE a page
+// it still is. The editor is not inside a page: it is a `fixed inset-0` shell that covers
+// the app whole, and it carried a bare `z-[110]` that this file never knew about. So the
+// documented hierarchy quietly stopped at the editor's front door.
+//
+// That was not theoretical. The media player portals to <body> at `modal`, and in the
+// editor's Preview it rendered, laid out and hit-tested correctly while being painted over
+// by the editor shell — visible in the DOM, invisible on screen. Found by measuring
+// `elementsFromPoint`, not by reading the code.
+//
+// Both surfaces are named here rather than fixed with a local number, because the bug was
+// never the value: it was that one of the two surfaces was not in the list. The player is
+// above the editor because it is the one thing that must be reachable from every surface,
+// the editor's Preview included.
 
 export const LAYER = {
   room: 0,
@@ -32,6 +51,10 @@ export const LAYER = {
   drawer: 60,
   modal: 70,
   toast: 80,
+  /** The editor's full-screen shell. Everything the editor draws lives inside this. */
+  editor: 110,
+  /** The Nest media player. Portalled to <body>; must clear the editor shell. */
+  player: 120,
 } as const;
 
 export type LayerName = keyof typeof LAYER;
@@ -50,6 +73,8 @@ export const z: Record<LayerName, string> = {
   drawer: "z-[60]",
   modal: "z-[70]",
   toast: "z-[80]",
+  editor: "z-[110]",
+  player: "z-[120]",
 };
 
 // ── Safe areas ───────────────────────────────────────────────────────────────

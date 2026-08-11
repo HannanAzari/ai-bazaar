@@ -135,6 +135,15 @@ export type ConnectedContent = {
   thumbnailUrl?: string;
   label?: string;
   loop?: boolean;
+  /**
+   * M27B-3B §4 — the provider's own id for this item, resolved ONCE at the boundary.
+   *
+   * `normaliseContent` has always had to parse the URL to decide whether the item is usable
+   * at all. Keeping the result means the player never parses a URL again: it asks for a
+   * provider id and gets one, or gets nothing and does not offer inline playback. Derived on
+   * read, never authored — a stored value is overwritten every time.
+   */
+  providerId?: string;
 };
 
 // ── The catalogue ────────────────────────────────────────────────────────────
@@ -366,7 +375,9 @@ function normaliseContent(c: ConnectedContent, def: AssetInteractionCapabilityDe
     // A thumbnail the creator supplied explicitly always wins.
     const videoId = youTubeVideoId(url);
     if (!videoId) return null;
-    return { ...c, url, thumbnailUrl: c.thumbnailUrl ?? youTubeThumbnailUrl(videoId) };
+    // M27B-3B §4 — `providerId` is authoritative and always re-derived, so a stale or
+    // hand-edited value in a stored document can never reach an <iframe> src.
+    return { ...c, url, providerId: videoId, thumbnailUrl: c.thumbnailUrl ?? youTubeThumbnailUrl(videoId) };
   }
   return { ...c, url };
 }

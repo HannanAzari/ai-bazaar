@@ -112,7 +112,12 @@ describe("5-8. swiping changes the video and keeps the TV on", () => {
 
 describe("9. a deliberate tap on a live screen requests playback", () => {
   it("it records WHICH object and WHICH item", () => {
-    expect(runtime).toContain("setPlayRequest({ objectId: p.id, index:");
+    // M27B-3B added `expanded` to the request and consumes it as the player's open state.
+    // The tap machine itself is untouched: same trigger, same object, same seed index.
+    const tap = runtime.slice(runtime.indexOf("const onObjectTap"), runtime.indexOf("const onSceneTap"));
+    expect(tap).toContain("setPlayRequest({");
+    expect(tap).toContain("objectId: p.id,");
+    expect(tap).toContain("index: contentIndex[p.id] ?? activeContentIndex(configForPlacement(p), placementContents(p).length),");
   });
 
   it("and never turns the screen back off", () => {
