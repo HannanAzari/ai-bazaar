@@ -1,116 +1,120 @@
 # 06 · NEXT SPRINT
 
 > **Start here after `01`.** Working document for the next session. Update every sprint.
-> Track: **Founder Edition Creation Studio.** Current gate: **Avatar Golden Reference** (D43).
-> The ONE thing blocking progress is founder-run avatar generation — everything buildable is built.
+> Track: **post-editor-freeze launch line.** Current sprint: **Sprint 0 — unblock and prove media.**
+> The Avatar Golden Reference track is **NOT current** (superseded — see D44). Do not resume it.
 
 ---
 
-## Where we are (2026-07-23)
+## Where we are (2026-09-03)
 
-The three creation engines + the Art Engine are all built and deployed to the
-`m12-nest-platform` Preview. Remaining work is founder-run (generation + eye), not engineering.
+The **editor line is closed and frozen** at tag `editor-beta-v1` (commit `533c8ec`,
+2026-08-11), documented in `docs/EDITOR_BETA_V1_FREEZE.md`. That document is authoritative
+for the scene, gesture, layering, `contents[]`, display-resolver, frame, TV, player and
+storage-key contracts. Do not redesign any of them without a deliberate decision to reopen.
 
-- **Generation Platform** (D28–D30): one shared `GenerationStudio` + `lib/generation-platform`;
-  Asset/Nest/Avatar are thin modules. See `GENERATION_PLATFORM.md`.
-- **Asset Factory** — shipped, **FROZEN** (D19/D20). `/asset-factory` → `nest_assets`. Family
-  defaults fixed classification (D38). furniture@8 stays certified (not compiler-driven yet, D40).
-- **Nest Factory** — shipped (D24). `/nest-factory` → `nest_backgrounds` (provisioned). Empty-room
-  architecture only; selectable in Create → Build My Own.
-- **Avatar Studio** — shipped, **founder-only Beta** (D31/D32/D39). `/profile/avatar` → `user_avatars`
-  + private `avatar-private` bucket (provisioned; cross-user isolation proven, `SPRINT4_AVATAR_FACTORY.md`).
-  UX is premium (D42). **Opens to users only when `AVATAR_PUBLIC_ENABLED=1` after the style is approved.**
-- **Auth** — ONE source of truth: `getServerUser` (server) + `useNestIdentity` (client); role-gated
-  founder studios (D35/D36). `/api/auth/whoami` is the diagnostic (D37). See `AUTH_ROUTING_SPRINT.md`.
-- **Art Engine v1** (D40): `lib/visual-dna` (structured Visual DNA) + `lib/art-engine` (compiler,
-  validators, 5 Golden-Reference slots). Studios are polished + warm (D41/D42).
+Gates at freeze: typecheck ✓ · lint 0 errors ✓ · 1516 tests / 115 files ✓ · production build ✓.
 
-## The immediate gate — Avatar Golden Reference (founder-run loop, D43)
+Two things block everything, and neither is code.
 
-The avatar **art-direction brief** is written (`lib/art-engine/type-dna.ts AVATAR_TYPE_DNA`,
-`avatar-art-v1-candidate`). Claude cannot generate or judge avatars (no session/photo/spend), so:
+---
 
-1. **Founder** generates 3–4 avatars (well under the 10–15 cap) from their account.
-2. **Founder** says, per image, what improved / got worse / still feels wrong.
-3. **Claude** tunes the words in `AVATAR_TYPE_DNA`; repeat.
-4. On **"That's it"** → freeze the avatar slot in `lib/art-engine/golden-references.ts`
-   (`approved` + prompt + versions + output URL) = **Avatar Golden Reference v1**, then STOP.
+## Sprint 0 — unblock and prove media (current)
 
-## After the Golden Reference (do NOT start before it)
+Strictly in order. Nothing after step 3 starts until step 3 passes.
 
-- Set `AVATAR_PUBLIC_ENABLED=1` (open avatars to users).
-- **Then: Creator Generator → Interaction Engine** (D23, D27) — not before.
+### 1. Apply `supabase/provision/m27a_media_storage.sql` — FOUNDER ACTION
+
+The `nest-media` bucket has never existed. Verified three ways on 2026-08-11 against the
+live project: bucket list `200 []`, `GET /storage/v1/bucket/nest-media` → `NoSuchBucket`,
+public object read → `NoSuchKey`. Re-verification on 2026-09-03 was **not possible** — the
+Supabase host does not resolve from the development machine (`ENOTFOUND`), so the state is
+*unconfirmed*, not *confirmed still missing*.
+
+The SQL is additive and idempotent: one bucket (public, 25 MB, image/video MIME allow-list)
+and four RLS policies keyed on `(storage.foldername(name))[1] = auth.uid()::text`.
+Apply in: Supabase dashboard → SQL Editor → paste → Run.
+
+Then, from a machine with network access:
+
+```bash
+node scripts/verify-nest-media.mjs
+```
+
+It exits non-zero with the reason until the SQL is applied; after that it checks the bucket
+shape, anonymous read, and that anonymous write is refused.
+
+### 2. Restore the Vercel deployment — FOUNDER ACTION
+
+`ai-bazaar` is disabled: production returns `402 DEPLOYMENT_DISABLED`, the branch preview
+`410 GONE`. This is a billing state, not a build failure, and it has gated every "deployed"
+claim for many sprints. **Do not guess Vercel hostnames** — a wrong team slug once hid the
+truth for several sprints.
+
+After the redeploy, confirm Preview env carries `NEXT_PUBLIC_SUPABASE_*`,
+`SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `FOUNDER_EMAILS`/`FOUNDER_USER_IDS`,
+`NEXT_PUBLIC_NEST_BACKEND=supabase`, and that Supabase Auth redirect URLs include the
+preview domain (`AUTH_ROUTING_SPRINT.md`). `/api/build-info` answers "which commit is this?"
+from a phone.
+
+### 3. One real photo upload, end to end — the acceptance run
+
+**No real upload has ever run in this project's history.** Every media verification to date
+used URL-connected content. This run is the first, and it is the sprint's definition of done:
+
+```
+upload a real photo  →  connect it to a Framed Photo  →  Save draft
+  →  leave the editor  →  reopen (geometry + contents[] byte-identical)
+  →  publish  →  visit as a visitor (signed out)  →  the photo renders
+  →  reload as the visitor  →  still there
+```
+
+Run it on a real phone at 375×812 / 390×844 / 430×932. Also confirm the storage object key
+is `<ownerId>/<nestId>/<objectId>/<mediaId>.<ext>` — the first segment must be the owner uid
+or every RLS policy silently stops matching.
+
+The iPhone video guard (`videoPlaybackRejection()`) is in place: `.MOV` is refused on MIME,
+and an HEVC-inside-`video/mp4` file is refused by handing it to a `<video>` element before
+the upload. Transcoding stays post-beta.
+
+---
+
+## The roadmap after Sprint 0
+
+The canonical product order after the editor freeze (D44). Each item is a sprint or more;
+do not reorder without a founder decision.
+
+1. **Create / onboarding polish** — the path from arriving to a first Nest.
+2. **Profile / social acceptance** — two real accounts: like, comment, follow, notification,
+   views. Still the least-proven area of the product.
+3. **Village v1** — the spatial layer, first real version.
+4. **Asset / Background / House pipeline hardening + launch content generation** — make the
+   generation pipelines dependable, then produce the launch library. See the landscape note
+   below for how backgrounds should be composed from here on.
+5. **Simplified Avatar v1** — a deliberately simpler avatar than the old Golden Reference
+   track assumed. That track is superseded (D44); do not resurrect its scope.
+6. **Google / Apple auth.**
+7. **CI/CD, observability, analytics.**
+8. **Performance / PWA.**
+9. **Safety / legal** — including the unresolved branded-asset question (RV1).
+10. **Seeded world** — a populated place, not an empty one, on day one.
+11. **Launch QA / release candidate.**
+
+## Recorded for later — landscape Studio View
+
+`docs/design/STUDIO_VIEW_LANDSCAPE.md` (D45). Not scheduled. It matters *now* only because
+of item 4: new backgrounds should preferably come from a **wider master composition with a
+strong 3:4 central safe area**, and the mix should shift toward simple **canvas rooms**
+(clean walls/floor, less baked-in decoration). **Do not change the frozen 3:4 scene
+architecture** to chase it.
 
 ## Guardrails carried forward
 
-- Asset Factory + Nest Factory Create flows are **frozen** — no redesign without a founder bug report.
-- Founder-gated generation/publish (D22); users never generate Nests (D26).
-- Additive migrations only, shown + founder-provisioned. Never change the canonical camera.
-- Do **not** build AI room decoration / auto-placement / the Interaction Engine yet (D27).
-
----
-
-## (Archived) prior sprint brief — Background + Avatar factories
-
-> Superseded by the Sprint 3 framing above: "Background Factory" became the **Nest Factory** (D24),
-> and Avatar Factory is deferred behind Creator Generator + Interaction Engine (D27). Original
-> detail retained below for reference.
-
-## Current objective
-
-Build **Background Factory** and **Avatar Factory** by **reusing the exact Asset Factory shell**
-(D21): same UX, same translator→spec→review→approve→publish flow, same DB/persistence model, same
-founder gate, same mobile ergonomics. **Only the generation engine + the translator's target schema
-change per type.** No "Unified Studio" milestone (D21) — reuse, don't rebuild.
-
-## Exact deliverables
-
-1. **Background Factory** (`/background-factory`, mirrors `app/asset-factory`):
-   - Background Translator (intent → background spec: category, mood, architecture, walls, floor,
-     palette, lighting, window config, asset-safe zones, canonical camera, cost, safety).
-   - Generation engine tuned for **empty room stages** (no movable furniture; one frozen canonical
-     camera; identical room-stage geometry across all backgrounds).
-   - Same review/approve screen + the extra final gate: *"Could I build ≥3 different Nests in this room?"* (Yes enables publish).
-   - Persistence to **`nest_backgrounds`** — **prepare the additive migration, show it, wait for
-     founder provisioning** (never a parallel/legacy fallback). Same safety as the Laptop write.
-   - **Prove 3 first:** Minimal Flexible Room · Creator Studio · Music Studio — same camera/geometry,
-     distinct identity. Stop and compare before generating more.
-
-2. **Avatar Factory** (`/avatar-factory`, mirrors the shell; **upload-required**):
-   - Avatar Translator (privacy-conscious: presentation, outfit category, palette, hair, accessories,
-     full-body, canonical front pose, expression, transparency, privacy scope, cost, safety). **Never
-     classify ethnicity/religion/health/sexuality/politics; never exaggerate features.**
-   - Generation engine for **full-body, transparent-bg, idle-standing** Nestudio-style avatars
-     (respectful likeness, not photoreal; clean hands/anatomy; reliable foot anchor).
-   - Same review/approve screen + the two final gates: *"Does this respectfully resemble the person?"*
-     and *"Would I proudly represent this person in a Nest?"* (both Yes to approve).
-   - **Privacy from day one:** real-person avatars are **private by default** (`scope: private-user`,
-     `ownerId` = founder/test user), a **Delete Reference and Result** action, reference images never
-     public. Persistence to **`nest_avatars`** — **audit first**, then additive migration shown +
-     founder-provisioned before any write.
-   - **Prove 1 first:** one founder-uploaded photo → idle standing → save privately → place → reload →
-     still present → delete → removed from library + storage.
-
-## Definition of done
-
-- Both factories run the **identical shell/flow** as Asset Factory (only engine + translator target differ).
-- Mobile-first: works from the founder's phone (uploads from photo library, safe-area, no overflow,
-  double-tap guard, recoverable errors).
-- Migrations for `nest_backgrounds` / `nest_avatars` are **additive, shown, and provisioned by the
-  founder** — no destructive DDL, no silent fallback table.
-- The 3-background and 1-avatar proofs pass (founder-run generations; I build + wire dry).
-- Gates green (typecheck · lint · tests · build). Deployed to the Vercel preview.
-
-## Guardrails (do not violate)
-
-- **Asset Factory is frozen** (D20) — no Create-flow redesign.
-- Reuse the shell (D21) — do **not** build three separate apps or a unified-studio abstraction.
-- Founder gate on every generation/publish route (D22). Global publish is founder-only; anonymous never publishes.
-- A generated background must **never change the canonical camera**. A real-person photo must **never** become public.
-- Additive migrations only; show SQL and wait for founder provisioning. No spend by me — the founder runs generations.
-- Do **not** start the Creator Generator or Interaction Engine this sprint (D23).
-
-## After this sprint (D23)
-
-**Creator Generator** (compose a complete starter Nest) → then the **Interaction Engine** (UOS
-surfaces, animation, sound). Not before.
+- The **editor is frozen** (`EDITOR_BETA_V1_FREEZE.md`). Reopening a contract is a decision,
+  not a refactor.
+- Additive migrations only, shown and **founder-provisioned**. Never destructive DDL, never
+  a silent fallback table.
+- Never change the canonical camera.
+- Asset Factory and Nest Factory Create flows stay frozen (D20) — no redesign without a bug.
+- Founder-gated generation/publish (D22/D35); users never generate Nests (D26).
+- A real-person photo must never become public (D31/D32).

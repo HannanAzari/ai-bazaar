@@ -298,3 +298,6 @@ Real, reproduced, and deliberately left alone under the freeze:
 2. Only then is the real photo-upload path (P1 of M27C) testable. It has never run.
 3. Clear the Vercel billing block on `ai-bazaar` (`402 DEPLOYMENT_DISABLED`) before claiming
    anything is deployed.
+4. Then follow `docs/handoff/06_NEXT_SPRINT.md` — Sprint 0 is exactly steps 1–3 above plus the
+   first real upload→publish→visitor acceptance run; the launch line after it is D44.
+   (The Avatar Golden Reference track is closed — do not resume it.)

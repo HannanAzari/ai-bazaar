@@ -35,4 +35,4 @@ Then reference as needed: **05_ROADMAP** · **07_DECISIONS** · **08_GLOSSARY** 
 
 ## The one-line context
 
-Nestudio is a **digital home — the visual language of digital identity**. Design is frozen; implementation of the new vision hasn't started; a pre-pivot Asset Factory works but its *look* needs a material-aware fix before scaling. **Instagram is where you post. Nestudio is where you live.**
+Nestudio is a **digital home — the visual language of digital identity**. The design constitution is frozen and the **editor line is frozen** at `editor-beta-v1` (see `../EDITOR_BETA_V1_FREEZE.md`). The current work is unblocking storage + deployment and proving the first real media upload, then the launch line in `05_ROADMAP.md`. **The Avatar Golden Reference track is closed (D44) — do not resume it.** **Instagram is where you post. Nestudio is where you live.**

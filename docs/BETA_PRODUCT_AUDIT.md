@@ -1,6 +1,10 @@
 # BETA_PRODUCT_AUDIT.md
 
 > **Source of truth for the Nestudio Beta Stabilisation initiative.**
+> ⚠️ **Historical snapshot (2026-07-24).** Its avatar rows still name the **Avatar Golden
+> Reference** as the blocker for avatar release. That track was **closed on 2026-09-03**
+> (D44); avatars return later as a **simplified Avatar v1**. For current priorities read
+> `docs/handoff/06_NEXT_SPRINT.md` and `docs/handoff/05_ROADMAP.md`.
 > Written 2026-07-24. Branch `m12-nest-platform`. This is an *understanding* document —
 > no code was changed to produce it. Where a bug was found it is **recorded, not fixed.**
 >

@@ -31,34 +31,46 @@ Nestudio is **not**: a social feed, a link page, a furniture catalogue, The Sims
 
 ## Current phase
 
-**Design & architecture are frozen. Implementation of the new vision has not started.**
+**The design constitution is frozen, and the editor line is now frozen too.**
 
-There is an **existing codebase** (a working Next.js app + an "Asset Factory" that turns photos into stylised 3D assets via GPT Image) built in earlier sprints, **before** the design pivot below. Treat that code as a *partial, pre-pivot implementation* to be re-aligned to the frozen design — not as the current product. See `02_PROJECT_STATE.md` and `04_TECHNICAL_ARCHITECTURE.md`.
+The Nestudio editor + runtime closed at tag **`editor-beta-v1`** (`533c8ec`, 2026-08-11).
+`docs/EDITOR_BETA_V1_FREEZE.md` records its ten contracts and is authoritative for anything
+touching the scene, gestures, layering, connected content, the frame/TV/player, or the media
+storage key. There is real, tested, working product code — read it as the current product,
+not as a pre-pivot artefact.
 
-The design work of the last phase produced four frozen documents, now consolidated into `03_DESIGN_CONSTITUTION.md`:
-1. **Product philosophy** — the digital-home thesis.
-2. **The Alphabet** — the ~57-object identity vocabulary (Story / Identity / Portal / Memory classes).
-3. **Nest Grammar** — the 12 laws that make rooms coherent.
-4. **Universal Object System (UOS)** — the data-driven object architecture (`04`).
+There is also an older **pre-pivot island** (`/bazaar`, `/discover`, `/tags`, `/collections`,
+`/activity`, `/u/[handle]`, `/assets`, `/village-lab`) that predates the design pivot and is
+awaiting its own deletion sprint. Do not mistake it for the current product.
 
 ## Current priorities
 
 The immediate path (see `06_NEXT_SPRINT.md` for the exact next step):
-1. Founder **approves** the object vocabulary + grammar + UOS (or edits them).
-2. Make the generation engine **material-aware** (it currently renders everything wooden/beige — the reason the first library batch was rejected).
-3. Run a small **Phase-0 calibration batch** (a few objects across classes/materials), review by eye.
-4. **Only then** scale to the full vocabulary.
 
-**Nothing for the new vision has been generated, frozen, tagged, committed, or pushed.** Do not skip the calibration gate.
+1. **Apply `supabase/provision/m27a_media_storage.sql`** — the `nest-media` bucket has never
+   existed, so **no real upload has ever run in this project's history**. Founder action.
+2. **Restore the Vercel deployment** — `ai-bazaar` is `402 DEPLOYMENT_DISABLED`. Founder action.
+3. **Run the first real photo upload end to end** — upload → frame → save → reopen → publish
+   → visitor acceptance. This is the sprint's definition of done.
+
+Then the launch line (D44, detailed in `05_ROADMAP.md`): Create/onboarding polish → profile/
+social acceptance → Village v1 → asset/background/house pipeline hardening + launch content
+generation → **simplified** Avatar v1 → Google/Apple auth → CI/CD + observability + analytics
+→ performance/PWA → safety/legal → seeded world → launch QA / release candidate.
+
+> **The Avatar Golden Reference track is closed** (D44). Older documents that name it as the
+> current gate are historical. Do not resume it; avatars return later, simpler.
 
 ## What is frozen — do not re-open without a founder decision
 
 - The **design constitution** (`03`): philosophy, the 4 object classes + 5 visual roles, the 12 grammar laws.
 - **One of each**, forever: one **camera**, one **interaction language**, one **sound language**, one **design language**. (See `10_FUTURE_RULES.md`.)
 - The **UOS architecture** — objects are data that reference shared registries; objects ship no bespoke code.
+- The **editor contracts** in `docs/EDITOR_BETA_V1_FREEZE.md` — including the canonical **3:4 scene**, which does **not** change for the future landscape Studio View (D45).
 - **GPT Image (`gpt-image-1`)** is the generation engine. **Gemini is deprecated — never revisit it.**
 - Identity extraction is **objective facts only** (no style/material/finish words — those fight the render engine and caused regressions).
-- Branch **`m12-nest-platform`, preview only. Never merge `main`. Never deploy production.**
+- Branch **`m12-nest-platform`**, preview only. Never merge `main`; never deploy production.
+  (Deploying the founder-gated preview *is* authorised — D16b.)
 
 ## What must never change (the soul)
 
@@ -69,7 +81,7 @@ The immediate path (see `06_NEXT_SPRINT.md` for the exact next step):
 
 ## What is intentionally postponed
 
-Backgrounds (only categories noted, not designed) · the **village** layer (rooms before the village) · business-mode *implementation* · the AI room composer · the memory-accumulation system · sound *implementation* · scaling to 200–1000 objects. All are designed-for in the architecture but built later.
+Business-mode *implementation* · the AI room composer · the memory-accumulation system · sound *implementation* · scaling to 200–1000 objects · universal video transcoding (guarded instead) · a landscape Studio View (`docs/design/STUDIO_VIEW_LANDSCAPE.md`). All are designed-for in the architecture but built later. The **village** is no longer postponed — it is item 3 on the launch line.
 
 ---
 

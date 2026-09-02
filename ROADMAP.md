@@ -3,8 +3,12 @@
 Status honestly separates *code exists* from *verified working in a deployment*.
 Nothing is marked complete merely because the code is written.
 
-State as of `56aa6f3` (M26A final). Gates: typecheck · lint 0 errors ·
-**1156 tests / 101 files** · build 133 pages.
+State as of `533c8ec` / tag **`editor-beta-v1`** (2026-08-11, M27C final). Gates:
+typecheck · lint 0 errors · **1516 tests / 115 files** · production build.
+
+> This file is the **beta-line record**. The canonical forward plan is
+> `docs/handoff/05_ROADMAP.md` (D44); the editor's frozen contracts are
+> `docs/EDITOR_BETA_V1_FREEZE.md`.
 
 Legend — ✅ complete & verified locally · 🟨 implemented, **unverified in deployment** ·
 ⛔ blocked · ⏸ deferred by decision · 🔭 future
@@ -61,6 +65,8 @@ Legend — ✅ complete & verified locally · 🟨 implemented, **unverified in 
 ## 🟨 Implemented but UNVERIFIED — blocked on the Vercel block
 
 - **Everything above, as deployed.** Nothing has shipped since `235d2ab`.
+- **Every media upload path.** The `nest-media` bucket has never existed, so no real upload
+  has ever run — all media verification to date used URL-connected content.
 - Two-account social: like, comment, follow, notification.
 - Publish → visitor round-trip compared side by side.
 - Views counted by a second account.
@@ -105,7 +111,8 @@ slug hid the truth for several sprints.
 - No new AI, asset-generation, avatar, Google/Apple auth, marketplace or discovery work.
 - Deleting the legacy pre-pivot island (`/bazaar`, `/discover`, `/tags`, `/collections`,
   `/activity`, `/u/[handle]`, `/assets`, `/village-lab`) — its own sprint.
-- Avatar public release (`AVATAR_PUBLIC_ENABLED=1`).
+- Avatar public release (`AVATAR_PUBLIC_ENABLED=1`). The Golden Reference track is **closed**
+  (D44); avatars return later as a **simplified Avatar v1**, item 5 on the launch line.
 - Village redesign; analytics changes; Interaction-inspector redesign.
 
 ## 🔭 Future
@@ -116,6 +123,8 @@ slug hid the truth for several sprints.
 - Art for speaker / console / curtain / laptop, against the existing capability contract.
 - Realtime notifications, once Realtime is configured.
 - Creator Generator → Interaction Engine → Memory Engine.
+- Landscape **Studio View**, portrait retained — recorded, not scheduled
+  (`docs/design/STUDIO_VIEW_LANDSCAPE.md`, D45). The 3:4 scene does not change for it yet.
 
 ## Risks resolved
 

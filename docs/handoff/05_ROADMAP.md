@@ -1,27 +1,48 @@
 # 05 · ROADMAP
 
-> Phased plan from here to public launch. Each phase has a goal, deliverables, exit criteria, success metrics.
-> The **Phase 0–7 plan below is the design-era arc.** The **actual current execution track** is the
-> Founder Edition Creation Studio line, below — follow that for sequencing.
+> Phased plan from here to public launch.
+> The **canonical current track is the post-editor-freeze launch line below.** Follow that for
+> sequencing. The Phase 0–7 plan further down is the **design-era arc**, kept for reference.
+> The Founder Edition Creation Studio track (Asset → Nest → Avatar → Creator Generator →
+> Interaction Engine) is **superseded** — see D44. **Avatar Golden Reference is no longer the
+> current priority.**
 
 ---
 
-## ▶ Current execution track — Founder Edition Creation Studio (as of 2026-07-22)
+## ▶ Current track — post-editor-freeze launch line (as of 2026-09-03)
 
-The founder builds the official library personally from a phone while engineering ships the remaining
-creation engines. Strict order (D19–D23):
+The editor line closed at `editor-beta-v1` (`533c8ec`, 2026-08-11), frozen in
+`docs/EDITOR_BETA_V1_FREEZE.md`. What follows is the road to launch.
 
-1. **Asset Factory** — ✅ shipped, deployed, **FROZEN** (D20). Founder owns testing + library growth.
-2. **Background Factory** — reuse the Asset Factory shell; engine tuned for empty room stages; publish to
-   `nest_backgrounds`. Prove 3 (Minimal Flexible Room · Creator Studio · Music Studio) first. ← next
-3. **Avatar Factory** — reuse the shell; **upload-only**, full-body, transparent, **private by default**;
-   publish to `nest_avatars`. Prove 1 idle-standing avatar (incl. deletion) first.
-4. **Creator Generator** — compose a complete starter Nest from the founder's library.
-5. **Interaction Engine** — UOS surfaces + animation + sound (the design-era "Phase 4" below).
+### Sprint 0 · Unblock and prove media — CURRENT
 
-Rules: reuse the shell (no Unified Studio, D21); founder-gated generation/publish (D22); additive
-migrations shown + founder-provisioned; the founder runs all generations (no engineering spend);
-never change the canonical camera; never make a real-person photo public.
+1. Apply `supabase/provision/m27a_media_storage.sql` (founder) — the `nest-media` bucket has
+   never existed. Gate: `node scripts/verify-nest-media.mjs`.
+2. Restore the Vercel deployment (founder) — `ai-bazaar` is `402 DEPLOYMENT_DISABLED`.
+3. Run the **first real photo upload** end to end: upload → connect to a frame → save →
+   reopen → publish → visitor acceptance → visitor reload. This has never run.
+
+**Exit:** a real uploaded photo renders for a signed-out visitor on a deployed build.
+
+### Then, in order (D44)
+
+| # | Item | What it means |
+|---|---|---|
+| 1 | **Create / onboarding polish** | The path from arriving to a first Nest. |
+| 2 | **Profile / social acceptance** | Two real accounts: like, comment, follow, notification, views — the least-proven area. |
+| 3 | **Village v1** | The spatial layer, first real version. |
+| 4 | **Asset / Background / House pipeline hardening + launch content generation** | Make generation dependable, then produce the launch library. New backgrounds should come from a **wider master with a strong 3:4 safe area**, and the mix should shift toward simple **canvas rooms** (D45). |
+| 5 | **Simplified Avatar v1** | Deliberately simpler than the old Golden Reference scope. Do not resurrect that track. |
+| 6 | **Google / Apple auth** | Real third-party sign-in. |
+| 7 | **CI/CD · observability · analytics** | Know that it built, that it is up, and what people do. |
+| 8 | **Performance / PWA** | Installability and speed on a real phone. |
+| 9 | **Safety / legal** | Includes the unresolved branded-asset question (RV1). |
+| 10 | **Seeded world** | Launch into a populated place, not an empty one. |
+| 11 | **Launch QA / release candidate** | The gate before anyone outside is invited. |
+
+Rules carried forward: the editor freeze holds; additive migrations only, shown and
+founder-provisioned; never change the canonical camera; founder-gated generation/publish;
+users never generate Nests; a real-person photo is never public.
 
 ---
 
