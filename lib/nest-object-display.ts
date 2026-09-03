@@ -22,6 +22,7 @@
 
 import { capabilitiesForAsset, placementContents, resolveConnection, visualStateOf, type AssetInteractionConfig, type ConnectedContent, type ConnectedContentKind } from "@/lib/nest-asset-interaction";
 import { predefinedSurfacesForAsset } from "@/lib/nest-surface-catalog";
+import { normaliseCrop, type MediaCrop } from "@/lib/nest-media-crop";
 import { clampContentIndex } from "@/lib/nest-media-session";
 import type { NestPlacement } from "@/lib/nest-document-types";
 import type { NormalizedRect } from "@/lib/nest-types";
@@ -34,6 +35,14 @@ export type ObjectDisplayContent = {
   bounds: NormalizedRect;
   /** How the picture sits in the aperture. */
   fit: "cover" | "contain";
+  /**
+   * M28.1 §2/§4 — the creator's focal point and zoom for THIS item, already normalised.
+   *
+   * Carried here rather than read from the connection by each surface, because "one display
+   * resolver" is only true if the crop travels with the picture. A surface that resolved the
+   * crop itself would be a second renderer wearing a disguise.
+   */
+  crop?: MediaCrop;
   cornerRadiusPx?: number;
   /** The content kind that produced it, for callers that style by type. */
   kind: ConnectedContentKind;
@@ -91,6 +100,9 @@ export function resolveObjectDisplayContent(input: {
     // `cover` fills the aperture: a photo should reach the edges of its mount and a video
     // still should fill the screen, rather than sitting letterboxed inside the moulding.
     fit: "cover",
+    // Only when the creator actually adjusted this photo — an absent crop must produce an
+    // absent style, so an untouched frame draws exactly the markup it drew before M28.1.
+    ...(c.crop ? { crop: normaliseCrop(c.crop) } : {}),
     ...(surface.cornerRadiusPx != null ? { cornerRadiusPx: surface.cornerRadiusPx } : {}),
     kind: c.kind,
     surfaceId,

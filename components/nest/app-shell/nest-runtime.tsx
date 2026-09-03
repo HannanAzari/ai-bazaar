@@ -5,6 +5,7 @@ import { Maximize2, Sparkles, X } from "lucide-react";
 import { resolveAsset, resolveBackground } from "@/lib/nest-production-library";
 import { OverlayContent } from "@/components/nest/overlay-content";
 import { placementDisplayContent } from "@/lib/nest-object-display";
+import { mediaCropStyle } from "@/lib/nest-media-crop";
 import { boxTransform, inPaintOrder, placementStyle, SCENE_ASPECT } from "@/lib/nest-geometry";
 import {
   focusCameraTransform,
@@ -31,6 +32,7 @@ import { describeInteraction, youTubeEmbedUrl, type NestInteraction } from "@/li
 import { useSceneCamera } from "@/components/nest/app-shell/use-scene-camera";
 import { clampContentIndex, nextContentIndex, swipeIntent } from "@/lib/nest-media-session";
 import { NestMediaPlayer } from "@/components/nest/app-shell/nest-media-player";
+import { NestPhotoGallery } from "@/components/nest/app-shell/nest-photo-gallery";
 import { playerAfterAction, playerTrack } from "@/lib/nest-player";
 import { CAMERA_MAX_SCALE, resolveTapTarget, type Camera, type TapCandidate } from "@/lib/nest-camera";
 import { NestStage } from "@/components/nest/nest-stage";
@@ -117,7 +119,16 @@ function NestRuntimeImpl({
    * the player cannot be confused with stopping it (see `lib/nest-player.ts` for the rule).
    */
   const [playRequest, setPlayRequest] = useState<{ objectId: string; index: number; expanded: boolean } | null>(null);
-  useEffect(() => { setContentIndex({}); setPlayRequest(null); }, [doc.id]);
+  /**
+   * M28.1 §5 — the photo gallery is open on this object.
+   *
+   * The object id and NOTHING else. Which photo is showing comes from `contentIndex`, the
+   * same map the aperture reads and a swipe writes (§6), so the gallery and the frame under
+   * it cannot disagree — there is no second cursor able to drift.
+   */
+  const [gallery, setGallery] = useState<{ objectId: string } | null>(null);
+
+  useEffect(() => { setContentIndex({}); setPlayRequest(null); setGallery(null); }, [doc.id]);
 
   const [media, setMedia] = useState<NestInteraction | null>(null);
   const [hinting, setHinting] = useState(false);
@@ -189,6 +200,28 @@ function NestRuntimeImpl({
           expanded: false, // §2 — the mini bar first. Expanding is the visitor's next choice.
         });
         return;
+      }
+
+      // ── M28.1 §5 — a photograph opens the gallery ───────────────────────────
+      //
+      // Reached only when the object did NOT take the television branch above, so anything
+      // with a `toggleTo` state machine is already gone and this is the frame's tap.
+      //
+      // Gated on the SHARED display resolver rather than on the content kind alone: the
+      // gallery may only open on a photo the visitor can actually see in the room. An
+      // object whose screen is hidden shows nothing, and opening a full-screen photo out of
+      // an apparently empty frame would be a magic trick, not an interaction.
+      const list = placementContents(p);
+      if (list.length) {
+        const idx = clampContentIndex(
+          contentIndex[p.id] ?? activeContentIndex(configForPlacement(p), list.length),
+          list.length,
+        );
+        const shown = placementDisplayContent(p, current, "runtime", idx);
+        if (shown && list[idx]?.kind === "image") {
+          setGallery({ objectId: p.id });
+          return;
+        }
       }
 
       const result = tapObject(p, current);
@@ -350,6 +383,48 @@ function NestRuntimeImpl({
   // rather than lingering over a television with nothing on it.
   useEffect(() => { if (playRequest && !track) setPlayRequest(null); }, [playRequest, track]);
 
+  // ── M28.1 §5/§6 — the photo gallery, resolved the same way the player is ────
+  //
+  // Every value here is DERIVED. The gallery holds an object id; the index comes from
+  // `contentIndex`, the photo comes from the creator's `contents[]`, and stepping writes
+  // the one map. So "the gallery opens on the photo in the frame", "swiping in the gallery
+  // moves the frame" and "closing leaves that photo in the frame" are not three behaviours
+  // to implement and keep in agreement — they are one piece of state read three times.
+  const galleryPlacement = gallery ? doc.placements.find((p) => p.id === gallery.objectId) ?? null : null;
+  const galleryContents = galleryPlacement ? placementContents(galleryPlacement) : [];
+  const galleryIndex = gallery && galleryPlacement
+    ? clampContentIndex(
+        contentIndex[gallery.objectId] ?? activeContentIndex(configForPlacement(galleryPlacement), galleryContents.length),
+        galleryContents.length,
+      )
+    : 0;
+  const galleryPhoto = galleryContents[galleryIndex] ?? null;
+  // The ORIGINAL file, not the thumbnail: this surface exists to show the photograph the
+  // creator uploaded, uncropped and at its own aspect (§5).
+  const gallerySrc = galleryPhoto?.kind === "image" ? galleryPhoto.url ?? galleryPhoto.thumbnailUrl ?? null : null;
+
+  const stepGallery = useCallback(
+    (direction: 1 | -1) => {
+      if (!gallery) return;
+      const p = doc.placements.find((q) => q.id === gallery.objectId);
+      if (!p) return;
+      const count = placementContents(p).length;
+      if (!count) return;
+      // The same single write `stepPlayer` makes, into the same map an aperture swipe
+      // writes. There is deliberately no gallery-local index to update alongside it.
+      const from = clampContentIndex(
+        contentIndex[gallery.objectId] ?? activeContentIndex(configForPlacement(p), count),
+        count,
+      );
+      setContentIndex((m) => ({ ...m, [gallery.objectId]: nextContentIndex(from, count, direction) }));
+    },
+    [gallery, doc.placements, contentIndex],
+  );
+
+  // A gallery left open on a photo that disappeared (an edit made in Preview) closes rather
+  // than dimming the room over nothing.
+  useEffect(() => { if (gallery && !gallerySrc) setGallery(null); }, [gallery, gallerySrc]);
+
   // Opening media remembers where the visitor was standing; closing puts them back, so
   // watching a video never costs them the spot they zoomed into.
   useEffect(() => {
@@ -474,7 +549,9 @@ function NestRuntimeImpl({
               // §7 — the foreground contract. An expanded player OWNS the foreground, so the
               // room's own controls stand down rather than being out-stacked by a number.
               // Room controls stay live under the MINI bar: the Nest is still explorable.
-              hidden={!!media || !!playRequest?.expanded}
+              // M28.1 §5 — the gallery owns the foreground exactly as an expanded player
+              // does. One boolean list, joined by a new surface rather than a new rule.
+              hidden={!!media || !!playRequest?.expanded || !!gallery}
             />
           ) : null}
 
@@ -495,6 +572,20 @@ function NestRuntimeImpl({
           onCollapse={collapsePlayer}
           onStop={stopPlayer}
           onStep={stepPlayer}
+        />
+      ) : null}
+
+      {/* ── M28.1 §5 — the photo gallery ──────────────────────────────────────
+          Portalled and layered exactly like the player, for the same reason: it must be
+          reachable from the editor's own Preview, and it must not scale with the camera. */}
+      {interactive && gallery && gallerySrc ? (
+        <NestPhotoGallery
+          src={gallerySrc}
+          index={galleryIndex}
+          count={galleryContents.length}
+          label={galleryPlacement?.label || undefined}
+          onStep={stepGallery}
+          onClose={() => setGallery(null)}
         />
       ) : null}
 
@@ -660,6 +751,8 @@ function PlacedObject({
             src={screenSrc}
             alt=""
             className={`nest-media-fade size-full ${display?.fit === "contain" ? "object-contain" : "object-cover"}`}
+            // M28.1 §4 — same function, same numbers, same picture as Edit and the feed.
+            style={mediaCropStyle(display?.crop)}
             loading="lazy"
           />
         </span>

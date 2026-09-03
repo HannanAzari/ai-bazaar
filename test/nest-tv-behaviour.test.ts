@@ -149,7 +149,13 @@ describe("10. the visitor's position is session-only", () => {
   });
 
   it("both session maps reset when the Nest changes", () => {
-    expect(runtime).toContain("useEffect(() => { setContentIndex({}); setPlayRequest(null); }, [doc.id]);");
+    // M28.1 — the rule is "every session map resets with the Nest", not one exact line.
+    // The gallery joined the same reset, so this pins each write plus the dependency
+    // rather than a character sequence a new surface has to break to be added.
+    expect(runtime).toMatch(
+      /useEffect\(\(\) => \{ setContentIndex\(\{\}\); setPlayRequest\(null\);[^}]*\}, \[doc\.id\]\);/,
+    );
+    expect(runtime).toContain("setGallery(null); }, [doc.id]);");
   });
 
   it("a cold read still starts at the creator's item", () => {

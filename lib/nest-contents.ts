@@ -11,6 +11,7 @@
 
 import type { AssetInteractionConfig, ConnectedContent } from "@/lib/nest-asset-interaction";
 import { youTubeThumbnailUrl, youTubeVideoId } from "@/lib/nest-interaction";
+import { isDefaultCrop, normaliseCrop, type MediaCrop } from "@/lib/nest-media-crop";
 
 /**
  * M27B-2 — an item ready to store, with its thumbnail already resolved.
@@ -88,6 +89,35 @@ export function moveContent(config: AssetInteractionConfig | undefined, from: nu
   if (chosen == null) return commit(config, next, 0);
   const nextActive = next.indexOf(list[chosen]);
   return commit(config, next, nextActive >= 0 ? nextActive : chosen);
+}
+
+/**
+ * M28.1 §2 — where one photo sits inside the aperture.
+ *
+ * Presentation only: the stored file is untouched, so this is reversible forever and Reset
+ * is a real reset rather than a re-upload. A crop that comes back to centred-and-unzoomed
+ * DELETES the field rather than storing the default, so "never adjusted" and "adjusted back
+ * to normal" are the same document — one representation per meaning, as `commit` does for
+ * an empty list and a zero `activeIndex`.
+ *
+ * `activeIndex` is passed through untouched: adjusting a photo must not change which photo
+ * the frame opens on.
+ */
+export function setContentCrop(
+  config: AssetInteractionConfig | undefined,
+  index: number,
+  crop: MediaCrop | null,
+): AssetInteractionConfig {
+  const list = storedContents(config);
+  const active = config?.activeIndex ?? 0;
+  if (index < 0 || index >= list.length) return commit(config, list, active);
+  const next = list.map((item, i) => {
+    if (i !== index) return item;
+    const rest = { ...item };
+    delete rest.crop;
+    return crop && !isDefaultCrop(crop) ? { ...rest, crop: normaliseCrop(crop) } : rest;
+  });
+  return commit(config, next, active);
 }
 
 /** Which item the object shows. */

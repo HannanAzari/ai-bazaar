@@ -18,6 +18,7 @@
 //
 // Pure: no React, no DOM, no Supabase.
 
+import type { MediaCrop } from "@/lib/nest-media-crop";
 import type { NestPlacement } from "@/lib/nest-document-types";
 import { safeUrl, youTubeThumbnailUrl, youTubeVideoId, type NestInteraction } from "@/lib/nest-interaction";
 
@@ -133,6 +134,15 @@ export type ConnectedContent = {
   storagePath?: string;
   /** A still shown on the screen before/instead of playback. */
   thumbnailUrl?: string;
+  /**
+   * M28.1 §2 — where this photo sits inside the object's aperture.
+   *
+   * Presentation, not content: the stored file is never re-encoded, cropped or replaced,
+   * so a creator can re-Adjust forever and the original is always what they are moving.
+   * Absent ⇒ centred and unzoomed, which is exactly what `object-fit: cover` did on its
+   * own before this field existed — that is what makes every older photo render unchanged.
+   */
+  crop?: MediaCrop;
   label?: string;
   loop?: boolean;
   /**

@@ -6,7 +6,10 @@ import { MobileBottomSheet, type BottomSheetSnapPoint } from "@/components/nest/
 import { capabilitiesForAsset, type AssetInteractionConfig, type ConnectedContent } from "@/lib/nest-asset-interaction";
 import { contentRejection, detectContentSource } from "@/lib/nest-content-source";
 import { removeNestMedia, shortSourceLabel, uploadNestMedia } from "@/lib/nest-media";
-import { addContent, contentThumbnail, moveContent, removeContentAt, storedContents } from "@/lib/nest-contents";
+import { addContent, contentThumbnail, moveContent, removeContentAt, setContentCrop, storedContents } from "@/lib/nest-contents";
+import { apertureAspectRatio, type MediaCrop } from "@/lib/nest-media-crop";
+import { predefinedSurfacesForAsset } from "@/lib/nest-surface-catalog";
+import { PhotoAdjustSheet } from "@/components/nest/editor/photo-adjust-sheet";
 import type { EditableNestObject } from "@/lib/nest-editor-types";
 
 // ── M26-R §P5/§P6 — Connect ──────────────────────────────────────────────────
@@ -55,6 +58,8 @@ export function InteractionPanel({
   const [error, setError] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
+  /** M28.1 §3 — the index of the photo being adjusted, or null. */
+  const [adjusting, setAdjusting] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Re-seed only when a DIFFERENT object is selected. Keying on the committed value is what
@@ -63,6 +68,7 @@ export function InteractionPanel({
     setDraft("");
     setError(null);
     setJustSaved(false);
+    setAdjusting(null);
   }, [object.instanceId]);
 
   const header = (
@@ -163,6 +169,41 @@ export function InteractionPanel({
     if (path) void removeNestMedia(path);
   };
 
+  // ── M28.1 §3 — the aperture the creator is actually filling ────────────────
+  //
+  // Not a square, and not the photo's own shape: the frame's real opening, which is the
+  // scene's 3:4 multiplied by the object's box and then by the aperture's box within it.
+  // Showing anything else would have the creator place a subject confidently into a shape
+  // the room never draws.
+  const apertureBounds = def?.screenSurfaceId
+    ? predefinedSurfacesForAsset(object.assetId).find((s) => s.id === def.screenSurfaceId)?.bounds
+    : undefined;
+  const adjustItem = adjusting != null ? items[adjusting] : undefined;
+  const adjustSrc = adjustItem?.kind === "image" ? adjustItem.url ?? adjustItem.thumbnailUrl : undefined;
+
+  const commitCrop = (crop: MediaCrop) => {
+    if (adjusting == null) return;
+    put(setContentCrop(cfg, adjusting, crop));
+    setAdjusting(null);
+  };
+
+  // Adjust takes over the sheet rather than stacking a second one over it. A sheet on a
+  // sheet is two scrims, two escape targets and two snap states on a 375px screen; taking
+  // over means Cancel/Done are the only ways out and both are on screen.
+  if (adjusting != null && adjustSrc && apertureBounds) {
+    return (
+      <MobileBottomSheet open label="Adjust photo" snap="expanded" onSnapChange={onSnapChange} onClose={() => setAdjusting(null)}>
+        <PhotoAdjustSheet
+          src={adjustSrc}
+          aspectRatio={apertureAspectRatio(object, apertureBounds)}
+          crop={adjustItem?.crop}
+          onCancel={() => setAdjusting(null)}
+          onDone={commitCrop}
+        />
+      </MobileBottomSheet>
+    );
+  }
+
   return (
     <MobileBottomSheet open label="Connect" header={header} snap={snap} onSnapChange={onSnapChange} onClose={onClose}>
       <div className="flex min-h-0 flex-1 flex-col">
@@ -181,6 +222,9 @@ export function InteractionPanel({
                     count={items.length}
                     onRemove={() => removeAt(i)}
                     onMove={(d: number) => put(moveContent(cfg, i, i + d))}
+                    // Only a photo in a frame can be adjusted: an aperture is what a crop is
+                    // relative to, so an object without one has nothing to crop against.
+                    onAdjust={item.kind === "image" && apertureBounds ? () => { setAdjusting(i); onSnapChange("expanded"); } : undefined}
                   />
                 ))}
               </ul>
@@ -290,12 +334,15 @@ function ContentRow({
   count,
   onRemove,
   onMove,
+  onAdjust,
 }: {
   item: ConnectedContent;
   index: number;
   count: number;
   onRemove: () => void;
   onMove: (delta: number) => void;
+  /** M28.1 §3 — absent for anything that is not a photo in an aperture. */
+  onAdjust?: () => void;
 }) {
   const thumb = contentThumbnail(item);
   const source = item.url ? detectContentSource(item.url) : null;
@@ -317,9 +364,21 @@ function ContentRow({
         <span className="mt-0.5 block truncate text-[12px] leading-snug text-ink/45">
           {item.storagePath ? "Uploaded" : shortSourceLabel(item.url ?? "")}
           {index === 0 && count > 1 ? " · showing" : ""}
+          {item.crop ? " · adjusted" : ""}
         </span>
       </span>
       <span className="flex shrink-0 items-center">
+        {/* Compact by instruction (§3): a word, in the row, next to the photo it acts on —
+            not a mode, not a second screen to find. */}
+        {onAdjust ? (
+          <button
+            type="button"
+            onClick={onAdjust}
+            className="mr-0.5 min-h-8 rounded-lg px-2 text-[13px] font-bold text-ink/55 hover:bg-ink/5 hover:text-ink"
+          >
+            Adjust
+          </button>
+        ) : null}
         <button type="button" aria-label="Move up" disabled={index === 0} onClick={() => onMove(-1)}
           className="grid size-8 place-items-center rounded-lg text-ink/45 disabled:opacity-25">
           <ChevronUp className="size-4" />

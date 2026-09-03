@@ -21,6 +21,7 @@ import type { LivingNestAsset } from "@/lib/nest-visual-types";
 import { aspectRatioCss } from "@/lib/nest-render";
 import { boxTransform } from "@/lib/nest-geometry";
 import { editableObjectDisplayContent } from "@/lib/nest-object-display";
+import { mediaCropStyle } from "@/lib/nest-media-crop";
 import type { EditableNestDocument, EditableNestObject } from "@/lib/nest-editor-types";
 import { moveObject, resizeObject, rotateObject, type ReorderOp } from "@/lib/nest-editor";
 import { canFlipObject, canRotateObject, snapRotation } from "@/lib/nest-editor-policy";
@@ -953,7 +954,15 @@ function ObjectDisplayLayer({ object }: { object: EditableNestObject }) {
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- creator media, already a URL */}
-      <img src={display.src} alt="" className={`size-full ${display.fit === "contain" ? "object-contain" : "object-cover"}`} />
+      <img
+        src={display.src}
+        alt=""
+        className={`size-full ${display.fit === "contain" ? "object-contain" : "object-cover"}`}
+        // M28.1 §4 — the crop the resolver carried, applied by the one shared function.
+        // Edit cannot drift from Preview or the visitor Nest because none of them computes
+        // anything; they all render the same three numbers through `mediaCropStyle`.
+        style={mediaCropStyle(display.crop)}
+      />
     </span>
   );
 }

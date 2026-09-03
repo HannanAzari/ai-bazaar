@@ -192,7 +192,13 @@ describe("6. the visitor's position stays in the visit", () => {
   });
 
   it("player and index both reset when the Nest changes", () => {
-    expect(runtime).toContain("useEffect(() => { setContentIndex({}); setPlayRequest(null); }, [doc.id]);");
+    // M28.1 — the rule is "every session map resets with the Nest", not one exact line.
+    // The gallery joined the same reset, so this pins each write plus the dependency
+    // rather than a character sequence a new surface has to break to be added.
+    expect(runtime).toMatch(
+      /useEffect\(\(\) => \{ setContentIndex\(\{\}\); setPlayRequest\(null\);[^}]*\}, \[doc\.id\]\);/,
+    );
+    expect(runtime).toContain("setGallery(null); }, [doc.id]);");
   });
 });
 
@@ -226,7 +232,13 @@ describe("7. the expanded player owns the foreground", () => {
   });
 
   it("room controls stand down under an EXPANDED player, and stay live under the mini bar", () => {
-    expect(runtime).toContain("hidden={!!media || !!playRequest?.expanded}");
+    // M28.1 — the foreground contract gained a third full-screen surface (the photo
+    // gallery). The contract is unchanged: ONE boolean, asked by every canvas control, that
+    // every owning surface joins. So assert that each owner is in the list and that the
+    // mini bar still is not — the property — instead of the exact expression.
+    expect(runtime).toMatch(/hidden=\{!!media \|\| !!playRequest\?\.expanded[^}]*\}/);
+    expect(runtime).toContain("|| !!gallery}");
+    expect(runtime).not.toMatch(/hidden=\{[^}]*!!playRequest\}/);
   });
 
   it("the bar clears the app's bottom navigation by measuring it", () => {

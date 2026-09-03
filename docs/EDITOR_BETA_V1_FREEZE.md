@@ -128,6 +128,10 @@ not in a second renderer — because there isn't one.
   catalogue.
 - A stale index **clamps**; it never blanks the frame.
 
+> **Extended by M28.1** — a frame photo may now carry an optional per-item `crop`
+> (`{x, y, zoom}`), and a tap on a frame opens the photo gallery. Neither changes anything
+> above. See §11.
+
 ## 7. TV behaviour — FROZEN
 
 ```
@@ -221,6 +225,43 @@ Message: `This video format isn't supported yet. Use MP4 or connect a YouTube vi
 Measured in Chromium: `canPlayType('video/mp4; codecs="hvc1"')` → `""`,
 `canPlayType('video/quicktime')` → `""`. **Transcoding is post-beta.** This guard is what makes
 not having it honest.
+
+
+## 11. M28.1 — per-photo crop, and the gallery (added after the freeze)
+
+Two additions to the frame, made under the freeze rather than around it.
+
+**Crop.** Each image item may carry `crop: { x, y, zoom }` — a normalised focal point with
+CSS `object-position` semantics, and a zoom that is never below 1. Absent ⇒ nothing is
+written to the DOM at all, so every photo published before M28.1 renders byte-identically.
+`lib/nest-media-crop.ts` owns the whole model; `mediaCropStyle()` is the ONLY producer of
+the style, and the editor canvas and the runtime both call it with the value the shared
+display resolver carried. There is still no per-surface display logic (§5).
+
+The covering invariant: for `x, y ∈ [0,1]` and `zoom ≥ 1` the aperture is always fully
+covered, because the content's offset is exactly `-x · (zoom · coverWidth − apertureWidth)`
+on each axis. Clamping in `normaliseCrop` is therefore the entire safety argument — there is
+no separate validity check, and a corrupt stored value cannot open a gutter in a mount.
+
+The stored file is **never** re-encoded or replaced. Adjust is presentation, and reversible
+forever; Reset deletes the field rather than storing the default.
+
+**Gallery.** `components/nest/app-shell/nest-photo-gallery.tsx`. A tap on a frame — which
+previously did nothing, because `contentInteraction` correctly returns null for an image on
+an object that has a screen — opens the photograph full-size, `contain`, over a dimmed and
+blurred room. It inherits the player's three rules verbatim: **no index of its own** (it
+renders and writes the runtime's `contentIndex`, so the frame beneath it cannot drift), **the
+room is not touched** (nothing there reads, writes or restores the camera), and it portals to
+`<body>` at `LAYER.player`.
+
+> That last one bit again, exactly as §3 warns. The gallery first imported `z` — the map of
+> Tailwind CLASS strings — and used it as `style.zIndex`. The computed value came back
+> `auto`, which would have stacked the gallery by DOM order and painted it **under the editor
+> shell** in Preview. Invisible in review; found by reading `getComputedStyle` in a browser.
+> Use `LAYER` for a number and `z` for a class, and measure.
+
+Home is unchanged and stays non-interactive (`interactive={false}` ⇒ `mode="card"`), and Edit
+is unchanged: a tap still selects the object, and crop is authored through Connect → Adjust.
 
 ---
 
